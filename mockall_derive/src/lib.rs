@@ -19,35 +19,35 @@ fn mock_path(path: &syn::Path) -> syn::Path {
 }
 
 /// Generate a mock method and its expectation method
-fn mock_method(meth: &syn::ImplItemMethod) -> TokenStream {
-    let mut output = TokenStream::new();
+fn mock_method(meth: &syn::ImplItemMethod) -> (TokenStream, TokenStream) {
+    let mut mock_output = TokenStream::new();
     // First the mock method
     if let Some(d) = meth.defaultness {
-        d.to_tokens(&mut output);
+        d.to_tokens(&mut mock_output);
     }
-    meth.vis.to_tokens(&mut output);
+    meth.vis.to_tokens(&mut mock_output);
     if let Some(c) = &meth.sig.constness {
-        c.to_tokens(&mut output);
+        c.to_tokens(&mut mock_output);
     }
     if let Some(u) = &meth.sig.unsafety {
-        u.to_tokens(&mut output);
+        u.to_tokens(&mut mock_output);
     }
     if let Some(a) = &meth.sig.asyncness {
-        a.to_tokens(&mut output);
+        a.to_tokens(&mut mock_output);
     }
     if let Some(a) = &meth.sig.abi {
-        a.to_tokens(&mut output);
+        a.to_tokens(&mut mock_output);
     }
-    meth.sig.decl.fn_token.to_tokens(&mut output);
-    meth.sig.ident.to_tokens(&mut output);
-    meth.sig.decl.generics.to_tokens(&mut output);
+    meth.sig.decl.fn_token.to_tokens(&mut mock_output);
+    meth.sig.ident.to_tokens(&mut mock_output);
+    meth.sig.decl.generics.to_tokens(&mut mock_output);
     let mut inputs = TokenStream::new();
     meth.sig.decl.inputs.to_tokens(&mut inputs);
-    quote!((#inputs)).to_tokens(&mut output);
+    quote!((#inputs)).to_tokens(&mut mock_output);
     if let Some(v) = &meth.sig.decl.variadic {
-        v.to_tokens(&mut output);
+        v.to_tokens(&mut mock_output);
     }
-    meth.sig.decl.output.to_tokens(&mut output);
+    meth.sig.decl.output.to_tokens(&mut mock_output);
 
     let mut input_type
         = syn::punctuated::Punctuated::<syn::Type, syn::Token![,]>::new();
@@ -70,21 +70,53 @@ fn mock_method(meth: &syn::ImplItemMethod) -> TokenStream {
     let ident = format!("{}", meth.sig.ident);
 
     quote!({self.e.called::<(#input_type), #output_type>(#ident)})
-        .to_tokens(&mut output);
+        .to_tokens(&mut mock_output);
 
     // Then the expectation method
+    let mut expect_output = TokenStream::new();
     let expect_ident = syn::Ident::new(&format!("expect_{}", meth.sig.ident),
                                        meth.sig.ident.span());
     quote!(pub fn #expect_ident(&mut self)
            -> mockall::Expectation<(#input_type), #output_type> {
         self.e.expect::<(#input_type), #output_type>(#ident)
-   }).to_tokens(&mut output);
+   }).to_tokens(&mut expect_output);
 
-    output
+    (mock_output, expect_output)
 }
 
 fn gen_impl(item: syn::ItemImpl) -> TokenStream {
     let mut output = TokenStream::new();
+    let mut mock_body = TokenStream::new();
+    let mut expect_body = TokenStream::new();
+
+    let mock_type = match *item.self_ty {
+        syn::Type::Path(type_path) => {
+            assert!(type_path.qself.is_none(), "What is qself?");
+            mock_path(&type_path.path)
+        },
+        _ => unimplemented!("This self type is not yet supported by MockAll")
+    };
+
+    for impl_item in item.items {
+        match impl_item {
+            syn::ImplItem::Const(_) => {
+                // const items can easily be added by the user in a separate
+                // impl block
+            },
+            syn::ImplItem::Existential(ty) => ty.to_tokens(&mut mock_body),
+            syn::ImplItem::Type(ty) => ty.to_tokens(&mut mock_body),
+            syn::ImplItem::Method(meth) => {
+                let (mock_meth, expect_meth) = mock_method(&meth);
+                mock_meth.to_tokens(&mut mock_body);
+                expect_meth.to_tokens(&mut expect_body);
+            },
+            _ => {
+                unimplemented!("This impl item is not yet supported by MockAll")
+            }
+        }
+    }
+
+    // Put all mock methods in one impl block
     item.unsafety.to_tokens(&mut output);
     item.impl_token.to_tokens(&mut output);
     item.generics.to_tokens(&mut output);
@@ -96,32 +128,15 @@ fn gen_impl(item: syn::ItemImpl) -> TokenStream {
         path.to_tokens(&mut output);
         for_.to_tokens(&mut output);
     }
-    match *item.self_ty {
-        syn::Type::Path(type_path) => {
-            assert!(type_path.qself.is_none());
-            mock_path(&type_path.path).to_tokens(&mut output);
-        },
-        _ => unimplemented!("This self type is not yet supported by MockAll")
-    }
+    mock_type.to_tokens(&mut output);
+    quote!({#mock_body}).to_tokens(&mut output);
 
-    let mut body = TokenStream::new();
-    for impl_item in item.items {
-        match impl_item {
-            syn::ImplItem::Const(_) => {
-                // const items can easily be added by the user in a separate
-                // impl block
-            },
-            syn::ImplItem::Existential(ty) => ty.to_tokens(&mut body),
-            syn::ImplItem::Type(ty) => ty.to_tokens(&mut body),
-            syn::ImplItem::Method(meth) => {
-                mock_method(&meth).to_tokens(&mut body)
-            },
-            _ => {
-                unimplemented!("This impl item is not yet supported by MockAll")
-            }
-        }
-    }
-    quote!({#body}).to_tokens(&mut output);
+    // Put all expect methods in a separate impl block.  This is necessary when
+    // mocking a trait impl, where we can't add any new methods
+    item.impl_token.to_tokens(&mut output);
+    item.generics.to_tokens(&mut output);
+    mock_type.to_tokens(&mut output);
+    quote!({#expect_body}).to_tokens(&mut output);
 
     output
 }
@@ -216,6 +231,8 @@ use super::*;
 ///     fn foo(&self, x: u32) -> i64 {
 ///         self.e.called::<(u32), i64>("foo")
 ///     }
+/// }
+/// impl MockSimpleStruct {
 ///     pub fn expect_foo(&mut self) -> mockall::Expectation<(u32), i64> {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -246,6 +263,8 @@ type SimpleStruct = ();
 ///     fn foo(&self, x: u32) -> i64 {
 ///         self.e.called::<(u32), i64>("foo")
 ///     }
+/// }
+/// impl<'a, T, V> MockGenericStruct<'a, T, V> {
 ///     pub fn expect_foo(&mut self) -> mockall::Expectation<(u32), i64> {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -262,12 +281,12 @@ type GenericStruct = ();
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
-/// impl Foo for SomeStruct {
+/// impl Foo for MockSomeStruct {
 ///     fn foo(&self, x: u32) -> i64 {
 ///         self.e.called::<(u32), i64>("foo")
 ///     }
 /// }
-/// impl SomeStruct {
+/// impl MockSomeStruct {
 ///     pub fn expect_foo(&mut self) -> mockall::Expectation<(u32), i64> {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -288,6 +307,8 @@ type ImplTrait = ();
 ///     fn foo(self, x: u32) -> i64 {
 ///         self.e.called::<(u32), i64>("foo")
 ///     }
+/// }
+/// impl MockMethodByValue {
 ///     pub fn expect_foo(&mut self) -> mockall::Expectation<(u32), i64> {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -316,6 +337,8 @@ type MethodByValue = ();
 ///     pub fn foo(&self, x: u32) -> i64 {
 ///         self.e.called::<(u32), i64>("foo")
 ///     }
+/// }
+/// impl MockPubStruct {
 ///     pub fn expect_foo(&mut self) -> mockall::Expectation<(u32), i64> {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -344,6 +367,8 @@ type PubStruct = ();
 ///     pub(crate) fn foo(&self, x: u32) -> i64 {
 ///         self.e.called::<(u32), i64>("foo")
 ///     }
+/// }
+/// impl MockPubCrateStruct {
 ///     pub fn expect_foo(&mut self) -> mockall::Expectation<(u32), i64> {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -372,6 +397,8 @@ type PubCrateStruct = ();
 ///     pub(super) fn foo(&self, x: u32) -> i64 {
 ///         self.e.called::<(u32), i64>("foo")
 ///     }
+/// }
+/// impl MockPubSuperStruct {
 ///     pub fn expect_foo(&mut self) -> mockall::Expectation<(u32), i64> {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
