@@ -168,12 +168,7 @@ fn gen_struct(vis: &syn::Visibility,
               generics: &syn::Generics) -> TokenStream
 {
     let mut output = TokenStream::new();
-    vis.to_tokens(&mut output);
-    syn::token::Struct{span: Span::call_site()}.to_tokens(&mut output);
     let ident = gen_mock_ident(&ident);
-    ident.to_tokens(&mut output);
-    generics.to_tokens(&mut output);
-
     let mut body: TokenStream = "e: ::mockall::Expectations,".parse().unwrap();
     let mut count = 0;
     for param in generics.params.iter() {
@@ -186,7 +181,12 @@ fn gen_struct(vis: &syn::Visibility,
             count += 1;
         }
     }
-    quote!({#body}).to_tokens(&mut output);
+    quote!(
+        #[derive(Default)]
+        #vis struct #ident #generics {
+            #body
+        }
+    ).to_tokens(&mut output);
 
     output
 }
@@ -293,6 +293,7 @@ use super::*;
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
+/// #[derive(Default)]
 /// struct MockSimpleStruct {
 ///     e: ::mockall::Expectations,
 /// }
@@ -325,6 +326,7 @@ type SimpleStruct = ();
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
+/// #[derive(Default)]
 /// struct MockGenericStruct<'a, T, V> {
 ///     e: ::mockall::Expectations,
 ///     _t0: ::std::marker::PhantomData<T>,
@@ -407,6 +409,7 @@ type MethodByValue = ();
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
+/// #[derive(Default)]
 /// pub struct MockPubStruct {
 ///     e: ::mockall::Expectations,
 /// }
@@ -439,6 +442,7 @@ type PubStruct = ();
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
+/// #[derive(Default)]
 /// pub(crate) struct MockPubCrateStruct {
 ///     e: ::mockall::Expectations,
 /// }
@@ -471,6 +475,7 @@ type PubCrateStruct = ();
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
+/// #[derive(Default)]
 /// pub(super) struct MockPubSuperStruct {
 ///     e: ::mockall::Expectations,
 /// }
@@ -503,6 +508,7 @@ type PubSuperStruct = ();
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
+/// #[derive(Default)]
 /// struct MockSimpleTrait {
 ///     e: ::mockall::Expectations,
 /// }
