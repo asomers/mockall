@@ -172,14 +172,26 @@ fn gen_struct(vis: &syn::Visibility,
     let mut body: TokenStream = "e: ::mockall::Expectations,".parse().unwrap();
     let mut count = 0;
     for param in generics.params.iter() {
-        if let syn::GenericParam::Type(tp) = param {
-            let ty = &tp.ident;
-            let phname = format!("_t{}", count);
-            let phident = syn::Ident::new(&phname, tp.ident.span());
-            let var = quote!(#phident: ::std::marker::PhantomData<#ty>,);
-            var.to_tokens(&mut body);
-            count += 1;
+        let phname = format!("_t{}", count);
+        let phident = syn::Ident::new(&phname, Span::call_site());
+        match param {
+            syn::GenericParam::Lifetime(l) => {
+                assert!(l.bounds.is_empty(),
+                    "#mock does not yet support lifetime bounds on structs");
+                let lifetime = &l.lifetime;
+                quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>,)
+                    .to_tokens(&mut body);
+            },
+            syn::GenericParam::Type(tp) => {
+                let ty = &tp.ident;
+                quote!(#phident: ::std::marker::PhantomData<#ty>,)
+                    .to_tokens(&mut body);
+            },
+            syn::GenericParam::Const(_) => {
+                unimplemented!("#mock does not yet support generic constants");
+            }
         }
+        count += 1;
     }
     quote!(
         #[derive(Default)]
@@ -329,12 +341,14 @@ type SimpleStruct = ();
 /// #[derive(Default)]
 /// struct MockGenericStruct<'a, T, V> {
 ///     e: ::mockall::Expectations,
-///     _t0: ::std::marker::PhantomData<T>,
-///     _t1: ::std::marker::PhantomData<V>,
+///     _t0: ::std::marker::PhantomData<&'a ()>,
+///     _t1: ::std::marker::PhantomData<T>,
+///     _t2: ::std::marker::PhantomData<V>,
 /// }
 /// )]
 /// struct GenericStruct<'a, T, V> {
-///     x: i16
+///     t: T,
+///     v: &'a V
 /// }
 /// #[expect_mock(
 /// impl<'a, T, V> MockGenericStruct<'a, T, V> {
