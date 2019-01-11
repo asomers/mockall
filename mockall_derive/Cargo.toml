@@ -11,6 +11,7 @@ proc-macro = true
 internal_testing = []
 
 [dependencies]
+mockall = { path = "../mockall" }
 proc-macro2 = "0.4"
 quote = "0.6"
 syn = { version = "0.15", features = ["full"] }
