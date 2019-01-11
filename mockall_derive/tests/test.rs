@@ -4,6 +4,40 @@ use mockall;
 use mockall_derive::mock;
 use std::default::Default;
 
+/// Mocking a trait with associated types currently requires manual mocking.
+/// TODO: add derive support for this.
+#[test]
+fn associated_types() {
+    trait A {
+        type T;
+        fn foo(&self, x: Self::T) -> Self::T;
+    }
+
+    #[derive(Default)]
+    struct MockA {
+        e: ::mockall::Expectations,
+    }
+    impl A for MockA {
+        type T=u32;
+
+        fn foo(&self, x: Self::T) -> Self::T {
+            self.e.called::<Self::T, Self::T>("foo", x)
+        }
+    }
+    impl MockA {
+        pub fn expect_foo(&mut self)
+            -> ::mockall::ExpectationBuilder<<Self as A>::T, <Self as A>::T>
+        {
+            self.e.expect::<<Self as A>::T, <Self as A>::T>("foo")
+        }
+    }
+
+    let mut mock = MockA::default();
+    mock.expect_foo()
+        .returning(|x| x);
+    assert_eq!(4, mock.foo(4));
+}
+
 #[test]
 #[allow(unused)]
 fn generic_struct() {
