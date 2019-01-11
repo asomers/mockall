@@ -13,11 +13,11 @@ trait ExpectationT : Any {}
 downcast!(ExpectationT);
 
 struct Expectation<I, O> {
-    rfunc: Option<Box<Fn(I) -> O>>
+    rfunc: Option<Box<FnMut(I) -> O>>
 }
 
 impl<I, O> Expectation<I, O> {
-    fn new(rfunc: Option<Box<Fn(I) -> O>>) -> Self {
+    fn new(rfunc: Option<Box<FnMut(I) -> O>>) -> Self {
         Expectation{rfunc}
     }
 }
@@ -28,7 +28,7 @@ pub struct ExpectationBuilder<'object, I, O>
     where I: 'static, O: 'static
 {
     e: &'object mut Expectations,
-    rfunc: Option<Box<Fn(I) -> O>>,
+    rfunc: Option<Box<FnMut(I) -> O>>,
     ident: String
 }
 
@@ -42,7 +42,7 @@ impl<'object, I, O> ExpectationBuilder<'object, I, O>
     }
 
     pub fn returning<F>(mut self, f: F) -> Self
-        where F: Fn(I) -> O + 'static
+        where F: FnMut(I) -> O + 'static
     {
         self.rfunc = Some(Box::new(f));
         self
@@ -87,18 +87,17 @@ impl Expectations {
     pub fn expect<I, O>(&mut self, ident: &str) -> ExpectationBuilder<I, O>
         where I: 'static, O: 'static
     {
-        let e = ExpectationBuilder::<I, O>::new(self, ident);
-        e
+        ExpectationBuilder::<I, O>::new(self, ident)
     }
 
     pub fn called<I: 'static, O: 'static>(&self, ident: &str, args: I) -> O {
         let key = Key::new::<I, O>(ident);
         let mut guard = self.store.lock().unwrap();
         let store: &mut HashMap<_, _> = guard.deref_mut();
-        let e: &Expectation<I, O> = store.get(&key)
+        let e: &mut Expectation<I, O> = store.get_mut(&key)
             .expect("No matching expectation found")
-            .downcast_ref()
+            .downcast_mut()
             .unwrap();
-        e.rfunc.as_ref().unwrap()(args)
+        e.rfunc.as_mut().unwrap()(args)
     }
 }
