@@ -48,6 +48,26 @@ fn impl_trait() {
     assert_eq!(5, mock.foo(4));
 }
 
+/// mockall should be able to mock methods with at least 16 arguments
+#[test]
+#[allow(unused)]
+fn many_args() {
+    #[mock]
+    struct ManyArgs {}
+    #[mock]
+    impl ManyArgs {
+        fn foo(&self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
+               _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
+               _a12: u8, _a13: u8, _a14: u8, _a15: u8) {
+        }
+    }
+
+    let mut mock = MockManyArgs::default();
+    mock.expect_foo()
+        .returning(|_: (u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8)| ());
+    mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 #[test]
 #[allow(unused)]
 fn method_self_by_value() {

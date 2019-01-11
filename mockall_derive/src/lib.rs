@@ -72,7 +72,6 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     };
     let ident = format!("{}", sig.ident);
     let mut args = Vec::new();
-    args.push(quote!(#ident));
     for p in sig.decl.inputs.iter() {
         match p {
             syn::FnArg::SelfRef(_) | syn::FnArg::SelfValue(_) => {
@@ -86,7 +85,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
         }
     }
 
-    quote!({self.e.called::<(#input_type), #output_type>(#(#args),*)})
+    quote!({self.e.called::<(#input_type), #output_type>(#ident, (#(#args),*))})
         .to_tokens(&mut mock_output);
 
     // Then the expectation method
@@ -316,7 +315,7 @@ use super::*;
 /// #[expect_mock(
 /// impl MockSimpleStruct {
 ///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl MockSimpleStruct {
@@ -339,6 +338,37 @@ type SimpleStruct = ();
 /// # use mockall_derive::{mock, expect_mock};
 /// #[expect_mock(
 /// #[derive(Default)]
+/// struct MockTwoArgs {
+///     e: ::mockall::Expectations,
+/// }
+/// )]
+/// struct TwoArgs {}
+/// #[expect_mock(
+/// impl MockTwoArgs {
+///     fn foo(&self, x: u32, y: u32) -> i64 {
+///         self.e.called::<(u32, u32), i64>("foo", (x, y))
+///     }
+/// }
+/// impl MockTwoArgs {
+///     pub fn expect_foo(&mut self)
+///         -> ::mockall::ExpectationBuilder<(u32, u32), i64>
+///     {
+///         self.e.expect::<(u32, u32), i64>("foo")
+///     }
+/// }
+/// )]
+/// impl TwoArgs {
+///     fn foo(&self, x: u32, y: u32) -> i64 {
+///         42
+///     }
+/// }
+/// ```
+type TwoArgs = ();
+
+/// ```no_run
+/// # use mockall_derive::{mock, expect_mock};
+/// #[expect_mock(
+/// #[derive(Default)]
 /// struct MockGenericStruct<'a, T, V> {
 ///     e: ::mockall::Expectations,
 ///     _t0: ::std::marker::PhantomData<&'a ()>,
@@ -353,7 +383,7 @@ type SimpleStruct = ();
 /// #[expect_mock(
 /// impl<'a, T, V> MockGenericStruct<'a, T, V> {
 ///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl<'a, T, V> MockGenericStruct<'a, T, V> {
@@ -377,7 +407,7 @@ type GenericStruct = ();
 /// #[expect_mock(
 /// impl Foo for MockSomeStruct {
 ///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl MockSomeStruct {
@@ -401,7 +431,7 @@ type ImplTrait = ();
 /// #[expect_mock(
 /// impl MockMethodByValue {
 ///     fn foo(self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl MockMethodByValue {
@@ -434,7 +464,7 @@ type MethodByValue = ();
 /// #[expect_mock(
 /// impl MockPubStruct {
 ///     pub fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl MockPubStruct {
@@ -467,7 +497,7 @@ type PubStruct = ();
 /// #[expect_mock(
 /// impl MockPubCrateStruct {
 ///     pub(crate) fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl MockPubCrateStruct {
@@ -500,7 +530,7 @@ type PubCrateStruct = ();
 /// #[expect_mock(
 /// impl MockPubSuperStruct {
 ///     pub(super) fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl MockPubSuperStruct {
@@ -528,7 +558,7 @@ type PubSuperStruct = ();
 /// }
 /// impl SimpleTrait for MockSimpleTrait {
 ///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", x)
+///         self.e.called::<(u32), i64>("foo", (x))
 ///     }
 /// }
 /// impl MockSimpleTrait {
