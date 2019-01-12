@@ -69,6 +69,22 @@ fn generic_parameters() {
 }
 
 #[test]
+fn generic_return() {
+    #[mock]
+    trait A {
+        fn foo<T: 'static>(&self, t: T) -> T;
+    }
+
+    let mut mock = MockA::default();
+    mock.expect_foo::<u32>()
+        .returning(|_x: u32| 42u32);
+    mock.expect_foo::<i16>()
+        .returning(|_x: i16| 42i16);
+    assert_eq!(42u32, mock.foo(5u32));
+    assert_eq!(42i16, mock.foo(-1i16));
+}
+
+#[test]
 #[allow(unused)]
 fn generic_struct() {
     #[mock]
@@ -87,6 +103,19 @@ fn generic_struct() {
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
+}
+
+#[test]
+fn generic_trait() {
+    #[mock]
+    trait A<T> {
+        fn foo(&self);
+    }
+
+    let mut mock = MockA::<u32>::default();
+    mock.expect_foo()
+        .returning(|_| ());
+    mock.foo();
 }
 
 #[test]

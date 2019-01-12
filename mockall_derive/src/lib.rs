@@ -229,13 +229,15 @@ fn mock_trait(item: syn::ItemTrait) -> TokenStream {
     let ident = &item.ident;
     let generics = &item.generics;
     let mock_ident = gen_mock_ident(&ident);
-    quote!(impl #ident #generics for #mock_ident {#mock_body})
-        .to_tokens(&mut output);
+    quote!(impl #generics #ident #generics for #mock_ident #generics {
+        #mock_body
+    }).to_tokens(&mut output);
 
     // Put all expect methods in a separate impl block.  This is necessary when
     // mocking a trait impl, where we can't add any new methods
-    quote!(impl #generics #mock_ident {#expect_body})
-        .to_tokens(&mut output);
+    quote!(impl #generics #mock_ident #generics {
+        #expect_body
+    }).to_tokens(&mut output);
 
     output
 
@@ -418,6 +420,33 @@ type GenericMethod = ();
 /// }
 /// ```
 type GenericStruct = ();
+
+/// ```no_run
+/// # use mockall_derive::{mock, expect_mock};
+/// #[expect_mock(
+/// #[derive(Default)]
+/// struct MockGenericTrait<T> {
+///     e: ::mockall::Expectations,
+///     _t0: ::std::marker::PhantomData<T>,
+/// }
+/// impl<T> GenericTrait<T> for MockGenericTrait<T> {
+///     fn foo(&self, t: T) -> u32 {
+///         self.e.called::<(T), u32>("foo", (t))
+///     }
+/// }
+/// impl<T> MockGenericTrait<T> {
+///     pub fn expect_foo(&mut self)
+///         -> ::mockall::ExpectationBuilder<(T), u32>
+///     {
+///         self.e.expect::<(T), u32>("foo")
+///     }
+/// }
+/// )]
+/// trait GenericTrait<T> {
+///     fn foo(&self, t: T) -> u32;
+/// }
+/// ```
+type GenericTrait = ();
 
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};
