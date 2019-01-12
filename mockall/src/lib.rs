@@ -12,7 +12,7 @@ use std::{
     sync::Mutex
 };
 
-trait ExpectationT : Any {}
+trait ExpectationT : Any + Send {}
 downcast!(ExpectationT);
 
 /// Return functions for expectations
@@ -20,10 +20,10 @@ enum Rfunc<I, O> {
     Default,
     // Indicates that a `return_once` expectation has already returned
     Expired,
-    Mut(Box<dyn FnMut(I) -> O>),
+    Mut(Box<dyn FnMut(I) -> O + Send>),
     // Should be Box<dyn FnOnce> once that feature is stabilized
     // https://github.com/rust-lang/rust/issues/28796
-    Once(Box<dyn FnMut(I) -> O>),
+    Once(Box<dyn FnMut(I) -> O + Send>),
 }
 
 // TODO: change this to "impl FnMut" once unboxed_closures are stable
@@ -109,14 +109,14 @@ impl<'object, I, O> ExpectationBuilder<'object, I, O>
     }
 
     pub fn returning<F>(mut self, f: F) -> Self
-        where F: FnMut(I) -> O + 'static
+        where F: FnMut(I) -> O + Send + 'static
     {
         self.rfunc = Rfunc::Mut(Box::new(f));
         self
     }
 
     pub fn return_once<F>(mut self, f: F) -> Self
-        where F: FnOnce(I) -> O + 'static
+        where F: FnOnce(I) -> O + Send + 'static
     {
         let mut fopt = Some(f);
         let fmut = move |i| {

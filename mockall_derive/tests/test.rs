@@ -310,6 +310,36 @@ fn return_owned() {
     mock.foo();
 }
 
+// TODO: mock non-'static lifetimes
+///// Mock a method that returns through its arguments
+//#[test]
+//fn return_parameters() {
+    //#[mock]
+    //trait T {
+        //fn foo(&self, x: &mut u32);
+    //}
+
+    //let mut mock = MockT::default();
+    //let mut x = 5;
+    //mock.expect_foo()
+        //.returning(|x: &mut u32| {
+            //*x = 42;
+        //});
+    //mock.foo(&mut x);
+    //assert_eq!(42, x);
+//}
+
+#[test]
+fn send() {
+    #[mock]
+    trait T {
+        fn foo(&self) -> u32;
+    }
+
+    let mock = MockT::default();
+    Box::new(mock) as Box<T + Send>;
+}
+
 #[test]
 #[allow(unused)]
 fn simple_struct() {
