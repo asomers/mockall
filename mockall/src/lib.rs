@@ -18,7 +18,12 @@ downcast!(ExpectationT);
 /// Return functions for expectations
 enum Rfunc<I, O> {
     Default,
-    Mut(Box<dyn FnMut(I) -> O>)
+    // Indicates that a `return_once` expectation has already returned
+    Expired,
+    Mut(Box<dyn FnMut(I) -> O>),
+    // Should be Box<dyn FnOnce> once that feature is stabilized
+    // https://github.com/rust-lang/rust/issues/28796
+    Once(Box<dyn FnMut(I) -> O>),
 }
 
 // TODO: change this to "impl FnMut" once unboxed_closures are stable
@@ -29,9 +34,20 @@ impl<I, O>  Rfunc<I, O> {
             Rfunc::Default => {
                 Self::return_default()
             },
+            Rfunc::Expired => {
+                panic!("Called a method twice that was expected only once")
+            },
             Rfunc::Mut(f) => {
                 f(args)
-            }
+            },
+            Rfunc::Once(_) => {
+                let fo = mem::replace(self, Rfunc::Expired);
+                if let Rfunc::Once(mut f) = fo {
+                    f(args)
+                } else {
+                    unreachable!()
+                }
+            },
         }
     }
 }
@@ -96,6 +112,21 @@ impl<'object, I, O> ExpectationBuilder<'object, I, O>
         where F: FnMut(I) -> O + 'static
     {
         self.rfunc = Rfunc::Mut(Box::new(f));
+        self
+    }
+
+    pub fn return_once<F>(mut self, f: F) -> Self
+        where F: FnOnce(I) -> O + 'static
+    {
+        let mut fopt = Some(f);
+        let fmut = move |i| {
+            if let Some(f) = fopt.take() {
+                f(i)
+            } else {
+                panic!("Called a method twice that was expected only once")
+            }
+        };
+        self.rfunc = Rfunc::Once(Box::new(fmut));
         self
     }
 }

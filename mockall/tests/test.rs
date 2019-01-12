@@ -54,6 +54,28 @@ fn return_default_panics_for_non_default_types() {
     e.called::<(), NonDefault>(&"foo", ());
 }
 
+#[test]
+fn return_owned() {
+    struct NonCopy{}
+    let mut e = Expectations::default();
+    let r = NonCopy{};
+    e.expect::<(), NonCopy>(&"foo")
+        .return_once(|_| r);
+    e.called::<(), NonCopy>(&"foo", ());
+}
+
+#[test]
+#[should_panic(expected = "expected only once")]
+fn return_owned_too_many_times() {
+    struct NonCopy{}
+    let mut e = Expectations::default();
+    let r = NonCopy{};
+    e.expect::<(), NonCopy>(&"foo")
+        .return_once(|_| r);
+    e.called::<(), NonCopy>(&"foo", ());
+    e.called::<(), NonCopy>(&"foo", ());
+}
+
 /// A MockObject with a simple method like:
 /// fn foo(&self, x: i32) -> u32
 #[test]

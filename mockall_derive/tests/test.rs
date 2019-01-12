@@ -296,6 +296,21 @@ fn pub_struct() {
 //}
 
 #[test]
+fn return_owned() {
+    struct NonCopy{}
+    #[mock]
+    trait T {
+        fn foo(&self) -> NonCopy;
+    }
+
+    let mut mock = MockT::default();
+    let r = NonCopy{};
+    mock.expect_foo()
+        .return_once(|_| r);
+    mock.foo();
+}
+
+#[test]
 #[allow(unused)]
 fn simple_struct() {
     #[mock]
