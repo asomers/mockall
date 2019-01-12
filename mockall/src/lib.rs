@@ -1,10 +1,13 @@
 // vim: tw=80
+#![cfg_attr(feature = "nightly", feature(specialization))]
 
+use cfg_if::cfg_if;
 use downcast::*;
 use std::{
     any,
     collections::hash_map::{DefaultHasher, HashMap},
     hash::{Hash, Hasher},
+    mem,
     ops::DerefMut,
     sync::Mutex
 };
@@ -12,12 +15,60 @@ use std::{
 trait ExpectationT : Any {}
 downcast!(ExpectationT);
 
+/// Return functions for expectations
+enum Rfunc<I, O> {
+    Default,
+    Mut(Box<dyn FnMut(I) -> O>)
+}
+
+// TODO: change this to "impl FnMut" once unboxed_closures are stable
+// https://github.com/rust-lang/rust/issues/29625
+impl<I, O>  Rfunc<I, O> {
+    fn call_mut(&mut self, args: I) -> O {
+        match self {
+            Rfunc::Default => {
+                Self::return_default()
+            },
+            Rfunc::Mut(f) => {
+                f(args)
+            }
+        }
+    }
+}
+
+trait ReturnDefault<O> {
+    fn return_default() -> O;
+}
+
+cfg_if! {
+    if #[cfg(feature = "nightly")] {
+        impl<I, O> ReturnDefault<O> for Rfunc<I, O> {
+            default fn return_default() -> O {
+                panic!("Can only return default values for types that impl std::Default");
+            }
+        }
+    } else {
+        impl<I, O> ReturnDefault<O> for Rfunc<I, O> {
+            fn return_default() -> O {
+                panic!("Returning default values requires the \"nightly\" feature");
+            }
+        }
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<I, O: Default> ReturnDefault<O> for Rfunc<I, O> {
+    fn return_default() -> O {
+        O::default()
+    }
+}
+
 struct Expectation<I, O> {
-    rfunc: Option<Box<FnMut(I) -> O>>
+    rfunc: Rfunc<I, O>
 }
 
 impl<I, O> Expectation<I, O> {
-    fn new(rfunc: Option<Box<FnMut(I) -> O>>) -> Self {
+    fn new(rfunc: Rfunc<I, O>) -> Self {
         Expectation{rfunc}
     }
 }
@@ -28,7 +79,7 @@ pub struct ExpectationBuilder<'object, I, O>
     where I: 'static, O: 'static
 {
     e: &'object mut Expectations,
-    rfunc: Option<Box<FnMut(I) -> O>>,
+    rfunc: Rfunc<I, O>,
     ident: String
 }
 
@@ -38,13 +89,13 @@ impl<'object, I, O> ExpectationBuilder<'object, I, O>
     fn new(e: &'object mut Expectations, ident: &str) -> Self {
         // Own the ident so we don't have to worry about lifetime issues
         let ident = ident.to_owned();
-        ExpectationBuilder{rfunc: None, e, ident}
+        ExpectationBuilder{rfunc: Rfunc::Default, e, ident}
     }
 
     pub fn returning<F>(mut self, f: F) -> Self
         where F: FnMut(I) -> O + 'static
     {
-        self.rfunc = Some(Box::new(f));
+        self.rfunc = Rfunc::Mut(Box::new(f));
         self
     }
 }
@@ -53,7 +104,8 @@ impl<'object, I, O> Drop for ExpectationBuilder<'object, I, O>
     where I: 'static, O: 'static
 {
     fn drop(&mut self) {
-        self.e.register(&self.ident, Expectation::new(self.rfunc.take()))
+        let rfunc = mem::replace(&mut self.rfunc, Rfunc::Default);
+        self.e.register(&self.ident, Expectation::new(rfunc))
     }
 }
 
@@ -100,6 +152,6 @@ impl Expectations {
             .expect("No matching expectation found")
             .downcast_mut()
             .unwrap();
-        e.rfunc.as_mut().unwrap()(args)
+        e.rfunc.call_mut(args)
     }
 }

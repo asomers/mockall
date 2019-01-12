@@ -34,6 +34,26 @@ fn no_args_or_returns() {
     e.called::<(), ()>(&"foo", ());
 }
 
+/// Expectations return O::default() unless otherwise specified
+#[test]
+#[cfg_attr(not(feature = "nightly"), ignore)]
+fn return_default() {
+    let mut e = Expectations::default();
+    e.expect::<(), u32>(&"foo");
+    let r = e.called::<(), u32>(&"foo", ());
+    assert_eq!(u32::default(), r);
+}
+
+/// Can't return default for types that aren't Default
+#[test]
+#[should_panic]
+fn return_default_panics_for_non_default_types() {
+    struct NonDefault{}
+    let mut e = Expectations::default();
+    e.expect::<(), NonDefault>(&"foo");
+    e.called::<(), NonDefault>(&"foo", ());
+}
+
 /// A MockObject with a simple method like:
 /// fn foo(&self, x: i32) -> u32
 #[test]
