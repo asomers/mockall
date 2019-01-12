@@ -372,3 +372,19 @@ fn simple_trait() {
         .returning(|x| x + 1);
     assert_eq!(5, mock.foo(4));
 }
+
+/// Traits with static methods may be mocked, even if expectations can't be set
+/// on the static method
+#[test]
+fn static_method() {
+    #[mock]
+    trait A {
+        fn bar() -> u32;
+        fn foo(&self, x: u32) -> u32;
+    }
+
+    let mut mock = MockA::default();
+    mock.expect_foo()
+        .returning(|x| x + 1);
+    assert_eq!(5, mock.foo(4));
+}

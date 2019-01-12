@@ -43,14 +43,18 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
            #fn_token #ident #generics (#inputs) #output)
         .to_tokens(&mut mock_output);
 
+    let mut is_static = true;
     let mut input_type
         = syn::punctuated::Punctuated::<syn::Type, syn::Token![,]>::new();
     for fn_arg in sig.decl.inputs.iter() {
         match fn_arg {
             syn::FnArg::Captured(arg) => input_type.push(arg.ty.clone()),
-            syn::FnArg::SelfRef(_) => /* ignore */(),
-            syn::FnArg::SelfValue(_) => /* ignore */(),
-            _ => unimplemented!(),
+            syn::FnArg::SelfRef(_) => {
+                is_static = false;
+            },
+            syn::FnArg::SelfValue(_) => {
+                is_static = false;
+            }, _ => unimplemented!(),
         }
     }
     let output_type: syn::Type = match &sig.decl.output {
@@ -61,6 +65,11 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
         },
         syn::ReturnType::Type(_, ty) => (**ty).clone()
     };
+    if is_static {
+        quote!({unimplemented!("Expectations on static methods are TODO");})
+            .to_tokens(&mut mock_output);
+        return (mock_output, TokenStream::new())
+    }
     let ident = format!("{}", sig.ident);
     let mut args = Vec::new();
     for p in sig.decl.inputs.iter() {
@@ -713,4 +722,34 @@ type PubSuperStruct = ();
 /// }
 /// ```
 type SimpleTrait = ();
+
+/// ```no_run
+/// # use mockall_derive::{mock, expect_mock};
+/// #[expect_mock(
+/// #[derive(Default)]
+/// struct MockA {
+///     e: ::mockall::Expectations,
+/// }
+/// impl A for MockA {
+///     fn foo(&self, x: u32) -> u32 {
+///         self.e.called::<(u32), u32>("foo", (x))
+///     }
+///     fn bar() -> u32 {
+///         unimplemented!("Expectations on static methods are TODO");
+///     }
+/// }
+/// impl MockA {
+///     pub fn expect_foo(&mut self)
+///         -> ::mockall::ExpectationBuilder<(u32), u32>
+///     {
+///         self.e.expect::<(u32), u32>("foo")
+///     }
+/// }
+/// )]
+/// trait A {
+///     fn foo(&self, x: u32) -> u32;
+///     fn bar() -> u32;
+/// }
+/// ```
+type StaticMethod = ();
 }
