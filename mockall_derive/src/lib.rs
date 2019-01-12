@@ -23,34 +23,23 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
                    vis: &syn::Visibility,
                    sig: &syn::MethodSig) -> (TokenStream, TokenStream)
 {
+    assert!(sig.decl.variadic.is_none(),
+        "MockAll does not yet support variadic functions");
     let mut mock_output = TokenStream::new();
+    let constness = sig.constness;
+    let unsafety = sig.unsafety;
+    let asyncness = sig.asyncness;
+    let abi = &sig.abi;
+    let fn_token = &sig.decl.fn_token;
+    let ident = &sig.ident;
+    let generics = &sig.decl.generics;
+    let inputs = &sig.decl.inputs;
+    let output = &sig.decl.output;
+
     // First the mock method
-    if let Some(d) = defaultness {
-        d.to_tokens(&mut mock_output);
-    }
-    vis.to_tokens(&mut mock_output);
-    if let Some(c) = &sig.constness {
-        c.to_tokens(&mut mock_output);
-    }
-    if let Some(u) = &sig.unsafety {
-        u.to_tokens(&mut mock_output);
-    }
-    if let Some(a) = &sig.asyncness {
-        a.to_tokens(&mut mock_output);
-    }
-    if let Some(a) = &sig.abi {
-        a.to_tokens(&mut mock_output);
-    }
-    sig.decl.fn_token.to_tokens(&mut mock_output);
-    sig.ident.to_tokens(&mut mock_output);
-    sig.decl.generics.to_tokens(&mut mock_output);
-    let mut inputs = TokenStream::new();
-    sig.decl.inputs.to_tokens(&mut inputs);
-    quote!((#inputs)).to_tokens(&mut mock_output);
-    if let Some(v) = &sig.decl.variadic {
-        v.to_tokens(&mut mock_output);
-    }
-    sig.decl.output.to_tokens(&mut mock_output);
+    quote!(#defaultness #vis #constness #unsafety #asyncness #abi
+           #fn_token #ident #generics (#inputs) #output)
+        .to_tokens(&mut mock_output);
 
     let mut input_type
         = syn::punctuated::Punctuated::<syn::Type, syn::Token![,]>::new();
@@ -92,7 +81,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     let mut expect_output = TokenStream::new();
     let expect_ident = syn::Ident::new(&format!("expect_{}", sig.ident),
                                        sig.ident.span());
-    quote!(pub fn #expect_ident(&mut self)
+    quote!(pub fn #expect_ident #generics(&mut self)
            -> ::mockall::ExpectationBuilder<(#input_type), #output_type> {
         self.e.expect::<(#input_type), #output_type>(#ident)
    }).to_tokens(&mut expect_output);
@@ -364,6 +353,32 @@ type SimpleStruct = ();
 /// }
 /// ```
 type TwoArgs = ();
+
+/// ```no_run
+/// # use mockall_derive::{mock, expect_mock};
+/// #[expect_mock(
+/// #[derive(Default)]
+/// struct MockA {
+///     e: ::mockall::Expectations,
+/// }
+/// impl A for MockA {
+///     fn foo<T>(&self, t: T) {
+///         self.e.called::<(T), ()>("foo", (t))
+///     }
+/// }
+/// impl MockA {
+///     pub fn expect_foo<T>(&mut self)
+///         -> ::mockall::ExpectationBuilder<(T), ()>
+///     {
+///         self.e.expect::<(T), ()>("foo")
+///     }
+/// }
+/// )]
+/// trait A {
+///     fn foo<T>(&self, t: T);
+/// }
+/// ```
+type GenericMethod = ();
 
 /// ```no_run
 /// # use mockall_derive::{mock, expect_mock};

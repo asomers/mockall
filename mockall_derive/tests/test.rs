@@ -39,6 +39,36 @@ fn associated_types() {
 }
 
 #[test]
+fn consume_parameters() {
+    struct NonCopy{}
+    #[mock]
+    trait T {
+        fn foo(&self, x: NonCopy);
+    }
+
+    let mut mock = MockT::default();
+    mock.expect_foo()
+        .returning(|_x: NonCopy| ());
+    mock.foo(NonCopy{});
+}
+
+#[test]
+fn generic_parameters() {
+    #[mock]
+    trait A {
+        fn foo<T: 'static>(&self, t: T);
+    }
+
+    let mut mock = MockA::default();
+    mock.expect_foo::<u32>()
+        .returning(|_x: u32| ());
+    mock.expect_foo::<i16>()
+        .returning(|_x: i16| ());
+    mock.foo(5u32);
+    mock.foo(-1i16);
+}
+
+#[test]
 #[allow(unused)]
 fn generic_struct() {
     #[mock]
