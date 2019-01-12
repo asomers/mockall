@@ -1,6 +1,8 @@
 // vim: tw=80
 extern crate proc_macro;
 
+#[cfg(feature = "internal_testing")]
+use pretty_assertions::assert_eq;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
 
