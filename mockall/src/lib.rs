@@ -90,6 +90,8 @@ impl Expectations {
         ExpectationBuilder::<I, O>::new(self, ident)
     }
 
+    // TODO: add a "called_nonstatic" method that can be used with types that
+    // aren't 'static, and uses a different method to generate the key.
     pub fn called<I: 'static, O: 'static>(&self, ident: &str, args: I) -> O {
         let key = Key::new::<I, O>(ident);
         let mut guard = self.store.lock().unwrap();

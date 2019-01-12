@@ -5,7 +5,8 @@ use mockall_derive::mock;
 use std::default::Default;
 
 /// Mocking a trait with associated types currently requires manual mocking.
-/// TODO: add derive support for this.
+/// TODO: add derive support for this, perhaps by providing the "type T=u32" as
+/// an attr argument to mock.
 #[test]
 fn associated_types() {
     trait A {
@@ -141,6 +142,25 @@ fn impl_trait() {
     assert_eq!(5, mock.foo(4));
 }
 
+// TODO: implement inherited traits
+//#[test]
+//fn inherited_trait() {
+    //#[mock]
+    //trait A {
+        //fn foo(&self);
+    //}
+    //#[mock]
+    //trait B: A {
+        //fn bar(&self);
+    //}
+
+    //let mut mock = MockB::default();
+    //mock.expect_foo().returning(|| ());
+    //mock.expect_bar().returning(|| ());
+    //mock.foo();
+    //mock.bar();
+//}
+
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]
 #[allow(unused)]
@@ -178,6 +198,24 @@ fn method_self_by_value() {
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
+}
+
+#[test]
+#[allow(unused)]
+fn multi_trait() {
+    trait A {}
+    trait B {}
+    #[mock]
+    struct MultiTrait {}
+    #[mock]
+    impl A for MultiTrait {}
+    #[mock]
+    impl B for MultiTrait {}
+
+    fn foo<T: A + B>(_t: T) {}
+
+    let mock = MockMultiTrait::default();
+    foo(mock);
 }
 
 #[test]
