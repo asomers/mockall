@@ -281,6 +281,20 @@ fn pub_struct() {
     assert_eq!(5, mock.foo(4));
 }
 
+// TODO: mock non-'static lifetimes
+//#[test]
+//fn return_lifetime() {
+    //#[mock]
+    //trait A<'a> {
+        //fn foo(&'a self) -> &'a u32;
+    //}
+
+    //let mut mock = MockA::<'static>::default();
+    //mock.expect_foo()
+        //.returning(|_| &5);
+    //assert_eq!(5, *mock.foo());
+//}
+
 #[test]
 #[allow(unused)]
 fn simple_struct() {
