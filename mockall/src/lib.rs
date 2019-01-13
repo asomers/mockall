@@ -80,16 +80,17 @@ impl<I, O: Default> ReturnDefault<O> for Rfunc<I, O> {
 }
 
 struct Expectation<I, O> {
-    rfunc: Rfunc<I, O>
+    rfunc: Mutex<Rfunc<I, O>>
 }
 
 impl<I, O> Expectation<I, O> {
-    fn call_mut(&mut self, i: I) -> O {
-        self.rfunc.call_mut(i)
+    fn call(&self, i: I) -> O {
+        self.rfunc.lock().unwrap()
+            .call_mut(i)
     }
 
     fn new(rfunc: Rfunc<I, O>) -> Self {
-        Expectation{rfunc}
+        Expectation{rfunc: Mutex::new(rfunc)}
     }
 }
 
@@ -159,7 +160,7 @@ impl Key {
 
 #[derive(Default)]
 pub struct Expectations {
-    store: Mutex<HashMap<Key, Box<dyn ExpectationT>>>
+    store: HashMap<Key, Box<dyn ExpectationT>>
 }
 
 impl Expectations {
@@ -167,8 +168,7 @@ impl Expectations {
         where I: 'static, O: 'static
     {
         let key = Key::new::<I, O>(ident);
-        let store = self.store.get_mut().unwrap();
-        store.insert(key, Box::new(expectation));
+        self.store.insert(key, Box::new(expectation));
     }
 
     pub fn expect<I, O>(&mut self, ident: &str) -> ExpectationBuilder<I, O>
@@ -181,12 +181,10 @@ impl Expectations {
     // aren't 'static, and uses a different method to generate the key.
     pub fn called<I: 'static, O: 'static>(&self, ident: &str, args: I) -> O {
         let key = Key::new::<I, O>(ident);
-        let mut guard = self.store.lock().unwrap();
-        let store: &mut HashMap<_, _> = guard.deref_mut();
-        let e: &mut Expectation<I, O> = store.get_mut(&key)
+        let e: &Expectation<I, O> = self.store.get(&key)
             .expect("No matching expectation found")
-            .downcast_mut()
+            .downcast_ref()
             .unwrap();
-        e.call_mut(args)
+        e.call(args)
     }
 }
