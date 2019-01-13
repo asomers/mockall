@@ -84,6 +84,10 @@ struct Expectation<I, O> {
 }
 
 impl<I, O> Expectation<I, O> {
+    fn call_mut(&mut self, i: I) -> O {
+        self.rfunc.call_mut(i)
+    }
+
     fn new(rfunc: Rfunc<I, O>) -> Self {
         Expectation{rfunc}
     }
@@ -183,6 +187,6 @@ impl Expectations {
             .expect("No matching expectation found")
             .downcast_mut()
             .unwrap();
-        e.rfunc.call_mut(args)
+        e.call_mut(args)
     }
 }
