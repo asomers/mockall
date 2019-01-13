@@ -27,7 +27,7 @@ fn associated_types() {
     }
     impl MockA {
         pub fn expect_foo(&mut self)
-            -> ::mockall::ExpectationBuilder<<Self as A>::T, <Self as A>::T>
+            -> &mut ::mockall::Expectation<<Self as A>::T, <Self as A>::T>
         {
             self.e.expect::<<Self as A>::T, <Self as A>::T>("foo")
         }

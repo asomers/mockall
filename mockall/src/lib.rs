@@ -79,7 +79,7 @@ impl<I, O: Default> ReturnDefault<O> for Rfunc<I, O> {
     }
 }
 
-struct Expectation<I, O> {
+pub struct Expectation<I, O> {
     rfunc: Mutex<Rfunc<I, O>>
 }
 
@@ -89,38 +89,22 @@ impl<I, O> Expectation<I, O> {
             .call_mut(i)
     }
 
-    fn new(rfunc: Rfunc<I, O>) -> Self {
-        Expectation{rfunc: Mutex::new(rfunc)}
-    }
-}
-
-impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
-
-pub struct ExpectationBuilder<'object, I, O>
-    where I: 'static, O: 'static
-{
-    e: &'object mut Expectations,
-    rfunc: Rfunc<I, O>,
-    ident: String
-}
-
-impl<'object, I, O> ExpectationBuilder<'object, I, O>
-    where I: 'static, O: 'static
-{
-    fn new(e: &'object mut Expectations, ident: &str) -> Self {
-        // Own the ident so we don't have to worry about lifetime issues
-        let ident = ident.to_owned();
-        ExpectationBuilder{rfunc: Rfunc::Default, e, ident}
+    fn new() -> Self {
+        let rfunc = Mutex::new(Rfunc::Default);
+        Expectation{rfunc}
     }
 
-    pub fn returning<F>(mut self, f: F) -> Self
+    pub fn returning<F>(&mut self, f: F) -> &mut Self
         where F: FnMut(I) -> O + Send + 'static
     {
-        self.rfunc = Rfunc::Mut(Box::new(f));
+        {
+            let mut guard = self.rfunc.lock().unwrap();
+            mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+        }
         self
     }
 
-    pub fn return_once<F>(mut self, f: F) -> Self
+    pub fn return_once<F>(&mut self, f: F) -> &mut Self
         where F: FnOnce(I) -> O + Send + 'static
     {
         let mut fopt = Some(f);
@@ -131,22 +115,18 @@ impl<'object, I, O> ExpectationBuilder<'object, I, O>
                 panic!("Called a method twice that was expected only once")
             }
         };
-        self.rfunc = Rfunc::Once(Box::new(fmut));
+        {
+            let mut guard = self.rfunc.lock().unwrap();
+            mem::replace(guard.deref_mut(), Rfunc::Once(Box::new(fmut)));
+        }
         self
     }
 }
 
-impl<'object, I, O> Drop for ExpectationBuilder<'object, I, O>
-    where I: 'static, O: 'static
-{
-    fn drop(&mut self) {
-        let rfunc = mem::replace(&mut self.rfunc, Rfunc::Default);
-        self.e.register(&self.ident, Expectation::new(rfunc))
-    }
-}
+impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
 
 /// Non-generic keys to `Expectations` internal storage
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct Key(u64);
 
 impl Key {
@@ -164,17 +144,16 @@ pub struct Expectations {
 }
 
 impl Expectations {
-    fn register<I, O>(&mut self, ident: &str, expectation: Expectation<I, O>)
+    pub fn expect<'e, I, O>(&'e mut self, ident: &str)
+        -> &'e mut Expectation<I, O>
         where I: 'static, O: 'static
     {
         let key = Key::new::<I, O>(ident);
-        self.store.insert(key, Box::new(expectation));
-    }
-
-    pub fn expect<I, O>(&mut self, ident: &str) -> ExpectationBuilder<I, O>
-        where I: 'static, O: 'static
-    {
-        ExpectationBuilder::<I, O>::new(self, ident)
+        let e = Box::new(Expectation::<I, O>::new());
+        self.store.insert(key.clone(), e);
+        self.store.get_mut(&key).unwrap()
+            .downcast_mut()
+            .unwrap()
     }
 
     // TODO: add a "called_nonstatic" method that can be used with types that

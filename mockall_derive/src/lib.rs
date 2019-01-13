@@ -93,7 +93,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     let expect_ident = syn::Ident::new(&format!("expect_{}", sig.ident),
                                        sig.ident.span());
     quote!(pub fn #expect_ident #generics(&mut self)
-           -> ::mockall::ExpectationBuilder<(#input_type), #output_type> {
+           -> &mut ::mockall::Expectation<(#input_type), #output_type> {
         self.e.expect::<(#input_type), #output_type>(#ident)
    }).to_tokens(&mut expect_output);
 
@@ -334,7 +334,7 @@ use super::*;
 /// }
 /// impl MockA {
 ///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(<Self as A>::T), i64>
+///         -> &mut ::mockall::Expectation<(<Self as A>::T), i64>
 ///     {
 ///         self.e.expect::<(<Self as A>::T), i64>("foo")
 ///     }
@@ -365,8 +365,7 @@ type AssociatedTypes = ();
 ///     }
 /// }
 /// impl MockSimpleStruct {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), i64>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
 ///     {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -397,7 +396,7 @@ type SimpleStruct = ();
 /// }
 /// impl MockTwoArgs {
 ///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32, u32), i64>
+///         -> &mut ::mockall::Expectation<(u32, u32), i64>
 ///     {
 ///         self.e.expect::<(u32, u32), i64>("foo")
 ///     }
@@ -425,7 +424,7 @@ type TwoArgs = ();
 /// }
 /// impl MockA {
 ///     pub fn expect_foo<T: 'static>(&mut self)
-///         -> ::mockall::ExpectationBuilder<(T), ()>
+///         -> &mut ::mockall::Expectation<(T), ()>
 ///     {
 ///         self.e.expect::<(T), ()>("foo")
 ///     }
@@ -459,8 +458,7 @@ type GenericMethod = ();
 ///     }
 /// }
 /// impl<'a, T, V> MockGenericStruct<'a, T, V> {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), i64>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
 ///     {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -488,8 +486,7 @@ type GenericStruct = ();
 ///     }
 /// }
 /// impl<T> MockGenericTrait<T> {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(), ()>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
 ///     {
 ///         self.e.expect::<(), ()>("foo")
 ///     }
@@ -516,8 +513,7 @@ type GenericTrait = ();
 ///     }
 /// }
 /// impl MockSomeStruct {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), i64>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
 ///     {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -552,13 +548,11 @@ type ImplTrait = ();
 ///     }
 /// }
 /// impl MockB {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(), ()>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
 ///     {
 ///         self.e.expect::<(), ()>("foo")
 ///     }
-///     pub fn expect_bar(&mut self)
-///         -> ::mockall::ExpectationBuilder<(), ()>
+///     pub fn expect_bar(&mut self) -> &mut ::mockall::Expectation<(), ()>
 ///     {
 ///         self.e.expect::<(), ()>("bar")
 ///     }
@@ -581,8 +575,7 @@ type InheritedTrait = ();
 ///     }
 /// }
 /// impl MockMethodByValue {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), i64>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
 ///     {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -614,8 +607,7 @@ type MethodByValue = ();
 ///     }
 /// }
 /// impl MockPubStruct {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), i64>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
 ///     {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -647,8 +639,7 @@ type PubStruct = ();
 ///     }
 /// }
 /// impl MockPubCrateStruct {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), i64>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
 ///     {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -682,7 +673,7 @@ type PubCrateStruct = ();
 ///     }
 ///     impl MockPubSuperStruct {
 ///         pub fn expect_foo(&mut self)
-///             -> ::mockall::ExpectationBuilder<(u32), i64>
+///             -> &mut ::mockall::Expectation<(u32), i64>
 ///         {
 ///             self.e.expect::<(u32), i64>("foo")
 ///         }
@@ -710,8 +701,7 @@ type PubSuperStruct = ();
 ///     }
 /// }
 /// impl MockSimpleTrait {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), i64>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
 ///     {
 ///         self.e.expect::<(u32), i64>("foo")
 ///     }
@@ -739,8 +729,7 @@ type SimpleTrait = ();
 ///     }
 /// }
 /// impl MockA {
-///     pub fn expect_foo(&mut self)
-///         -> ::mockall::ExpectationBuilder<(u32), u32>
+///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), u32>
 ///     {
 ///         self.e.expect::<(u32), u32>("foo")
 ///     }
