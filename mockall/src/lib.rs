@@ -52,6 +52,12 @@ impl<I, O>  Rfunc<I, O> {
     }
 }
 
+impl<I, O> Default for Rfunc<I, O> {
+    fn default() -> Self {
+        Rfunc::Default
+    }
+}
+
 trait ReturnDefault<O> {
     fn return_default() -> O;
 }
@@ -79,12 +85,13 @@ impl<I, O: Default> ReturnDefault<O> for Rfunc<I, O> {
     }
 }
 
+#[derive(Default)]
 pub struct Expectation<I, O> {
     rfunc: Mutex<Rfunc<I, O>>
 }
 
 impl<I, O> Expectation<I, O> {
-    fn call(&self, i: I) -> O {
+    pub fn call(&self, i: I) -> O {
         self.rfunc.lock().unwrap()
             .call_mut(i)
     }

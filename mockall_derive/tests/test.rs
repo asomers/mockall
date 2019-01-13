@@ -16,20 +16,20 @@ fn associated_types() {
 
     #[derive(Default)]
     struct MockA {
-        e: ::mockall::Expectations,
+        foo: ::mockall::Expectation<<MockA as A>::T, <MockA as A>::T>,
     }
     impl A for MockA {
         type T=u32;
 
         fn foo(&self, x: Self::T) -> Self::T {
-            self.e.called::<Self::T, Self::T>("foo", x)
+            self.foo.call(x)
         }
     }
     impl MockA {
         pub fn expect_foo(&mut self)
             -> &mut ::mockall::Expectation<<Self as A>::T, <Self as A>::T>
         {
-            self.e.expect::<<Self as A>::T, <Self as A>::T>("foo")
+            &mut self.foo
         }
     }
 
