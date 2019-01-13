@@ -1,8 +1,6 @@
 // vim: tw=80
 extern crate proc_macro;
 
-#[cfg(feature = "internal_testing")]
-use pretty_assertions::assert_eq;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
 
@@ -260,7 +258,7 @@ fn mock_trait(item: syn::ItemTrait) -> TokenStream {
 }
 
 fn mock_item(input: TokenStream) -> TokenStream {
-    let item: syn::Item = match syn::parse(input.into()) {
+    let item: syn::Item = match syn::parse2(input) {
         Ok(item) => item,
         Err(err) => {
             // TODO: use Span::call_site().error().emit once proc_macro_span is
@@ -288,457 +286,408 @@ pub fn mock(_attr: proc_macro::TokenStream, input: proc_macro::TokenStream)
     output.into()
 }
 
-/// For testing purposes only, mock something and check that the generated code
-/// matches the provided string.
-#[cfg(feature = "internal_testing")]
-#[proc_macro_attribute]
-pub fn expect_mock(attr: proc_macro::TokenStream, item: proc_macro::TokenStream)
-    -> proc_macro::TokenStream
-{
-    let item_stream: proc_macro2::TokenStream = item.clone().into();
-    let expected = attr.to_string();
-    let mock_output = mock_item(item.into());
-    // Check that we generated what we expected
-    assert_eq!(expected, mock_output.to_string());
-
-    // Now output the generated code to check that it compiles
-    let mut all_output = TokenStream::new();
-    item_stream.to_tokens(&mut all_output);
-    mock_output.to_tokens(&mut all_output);
-    all_output.into()
-}
-
 /// Test cases for `#[mock]`.
-///
-/// Proc macros cannot be tested at runtime like normal Rust code.  They can
-/// only be tested at compile time.  Run the tests in doc test blocks so that a
-/// compile failure by one does not stop the others from running.
-///
-#[allow(unused)]
-#[cfg(feature = "internal_testing")]
+#[cfg(test)]
 mod t {
+
+use pretty_assertions::assert_eq;
+use std::str::FromStr;
 use super::*;
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockA {
-///     e: ::mockall::Expectations,
-/// }
-/// impl A for MockA {
-///     type T = u32;
-///     fn foo(&self, x: Self::T) -> Self::T {
-///         self.e.called::<(Self::T), Self::T>("foo", (x))
-///     }
-/// }
-/// impl MockA {
-///     pub fn expect_foo(&mut self)
-///         -> &mut ::mockall::Expectation<(<Self as A>::T), i64>
-///     {
-///         self.e.expect::<(<Self as A>::T), i64>("foo")
-///     }
-/// }
-/// )]
-/// trait A {
-///     type T;
-///     fn foo(&self, x: Self::T) -> Self::T;
-/// }
-/// ```
-type AssociatedTypes = ();
+fn check(desired: &str, code: &str) {
+    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+    let output = mock_item(ts).to_string();
+    // Let proc_macro2 reformat the whitespace in the expected string
+    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
+        .to_string();
+    assert_eq!(expected, output);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockSimpleStruct {
-///     e: ::mockall::Expectations,
-/// }
-/// )]
-/// struct SimpleStruct {
-///     x: i16
-/// }
-/// #[expect_mock(
-/// impl MockSimpleStruct {
-///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", (x))
-///     }
-/// }
-/// impl MockSimpleStruct {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-///     {
-///         self.e.expect::<(u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// impl SimpleStruct {
-///     fn foo(&self, x: u32) -> i64 {
-///         42
-///     }
-/// }
-/// ```
-type SimpleStruct = ();
+#[test]
+#[ignore("Associated types are TODO")]
+fn associated_types() {
+    check(r#"
+    #[derive(Default)]
+    struct MockA {
+        e: ::mockall::Expectations,
+    }
+    impl A for MockA {
+        type T = u32;
+        fn foo(&self, x: Self::T) -> Self::T {
+            self.e.called:: <(Self::T), Self::T>("foo", (x))
+        }
+    }
+    impl MockA {
+        pub fn expect_foo(&mut self)
+            -> &mut ::mockall::Expectation<(<Self as A>::T), i64>
+        {
+            self.e.expect:: <(<Self as A>::T), i64>("foo")
+        }
+    }"#, r#"
+    trait A {
+        type T;
+        fn foo(&self, x: Self::T) -> Self::T;
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockTwoArgs {
-///     e: ::mockall::Expectations,
-/// }
-/// )]
-/// struct TwoArgs {}
-/// #[expect_mock(
-/// impl MockTwoArgs {
-///     fn foo(&self, x: u32, y: u32) -> i64 {
-///         self.e.called::<(u32, u32), i64>("foo", (x, y))
-///     }
-/// }
-/// impl MockTwoArgs {
-///     pub fn expect_foo(&mut self)
-///         -> &mut ::mockall::Expectation<(u32, u32), i64>
-///     {
-///         self.e.expect::<(u32, u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// impl TwoArgs {
-///     fn foo(&self, x: u32, y: u32) -> i64 {
-///         42
-///     }
-/// }
-/// ```
-type TwoArgs = ();
+#[test]
+fn simple_struct() {
+    check(r#"
+    #[derive(Default)]
+    struct MockSimpleStruct {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    struct SimpleStruct {
+        x: i16
+    }"#);
+    check(r#"
+    impl MockSimpleStruct {
+        fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockSimpleStruct {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl SimpleStruct {
+        fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockA {
-///     e: ::mockall::Expectations,
-/// }
-/// impl A for MockA {
-///     fn foo<T: 'static>(&self, t: T) {
-///         self.e.called::<(T), ()>("foo", (t))
-///     }
-/// }
-/// impl MockA {
-///     pub fn expect_foo<T: 'static>(&mut self)
-///         -> &mut ::mockall::Expectation<(T), ()>
-///     {
-///         self.e.expect::<(T), ()>("foo")
-///     }
-/// }
-/// )]
-/// trait A {
-///     fn foo<T: 'static>(&self, t: T);
-/// }
-/// ```
-type GenericMethod = ();
+#[test]
+fn two_args() {
+    check(r#"
+    #[derive(Default)]
+    struct MockTwoArgs {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    struct TwoArgs {}"#);
+    check(r#"
+    impl MockTwoArgs {
+        fn foo(&self, x: u32, y: u32) -> i64 {
+            self.e.called:: <(u32, u32), i64>("foo", (x, y))
+        }
+    }
+    impl MockTwoArgs {
+        pub fn expect_foo(&mut self)
+            -> &mut ::mockall::Expectation<(u32, u32), i64>
+        {
+            self.e.expect:: <(u32, u32), i64>("foo")
+        }
+    }"#, r#"
+    impl TwoArgs {
+        fn foo(&self, x: u32, y: u32) -> i64 {
+            42
+        }
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockGenericStruct<'a, T, V> {
-///     e: ::mockall::Expectations,
-///     _t0: ::std::marker::PhantomData<&'a ()>,
-///     _t1: ::std::marker::PhantomData<T>,
-///     _t2: ::std::marker::PhantomData<V>,
-/// }
-/// )]
-/// struct GenericStruct<'a, T, V> {
-///     t: T,
-///     v: &'a V
-/// }
-/// #[expect_mock(
-/// impl<'a, T, V> MockGenericStruct<'a, T, V> {
-///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", (x))
-///     }
-/// }
-/// impl<'a, T, V> MockGenericStruct<'a, T, V> {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-///     {
-///         self.e.expect::<(u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// impl<'a, T, V> GenericStruct<'a, T, V> {
-///     fn foo(&self, x: u32) -> i64 {
-///         42
-///     }
-/// }
-/// ```
-type GenericStruct = ();
+#[test]
+fn generic_method() {
+    check(r#"
+    #[derive(Default)]
+    struct MockA {
+        e: ::mockall::Expectations,
+    }
+    impl A for MockA {
+        fn foo<T: 'static>(&self, t: T) {
+            self.e.called:: <(T), ()>("foo", (t))
+        }
+    }
+    impl MockA {
+        pub fn expect_foo<T: 'static>(&mut self)
+            -> &mut ::mockall::Expectation<(T), ()>
+        {
+            self.e.expect:: <(T), ()>("foo")
+        }
+    }"#, r#"
+    trait A {
+        fn foo<T: 'static>(&self, t: T);
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockGenericTrait<T> {
-///     e: ::mockall::Expectations,
-///     _t0: ::std::marker::PhantomData<T>,
-/// }
-/// impl<T> GenericTrait<T> for MockGenericTrait<T> {
-///     fn foo(&self) {
-///         self.e.called::<(), ()>("foo", ())
-///     }
-/// }
-/// impl<T> MockGenericTrait<T> {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
-///     {
-///         self.e.expect::<(), ()>("foo")
-///     }
-/// }
-/// )]
-/// trait GenericTrait<T> {
-///     fn foo(&self);
-/// }
-/// ```
-type GenericTrait = ();
+#[test]
+fn generic_struct() {
+    check(r#"
+    #[derive(Default)]
+    struct MockGenericStruct< 'a, T, V> {
+        e: ::mockall::Expectations,
+        _t0: ::std::marker::PhantomData< & 'a ()> ,
+        _t1: ::std::marker::PhantomData<T> ,
+        _t2: ::std::marker::PhantomData<V> ,
+    }"#, r#"
+    struct GenericStruct<'a, T, V> {
+        t: T,
+        v: &'a V
+    }"#);
+    check(r#"
+    impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
+        fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl<'a, T, V> GenericStruct<'a, T, V> {
+        fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
+
+#[test]
+fn generic_trait() {
+    check(r#"
+    #[derive(Default)]
+    struct MockGenericTrait<T> {
+        e: ::mockall::Expectations,
+        _t0: ::std::marker::PhantomData<T> ,
+    }
+    impl<T> GenericTrait<T> for MockGenericTrait<T> {
+        fn foo(&self) {
+            self.e.called:: <(), ()>("foo", ())
+        }
+    }
+    impl<T> MockGenericTrait<T> {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
+        {
+            self.e.expect:: <(), ()>("foo")
+        }
+    }"#, r#"
+    trait GenericTrait<T> {
+        fn foo(&self);
+    }"#);
+}
 
 /// Mock implementing a trait on a structure
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// trait Foo {
-///     fn foo(&self, x: u32) -> i64;
-/// }
-/// #[mock]
-/// struct SomeStruct{}
-/// #[expect_mock(
-/// impl Foo for MockSomeStruct {
-///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", (x))
-///     }
-/// }
-/// impl MockSomeStruct {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-///     {
-///         self.e.expect::<(u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// impl Foo for SomeStruct {
-///     fn foo(&self, x: u32) -> i64 {
-///         42
-///     }
-/// }
-/// ```
-type ImplTrait = ();
+#[test]
+fn impl_trait() {
+    trait Foo {
+        fn foo(&self, x: u32) -> i64;
+    }
+    check(r#"
+    impl Foo for MockSomeStruct {
+        fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockSomeStruct {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl Foo for SomeStruct {
+        fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// trait A {
-///     fn foo(&self);
-/// }
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockB {
-///     e: ::mockall::Expectations,
-/// }
-/// impl A for MockB {
-///     fn foo(&self) {
-///         self.e.called::<(), ()>("foo", ())
-///     }
-/// }
-/// impl B for MockB {
-///     fn bar(&self) {
-///         self.e.called::<(), ()>("bar", ())
-///     }
-/// }
-/// impl MockB {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
-///     {
-///         self.e.expect::<(), ()>("foo")
-///     }
-///     pub fn expect_bar(&mut self) -> &mut ::mockall::Expectation<(), ()>
-///     {
-///         self.e.expect::<(), ()>("bar")
-///     }
-/// }
-/// )]
-/// trait B: A {
-///     fn bar(&self);
-/// }
-///```
-type InheritedTrait = ();
+#[test]
+#[ignore("Inherited traits are TODO")]
+fn inherited_trait() {
+    trait A {
+        fn foo(&self);
+    }
+    check(r#"
+    #[derive(Default)]
+    struct MockB {
+        e: ::mockall::Expectations,
+    }
+    impl A for MockB {
+        fn foo(&self) {
+            self.e.called:: <(), ()>("foo", ())
+        }
+    }
+    impl B for MockB {
+        fn bar(&self) {
+            self.e.called:: <(), ()>("bar", ())
+        }
+    }
+    impl MockB {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
+        {
+            self.e.expect:: <(), ()>("foo")
+        }
+        pub fn expect_bar(&mut self) -> &mut ::mockall::Expectation<(), ()>
+        {
+            self.e.expect:: <(), ()>("bar")
+        }
+    }"#, r#"
+    trait B: A {
+        fn bar(&self);
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[mock]
-/// struct MethodByValue {}
-/// #[expect_mock(
-/// impl MockMethodByValue {
-///     fn foo(self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", (x))
-///     }
-/// }
-/// impl MockMethodByValue {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-///     {
-///         self.e.expect::<(u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// impl MethodByValue {
-///     fn foo(self, x: u32) -> i64 {
-///         42
-///     }
-/// }
-/// ```
-type MethodByValue = ();
+#[test]
+fn method_by_value() {
+    check(r#"
+    impl MockMethodByValue {
+        fn foo(self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockMethodByValue {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl MethodByValue {
+        fn foo(self, x: u32) -> i64 {
+            42
+        }
+    }
+    "#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// pub struct MockPubStruct {
-///     e: ::mockall::Expectations,
-/// }
-/// )]
-/// pub struct PubStruct {
-///     x: i16
-/// }
-/// #[expect_mock(
-/// impl MockPubStruct {
-///     pub fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", (x))
-///     }
-/// }
-/// impl MockPubStruct {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-///     {
-///         self.e.expect::<(u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// impl PubStruct {
-///     pub fn foo(&self, x: u32) -> i64 {
-///         42
-///     }
-/// }
-/// ```
-type PubStruct = ();
+#[test]
+fn pub_struct() {
+    check(r#"
+    #[derive(Default)]
+    pub struct MockPubStruct {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    pub struct PubStruct {
+        x: i16
+    }"#);
+    check(r#"
+    impl MockPubStruct {
+        pub fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockPubStruct {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl PubStruct {
+        pub fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }
+    "#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// pub(crate) struct MockPubCrateStruct {
-///     e: ::mockall::Expectations,
-/// }
-/// )]
-/// pub(crate) struct PubCrateStruct {
-///     x: i16
-/// }
-/// #[expect_mock(
-/// impl MockPubCrateStruct {
-///     pub(crate) fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", (x))
-///     }
-/// }
-/// impl MockPubCrateStruct {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-///     {
-///         self.e.expect::<(u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// impl PubCrateStruct {
-///     pub(crate) fn foo(&self, x: u32) -> i64 {
-///         42
-///     }
-/// }
-/// ```
-type PubCrateStruct = ();
+#[test]
+fn pub_crate_struct() {
+    check(r#"
+    #[derive(Default)]
+    pub(crate) struct MockPubCrateStruct {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    pub(crate) struct PubCrateStruct {
+        x: i16
+    }"#);
+    check(r#"
+    impl MockPubCrateStruct {
+        pub(crate) fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockPubCrateStruct {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl PubCrateStruct {
+        pub(crate) fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
 
-/// ```no_run
-/// mod m {
-///     use mockall_derive::{mock, expect_mock};
-///     #[expect_mock(
-///     #[derive(Default)]
-///     pub(super) struct MockPubSuperStruct {
-///         e: ::mockall::Expectations,
-///     }
-///     )]
-///     pub(super) struct PubSuperStruct {
-///         x: i16
-///     }
-///     #[expect_mock(
-///     impl MockPubSuperStruct {
-///         pub(super) fn foo(&self, x: u32) -> i64 {
-///             self.e.called::<(u32), i64>("foo", (x))
-///         }
-///     }
-///     impl MockPubSuperStruct {
-///         pub fn expect_foo(&mut self)
-///             -> &mut ::mockall::Expectation<(u32), i64>
-///         {
-///             self.e.expect::<(u32), i64>("foo")
-///         }
-///     }
-///     )]
-///     impl PubSuperStruct {
-///         pub(super) fn foo(&self, x: u32) -> i64 {
-///             42
-///         }
-///     }
-/// }
-/// ```
-type PubSuperStruct = ();
+#[test]
+fn pub_super_struct() {
+    check(&r#"
+    #[derive(Default)]
+    pub(super) struct MockPubSuperStruct {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    pub(super) struct PubSuperStruct {
+        x: i16
+    }"#);
+    check(&r#"
+    impl MockPubSuperStruct {
+        pub(super) fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockPubSuperStruct {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl PubSuperStruct {
+        pub(super) fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockSimpleTrait {
-///     e: ::mockall::Expectations,
-/// }
-/// impl SimpleTrait for MockSimpleTrait {
-///     fn foo(&self, x: u32) -> i64 {
-///         self.e.called::<(u32), i64>("foo", (x))
-///     }
-/// }
-/// impl MockSimpleTrait {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-///     {
-///         self.e.expect::<(u32), i64>("foo")
-///     }
-/// }
-/// )]
-/// trait SimpleTrait {
-///     fn foo(&self, x: u32) -> i64;
-/// }
-/// ```
-type SimpleTrait = ();
+#[test]
+fn simple_trait() {
+    check(&r#"
+    #[derive(Default)]
+    struct MockSimpleTrait {
+        e: ::mockall::Expectations,
+    }
+    impl SimpleTrait for MockSimpleTrait {
+        fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockSimpleTrait {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#,
+    r#"
+    trait SimpleTrait {
+        fn foo(&self, x: u32) -> i64;
+    }"#);
+}
 
-/// ```no_run
-/// # use mockall_derive::{mock, expect_mock};
-/// #[expect_mock(
-/// #[derive(Default)]
-/// struct MockA {
-///     e: ::mockall::Expectations,
-/// }
-/// impl A for MockA {
-///     fn foo(&self, x: u32) -> u32 {
-///         self.e.called::<(u32), u32>("foo", (x))
-///     }
-///     fn bar() -> u32 {
-///         unimplemented!("Expectations on static methods are TODO");
-///     }
-/// }
-/// impl MockA {
-///     pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), u32>
-///     {
-///         self.e.expect::<(u32), u32>("foo")
-///     }
-/// }
-/// )]
-/// trait A {
-///     fn foo(&self, x: u32) -> u32;
-///     fn bar() -> u32;
-/// }
-/// ```
-type StaticMethod = ();
+#[test]
+fn static_method() {
+    check(&r#"
+    #[derive(Default)]
+    struct MockA {
+        e: ::mockall::Expectations,
+    }
+    impl A for MockA {
+        fn foo(&self, x: u32) -> u32 {
+            self.e.called:: <(u32), u32>("foo", (x))
+        }
+        fn bar() -> u32 {
+            unimplemented!("Expectations on static methods are TODO");
+        }
+    }
+    impl MockA {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), u32>
+        {
+            self.e.expect:: <(u32), u32>("foo")
+        }
+    }"#,
+    r#"
+    trait A {
+        fn foo(&self, x: u32) -> u32;
+        fn bar() -> u32;
+    }"#);
+}
 }
