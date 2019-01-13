@@ -331,63 +331,6 @@ fn associated_types() {
 }
 
 #[test]
-fn simple_struct() {
-    check(r#"
-    #[derive(Default)]
-    struct MockSimpleStruct {
-        e: ::mockall::Expectations,
-    }"#, r#"
-    struct SimpleStruct {
-        x: i16
-    }"#);
-    check(r#"
-    impl MockSimpleStruct {
-        fn foo(&self, x: u32) -> i64 {
-            self.e.called:: <(u32), i64>("foo", (x))
-        }
-    }
-    impl MockSimpleStruct {
-        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-        {
-            self.e.expect:: <(u32), i64>("foo")
-        }
-    }"#, r#"
-    impl SimpleStruct {
-        fn foo(&self, x: u32) -> i64 {
-            42
-        }
-    }"#);
-}
-
-#[test]
-fn two_args() {
-    check(r#"
-    #[derive(Default)]
-    struct MockTwoArgs {
-        e: ::mockall::Expectations,
-    }"#, r#"
-    struct TwoArgs {}"#);
-    check(r#"
-    impl MockTwoArgs {
-        fn foo(&self, x: u32, y: u32) -> i64 {
-            self.e.called:: <(u32, u32), i64>("foo", (x, y))
-        }
-    }
-    impl MockTwoArgs {
-        pub fn expect_foo(&mut self)
-            -> &mut ::mockall::Expectation<(u32, u32), i64>
-        {
-            self.e.expect:: <(u32, u32), i64>("foo")
-        }
-    }"#, r#"
-    impl TwoArgs {
-        fn foo(&self, x: u32, y: u32) -> i64 {
-            42
-        }
-    }"#);
-}
-
-#[test]
 fn generic_method() {
     check(r#"
     #[derive(Default)]
@@ -552,6 +495,35 @@ fn method_by_value() {
 }
 
 #[test]
+fn pub_crate_struct() {
+    check(r#"
+    #[derive(Default)]
+    pub(crate) struct MockPubCrateStruct {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    pub(crate) struct PubCrateStruct {
+        x: i16
+    }"#);
+    check(r#"
+    impl MockPubCrateStruct {
+        pub(crate) fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockPubCrateStruct {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl PubCrateStruct {
+        pub(crate) fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
+
+#[test]
 fn pub_struct() {
     check(r#"
     #[derive(Default)]
@@ -582,35 +554,6 @@ fn pub_struct() {
 }
 
 #[test]
-fn pub_crate_struct() {
-    check(r#"
-    #[derive(Default)]
-    pub(crate) struct MockPubCrateStruct {
-        e: ::mockall::Expectations,
-    }"#, r#"
-    pub(crate) struct PubCrateStruct {
-        x: i16
-    }"#);
-    check(r#"
-    impl MockPubCrateStruct {
-        pub(crate) fn foo(&self, x: u32) -> i64 {
-            self.e.called:: <(u32), i64>("foo", (x))
-        }
-    }
-    impl MockPubCrateStruct {
-        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-        {
-            self.e.expect:: <(u32), i64>("foo")
-        }
-    }"#, r#"
-    impl PubCrateStruct {
-        pub(crate) fn foo(&self, x: u32) -> i64 {
-            42
-        }
-    }"#);
-}
-
-#[test]
 fn pub_super_struct() {
     check(&r#"
     #[derive(Default)]
@@ -634,6 +577,35 @@ fn pub_super_struct() {
     }"#, r#"
     impl PubSuperStruct {
         pub(super) fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
+
+#[test]
+fn simple_struct() {
+    check(r#"
+    #[derive(Default)]
+    struct MockSimpleStruct {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    struct SimpleStruct {
+        x: i16
+    }"#);
+    check(r#"
+    impl MockSimpleStruct {
+        fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl MockSimpleStruct {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl SimpleStruct {
+        fn foo(&self, x: u32) -> i64 {
             42
         }
     }"#);
@@ -688,6 +660,34 @@ fn static_method() {
     trait A {
         fn foo(&self, x: u32) -> u32;
         fn bar() -> u32;
+    }"#);
+}
+
+#[test]
+fn two_args() {
+    check(r#"
+    #[derive(Default)]
+    struct MockTwoArgs {
+        e: ::mockall::Expectations,
+    }"#, r#"
+    struct TwoArgs {}"#);
+    check(r#"
+    impl MockTwoArgs {
+        fn foo(&self, x: u32, y: u32) -> i64 {
+            self.e.called:: <(u32, u32), i64>("foo", (x, y))
+        }
+    }
+    impl MockTwoArgs {
+        pub fn expect_foo(&mut self)
+            -> &mut ::mockall::Expectation<(u32, u32), i64>
+        {
+            self.e.expect:: <(u32, u32), i64>("foo")
+        }
+    }"#, r#"
+    impl TwoArgs {
+        fn foo(&self, x: u32, y: u32) -> i64 {
+            42
+        }
     }"#);
 }
 }
