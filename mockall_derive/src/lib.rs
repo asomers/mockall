@@ -174,7 +174,7 @@ fn gen_struct(vis: &syn::Visibility,
         match param {
             syn::GenericParam::Lifetime(l) => {
                 assert!(l.bounds.is_empty(),
-                    "#mock does not yet support lifetime bounds on structs");
+                    "#automock does not yet support lifetime bounds on structs");
                 let lifetime = &l.lifetime;
                 quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>,)
                     .to_tokens(&mut body);
@@ -185,7 +185,7 @@ fn gen_struct(vis: &syn::Visibility,
                     .to_tokens(&mut body);
             },
             syn::GenericParam::Const(_) => {
-                unimplemented!("#mock does not yet support generic constants");
+                unimplemented!("#automock does not yet support generic constants");
             }
         }
         count += 1;
@@ -277,7 +277,7 @@ fn mock_item(input: TokenStream) -> TokenStream {
 
 /// Automatically generate mock types for Structs and Traits.
 #[proc_macro_attribute]
-pub fn mock(_attr: proc_macro::TokenStream, input: proc_macro::TokenStream)
+pub fn automock(_attr: proc_macro::TokenStream, input: proc_macro::TokenStream)
     -> proc_macro::TokenStream
 {
     let input: proc_macro2::TokenStream = input.into();
@@ -286,7 +286,7 @@ pub fn mock(_attr: proc_macro::TokenStream, input: proc_macro::TokenStream)
     output.into()
 }
 
-/// Test cases for `#[mock]`.
+/// Test cases for `#[automock]`.
 #[cfg(test)]
 mod t {
 

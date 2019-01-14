@@ -1,7 +1,7 @@
 // vim: tw=80
 
 use mockall;
-use mockall_derive::mock;
+use mockall_derive::*;
 use std::default::Default;
 
 /// Mocking a trait with associated types currently requires manual mocking.
@@ -42,7 +42,7 @@ fn associated_types() {
 #[test]
 fn consume_parameters() {
     struct NonCopy{}
-    #[mock]
+    #[automock]
     trait T {
         fn foo(&self, x: NonCopy);
     }
@@ -55,7 +55,7 @@ fn consume_parameters() {
 
 #[test]
 fn generic_parameters() {
-    #[mock]
+    #[automock]
     trait A {
         fn foo<T: 'static>(&self, t: T);
     }
@@ -71,7 +71,7 @@ fn generic_parameters() {
 
 #[test]
 fn generic_return() {
-    #[mock]
+    #[automock]
     trait A {
         fn foo<T: 'static>(&self, t: T) -> T;
     }
@@ -88,12 +88,12 @@ fn generic_return() {
 #[test]
 #[allow(unused)]
 fn generic_struct() {
-    #[mock]
+    #[automock]
     struct GenericStruct<'a, T, V> {
         t: T,
         v: &'a V
     }
-    #[mock]
+    #[automock]
     impl<'a, T, V> GenericStruct<'a, T, V> {
         fn foo(&self, _x: u32) -> i64 {
             42
@@ -108,7 +108,7 @@ fn generic_struct() {
 
 #[test]
 fn generic_trait() {
-    #[mock]
+    #[automock]
     trait A<T> {
         fn foo(&self);
     }
@@ -126,10 +126,10 @@ fn impl_trait() {
         fn foo(&self, x: u32) -> i64;
     }
 
-    #[mock]
+    #[automock]
     struct SomeStruct {}
 
-    #[mock]
+    #[automock]
     impl Foo for SomeStruct {
         fn foo(&self, _x: u32) -> i64 {
             42
@@ -142,32 +142,13 @@ fn impl_trait() {
     assert_eq!(5, mock.foo(4));
 }
 
-// TODO: implement inherited traits
-//#[test]
-//fn inherited_trait() {
-    //#[mock]
-    //trait A {
-        //fn foo(&self);
-    //}
-    //#[mock]
-    //trait B: A {
-        //fn bar(&self);
-    //}
-
-    //let mut mock = MockB::default();
-    //mock.expect_foo().returning(|| ());
-    //mock.expect_bar().returning(|| ());
-    //mock.foo();
-    //mock.bar();
-//}
-
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]
 #[allow(unused)]
 fn many_args() {
-    #[mock]
+    #[automock]
     struct ManyArgs {}
-    #[mock]
+    #[automock]
     impl ManyArgs {
         fn foo(&self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
                _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
@@ -184,10 +165,10 @@ fn many_args() {
 #[test]
 #[allow(unused)]
 fn method_self_by_value() {
-    #[mock]
+    #[automock]
     struct MethodByValue {}
 
-    #[mock]
+    #[automock]
     impl MethodByValue {
         fn foo(self, _x: u32) -> i64 {
             42
@@ -205,11 +186,11 @@ fn method_self_by_value() {
 fn multi_trait() {
     trait A {}
     trait B {}
-    #[mock]
+    #[automock]
     struct MultiTrait {}
-    #[mock]
+    #[automock]
     impl A for MultiTrait {}
-    #[mock]
+    #[automock]
     impl B for MultiTrait {}
 
     fn foo<T: A + B>(_t: T) {}
@@ -221,11 +202,11 @@ fn multi_trait() {
 #[test]
 #[allow(unused)]
 fn pub_crate_struct() {
-    #[mock]
+    #[automock]
     pub(crate) struct PubStruct {
         x: i16
     }
-    #[mock]
+    #[automock]
     impl PubStruct {
         pub(crate) fn foo(&self, _x: u32) -> i64 {
             42
@@ -243,11 +224,11 @@ fn pub_crate_struct() {
 fn pub_super_struct() {
     mod m {
         use super::*;
-        #[mock]
+        #[automock]
         pub(super) struct PubStruct {
             x: i16
         }
-        #[mock]
+        #[automock]
         impl PubStruct {
             pub(super) fn foo(&self, _x: u32) -> i64 {
                 42
@@ -264,11 +245,11 @@ fn pub_super_struct() {
 #[test]
 #[allow(unused)]
 fn pub_struct() {
-    #[mock]
+    #[automock]
     pub struct PubStruct {
         x: i16
     }
-    #[mock]
+    #[automock]
     impl PubStruct {
         pub fn foo(&self, _x: u32) -> i64 {
             42
@@ -284,7 +265,7 @@ fn pub_struct() {
 // TODO: mock non-'static lifetimes
 //#[test]
 //fn return_lifetime() {
-    //#[mock]
+    //#[automock]
     //trait A<'a> {
         //fn foo(&'a self) -> &'a u32;
     //}
@@ -298,7 +279,7 @@ fn pub_struct() {
 #[test]
 fn return_owned() {
     struct NonCopy{}
-    #[mock]
+    #[automock]
     trait T {
         fn foo(&self) -> NonCopy;
     }
@@ -314,7 +295,7 @@ fn return_owned() {
 ///// Mock a method that returns through its arguments
 //#[test]
 //fn return_parameters() {
-    //#[mock]
+    //#[automock]
     //trait T {
         //fn foo(&self, x: &mut u32);
     //}
@@ -331,7 +312,7 @@ fn return_owned() {
 
 #[test]
 fn send() {
-    #[mock]
+    #[automock]
     trait T {
         fn foo(&self) -> u32;
     }
@@ -343,11 +324,11 @@ fn send() {
 #[test]
 #[allow(unused)]
 fn simple_struct() {
-    #[mock]
+    #[automock]
     struct SimpleStruct {
         x: i16
     }
-    #[mock]
+    #[automock]
     impl SimpleStruct {
         fn foo(&self, _x: u32) -> i64 {
             42
@@ -362,7 +343,7 @@ fn simple_struct() {
 
 #[test]
 fn simple_trait() {
-    #[mock]
+    #[automock]
     trait SimpleTrait {
         fn foo(&self, x: u32) -> u32;
     }
@@ -377,7 +358,7 @@ fn simple_trait() {
 /// on the static method
 #[test]
 fn static_method() {
-    #[mock]
+    #[automock]
     trait A {
         fn bar() -> u32;
         fn foo(&self, x: u32) -> u32;
