@@ -54,6 +54,28 @@ fn associated_types() {
     //assert_eq!(4, mock.foo(4));
 //}
 
+// Semiautomatic style mocking with associated types
+mod associated_types_mock {
+    use super::*;
+
+    mock! {
+        MyIter {}
+        trait Iterator {
+            type Item=u32;
+
+            fn next(&mut self) -> Option<<Self as Iterator>::Item>;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockMyIter::default();
+        mock.expect_next()
+            .returning(|_| Some(5));
+        assert_eq!(5, mock.next().unwrap());
+    }
+}
+
 #[test]
 fn consume_parameters() {
     struct NonCopy{}

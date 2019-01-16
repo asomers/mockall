@@ -333,8 +333,22 @@ fn mock_trait_methods(mock_ident: &syn::Ident, item: &syn::ItemTrait)
                     "Mockall does not yet support generic associated types");
                 assert!(ty.bounds.is_empty(),
                     "Mockall does not yet support associated types with trait bounds");
-                return fatal_error(ty.span(),
-                    "MockAll does not yet support associated types");
+                if ty.default.is_some() {
+                    // Trait normally can't get here (unless the
+                    // associated_type_defaults feature is enabled), but we can
+                    // get here from mock! if invoked like
+                    // mock!
+                    // mock!{
+                    //     Foo { }
+                    //     trait Bar {
+                    //         type A=B;
+                    //     }
+                    // }
+                    ty.to_tokens(&mut mock_body)
+                } else {
+                    return fatal_error(ty.span(),
+                        "MockAll does not yet support mocking traits with associated types");
+                }
             },
             _ => {
                 return fatal_error(trait_item.span(),
@@ -458,7 +472,7 @@ fn check(desired: &str, code: &str) {
 }
 
 #[test]
-#[ignore("Associated types are TODO")]
+#[ignore("automocking associated types are TODO")]
 fn associated_types() {
     check(r#"
     #[derive(Default)]
@@ -542,6 +556,48 @@ fn external_struct_with_trait() {
         ExternalStruct {}
         trait Foo {
             fn foo(&self, x: u32) -> i64;
+        }
+    "#;
+    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+    let output = do_mock(ts).to_string();
+    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
+        .to_string();
+    assert_eq!(expected, output);
+}
+
+/// Mocking a struct that's defined in another crate, and has a a trait
+/// implementation that includes an associated type
+#[test]
+fn external_struct_with_trait_with_associated_types() {
+    let desired = r#"
+        #[derive(Default)]
+        struct MockMyIter {
+            e: ::mockall::Expectations,
+        }
+        impl MockMyIter { }
+        impl Iterator for MockMyIter {
+        type Item=u32;
+            fn next(&mut self) -> Option< <Self as Iterator> ::Item> {
+                self.e.called:: <(), Option< <Self as Iterator> ::Item> >
+                    ("next", ())
+            }
+        }
+        impl MockMyIter {
+            pub fn expect_next(&mut self)
+                -> &mut ::mockall::Expectation<(),
+                    Option< <Self as Iterator> ::Item> >
+            {
+                self.e.expect:: <(),
+                    Option< <Self as Iterator> ::Item> >("next")
+            }
+        }
+    "#;
+    let code = r#"
+        MyIter {}
+        trait Iterator {
+            type Item=u32;
+
+            fn next(&mut self) -> Option<<Self as Iterator>::Item>;
         }
     "#;
     let ts = proc_macro2::TokenStream::from_str(code).unwrap();
