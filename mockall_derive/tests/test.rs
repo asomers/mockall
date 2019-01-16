@@ -119,6 +119,35 @@ mod external_struct {
     }
 }
 
+/// Use mock! to mock a generic struct
+mod external_generic_struct {
+    use super::*;
+
+    // A struct with a definition like this:
+    // pub struct ExtGenericStruct<T: Clone> {
+    //     _x: i16
+    // }
+    // impl<T: Clone> ExtGenericStruct<T> {
+    //     fn foo(&self, _x: T) -> T {
+    //         42
+    //     }
+    // }
+    // Could be mocked like this:
+    mock!{
+        pub ExtGenericStruct<T: Clone + 'static> {
+            fn foo(&self, x: T) -> T;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockExtGenericStruct::<u32>::default();
+        mock.expect_foo()
+            .returning(|x| x.clone());
+        assert_eq!(5, mock.foo(5));
+    }
+}
+
 mod external_struct_with_trait {
     use super::*;
 
@@ -196,15 +225,38 @@ fn generic_return() {
 }
 
 #[test]
-#[allow(unused)]
 fn generic_struct() {
     #[automock]
+    #[allow(unused)]
     struct GenericStruct<'a, T, V> {
         t: T,
         v: &'a V
     }
     #[automock]
     impl<'a, T, V> GenericStruct<'a, T, V> {
+        #[allow(unused)]
+        fn foo(&self, _x: u32) -> i64 {
+            42
+        }
+    }
+
+    let mut mock = MockGenericStruct::<'static, u8, i8>::default();
+    mock.expect_foo()
+        .returning(|x| i64::from(x) + 1);
+    assert_eq!(5, mock.foo(4));
+}
+
+#[test]
+fn generic_struct_with_bounds() {
+    #[automock]
+    #[allow(unused)]
+    struct GenericStruct<'a, T: Copy, V: Clone> {
+        t: T,
+        v: &'a V
+    }
+    #[automock]
+    impl<'a, T: Copy, V: Clone> GenericStruct<'a, T, V> {
+        #[allow(unused)]
         fn foo(&self, _x: u32) -> i64 {
             42
         }
@@ -230,13 +282,26 @@ fn generic_trait() {
 }
 
 #[test]
-#[allow(unused)]
+fn generic_trait_with_bounds() {
+    #[automock]
+    trait A<T: Copy> {
+        fn foo(&self);
+    }
+
+    let mut mock = MockA::<u32>::default();
+    mock.expect_foo()
+        .returning(|_| ());
+    mock.foo();
+}
+
+#[test]
 fn impl_trait() {
     trait Foo {
         fn foo(&self, x: u32) -> i64;
     }
 
     #[automock]
+    #[allow(unused)]
     struct SomeStruct {}
 
     #[automock]
@@ -247,6 +312,31 @@ fn impl_trait() {
     }
 
     let mut mock = MockSomeStruct::default();
+    mock.expect_foo()
+        .returning(|x| i64::from(x) + 1);
+    assert_eq!(5, mock.foo(4));
+}
+
+#[test]
+fn impl_trait_on_generic() {
+    trait Foo {
+        fn foo(&self, x: u32) -> i64;
+    }
+
+    #[automock]
+    #[allow(unused)]
+    struct SomeStruct<T> {
+        _t: std::marker::PhantomData<T>
+    }
+
+    #[automock]
+    impl<T> Foo for SomeStruct<T> {
+        fn foo(&self, _x: u32) -> i64 {
+            42
+        }
+    }
+
+    let mut mock = MockSomeStruct::<u32>::default();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));

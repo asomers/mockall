@@ -7,7 +7,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
 use syn::{
     braced,
-    parse::{Parse, ParseStream, Result},
+    parse::{Parse, ParseStream},
     spanned::Spanned,
     Token
 };
@@ -53,9 +53,15 @@ impl Mock {
             mm.to_tokens(&mut mock_body);
             em.to_tokens(&mut mock_body);
         }
-        quote!(impl #mock_struct_name {#mock_body}).to_tokens(&mut output);
+        let generics = &self.generics;
+        let reduced_generics = match reduce_generics(&generics) {
+            Ok(g) => g,
+            Err(ts) => return ts
+        };
+        quote!(impl #generics #mock_struct_name #reduced_generics {#mock_body})
+            .to_tokens(&mut output);
         for trait_ in self.traits.iter() {
-            mock_trait_methods(&mock_struct_name, &trait_)
+            mock_trait_methods(&mock_struct_name, Some(&generics), &trait_)
                 .to_tokens(&mut output);
         }
         output
@@ -63,7 +69,7 @@ impl Mock {
 }
 
 impl Parse for Mock {
-    fn parse(input: ParseStream) -> Result<Self> {
+    fn parse(input: ParseStream) -> syn::parse::Result<Self> {
         let vis: syn::Visibility = input.parse()?;
         let name: syn::Ident = input.parse()?;
         let generics: syn::Generics = input.parse()?;
@@ -95,6 +101,42 @@ impl Parse for Mock {
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
 fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
     syn::Ident::new(&format!("Mock{}", ident), ident.span())
+}
+
+/// Remove the bounds from  a Generics.  Eg:
+/// reduce_generics(<'a, T: Copy>) == Ok(<'a, T>)
+fn reduce_generics(g: &syn::Generics) -> Result<syn::Generics, TokenStream> {
+    let mut params = syn::punctuated::Punctuated::new();
+    for param in g.params.iter() {
+        match param {
+            syn::GenericParam::Type(ty) => {
+                let mut newty = ty.clone();
+                newty.colon_token = None;
+                newty.bounds = syn::punctuated::Punctuated::new();
+                newty.eq_token = None;
+                newty.default = None;
+                params.push(syn::GenericParam::Type(newty));
+            },
+            syn::GenericParam::Lifetime(lt) => {
+                let mut newlt = lt.clone();
+                newlt.colon_token = None;
+                newlt.bounds = syn::punctuated::Punctuated::new();
+                params.push(syn::GenericParam::Lifetime(newlt));
+            },
+            syn::GenericParam::Const(_) => {
+                // https://github.com/rust-lang/rust/issues/44580
+                return Err(fatal_error(param.span(),
+                    "Generic constants are not yet supported"));
+            }
+        }
+    }
+    let generics = syn::Generics {
+        lt_token: g.lt_token,
+        params,
+        gt_token: g.gt_token,
+        where_clause: None
+    };
+    Ok(generics)
 }
 
 /// Generate a mock path from a regular one:
@@ -306,9 +348,41 @@ fn mock_struct(item: syn::ItemStruct) -> TokenStream {
     gen_struct(&item.vis, &item.ident, &item.generics)
 }
 
+/// Merge two Generics lists into one.  The parameter names must be disjoint.
+fn merge_generics(g0: &syn::Generics, g1: &syn::Generics) -> syn::Generics {
+    let lt_token = g0.lt_token.or(g1.lt_token);
+    let gt_token = g0.gt_token.or(g1.gt_token);
+    let mut params = g0.params.clone();
+    for param in g1.params.iter() {
+        params.push(param.clone());
+    }
+    let where_clause = match (&g0.where_clause, &g1.where_clause) {
+        (None, None) => None,
+        (Some(wc), None) => Some(wc.clone()),
+        (None, Some(wc)) => Some(wc.clone()),
+        (Some(wc0), Some(wc1)) => {
+            let mut wc = wc0.clone();
+            for wp in wc1.predicates.iter() {
+                wc.predicates.push(wp.clone());
+            }
+            Some(wc)
+        }
+    };
+    syn::Generics{lt_token, params, gt_token, where_clause}
+}
+
 /// Generate mock methods for a Trait
-fn mock_trait_methods(mock_ident: &syn::Ident, item: &syn::ItemTrait)
-    -> TokenStream
+///
+/// # Parameters
+///
+/// * `mock_ident`:         Name of the mock structure to generate
+/// * `struct_generics`:    If provided, use these generic fields for the
+///                         Mock struct.  Otherwise, generate the struct's
+///                         generics from the Trait
+/// * `item`:               The trait whose methods are being mocked
+fn mock_trait_methods(mock_ident: &syn::Ident,
+                      struct_generics: Option<&syn::Generics>,
+                      item: &syn::ItemTrait) -> TokenStream
 {
     let mut output = TokenStream::new();
     let mut mock_body = TokenStream::new();
@@ -360,14 +434,23 @@ fn mock_trait_methods(mock_ident: &syn::Ident, item: &syn::ItemTrait)
     // Put all mock methods in one impl block
     item.unsafety.to_tokens(&mut output);
     let ident = &item.ident;
-    let generics = &item.generics;
-    quote!(impl #generics #ident #generics for #mock_ident #generics {
+    let trait_generics = &item.generics;
+    let (merged_g, reduced_struct_g) = match struct_generics {
+        None => (trait_generics.clone(),
+            reduce_generics(&trait_generics).unwrap()),
+        Some(g) => {
+            (merge_generics(g, trait_generics), reduce_generics(&g).unwrap())
+        }
+    };
+    let reduced_trait_g = reduce_generics(&trait_generics).unwrap();
+    quote!(impl #merged_g #ident #reduced_trait_g
+           for #mock_ident #reduced_struct_g {
         #mock_body
     }).to_tokens(&mut output);
 
     // Put all expect methods in a separate impl block.  This is necessary when
     // mocking a trait impl, where we can't add any new methods
-    quote!(impl #generics #mock_ident #generics {
+    quote!(impl #merged_g #mock_ident #reduced_struct_g {
         #expect_body
     }).to_tokens(&mut output);
 
@@ -378,7 +461,7 @@ fn mock_trait_methods(mock_ident: &syn::Ident, item: &syn::ItemTrait)
 fn mock_trait(item: syn::ItemTrait) -> TokenStream {
     let mut output = gen_struct(&item.vis, &item.ident, &item.generics);
     let mock_ident = gen_mock_ident(&item.ident);
-    mock_trait_methods(&mock_ident, &item).to_tokens(&mut output);
+    mock_trait_methods(&mock_ident, None, &item).to_tokens(&mut output);
     output
 }
 
@@ -420,20 +503,23 @@ fn do_mock(input: TokenStream) -> TokenStream {
 /// * Optional visibility specifier
 /// * Real structure name and generics fields
 /// * 0 or more methods of the structure, written without bodies, enclosed in
-///   an impl block
+///   a {} block
 /// * 0 or more traits to implement for the structure, written like normal
 ///   traits
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// # use mockall_derive::mock;
+/// trait Foo {
+///     fn foo(&self, x: u32);
+/// }
 /// mock!{
 ///     pub MyStruct<T: Clone> {
 ///         fn bar(&self) -> u8;
 ///     }
-///     impl<T: Clone> Foo for MyStruct<T> {
-///         fn foo(&self, u32);
+///     trait Foo {
+///         fn foo(&self, x: u32);
 ///     }
 /// }
 /// # fn main() {}
@@ -529,7 +615,76 @@ fn external_struct() {
     assert_eq!(expected, output);
 }
 
-/// Mocking a struct that's defined in another crate, and has a a trait
+/// Mocking a generic struct that's defined in another crate
+#[test]
+fn external_generic_struct() {
+    let desired = r#"
+        #[derive(Default)]
+        struct MockExternalStruct<T: Clone> {
+            e: ::mockall::Expectations,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T: Clone> MockExternalStruct<T> {
+            pub fn foo(&self, x: u32) -> i64 {
+                self.e.called:: <(u32), i64>("foo", (x))
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(u32), i64>
+            {
+                self.e.expect:: <(u32), i64>("foo")
+            }
+        }
+    "#;
+    let code = r#"
+        ExternalStruct<T: Clone> {
+            fn foo(&self, x: u32) -> i64;
+        }
+    "#;
+    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+    let output = do_mock(ts).to_string();
+    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
+        .to_string();
+    assert_eq!(expected, output);
+}
+
+/// Mocking a generic struct that's defined in another crate and has a trait
+/// impl
+#[test]
+fn external_generic_struct_with_trait() {
+    let desired = r#"
+        #[derive(Default)]
+        struct MockExternalStruct<T: Clone> {
+            e: ::mockall::Expectations,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T: Clone> MockExternalStruct<T> {}
+        impl<T: Clone, Q: Copy + 'static> Foo<Q> for MockExternalStruct<T> {
+            fn foo(&self, x: Q) -> Q {
+                self.e.called:: <(Q), Q>("foo", (x))
+            }
+        }
+        impl<T: Clone, Q: Copy + 'static> MockExternalStruct<T> {
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(Q), Q>
+            {
+                self.e.expect:: <(Q), Q>("foo")
+            }
+        }
+    "#;
+    let code = r#"
+        ExternalStruct<T: Clone> {}
+        trait Foo<Q: Copy + 'static> {
+            fn foo(&self, x: Q) -> Q;
+        }
+    "#;
+    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+    let output = do_mock(ts).to_string();
+    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
+        .to_string();
+    assert_eq!(expected, output);
+}
+
+/// Mocking a struct that's defined in another crate, and has a trait
 /// implementation
 #[test]
 fn external_struct_with_trait() {
@@ -665,6 +820,39 @@ fn generic_struct() {
 }
 
 #[test]
+fn generic_struct_with_bounds() {
+    check(r#"
+    #[derive(Default)]
+    struct MockGenericStruct< 'a, T: Copy, V: Clone> {
+        e: ::mockall::Expectations,
+        _t0: ::std::marker::PhantomData< & 'a ()> ,
+        _t1: ::std::marker::PhantomData<T> ,
+        _t2: ::std::marker::PhantomData<V> ,
+    }"#, r#"
+    struct GenericStruct<'a, T: Copy, V: Clone> {
+        t: T,
+        v: &'a V
+    }"#);
+    check(r#"
+    impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
+        fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl<'a, T: Copy, V: Clone> GenericStruct<'a, T, V> {
+        fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
+
+#[test]
 fn generic_trait() {
     check(r#"
     #[derive(Default)]
@@ -688,6 +876,30 @@ fn generic_trait() {
     }"#);
 }
 
+#[test]
+fn generic_trait_with_bound() {
+    check(r#"
+    #[derive(Default)]
+    struct MockGenericTrait<T: Copy> {
+        e: ::mockall::Expectations,
+        _t0: ::std::marker::PhantomData<T> ,
+    }
+    impl<T: Copy> GenericTrait<T> for MockGenericTrait<T> {
+        fn foo(&self) {
+            self.e.called:: <(), ()>("foo", ())
+        }
+    }
+    impl<T: Copy> MockGenericTrait<T> {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
+        {
+            self.e.expect:: <(), ()>("foo")
+        }
+    }"#, r#"
+    trait GenericTrait<T: Copy> {
+        fn foo(&self);
+    }"#);
+}
+
 /// Mock implementing a trait on a structure
 #[test]
 fn impl_trait() {
@@ -707,6 +919,31 @@ fn impl_trait() {
         }
     }"#, r#"
     impl Foo for SomeStruct {
+        fn foo(&self, x: u32) -> i64 {
+            42
+        }
+    }"#);
+}
+
+/// Mock implementing a trait on a generic structure
+#[test]
+fn impl_trait_on_generic() {
+    trait Foo {
+        fn foo(&self, x: u32) -> i64;
+    }
+    check(r#"
+    impl<T> Foo for MockSomeStruct<T> {
+        fn foo(&self, x: u32) -> i64 {
+            self.e.called:: <(u32), i64>("foo", (x))
+        }
+    }
+    impl<T> MockSomeStruct<T> {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        {
+            self.e.expect:: <(u32), i64>("foo")
+        }
+    }"#, r#"
+    impl<T> Foo for SomeStruct<T> {
         fn foo(&self, x: u32) -> i64 {
             42
         }
