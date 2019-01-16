@@ -31,7 +31,8 @@ struct Mock {
     vis: syn::Visibility,
     name: syn::Ident,
     generics: syn::Generics,
-    methods: Vec<syn::TraitItemMethod>
+    methods: Vec<syn::TraitItemMethod>,
+    traits: Vec<syn::ItemTrait>
 }
 
 impl Mock {
@@ -50,6 +51,10 @@ impl Mock {
             em.to_tokens(&mut mock_body);
         }
         quote!(impl #mock_struct_name {#mock_body}).to_tokens(&mut output);
+        for trait_ in self.traits.iter() {
+            mock_trait_methods(&mock_struct_name, &trait_)
+                .to_tokens(&mut output);
+        }
         output
     }
 }
@@ -59,11 +64,11 @@ impl Parse for Mock {
         let vis: syn::Visibility = input.parse()?;
         let name: syn::Ident = input.parse()?;
         let generics: syn::Generics = input.parse()?;
-        input.parse::<Option<Token![,]>>()?;
-        let content;
-        let _brace_token = braced!(content in input);
+
+        let impl_content;
+        let _brace_token = braced!(impl_content in input);
         let methods_item: syn::punctuated::Punctuated<syn::TraitItem, Token![;]>
-            = content.parse_terminated(syn::TraitItem::parse)?;
+            = impl_content.parse_terminated(syn::TraitItem::parse)?;
         let mut methods = Vec::new();
         for method in methods_item.iter() {
             match method {
@@ -74,7 +79,13 @@ impl Parse for Mock {
             }
         }
 
-        Ok(Mock{vis, name, generics, methods})
+        let mut traits = Vec::new();
+        while !input.is_empty() {
+            let trait_: syn::ItemTrait = input.parse()?;
+            traits.push(trait_);
+        }
+
+        Ok(Mock{vis, name, generics, methods, traits})
     }
 }
 
@@ -282,14 +293,15 @@ fn mock_struct(item: syn::ItemStruct) -> TokenStream {
     gen_struct(&item.vis, &item.ident, &item.generics)
 }
 
-/// Generate a mock struct that implements a trait
-fn mock_trait(item: syn::ItemTrait) -> TokenStream {
-    let mut output = gen_struct(&item.vis, &item.ident, &item.generics);
-
+/// Generate mock methods for a Trait
+fn mock_trait_methods(mock_ident: &syn::Ident, item: &syn::ItemTrait)
+    -> TokenStream
+{
+    let mut output = TokenStream::new();
     let mut mock_body = TokenStream::new();
     let mut expect_body = TokenStream::new();
 
-    for trait_item in item.items {
+    for trait_item in item.items.iter() {
         match trait_item {
             syn::TraitItem::Const(_) => {
                 // Nothing to implement
@@ -320,7 +332,6 @@ fn mock_trait(item: syn::ItemTrait) -> TokenStream {
     item.unsafety.to_tokens(&mut output);
     let ident = &item.ident;
     let generics = &item.generics;
-    let mock_ident = gen_mock_ident(&ident);
     quote!(impl #generics #ident #generics for #mock_ident #generics {
         #mock_body
     }).to_tokens(&mut output);
@@ -332,7 +343,14 @@ fn mock_trait(item: syn::ItemTrait) -> TokenStream {
     }).to_tokens(&mut output);
 
     output
+}
 
+/// Generate a mock struct that implements a trait
+fn mock_trait(item: syn::ItemTrait) -> TokenStream {
+    let mut output = gen_struct(&item.vis, &item.ident, &item.generics);
+    let mock_ident = gen_mock_ident(&item.ident);
+    mock_trait_methods(&mock_ident, &item).to_tokens(&mut output);
+    output
 }
 
 fn mock_item(input: TokenStream) -> TokenStream {
@@ -472,6 +490,42 @@ fn external_struct() {
     "#;
     let code = r#"
         ExternalStruct {
+            fn foo(&self, x: u32) -> i64;
+        }
+    "#;
+    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+    let output = do_mock(ts).to_string();
+    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
+        .to_string();
+    assert_eq!(expected, output);
+}
+
+/// Mocking a struct that's defined in another crate, and has a a trait
+/// implementation
+#[test]
+fn external_struct_with_trait() {
+    let desired = r#"
+        #[derive(Default)]
+        struct MockExternalStruct {
+            e: ::mockall::Expectations,
+        }
+        impl MockExternalStruct { }
+        impl Foo for MockExternalStruct {
+            fn foo(&self, x: u32) -> i64 {
+                self.e.called:: <(u32), i64>("foo", (x))
+            }
+        }
+        impl MockExternalStruct {
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(u32), i64>
+            {
+                self.e.expect:: <(u32), i64>("foo")
+            }
+        }
+    "#;
+    let code = r#"
+        ExternalStruct {}
+        trait Foo {
             fn foo(&self, x: u32) -> i64;
         }
     "#;

@@ -97,6 +97,50 @@ mod external_struct {
     }
 }
 
+mod external_struct_with_trait {
+    use super::*;
+
+    trait Bar {
+        fn bar(&self, _x: u32) -> u32;
+    }
+
+    // A struct with a definition like this:
+    // struct ExternalStruct {
+    //     _x: i16
+    // }
+    // impl ExternalStruct {
+    //     fn foo(&self, _x: u32) -> u32 {
+    //         42
+    //     }
+    // }
+    // impl Bar for ExternalStruct {
+    //     fn bar(&self, _x: u32) -> u32 {
+    //         42
+    //     }
+    // }
+    //
+    // Could be mocked like this:
+    mock!{
+        ExternalStruct {
+            fn foo(&self, x: u32) -> u32;
+        }
+        trait Bar {
+            fn bar(&self, _x: u32) -> u32;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockExternalStruct::default();
+        mock.expect_foo()
+            .returning(|x| x + 1);
+        mock.expect_bar()
+            .returning(|x| x - 1);
+        assert_eq!(6, mock.foo(5));
+        assert_eq!(4, mock.bar(5));
+    }
+}
+
 #[test]
 fn generic_parameters() {
     #[automock]
