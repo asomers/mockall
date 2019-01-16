@@ -13,7 +13,10 @@ use syn::{
 };
 
 cfg_if! {
-    if #[cfg(feature = "nightly")] {
+    // proc-macro2's Span::unstable method requires the nightly feature, and it
+    // doesn't work in test mode.
+    // https://github.com/alexcrichton/proc-macro2/issues/159
+    if #[cfg(all(feature = "nightly", not(test)))] {
         fn fatal_error(span: Span, msg: &'static str) -> TokenStream {
             span.unstable()
                 .error(msg)
