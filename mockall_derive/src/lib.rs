@@ -1,8 +1,26 @@
 // vim: tw=80
+#![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
 extern crate proc_macro;
 
+use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
+use syn::spanned::Spanned;
+
+cfg_if! {
+    if #[cfg(feature = "nightly")] {
+        fn fatal_error(span: Span, msg: &'static str) -> TokenStream {
+            span.unstable()
+                .error(msg)
+                .emit();
+            TokenStream::new()
+        }
+    } else {
+        fn fatal_error(_span: Span, msg: &str) -> TokenStream {
+            panic!("{}.  More information may be available when mockall is built with the \"nightly\" feature.", msg)
+        }
+    }
+}
 
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
 fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
@@ -26,6 +44,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     assert!(sig.decl.variadic.is_none(),
         "MockAll does not yet support variadic functions");
     let mut mock_output = TokenStream::new();
+    let mut expect_output = TokenStream::new();
     let constness = sig.constness;
     let unsafety = sig.unsafety;
     let asyncness = sig.asyncness;
@@ -79,7 +98,11 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
                 let pat = &arg.pat;
                 args.push(quote!(#pat));
             },
-            _ => panic!("Should be unreachable for normal Rust code")
+            _ => {
+                let mo = fatal_error(p.span(),
+                    "Should be unreachable for normal Rust code");
+                return (mo, expect_output);
+            }
         }
     }
 
@@ -87,7 +110,6 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
         .to_tokens(&mut mock_output);
 
     // Then the expectation method
-    let mut expect_output = TokenStream::new();
     let expect_ident = syn::Ident::new(&format!("expect_{}", sig.ident),
                                        sig.ident.span());
     quote!(pub fn #expect_ident #generics(&mut self)
@@ -261,17 +283,17 @@ fn mock_item(input: TokenStream) -> TokenStream {
     let item: syn::Item = match syn::parse2(input) {
         Ok(item) => item,
         Err(err) => {
-            // TODO: use Span::call_site().error().emit once proc_macro_span is
-            // stable
-            // https://github.com/rust-lang/rust/issues/54725
-            panic!("Failed to parse: {}", err);
+            return err.to_compile_error();
         }
     };
     match item {
         syn::Item::Struct(item_struct) => mock_struct(item_struct),
         syn::Item::Impl(item_impl) => mock_impl(item_impl),
         syn::Item::Trait(item_trait) => mock_trait(item_trait),
-        _ => unimplemented!("TODO")
+        _ => {
+            fatal_error(item.span(),
+                "#[automock] does not support this item type")
+        }
     }
 }
 

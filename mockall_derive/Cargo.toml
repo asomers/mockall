@@ -7,7 +7,12 @@ edition = "2018"
 [lib]
 proc-macro = true
 
+[features]
+# Extra features for the nightly compiler only
+nightly = ["proc-macro2/nightly"]
+
 [dependencies]
+cfg-if = "0.1"
 mockall = { path = "../mockall" }
 proc-macro2 = "0.4"
 quote = "0.6"
