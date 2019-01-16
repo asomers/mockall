@@ -1,6 +1,5 @@
 // vim: tw=80
 
-use mockall;
 use mockall_derive::*;
 use std::default::Default;
 
