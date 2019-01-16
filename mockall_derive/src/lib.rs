@@ -548,9 +548,9 @@ use pretty_assertions::assert_eq;
 use std::str::FromStr;
 use super::*;
 
-fn check(desired: &str, code: &str) {
+fn check<F: Fn(TokenStream) -> TokenStream>(desired: &str, code: &str, f: F) {
     let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-    let output = mock_item(ts).to_string();
+    let output = f(ts).to_string();
     // Let proc_macro2 reformat the whitespace in the expected string
     let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
         .to_string();
@@ -581,7 +581,8 @@ fn associated_types() {
     trait A {
         type T;
         fn foo(&self, x: Self::T) -> Self::T;
-    }"#);
+    }"#,
+    mock_item);
 }
 
 /// Mocking a struct that's defined in another crate
@@ -608,11 +609,7 @@ fn external_struct() {
             fn foo(&self, x: u32) -> i64;
         }
     "#;
-    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-    let output = do_mock(ts).to_string();
-    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
-        .to_string();
-    assert_eq!(expected, output);
+    check(desired, code, do_mock);
 }
 
 /// Mocking a generic struct that's defined in another crate
@@ -640,11 +637,7 @@ fn external_generic_struct() {
             fn foo(&self, x: u32) -> i64;
         }
     "#;
-    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-    let output = do_mock(ts).to_string();
-    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
-        .to_string();
-    assert_eq!(expected, output);
+    check(desired, code, do_mock);
 }
 
 /// Mocking a generic struct that's defined in another crate and has a trait
@@ -677,11 +670,7 @@ fn external_generic_struct_with_trait() {
             fn foo(&self, x: Q) -> Q;
         }
     "#;
-    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-    let output = do_mock(ts).to_string();
-    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
-        .to_string();
-    assert_eq!(expected, output);
+    check(desired, code, do_mock);
 }
 
 /// Mocking a struct that's defined in another crate, and has a trait
@@ -713,11 +702,7 @@ fn external_struct_with_trait() {
             fn foo(&self, x: u32) -> i64;
         }
     "#;
-    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-    let output = do_mock(ts).to_string();
-    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
-        .to_string();
-    assert_eq!(expected, output);
+    check(desired, code, do_mock);
 }
 
 /// Mocking a struct that's defined in another crate, and has a a trait
@@ -755,11 +740,7 @@ fn external_struct_with_trait_with_associated_types() {
             fn next(&mut self) -> Option<<Self as Iterator>::Item>;
         }
     "#;
-    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-    let output = do_mock(ts).to_string();
-    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
-        .to_string();
-    assert_eq!(expected, output);
+    check(desired, code, do_mock);
 }
 
 #[test]
@@ -783,7 +764,8 @@ fn generic_method() {
     }"#, r#"
     trait A {
         fn foo<T: 'static>(&self, t: T);
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -799,7 +781,8 @@ fn generic_struct() {
     struct GenericStruct<'a, T, V> {
         t: T,
         v: &'a V
-    }"#);
+    }"#,
+    mock_item);
     check(r#"
     impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
         fn foo(&self, x: u32) -> i64 {
@@ -816,7 +799,8 @@ fn generic_struct() {
         fn foo(&self, x: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -832,7 +816,8 @@ fn generic_struct_with_bounds() {
     struct GenericStruct<'a, T: Copy, V: Clone> {
         t: T,
         v: &'a V
-    }"#);
+    }"#,
+    mock_item);
     check(r#"
     impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
         fn foo(&self, x: u32) -> i64 {
@@ -849,7 +834,8 @@ fn generic_struct_with_bounds() {
         fn foo(&self, x: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -873,7 +859,8 @@ fn generic_trait() {
     }"#, r#"
     trait GenericTrait<T> {
         fn foo(&self);
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -897,7 +884,8 @@ fn generic_trait_with_bound() {
     }"#, r#"
     trait GenericTrait<T: Copy> {
         fn foo(&self);
-    }"#);
+    }"#,
+    mock_item);
 }
 
 /// Mock implementing a trait on a structure
@@ -922,7 +910,8 @@ fn impl_trait() {
         fn foo(&self, x: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 
 /// Mock implementing a trait on a generic structure
@@ -947,7 +936,8 @@ fn impl_trait_on_generic() {
         fn foo(&self, x: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -995,11 +985,7 @@ fn inherited_trait() {
             fn bar(&self);
         }
     "#;
-    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-    let output = do_mock(ts).to_string();
-    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
-        .to_string();
-    assert_eq!(expected, output);
+    check(desired, code, do_mock);
 }
 
 #[test]
@@ -1021,7 +1007,8 @@ fn method_by_value() {
             42
         }
     }
-    "#);
+    "#,
+    mock_item);
 }
 
 #[test]
@@ -1033,7 +1020,8 @@ fn pub_crate_struct() {
     }"#, r#"
     pub(crate) struct PubCrateStruct {
         x: i16
-    }"#);
+    }"#,
+    mock_item);
     check(r#"
     impl MockPubCrateStruct {
         pub(crate) fn foo(&self, x: u32) -> i64 {
@@ -1050,7 +1038,8 @@ fn pub_crate_struct() {
         pub(crate) fn foo(&self, x: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -1062,7 +1051,8 @@ fn pub_struct() {
     }"#, r#"
     pub struct PubStruct {
         x: i16
-    }"#);
+    }"#,
+    mock_item);
     check(r#"
     impl MockPubStruct {
         pub fn foo(&self, x: u32) -> i64 {
@@ -1080,7 +1070,8 @@ fn pub_struct() {
             42
         }
     }
-    "#);
+    "#,
+    mock_item);
 }
 
 #[test]
@@ -1092,7 +1083,8 @@ fn pub_super_struct() {
     }"#, r#"
     pub(super) struct PubSuperStruct {
         x: i16
-    }"#);
+    }"#,
+    mock_item);
     check(&r#"
     impl MockPubSuperStruct {
         pub(super) fn foo(&self, x: u32) -> i64 {
@@ -1109,7 +1101,8 @@ fn pub_super_struct() {
         pub(super) fn foo(&self, x: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -1121,7 +1114,8 @@ fn simple_struct() {
     }"#, r#"
     struct SimpleStruct {
         x: i16
-    }"#);
+    }"#,
+    mock_item);
     check(r#"
     impl MockSimpleStruct {
         fn foo(&self, x: u32) -> i64 {
@@ -1138,7 +1132,8 @@ fn simple_struct() {
         fn foo(&self, x: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -1162,7 +1157,8 @@ fn simple_trait() {
     r#"
     trait SimpleTrait {
         fn foo(&self, x: u32) -> i64;
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -1190,7 +1186,8 @@ fn static_method() {
     trait A {
         fn foo(&self, x: u32) -> u32;
         fn bar() -> u32;
-    }"#);
+    }"#,
+    mock_item);
 }
 
 #[test]
@@ -1200,7 +1197,8 @@ fn two_args() {
     struct MockTwoArgs {
         e: ::mockall::Expectations,
     }"#, r#"
-    struct TwoArgs {}"#);
+    struct TwoArgs {}"#,
+    mock_item);
     check(r#"
     impl MockTwoArgs {
         fn foo(&self, x: u32, y: u32) -> i64 {
@@ -1218,6 +1216,7 @@ fn two_args() {
         fn foo(&self, x: u32, y: u32) -> i64 {
             42
         }
-    }"#);
+    }"#,
+    mock_item);
 }
 }
