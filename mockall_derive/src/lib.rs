@@ -141,7 +141,12 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
             },
             syn::FnArg::SelfValue(_) => {
                 is_static = false;
-            }, _ => unimplemented!(),
+            },
+            _ => {
+                let mo = fatal_error(fn_arg.span(),
+                    "Should be unreachable for normal Rust code");
+                return (mo, expect_output);
+            }
         }
     }
     let output_type: syn::Type = match &sig.decl.output {
@@ -201,7 +206,10 @@ fn mock_impl(item: syn::ItemImpl) -> TokenStream {
             assert!(type_path.qself.is_none(), "What is qself?");
             gen_mock_path(&type_path.path)
         },
-        _ => unimplemented!("This self type is not yet supported by MockAll")
+        _ => {
+            return fatal_error(item.self_ty.span(),
+                "MockAll only supports implementing methods on Structs");
+        }
     };
 
     for impl_item in item.items {
@@ -222,7 +230,8 @@ fn mock_impl(item: syn::ItemImpl) -> TokenStream {
                 expect_meth.to_tokens(&mut expect_body);
             },
             _ => {
-                unimplemented!("This impl item is not yet supported by MockAll")
+                return fatal_error(impl_item.span(),
+                "This impl item is not yet supported by MockAll");
             }
         }
     }
@@ -277,7 +286,8 @@ fn gen_struct(vis: &syn::Visibility,
                     .to_tokens(&mut body);
             },
             syn::GenericParam::Const(_) => {
-                unimplemented!("#automock does not yet support generic constants");
+                return fatal_error(param.span(),
+                    "#automock does not yet support generic constants");
             }
         }
         count += 1;
@@ -323,10 +333,12 @@ fn mock_trait_methods(mock_ident: &syn::Ident, item: &syn::ItemTrait)
                     "Mockall does not yet support generic associated types");
                 assert!(ty.bounds.is_empty(),
                     "Mockall does not yet support associated types with trait bounds");
-                unimplemented!("MockAll does not yet support associated types");
+                return fatal_error(ty.span(),
+                    "MockAll does not yet support associated types");
             },
             _ => {
-                unimplemented!("This impl item is not yet supported by MockAll")
+                return fatal_error(trait_item.span(),
+                    "This impl item is not yet supported by MockAll");
             }
         }
     }
