@@ -27,31 +27,10 @@ cfg_if! {
     }
 }
 
-/// A manually created mock, as created by mock!{}
-struct MockStruct {
+struct Mock {
     vis: syn::Visibility,
     name: syn::Ident,
-    generics: syn::Generics
-}
-
-impl MockStruct {
-    fn gen(&self) -> TokenStream {
-        gen_struct(&self.vis, &self.name, &self.generics)
-    }
-}
-
-impl Parse for MockStruct {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let vis: syn::Visibility = input.parse()?;
-        let name: syn::Ident = input.parse()?;
-        let generics: syn::Generics = input.parse()?;
-        input.parse::<Option<Token![,]>>()?;
-        Ok(MockStruct {vis, name, generics})
-    }
-}
-
-struct Mock {
-    struct_: MockStruct,
+    generics: syn::Generics,
     methods: Vec<syn::TraitItemMethod>
 }
 
@@ -59,8 +38,9 @@ impl Mock {
     fn gen(&self) -> TokenStream {
         let mut output = TokenStream::new();
         let mut mock_body = TokenStream::new();
-        let mock_struct_name = gen_mock_ident(&self.struct_.name);
-        self.struct_.gen().to_tokens(&mut output);
+        let mock_struct_name = gen_mock_ident(&self.name);
+        gen_struct(&self.vis, &self.name, &self.generics)
+            .to_tokens(&mut output);
         for meth in self.methods.iter() {
             // All mocked methods are public
             let pub_token = syn::token::Pub{span: Span::call_site()};
@@ -76,7 +56,10 @@ impl Mock {
 
 impl Parse for Mock {
     fn parse(input: ParseStream) -> Result<Self> {
-        let struct_ = input.parse()?;
+        let vis: syn::Visibility = input.parse()?;
+        let name: syn::Ident = input.parse()?;
+        let generics: syn::Generics = input.parse()?;
+        input.parse::<Option<Token![,]>>()?;
         let content;
         let _brace_token = braced!(content in input);
         let methods_item: syn::punctuated::Punctuated<syn::TraitItem, Token![;]>
@@ -91,7 +74,7 @@ impl Parse for Mock {
             }
         }
 
-        Ok(Mock{struct_, methods})
+        Ok(Mock{vis, name, generics, methods})
     }
 }
 
