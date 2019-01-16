@@ -39,6 +39,21 @@ fn associated_types() {
     assert_eq!(4, mock.foo(4));
 }
 
+// automatic-style mocking with associated types
+//#[test]
+//fn associated_types_auto() {
+    //#[automock(type T=u32)]
+    //trait A {
+        //type T;
+        //fn foo(&self, x: Self::T) -> Self::T;
+    //}
+
+    //let mut mock = MockA::default();
+    //mock.expect_foo()
+        //.returning(|x| x);
+    //assert_eq!(4, mock.foo(4));
+//}
+
 #[test]
 fn consume_parameters() {
     struct NonCopy{}
@@ -51,6 +66,35 @@ fn consume_parameters() {
     mock.expect_foo()
         .returning(|_x: NonCopy| ());
     mock.foo(NonCopy{});
+}
+
+/// Mock a struct whose definition is inaccessible
+mod external_struct {
+    use super::*;
+
+    // A struct with a definition like this:
+    // struct ExternalStruct {
+    //     _x: i16
+    // }
+    // impl ExternalStruct {
+    //     fn foo(&self, _x: u32) -> u32 {
+    //         42
+    //     }
+    // }
+    // Could be mocked like this:
+    mock!{
+        ExternalStruct {
+            fn foo(&self, x: u32) -> u32;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockExternalStruct::default();
+        mock.expect_foo()
+            .returning(|x| x + 1);
+        assert_eq!(6, mock.foo(5));
+    }
 }
 
 #[test]
@@ -141,6 +185,37 @@ fn impl_trait() {
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
 }
+
+//mod inherited_trait {
+    //use super::*;
+
+    //trait B {
+        //fn foo(&self);
+    //}
+
+    //trait A: B {
+        //fn bar(&self);
+    //}
+
+    //mock!{
+        //MockA,
+        //trait A {
+            //fn bar(&self);
+        //},
+        //trait B {
+            //fn foo(&self);
+        //}
+    //}
+
+    //#[test]
+    //fn t() {
+        //let mut mock = MockA::default();
+        //mock.expect_foo().returning(|| ());
+        //mock.expect_bar().returning(|| ());
+        //mock.foo();
+        //mock.bar();
+    //}
+//}
 
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]

@@ -5,7 +5,12 @@ extern crate proc_macro;
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
-use syn::spanned::Spanned;
+use syn::{
+    braced,
+    parse::{Parse, ParseStream, Result},
+    spanned::Spanned,
+    Token
+};
 
 cfg_if! {
     if #[cfg(feature = "nightly")] {
@@ -19,6 +24,74 @@ cfg_if! {
         fn fatal_error(_span: Span, msg: &str) -> TokenStream {
             panic!("{}.  More information may be available when mockall is built with the \"nightly\" feature.", msg)
         }
+    }
+}
+
+/// A manually created mock, as created by mock!{}
+struct MockStruct {
+    vis: syn::Visibility,
+    name: syn::Ident,
+    generics: syn::Generics
+}
+
+impl MockStruct {
+    fn gen(&self) -> TokenStream {
+        gen_struct(&self.vis, &self.name, &self.generics)
+    }
+}
+
+impl Parse for MockStruct {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let vis: syn::Visibility = input.parse()?;
+        let name: syn::Ident = input.parse()?;
+        let generics: syn::Generics = input.parse()?;
+        input.parse::<Option<Token![,]>>()?;
+        Ok(MockStruct {vis, name, generics})
+    }
+}
+
+struct Mock {
+    struct_: MockStruct,
+    methods: Vec<syn::TraitItemMethod>
+}
+
+impl Mock {
+    fn gen(&self) -> TokenStream {
+        let mut output = TokenStream::new();
+        let mut mock_body = TokenStream::new();
+        let mock_struct_name = gen_mock_ident(&self.struct_.name);
+        self.struct_.gen().to_tokens(&mut output);
+        for meth in self.methods.iter() {
+            // All mocked methods are public
+            let pub_token = syn::token::Pub{span: Span::call_site()};
+            let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
+            let (mm, em) = gen_mock_method(None, &vis, &meth.sig);
+            mm.to_tokens(&mut mock_body);
+            em.to_tokens(&mut mock_body);
+        }
+        quote!(impl #mock_struct_name {#mock_body}).to_tokens(&mut output);
+        output
+    }
+}
+
+impl Parse for Mock {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let struct_ = input.parse()?;
+        let content;
+        let _brace_token = braced!(content in input);
+        let methods_item: syn::punctuated::Punctuated<syn::TraitItem, Token![;]>
+            = content.parse_terminated(syn::TraitItem::parse)?;
+        let mut methods = Vec::new();
+        for method in methods_item.iter() {
+            match method {
+                syn::TraitItem::Method(meth) => methods.push(meth.clone()),
+                _ => {
+                    return Err(input.error("Unsupported in this context"));
+                }
+            }
+        }
+
+        Ok(Mock{struct_, methods})
     }
 }
 
@@ -62,7 +135,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
 
     let mut is_static = true;
     let mut input_type
-        = syn::punctuated::Punctuated::<syn::Type, syn::Token![,]>::new();
+        = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
     for fn_arg in sig.decl.inputs.iter() {
         match fn_arg {
             syn::FnArg::Captured(arg) => input_type.push(arg.ty.clone()),
@@ -297,6 +370,49 @@ fn mock_item(input: TokenStream) -> TokenStream {
     }
 }
 
+fn do_mock(input: TokenStream) -> TokenStream {
+    let mock: Mock = match syn::parse2(input) {
+        Ok(mock) => mock,
+        Err(err) => {
+            return err.to_compile_error();
+        }
+    };
+    mock.gen()
+}
+
+/// Manually mock a structure.
+///
+/// Sometimes `automock` can't be used.  In those cases you can use `mock!`,
+/// which basically involves repeat the struct's or trait's definitions.
+///
+/// The format is:
+///
+/// * Optional visibility specifier
+/// * Real structure name and generics fields
+/// * 0 or more methods of the structure, written without bodies, enclosed in
+///   an impl block
+/// * 0 or more traits to implement for the structure, written like normal
+///   traits
+///
+/// # Examples
+///
+/// ```ignore
+/// # use mockall_derive::mock;
+/// mock!{
+///     pub MyStruct<T: Clone> {
+///         fn bar(&self) -> u8;
+///     }
+///     impl<T: Clone> Foo for MyStruct<T> {
+///         fn foo(&self, u32);
+///     }
+/// }
+/// # fn main() {}
+/// ```
+#[proc_macro]
+pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    do_mock(item.into()).into()
+}
+
 /// Automatically generate mock types for Structs and Traits.
 #[proc_macro_attribute]
 pub fn automock(_attr: proc_macro::TokenStream, input: proc_macro::TokenStream)
@@ -350,6 +466,37 @@ fn associated_types() {
         type T;
         fn foo(&self, x: Self::T) -> Self::T;
     }"#);
+}
+
+/// Mocking a struct that's defined in another crate
+#[test]
+fn external_struct() {
+    let desired = r#"
+        #[derive(Default)]
+        struct MockExternalStruct {
+            e: ::mockall::Expectations,
+        }
+        impl MockExternalStruct {
+            pub fn foo(&self, x: u32) -> i64 {
+                self.e.called:: <(u32), i64>("foo", (x))
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(u32), i64>
+            {
+                self.e.expect:: <(u32), i64>("foo")
+            }
+        }
+    "#;
+    let code = r#"
+        ExternalStruct {
+            fn foo(&self, x: u32) -> i64;
+        }
+    "#;
+    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+    let output = do_mock(ts).to_string();
+    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
+        .to_string();
+    assert_eq!(expected, output);
 }
 
 #[test]
