@@ -643,19 +643,28 @@ fn impl_trait() {
 }
 
 #[test]
-#[ignore("Inherited traits are TODO")]
 fn inherited_trait() {
     trait A {
         fn foo(&self);
     }
-    check(r#"
+    trait B: A {
+        fn bar(&self);
+    }
+    let desired = r#"
     #[derive(Default)]
     struct MockB {
         e: ::mockall::Expectations,
     }
+    impl MockB {}
     impl A for MockB {
         fn foo(&self) {
             self.e.called:: <(), ()>("foo", ())
+        }
+    }
+    impl MockB {
+        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
+        {
+            self.e.expect:: <(), ()>("foo")
         }
     }
     impl B for MockB {
@@ -664,18 +673,25 @@ fn inherited_trait() {
         }
     }
     impl MockB {
-        pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
-        {
-            self.e.expect:: <(), ()>("foo")
-        }
         pub fn expect_bar(&mut self) -> &mut ::mockall::Expectation<(), ()>
         {
             self.e.expect:: <(), ()>("bar")
         }
-    }"#, r#"
-    trait B: A {
-        fn bar(&self);
-    }"#);
+    }"#;
+    let code = r#"
+        B {}
+        trait A {
+            fn foo(&self);
+        }
+        trait B {
+            fn bar(&self);
+        }
+    "#;
+    let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+    let output = do_mock(ts).to_string();
+    let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
+        .to_string();
+    assert_eq!(expected, output);
 }
 
 #[test]

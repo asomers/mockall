@@ -230,36 +230,36 @@ fn impl_trait() {
     assert_eq!(5, mock.foo(4));
 }
 
-//mod inherited_trait {
-    //use super::*;
+mod inherited_trait {
+    use super::*;
 
-    //trait B {
-        //fn foo(&self);
-    //}
+    trait A {
+        fn foo(&self);
+    }
 
-    //trait A: B {
-        //fn bar(&self);
-    //}
+    trait B: A {
+        fn bar(&self);
+    }
 
-    //mock!{
-        //MockA,
-        //trait A {
-            //fn bar(&self);
-        //},
-        //trait B {
-            //fn foo(&self);
-        //}
-    //}
+    mock!{
+        B {}
+        trait A {
+            fn foo(&self);
+        }
+        trait B {
+            fn bar(&self);
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //let mut mock = MockA::default();
-        //mock.expect_foo().returning(|| ());
-        //mock.expect_bar().returning(|| ());
-        //mock.foo();
-        //mock.bar();
-    //}
-//}
+    #[test]
+    fn t() {
+        let mut mock = MockB::default();
+        mock.expect_foo().returning(|_| ());
+        mock.expect_bar().returning(|_| ());
+        mock.foo();
+        mock.bar();
+    }
+}
 
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]
