@@ -1,4 +1,5 @@
 // vim: tw=80
+//! Integration tests for #[automock]
 
 use mockall_derive::*;
 use std::default::Default;
@@ -18,28 +19,6 @@ fn associated_types_auto() {
     assert_eq!(4, mock.foo(4));
 }
 
-// Semiautomatic style mocking with associated types
-mod associated_types_mock {
-    use super::*;
-
-    mock! {
-        MyIter {}
-        trait Iterator {
-            type Item=u32;
-
-            fn next(&mut self) -> Option<<Self as Iterator>::Item>;
-        }
-    }
-
-    #[test]
-    fn t() {
-        let mut mock = MockMyIter::default();
-        mock.expect_next()
-            .returning(|_| Some(5));
-        assert_eq!(5, mock.next().unwrap());
-    }
-}
-
 #[test]
 fn consume_parameters() {
     struct NonCopy{}
@@ -52,108 +31,6 @@ fn consume_parameters() {
     mock.expect_foo()
         .returning(|_x: NonCopy| ());
     mock.foo(NonCopy{});
-}
-
-/// Mock a struct whose definition is inaccessible
-mod external_struct {
-    use super::*;
-
-    // A struct with a definition like this:
-    // struct ExternalStruct {
-    //     _x: i16
-    // }
-    // impl ExternalStruct {
-    //     fn foo(&self, _x: u32) -> u32 {
-    //         42
-    //     }
-    // }
-    // Could be mocked like this:
-    mock!{
-        ExternalStruct {
-            fn foo(&self, x: u32) -> u32;
-        }
-    }
-
-    #[test]
-    fn t() {
-        let mut mock = MockExternalStruct::default();
-        mock.expect_foo()
-            .returning(|x| x + 1);
-        assert_eq!(6, mock.foo(5));
-    }
-}
-
-/// Use mock! to mock a generic struct
-mod external_generic_struct {
-    use super::*;
-
-    // A struct with a definition like this:
-    // pub struct ExtGenericStruct<T: Clone> {
-    //     _x: i16
-    // }
-    // impl<T: Clone> ExtGenericStruct<T> {
-    //     fn foo(&self, _x: T) -> T {
-    //         42
-    //     }
-    // }
-    // Could be mocked like this:
-    mock!{
-        pub ExtGenericStruct<T: Clone + 'static> {
-            fn foo(&self, x: T) -> T;
-        }
-    }
-
-    #[test]
-    fn t() {
-        let mut mock = MockExtGenericStruct::<u32>::default();
-        mock.expect_foo()
-            .returning(|x| x.clone());
-        assert_eq!(5, mock.foo(5));
-    }
-}
-
-mod external_struct_with_trait {
-    use super::*;
-
-    trait Bar {
-        fn bar(&self, _x: u32) -> u32;
-    }
-
-    // A struct with a definition like this:
-    // struct ExternalStruct {
-    //     _x: i16
-    // }
-    // impl ExternalStruct {
-    //     fn foo(&self, _x: u32) -> u32 {
-    //         42
-    //     }
-    // }
-    // impl Bar for ExternalStruct {
-    //     fn bar(&self, _x: u32) -> u32 {
-    //         42
-    //     }
-    // }
-    //
-    // Could be mocked like this:
-    mock!{
-        ExternalStruct {
-            fn foo(&self, x: u32) -> u32;
-        }
-        trait Bar {
-            fn bar(&self, _x: u32) -> u32;
-        }
-    }
-
-    #[test]
-    fn t() {
-        let mut mock = MockExternalStruct::default();
-        mock.expect_foo()
-            .returning(|x| x + 1);
-        mock.expect_bar()
-            .returning(|x| x - 1);
-        assert_eq!(6, mock.foo(5));
-        assert_eq!(4, mock.bar(5));
-    }
 }
 
 #[test]
@@ -306,37 +183,6 @@ fn impl_trait_on_generic() {
     assert_eq!(5, mock.foo(4));
 }
 
-mod inherited_trait {
-    use super::*;
-
-    trait A {
-        fn foo(&self);
-    }
-
-    trait B: A {
-        fn bar(&self);
-    }
-
-    mock!{
-        B {}
-        trait A {
-            fn foo(&self);
-        }
-        trait B {
-            fn bar(&self);
-        }
-    }
-
-    #[test]
-    fn t() {
-        let mut mock = MockB::default();
-        mock.expect_foo().returning(|_| ());
-        mock.expect_bar().returning(|_| ());
-        mock.foo();
-        mock.bar();
-    }
-}
-
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]
 #[allow(unused)]
@@ -392,56 +238,6 @@ fn multi_trait() {
 
     let mock = MockMultiTrait::default();
     foo(mock);
-}
-
-/// A mock struct has two different methods with the same name, from different
-/// traits.  Neither automock nor mock! can handle this; manual mocking is
-/// required.
-///
-/// The key is changing the ident names used to store the expectations.  Use
-/// "traitname_methodname" as the identifier names, and in the expectation
-/// methods' names.
-mod name_conflict {
-    trait Foo {
-        fn meth(&self) -> u32;
-    }
-    trait Bar {
-        fn meth(&self) -> u32;
-    }
-
-    #[derive(Default)]
-    struct MockA {
-        e: ::mockall::GenericExpectations,
-    }
-    impl MockA {
-        fn expect_foo_meth(&mut self) -> &mut ::mockall::Expectation<(), u32>
-        {
-            self.e.expect::<(), u32>("foo_meth")
-        }
-        fn expect_bar_meth(&mut self) -> &mut ::mockall::Expectation<(), u32>
-        {
-            self.e.expect::<(), u32>("bar_meth")
-        }
-    }
-    impl Foo for MockA {
-        fn meth(&self) -> u32 {
-            self.e.called::<(), u32>("foo_meth", ())
-        }
-    }
-    impl Bar for MockA {
-        fn meth(&self) -> u32 {
-            self.e.called::<(), u32>("bar_meth", ())
-        }
-    }
-
-    #[test]
-    fn t() {
-        let mut mock = MockA::default();
-        mock.expect_foo_meth().returning(|_| 5);
-        mock.expect_bar_meth().returning(|_| 6);
-        assert_eq!(5, Foo::meth(&mock));
-        assert_eq!(6, Bar::meth(&mock));
-    }
 }
 
 #[test]

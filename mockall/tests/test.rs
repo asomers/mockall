@@ -24,6 +24,56 @@ fn mutable_self() {
     assert_eq!(10, e.called::<i32, i32>(&"foo", 5));
 }
 
+/// A mock struct has two different methods with the same name, from different
+/// traits.  Neither automock nor mock! can handle this; manual mocking is
+/// required.
+///
+/// The key is changing the ident names used to store the expectations.  Use
+/// "traitname_methodname" as the identifier names, and in the expectation
+/// methods' names.
+mod name_conflict {
+    trait Foo {
+        fn meth(&self) -> u32;
+    }
+    trait Bar {
+        fn meth(&self) -> u32;
+    }
+
+    #[derive(Default)]
+    struct MockA {
+        e: ::mockall::GenericExpectations,
+    }
+    impl MockA {
+        fn expect_foo_meth(&mut self) -> &mut ::mockall::Expectation<(), u32>
+        {
+            self.e.expect::<(), u32>("foo_meth")
+        }
+        fn expect_bar_meth(&mut self) -> &mut ::mockall::Expectation<(), u32>
+        {
+            self.e.expect::<(), u32>("bar_meth")
+        }
+    }
+    impl Foo for MockA {
+        fn meth(&self) -> u32 {
+            self.e.called::<(), u32>("foo_meth", ())
+        }
+    }
+    impl Bar for MockA {
+        fn meth(&self) -> u32 {
+            self.e.called::<(), u32>("bar_meth", ())
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockA::default();
+        mock.expect_foo_meth().returning(|_| 5);
+        mock.expect_bar_meth().returning(|_| 6);
+        assert_eq!(5, Foo::meth(&mock));
+        assert_eq!(6, Bar::meth(&mock));
+    }
+}
+
 /// A MockObject with a method that has no arguments or returns
 /// fn foo(&self)
 #[test]
