@@ -342,6 +342,39 @@ fn mock_struct(item: syn::ItemStruct) -> TokenStream {
     gen_struct(&item.vis, &item.ident, &item.generics)
 }
 
+/// Find any associated types within the Trait, and present them as a Generics
+fn find_associated_types(item: &syn::ItemTrait) -> syn::Generics {
+    let mut params = syn::punctuated::Punctuated::new();
+    let where_clause = None;
+    for trait_item in item.items.iter() {
+        if let syn::TraitItem::Type(ty) = trait_item {
+            if !ty.generics.params.is_empty() {
+                compile_error(ty.generics.span(),
+                    "automock does not support generic associated types");
+            }
+            let tp = syn::TypeParam {
+                attrs: ty.attrs.clone(),
+                ident: ty.ident.clone(),
+                colon_token: ty.colon_token.clone(),
+                bounds: ty.bounds.clone(),
+                eq_token: None,
+                default: None
+            };
+            params.push(syn::GenericParam::Type(tp));
+        }
+    }
+    if params.is_empty() {
+        syn::Generics{lt_token: None, params, gt_token: None, where_clause}
+    } else {
+        syn::Generics{
+            lt_token: Some(syn::token::Lt::default()),
+            params,
+            gt_token: Some(syn::token::Gt::default()),
+            where_clause
+        }
+    }
+}
+
 /// Merge two Generics lists into one.  The parameter names must be disjoint.
 fn merge_generics(g0: &syn::Generics, g1: &syn::Generics) -> syn::Generics {
     let lt_token = g0.lt_token.or(g1.lt_token);
@@ -401,10 +434,6 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                     compile_error(ty.generics.span(),
                         "Mockall does not yet support generic associated types");
                 }
-                if !ty.bounds.is_empty() {
-                    compile_error(ty.bounds.span(),
-                        "Mockall does not yet support associated types with trait bounds");
-                }
                 if ty.default.is_some() {
                     // Trait normally can't get here (unless the
                     // associated_type_defaults feature is enabled), but we can
@@ -418,8 +447,13 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                     // }
                     ty.to_tokens(&mut mock_body)
                 } else {
-                    compile_error(ty.span(),
-                        "MockAll does not yet support mocking traits with associated types");
+                    // If we got here, then hopefully we're mocking this trait
+                    // using a generic struct.  The associated type should've
+                    // been found by find_associated_types, so we should define
+                    // the associated type to be the mocked generic type, which
+                    // has the same name.
+                    let ident = &ty.ident;
+                    quote!(type #ident = #ident;).to_tokens(&mut mock_body);
                 }
             },
             _ => {
@@ -457,10 +491,22 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
 
 /// Generate a mock struct that implements a trait
 fn mock_trait(item: syn::ItemTrait) -> TokenStream {
-    let mut output = gen_struct(&item.vis, &item.ident, &item.generics);
+    let associated_types = find_associated_types(&item);
     let mock_ident = gen_mock_ident(&item.ident);
-    mock_trait_methods(&mock_ident, None, &item).to_tokens(&mut output);
-    output
+    if item.generics.params.is_empty() {
+        let mut output = gen_struct(&item.vis, &item.ident, &associated_types);
+        mock_trait_methods(&mock_ident, Some(&associated_types), &item)
+            .to_tokens(&mut output);
+        output
+    } else if associated_types.params.is_empty() {
+        let mut output = gen_struct(&item.vis, &item.ident, &item.generics);
+        mock_trait_methods(&mock_ident, None, &item).to_tokens(&mut output);
+        output
+    } else {
+        compile_error(item.span(),
+        "automock does not yet support generic traits with associated types");
+        TokenStream::new()
+    }
 }
 
 fn do_automock(input: TokenStream) -> TokenStream {
@@ -557,29 +603,29 @@ fn check<F: Fn(TokenStream) -> TokenStream>(desired: &str, code: &str, f: F) {
 }
 
 #[test]
-#[ignore("automocking associated types are TODO")]
 fn associated_types() {
     check(r#"
     #[derive(Default)]
-    struct MockA {
+    struct MockA<T: Clone + 'static> {
         e: ::mockall::GenericExpectations,
+        _t0 : :: std :: marker :: PhantomData < T > ,
     }
-    impl A for MockA {
-        type T = u32;
-        fn foo(&self, x: Self::T) -> Self::T {
-            self.e.called:: <(Self::T), Self::T>("foo", (x))
+    impl<T: Clone + 'static> A for MockA<T> {
+        type T = T;
+        fn foo(&self, x: <Self as A> ::T) -> <Self as A> ::T {
+            self.e.called:: <(<Self as A> ::T), <Self as A> ::T>("foo", (x))
         }
     }
-    impl MockA {
+    impl<T: Clone + 'static> MockA<T> {
         pub fn expect_foo(&mut self)
-            -> &mut ::mockall::Expectation<(<Self as A>::T), i64>
+            -> &mut ::mockall::Expectation<(<Self as A> ::T), <Self as A> ::T>
         {
-            self.e.expect:: <(<Self as A>::T), i64>("foo")
+            self.e.expect:: <(<Self as A> ::T), <Self as A> ::T>("foo")
         }
     }"#, r#"
     trait A {
-        type T;
-        fn foo(&self, x: Self::T) -> Self::T;
+        type T: Clone + 'static;
+        fn foo(&self, x: <Self as A> ::T) -> <Self as A> ::T;
     }"#,
     do_automock);
 }

@@ -3,55 +3,20 @@
 use mockall_derive::*;
 use std::default::Default;
 
-/// Mocking a trait with associated types currently requires manual mocking.
-/// TODO: add derive support for this, perhaps by providing the "type T=u32" as
-/// an attr argument to mock.
+// automatic-style mocking with associated types
 #[test]
-fn associated_types() {
+fn associated_types_auto() {
+    #[automock]
     trait A {
-        type T;
-        fn foo(&self, x: Self::T) -> Self::T;
+        type T: Clone + 'static;
+        fn foo(&self, x: <Self as A>::T) -> <Self as A>::T;
     }
 
-    #[derive(Default)]
-    struct MockA {
-        foo: ::mockall::Expectation<<MockA as A>::T, <MockA as A>::T>,
-    }
-    impl A for MockA {
-        type T=u32;
-
-        fn foo(&self, x: Self::T) -> Self::T {
-            self.foo.call(x)
-        }
-    }
-    impl MockA {
-        pub fn expect_foo(&mut self)
-            -> &mut ::mockall::Expectation<<Self as A>::T, <Self as A>::T>
-        {
-            &mut self.foo
-        }
-    }
-
-    let mut mock = MockA::default();
+    let mut mock = MockA::<u32>::default();
     mock.expect_foo()
         .returning(|x| x);
     assert_eq!(4, mock.foo(4));
 }
-
-// automatic-style mocking with associated types
-//#[test]
-//fn associated_types_auto() {
-    //#[automock(type T=u32)]
-    //trait A {
-        //type T;
-        //fn foo(&self, x: Self::T) -> Self::T;
-    //}
-
-    //let mut mock = MockA::default();
-    //mock.expect_foo()
-        //.returning(|x| x);
-    //assert_eq!(4, mock.foo(4));
-//}
 
 // Semiautomatic style mocking with associated types
 mod associated_types_mock {
