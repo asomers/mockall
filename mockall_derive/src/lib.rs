@@ -234,7 +234,10 @@ fn mock_impl(item: syn::ItemImpl) -> TokenStream {
 
     let mock_type = match *item.self_ty {
         syn::Type::Path(type_path) => {
-            assert!(type_path.qself.is_none(), "What is qself?");
+            if let Some(_) = type_path.qself.as_ref() {
+                compile_error(type_path.span(),
+                    "Qualified types aren't valid in this context?");
+            }
             gen_mock_path(&type_path.path)
         },
         _ => {
@@ -305,8 +308,10 @@ fn gen_struct(vis: &syn::Visibility,
         let phident = syn::Ident::new(&phname, Span::call_site());
         match param {
             syn::GenericParam::Lifetime(l) => {
-                assert!(l.bounds.is_empty(),
-                    "#automock does not yet support lifetime bounds on structs");
+                if !l.bounds.is_empty() {
+                    compile_error(l.bounds.span(),
+                        "#automock does not yet support lifetime bounds on structs");
+                }
                 let lifetime = &l.lifetime;
                 quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>,)
                     .to_tokens(&mut body);
@@ -392,10 +397,14 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                 expect_meth.to_tokens(&mut expect_body);
             },
             syn::TraitItem::Type(ty) => {
-                assert!(ty.generics.params.is_empty(),
-                    "Mockall does not yet support generic associated types");
-                assert!(ty.bounds.is_empty(),
-                    "Mockall does not yet support associated types with trait bounds");
+                if !ty.generics.params.is_empty() {
+                    compile_error(ty.generics.span(),
+                        "Mockall does not yet support generic associated types");
+                }
+                if !ty.bounds.is_empty() {
+                    compile_error(ty.bounds.span(),
+                        "Mockall does not yet support associated types with trait bounds");
+                }
                 if ty.default.is_some() {
                     // Trait normally can't get here (unless the
                     // associated_type_defaults feature is enabled), but we can
