@@ -454,7 +454,7 @@ fn mock_trait(item: syn::ItemTrait) -> TokenStream {
     output
 }
 
-fn mock_item(input: TokenStream) -> TokenStream {
+fn do_automock(input: TokenStream) -> TokenStream {
     let item: syn::Item = match syn::parse2(input) {
         Ok(item) => item,
         Err(err) => {
@@ -526,7 +526,7 @@ pub fn automock(_attr: proc_macro::TokenStream, input: proc_macro::TokenStream)
 {
     let input: proc_macro2::TokenStream = input.into();
     let mut output = input.clone();
-    output.extend(mock_item(input));
+    output.extend(do_automock(input));
     output.into()
 }
 
@@ -572,7 +572,7 @@ fn associated_types() {
         type T;
         fn foo(&self, x: Self::T) -> Self::T;
     }"#,
-    mock_item);
+    do_automock);
 }
 
 /// Mocking a struct that's defined in another crate
@@ -755,7 +755,7 @@ fn generic_method() {
     trait A {
         fn foo<T: 'static>(&self, t: T);
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -772,7 +772,7 @@ fn generic_struct() {
         t: T,
         v: &'a V
     }"#,
-    mock_item);
+    do_automock);
     check(r#"
     impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
         fn foo(&self, x: u32) -> i64 {
@@ -790,7 +790,7 @@ fn generic_struct() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -807,7 +807,7 @@ fn generic_struct_with_bounds() {
         t: T,
         v: &'a V
     }"#,
-    mock_item);
+    do_automock);
     check(r#"
     impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
         fn foo(&self, x: u32) -> i64 {
@@ -825,7 +825,7 @@ fn generic_struct_with_bounds() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -850,7 +850,7 @@ fn generic_trait() {
     trait GenericTrait<T> {
         fn foo(&self);
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -875,7 +875,7 @@ fn generic_trait_with_bound() {
     trait GenericTrait<T: Copy> {
         fn foo(&self);
     }"#,
-    mock_item);
+    do_automock);
 }
 
 /// Mock implementing a trait on a structure
@@ -901,7 +901,7 @@ fn impl_trait() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 
 /// Mock implementing a trait on a generic structure
@@ -927,7 +927,7 @@ fn impl_trait_on_generic() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -998,7 +998,7 @@ fn method_by_value() {
         }
     }
     "#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -1011,7 +1011,7 @@ fn pub_crate_struct() {
     pub(crate) struct PubCrateStruct {
         x: i16
     }"#,
-    mock_item);
+    do_automock);
     check(r#"
     impl MockPubCrateStruct {
         pub(crate) fn foo(&self, x: u32) -> i64 {
@@ -1029,7 +1029,7 @@ fn pub_crate_struct() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -1042,7 +1042,7 @@ fn pub_struct() {
     pub struct PubStruct {
         x: i16
     }"#,
-    mock_item);
+    do_automock);
     check(r#"
     impl MockPubStruct {
         pub fn foo(&self, x: u32) -> i64 {
@@ -1061,7 +1061,7 @@ fn pub_struct() {
         }
     }
     "#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -1074,7 +1074,7 @@ fn pub_super_struct() {
     pub(super) struct PubSuperStruct {
         x: i16
     }"#,
-    mock_item);
+    do_automock);
     check(&r#"
     impl MockPubSuperStruct {
         pub(super) fn foo(&self, x: u32) -> i64 {
@@ -1092,7 +1092,7 @@ fn pub_super_struct() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -1105,7 +1105,7 @@ fn simple_struct() {
     struct SimpleStruct {
         x: i16
     }"#,
-    mock_item);
+    do_automock);
     check(r#"
     impl MockSimpleStruct {
         fn foo(&self, x: u32) -> i64 {
@@ -1123,7 +1123,7 @@ fn simple_struct() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -1148,7 +1148,7 @@ fn simple_trait() {
     trait SimpleTrait {
         fn foo(&self, x: u32) -> i64;
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -1177,7 +1177,7 @@ fn static_method() {
         fn foo(&self, x: u32) -> u32;
         fn bar() -> u32;
     }"#,
-    mock_item);
+    do_automock);
 }
 
 #[test]
@@ -1188,7 +1188,7 @@ fn two_args() {
         e: ::mockall::GenericExpectations,
     }"#, r#"
     struct TwoArgs {}"#,
-    mock_item);
+    do_automock);
     check(r#"
     impl MockTwoArgs {
         fn foo(&self, x: u32, y: u32) -> i64 {
@@ -1207,6 +1207,6 @@ fn two_args() {
             42
         }
     }"#,
-    mock_item);
+    do_automock);
 }
 }
