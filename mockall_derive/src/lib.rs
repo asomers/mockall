@@ -1054,6 +1054,32 @@ mod mock {
         assert_eq!(expected, output);
     }
 
+    /// Mocking a struct with a generic method with mock!{}
+    #[test]
+    fn generic_method() {
+        let desired = r#"
+            #[derive(Default)]
+            struct MockSomeStruct {
+                e: ::mockall::GenericExpectations,
+            }
+            impl MockSomeStruct {
+                pub fn foo<T: 'static>(&self, t: T) {
+                    self.e.called:: <(T), ()>("foo", (t))
+                }
+                pub fn expect_foo<T: 'static>(&mut self)
+                    -> &mut ::mockall::Expectation<(T), ()>
+                {
+                    self.e.expect:: <(T), ()>("foo")
+                }
+            }
+        "#;
+        let code = r#"
+            SomeStruct {
+                fn foo<T: 'static>(&self, t: T);
+            }"#;
+        check(desired, code);
+    }
+
     /// Mocking a generic struct that's defined in another crate
     #[test]
     fn generic_struct() {
