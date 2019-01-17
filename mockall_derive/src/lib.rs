@@ -17,15 +17,14 @@ cfg_if! {
     // doesn't work in test mode.
     // https://github.com/alexcrichton/proc-macro2/issues/159
     if #[cfg(all(feature = "nightly", not(test)))] {
-        fn fatal_error(span: Span, msg: &'static str) -> TokenStream {
+        fn compile_error(span: Span, msg: &'static str) {
             span.unstable()
                 .error(msg)
                 .emit();
-            TokenStream::new()
         }
     } else {
-        fn fatal_error(_span: Span, msg: &str) -> TokenStream {
-            panic!("{}.  More information may be available when mockall is built with the \"nightly\" feature.", msg)
+        fn compile_error(_span: Span, msg: &str) {
+            panic!("{}.  More information may be available when mockall is built with the \"nightly\" feature.", msg);
         }
     }
 }
@@ -54,10 +53,7 @@ impl Mock {
             em.to_tokens(&mut mock_body);
         }
         let generics = &self.generics;
-        let reduced_generics = match reduce_generics(&generics) {
-            Ok(g) => g,
-            Err(ts) => return ts
-        };
+        let reduced_generics = reduce_generics(&generics);
         quote!(impl #generics #mock_struct_name #reduced_generics {#mock_body})
             .to_tokens(&mut output);
         for trait_ in self.traits.iter() {
@@ -105,7 +101,7 @@ fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
 
 /// Remove the bounds from  a Generics.  Eg:
 /// reduce_generics(<'a, T: Copy>) == Ok(<'a, T>)
-fn reduce_generics(g: &syn::Generics) -> Result<syn::Generics, TokenStream> {
+fn reduce_generics(g: &syn::Generics) -> syn::Generics {
     let mut params = syn::punctuated::Punctuated::new();
     for param in g.params.iter() {
         match param {
@@ -125,18 +121,17 @@ fn reduce_generics(g: &syn::Generics) -> Result<syn::Generics, TokenStream> {
             },
             syn::GenericParam::Const(_) => {
                 // https://github.com/rust-lang/rust/issues/44580
-                return Err(fatal_error(param.span(),
-                    "Generic constants are not yet supported"));
+                compile_error(param.span(),
+                    "Generic constants are not yet supported");
             }
         }
     }
-    let generics = syn::Generics {
+    syn::Generics {
         lt_token: g.lt_token,
         params,
         gt_token: g.gt_token,
         where_clause: None
-    };
-    Ok(generics)
+    }
 }
 
 /// Generate a mock path from a regular one:
@@ -184,11 +179,8 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
             syn::FnArg::SelfValue(_) => {
                 is_static = false;
             },
-            _ => {
-                let mo = fatal_error(fn_arg.span(),
-                    "Should be unreachable for normal Rust code");
-                return (mo, expect_output);
-            }
+            _ => compile_error(fn_arg.span(),
+                "Should be unreachable for normal Rust code")
         }
     }
     let output_type: syn::Type = match &sig.decl.output {
@@ -215,11 +207,8 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
                 let pat = &arg.pat;
                 args.push(quote!(#pat));
             },
-            _ => {
-                let mo = fatal_error(p.span(),
-                    "Should be unreachable for normal Rust code");
-                return (mo, expect_output);
-            }
+            _ => compile_error(p.span(),
+                "Should be unreachable for normal Rust code")
         }
     }
 
@@ -249,8 +238,9 @@ fn mock_impl(item: syn::ItemImpl) -> TokenStream {
             gen_mock_path(&type_path.path)
         },
         _ => {
-            return fatal_error(item.self_ty.span(),
+            compile_error(item.self_ty.span(),
                 "MockAll only supports implementing methods on Structs");
+            return TokenStream::new();
         }
     };
 
@@ -271,10 +261,8 @@ fn mock_impl(item: syn::ItemImpl) -> TokenStream {
                 mock_meth.to_tokens(&mut mock_body);
                 expect_meth.to_tokens(&mut expect_body);
             },
-            _ => {
-                return fatal_error(impl_item.span(),
-                "This impl item is not yet supported by MockAll");
-            }
+            _ => compile_error(impl_item.span(),
+                "This impl item is not yet supported by MockAll")
         }
     }
 
@@ -328,7 +316,7 @@ fn gen_struct(vis: &syn::Visibility,
                     .to_tokens(&mut body);
             },
             syn::GenericParam::Const(_) => {
-                return fatal_error(param.span(),
+                compile_error(param.span(),
                     "#automock does not yet support generic constants");
             }
         }
@@ -420,12 +408,12 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                     // }
                     ty.to_tokens(&mut mock_body)
                 } else {
-                    return fatal_error(ty.span(),
+                    compile_error(ty.span(),
                         "MockAll does not yet support mocking traits with associated types");
                 }
             },
             _ => {
-                return fatal_error(trait_item.span(),
+                compile_error(trait_item.span(),
                     "This impl item is not yet supported by MockAll");
             }
         }
@@ -437,12 +425,12 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
     let trait_generics = &item.generics;
     let (merged_g, reduced_struct_g) = match struct_generics {
         None => (trait_generics.clone(),
-            reduce_generics(&trait_generics).unwrap()),
+            reduce_generics(&trait_generics)),
         Some(g) => {
-            (merge_generics(g, trait_generics), reduce_generics(&g).unwrap())
+            (merge_generics(g, trait_generics), reduce_generics(&g))
         }
     };
-    let reduced_trait_g = reduce_generics(&trait_generics).unwrap();
+    let reduced_trait_g = reduce_generics(&trait_generics);
     quote!(impl #merged_g #ident #reduced_trait_g
            for #mock_ident #reduced_struct_g {
         #mock_body
@@ -477,8 +465,9 @@ fn mock_item(input: TokenStream) -> TokenStream {
         syn::Item::Impl(item_impl) => mock_impl(item_impl),
         syn::Item::Trait(item_trait) => mock_trait(item_trait),
         _ => {
-            fatal_error(item.span(),
-                "#[automock] does not support this item type")
+            compile_error(item.span(),
+                "#[automock] does not support this item type");
+            TokenStream::new()
         }
     }
 }
