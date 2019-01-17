@@ -5,7 +5,7 @@ use mockall::*;
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn missing_expectation() {
-    let e = Expectations::default();
+    let e = GenericExpectations::default();
     e.called::<i32, u32>(&"foo", 5);
 }
 
@@ -13,7 +13,7 @@ fn missing_expectation() {
 /// fn foo(&mut self, x: i32) -> u32
 #[test]
 fn mutable_self() {
-    let mut e = Expectations::default();
+    let mut e = GenericExpectations::default();
     let mut count = 0;
     e.expect::<i32, i32>(&"foo")
         .returning(move |x| {
@@ -28,7 +28,7 @@ fn mutable_self() {
 /// fn foo(&self)
 #[test]
 fn no_args_or_returns() {
-    let mut e = Expectations::default();
+    let mut e = GenericExpectations::default();
     e.expect::<(), ()>(&"foo")
         .returning(|_| ());
     e.called::<(), ()>(&"foo", ());
@@ -38,7 +38,7 @@ fn no_args_or_returns() {
 #[test]
 #[cfg_attr(not(feature = "nightly"), ignore)]
 fn return_default() {
-    let mut e = Expectations::default();
+    let mut e = GenericExpectations::default();
     e.expect::<(), u32>(&"foo");
     let r = e.called::<(), u32>(&"foo", ());
     assert_eq!(u32::default(), r);
@@ -49,7 +49,7 @@ fn return_default() {
 #[should_panic]
 fn return_default_panics_for_non_default_types() {
     struct NonDefault{}
-    let mut e = Expectations::default();
+    let mut e = GenericExpectations::default();
     e.expect::<(), NonDefault>(&"foo");
     e.called::<(), NonDefault>(&"foo", ());
 }
@@ -57,7 +57,7 @@ fn return_default_panics_for_non_default_types() {
 #[test]
 fn return_owned() {
     struct NonCopy{}
-    let mut e = Expectations::default();
+    let mut e = GenericExpectations::default();
     let r = NonCopy{};
     e.expect::<(), NonCopy>(&"foo")
         .return_once(|_| r);
@@ -68,7 +68,7 @@ fn return_owned() {
 #[should_panic(expected = "expected only once")]
 fn return_owned_too_many_times() {
     struct NonCopy{}
-    let mut e = Expectations::default();
+    let mut e = GenericExpectations::default();
     let r = NonCopy{};
     e.expect::<(), NonCopy>(&"foo")
         .return_once(|_| r);
@@ -80,7 +80,7 @@ fn return_owned_too_many_times() {
 /// fn foo(&self, x: i32) -> u32
 #[test]
 fn simple_method() {
-    let mut e = Expectations::default();
+    let mut e = GenericExpectations::default();
     e.expect::<i32, u32>(&"foo")
         .returning(|_| 42);
     let r = e.called::<i32, u32>(&"foo", 5);

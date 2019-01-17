@@ -132,7 +132,7 @@ impl<I, O> Expectation<I, O> {
 
 impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
 
-/// Non-generic keys to `Expectations` internal storage
+/// Non-generic keys to `GenericExpectations` internal storage
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct Key(u64);
 
@@ -146,11 +146,11 @@ impl Key {
 }
 
 #[derive(Default)]
-pub struct Expectations {
+pub struct GenericExpectations {
     store: HashMap<Key, Box<dyn ExpectationT>>
 }
 
-impl Expectations {
+impl GenericExpectations {
     pub fn expect<'e, I, O>(&'e mut self, ident: &str)
         -> &'e mut Expectation<I, O>
         where I: 'static, O: 'static

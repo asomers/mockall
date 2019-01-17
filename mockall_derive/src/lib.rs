@@ -297,7 +297,8 @@ fn gen_struct(vis: &syn::Visibility,
 {
     let mut output = TokenStream::new();
     let ident = gen_mock_ident(&ident);
-    let mut body: TokenStream = "e: ::mockall::Expectations,".parse().unwrap();
+    let mut body: TokenStream = "e: ::mockall::GenericExpectations,".parse()
+        .unwrap();
     let mut count = 0;
     for param in generics.params.iter() {
         let phname = format!("_t{}", count);
@@ -552,7 +553,7 @@ fn associated_types() {
     check(r#"
     #[derive(Default)]
     struct MockA {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }
     impl A for MockA {
         type T = u32;
@@ -580,7 +581,7 @@ fn external_struct() {
     let desired = r#"
         #[derive(Default)]
         struct MockExternalStruct {
-            e: ::mockall::Expectations,
+            e: ::mockall::GenericExpectations,
         }
         impl MockExternalStruct {
             pub fn foo(&self, x: u32) -> i64 {
@@ -607,7 +608,7 @@ fn external_generic_struct() {
     let desired = r#"
         #[derive(Default)]
         struct MockExternalStruct<T: Clone> {
-            e: ::mockall::Expectations,
+            e: ::mockall::GenericExpectations,
             _t0: ::std::marker::PhantomData<T> ,
         }
         impl<T: Clone> MockExternalStruct<T> {
@@ -636,7 +637,7 @@ fn external_generic_struct_with_trait() {
     let desired = r#"
         #[derive(Default)]
         struct MockExternalStruct<T: Clone> {
-            e: ::mockall::Expectations,
+            e: ::mockall::GenericExpectations,
             _t0: ::std::marker::PhantomData<T> ,
         }
         impl<T: Clone> MockExternalStruct<T> {}
@@ -669,7 +670,7 @@ fn external_struct_with_trait() {
     let desired = r#"
         #[derive(Default)]
         struct MockExternalStruct {
-            e: ::mockall::Expectations,
+            e: ::mockall::GenericExpectations,
         }
         impl MockExternalStruct { }
         impl Foo for MockExternalStruct {
@@ -701,7 +702,7 @@ fn external_struct_with_trait_with_associated_types() {
     let desired = r#"
         #[derive(Default)]
         struct MockMyIter {
-            e: ::mockall::Expectations,
+            e: ::mockall::GenericExpectations,
         }
         impl MockMyIter { }
         impl Iterator for MockMyIter {
@@ -737,7 +738,7 @@ fn generic_method() {
     check(r#"
     #[derive(Default)]
     struct MockA {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }
     impl A for MockA {
         fn foo<T: 'static>(&self, t: T) {
@@ -762,7 +763,7 @@ fn generic_struct() {
     check(r#"
     #[derive(Default)]
     struct MockGenericStruct< 'a, T, V> {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
         _t0: ::std::marker::PhantomData< & 'a ()> ,
         _t1: ::std::marker::PhantomData<T> ,
         _t2: ::std::marker::PhantomData<V> ,
@@ -797,7 +798,7 @@ fn generic_struct_with_bounds() {
     check(r#"
     #[derive(Default)]
     struct MockGenericStruct< 'a, T: Copy, V: Clone> {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
         _t0: ::std::marker::PhantomData< & 'a ()> ,
         _t1: ::std::marker::PhantomData<T> ,
         _t2: ::std::marker::PhantomData<V> ,
@@ -832,7 +833,7 @@ fn generic_trait() {
     check(r#"
     #[derive(Default)]
     struct MockGenericTrait<T> {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
         _t0: ::std::marker::PhantomData<T> ,
     }
     impl<T> GenericTrait<T> for MockGenericTrait<T> {
@@ -857,7 +858,7 @@ fn generic_trait_with_bound() {
     check(r#"
     #[derive(Default)]
     struct MockGenericTrait<T: Copy> {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
         _t0: ::std::marker::PhantomData<T> ,
     }
     impl<T: Copy> GenericTrait<T> for MockGenericTrait<T> {
@@ -940,7 +941,7 @@ fn inherited_trait() {
     let desired = r#"
     #[derive(Default)]
     struct MockB {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }
     impl MockB {}
     impl A for MockB {
@@ -1005,7 +1006,7 @@ fn pub_crate_struct() {
     check(r#"
     #[derive(Default)]
     pub(crate) struct MockPubCrateStruct {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }"#, r#"
     pub(crate) struct PubCrateStruct {
         x: i16
@@ -1036,7 +1037,7 @@ fn pub_struct() {
     check(r#"
     #[derive(Default)]
     pub struct MockPubStruct {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }"#, r#"
     pub struct PubStruct {
         x: i16
@@ -1068,7 +1069,7 @@ fn pub_super_struct() {
     check(&r#"
     #[derive(Default)]
     pub(super) struct MockPubSuperStruct {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }"#, r#"
     pub(super) struct PubSuperStruct {
         x: i16
@@ -1099,7 +1100,7 @@ fn simple_struct() {
     check(r#"
     #[derive(Default)]
     struct MockSimpleStruct {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }"#, r#"
     struct SimpleStruct {
         x: i16
@@ -1130,7 +1131,7 @@ fn simple_trait() {
     check(&r#"
     #[derive(Default)]
     struct MockSimpleTrait {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }
     impl SimpleTrait for MockSimpleTrait {
         fn foo(&self, x: u32) -> i64 {
@@ -1155,7 +1156,7 @@ fn static_method() {
     check(&r#"
     #[derive(Default)]
     struct MockA {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }
     impl A for MockA {
         fn foo(&self, x: u32) -> u32 {
@@ -1184,7 +1185,7 @@ fn two_args() {
     check(r#"
     #[derive(Default)]
     struct MockTwoArgs {
-        e: ::mockall::Expectations,
+        e: ::mockall::GenericExpectations,
     }"#, r#"
     struct TwoArgs {}"#,
     mock_item);
