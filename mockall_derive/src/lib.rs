@@ -375,29 +375,6 @@ fn find_associated_types(item: &syn::ItemTrait) -> syn::Generics {
     }
 }
 
-/// Merge two Generics lists into one.  The parameter names must be disjoint.
-fn merge_generics(g0: &syn::Generics, g1: &syn::Generics) -> syn::Generics {
-    let lt_token = g0.lt_token.or(g1.lt_token);
-    let gt_token = g0.gt_token.or(g1.gt_token);
-    let mut params = g0.params.clone();
-    for param in g1.params.iter() {
-        params.push(param.clone());
-    }
-    let where_clause = match (&g0.where_clause, &g1.where_clause) {
-        (None, None) => None,
-        (Some(wc), None) => Some(wc.clone()),
-        (None, Some(wc)) => Some(wc.clone()),
-        (Some(wc0), Some(wc1)) => {
-            let mut wc = wc0.clone();
-            for wp in wc1.predicates.iter() {
-                wc.predicates.push(wp.clone());
-            }
-            Some(wc)
-        }
-    };
-    syn::Generics{lt_token, params, gt_token, where_clause}
-}
-
 /// Generate mock methods for a Trait
 ///
 /// # Parameters
@@ -471,7 +448,7 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
         None => (trait_generics.clone(),
             reduce_generics(&trait_generics)),
         Some(g) => {
-            (merge_generics(g, trait_generics), reduce_generics(&g))
+            (g.clone(), reduce_generics(&g))
         }
     };
     let reduced_trait_g = reduce_generics(&trait_generics);
@@ -554,6 +531,7 @@ fn do_mock(input: TokenStream) -> TokenStream {
 ///
 /// # Examples
 ///
+/// Mock a trait.  This is the simples use case.
 /// ```
 /// # use mockall_derive::mock;
 /// trait Foo {
@@ -565,6 +543,31 @@ fn do_mock(input: TokenStream) -> TokenStream {
 ///     }
 ///     trait Foo {
 ///         fn foo(&self, x: u32);
+///     }
+/// }
+/// # fn main() {}
+/// ```
+///
+/// When mocking a generic struct's implementation of a generic trait, use the
+/// same namespace for their generic parameters.  For example, if you wanted to
+/// mock `Rc`, do
+/// ```
+/// # use mockall_derive::mock;
+/// mock!{
+///     pub Rc<T: 'static> {}
+///     trait AsRef<T: 'static> {
+///         fn as_ref(&self) -> &'static T;
+///     }
+/// }
+/// # fn main() {}
+/// ```
+/// *not*
+/// ```compile_fail
+/// # use mockall_derive::mock;
+/// mock!{
+///     pub Rc<Q> {}
+///     trait AsRef<T> {
+///         fn as_ref(&self) -> &T;
 ///     }
 /// }
 /// # fn main() {}
@@ -1114,28 +1117,61 @@ mod mock {
     fn generic_struct_with_trait() {
         let desired = r#"
             #[derive(Default)]
-            struct MockExternalStruct<T: Clone> {
+            struct MockExternalStruct<T: Copy + 'static> {
                 e: ::mockall::GenericExpectations,
                 _t0: ::std::marker::PhantomData<T> ,
             }
-            impl<T: Clone> MockExternalStruct<T> {}
-            impl<T: Clone, Q: Copy + 'static> Foo<Q> for MockExternalStruct<T> {
-                fn foo(&self, x: Q) -> Q {
-                    self.e.called:: <(Q), Q>("foo", (x))
+            impl<T: Copy + 'static> MockExternalStruct<T> {}
+            impl<T: Copy + 'static> Foo for MockExternalStruct<T> {
+                fn foo(&self, x: u32) -> u32 {
+                    self.e.called:: <(u32), u32>("foo", (x))
                 }
             }
-            impl<T: Clone, Q: Copy + 'static> MockExternalStruct<T> {
+            impl<T: Copy + 'static> MockExternalStruct<T> {
                 pub fn expect_foo(&mut self)
-                    -> &mut ::mockall::Expectation<(Q), Q>
+                    -> &mut ::mockall::Expectation<(u32), u32>
                 {
-                    self.e.expect:: <(Q), Q>("foo")
+                    self.e.expect:: <(u32), u32>("foo")
                 }
             }
         "#;
         let code = r#"
-            ExternalStruct<T: Clone> {}
-            trait Foo<Q: Copy + 'static> {
-                fn foo(&self, x: Q) -> Q;
+            ExternalStruct<T: Copy + 'static> {}
+            trait Foo {
+                fn foo(&self, x: u32) -> u32;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    /// Implement a generic trait on a generic struct with mock!
+    #[test]
+    fn generic_struct_with_generic_trait() {
+        let desired = r#"
+            #[derive(Default)]
+            struct MockExternalStruct<T: 'static, Z: 'static> {
+                e: ::mockall::GenericExpectations,
+                _t0: ::std::marker::PhantomData<T> ,
+                _t1: ::std::marker::PhantomData<Z> ,
+            }
+            impl<T: 'static, Z: 'static> MockExternalStruct<T, Z> {}
+            impl<T: 'static, Z: 'static> Foo<T> for MockExternalStruct<T, Z> {
+                fn foo(&self, x: T) -> T {
+                    self.e.called:: <(T), T>("foo", (x))
+                }
+            }
+            impl<T: 'static, Z: 'static> MockExternalStruct<T, Z> {
+                pub fn expect_foo(&mut self)
+                    -> &mut ::mockall::Expectation<(T), T>
+                {
+                    self.e.expect:: <(T), T>("foo")
+                }
+            }
+        "#;
+        let code = r#"
+            ExternalStruct<T: 'static, Z: 'static> {}
+            trait Foo<T: 'static> {
+                fn foo(&self, x: T) -> T;
             }
         "#;
         check(desired, code);
