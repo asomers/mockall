@@ -12,7 +12,7 @@ mod associated_types_mock {
         trait Iterator {
             type Item=u32;
 
-            fn next(&mut self) -> Option<<Self as Iterator>::Item>;
+            fn next(&mut self) -> Option<u32>;
         }
     }
 
@@ -124,6 +124,29 @@ mod external_struct_with_trait {
             .returning(|x| x - 1);
         assert_eq!(6, mock.foo(5));
         assert_eq!(4, mock.bar(5));
+    }
+}
+
+/// Use mock! to mock a generic struct
+mod generic_struct_with_generic_trait {
+    use super::*;
+
+    trait Foo<T: 'static> {
+        fn foo(&self, x: T) -> T;
+    }
+    mock! {
+        ExternalStruct<T: 'static, Z: 'static> {}
+        trait Foo<T: 'static> {
+            fn foo(&self, x: T) -> T;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockExternalStruct::<u32, u64>::default();
+        mock.expect_foo()
+            .returning(|x| x);
+        assert_eq!(5u32, mock.foo(5u32));
     }
 }
 
