@@ -85,9 +85,14 @@ impl<I, O: Default> ReturnDefault<O> for Rfunc<I, O> {
     }
 }
 
-#[derive(Default)]
 pub struct Expectation<I, O> {
     rfunc: Mutex<Rfunc<I, O>>
+}
+
+impl<I, O> Default for Expectation<I, O> {
+    fn default() -> Self {
+        Expectation::new()
+    }
 }
 
 impl<I, O> Expectation<I, O> {
@@ -96,7 +101,7 @@ impl<I, O> Expectation<I, O> {
             .call_mut(i)
     }
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         let rfunc = Mutex::new(Rfunc::Default);
         Expectation{rfunc}
     }
