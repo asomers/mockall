@@ -180,3 +180,24 @@ mod inherited_trait {
         mock.bar();
     }
 }
+
+#[allow(unused)]
+mod multi_trait {
+    use super::*;
+
+    trait A {}
+    trait B {}
+    mock!{
+        MultiTrait {}
+        trait A  {}
+        trait B  {}
+    }
+
+    #[test]
+    fn t() {
+        fn foo<T: A + B>(_t: T) {}
+
+        let mock = MockMultiTrait::default();
+        foo(mock);
+    }
+}
