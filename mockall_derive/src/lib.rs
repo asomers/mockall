@@ -61,7 +61,8 @@ impl Mock {
                     None
                 }
             }).collect::<Vec<_>>();
-            gen_struct(&self.vis, &sub_mock, &trait_.generics, &[], &methods)
+            gen_struct(&syn::Visibility::Inherited, &sub_mock,
+                       &trait_.generics, &[], &methods)
                 .to_tokens(&mut output);
         }
         // generate methods on the mock structure itself
@@ -123,6 +124,7 @@ fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
 
 /// Remove the bounds from  a Generics.  Eg:
 /// reduce_generics(<'a, T: Copy>) == Ok(<'a, T>)
+// TODO: should return a syn::PathArguments instead of syn::Generics
 fn reduce_generics(g: &syn::Generics) -> syn::Generics {
     let mut params = syn::punctuated::Punctuated::new();
     for param in g.params.iter() {
@@ -191,15 +193,6 @@ fn method_output_type(sig: &syn::MethodSig) -> syn::Type {
         },
         syn::ReturnType::Type(_, ty) => (**ty).clone()
     }
-}
-
-/// Generate a mock path from a regular one:
-/// eg "foo::bar::Baz" => "foo::bar::MockBaz"
-fn gen_mock_path(path: &syn::Path) -> syn::Path {
-    let mut outsegs = path.segments.clone();
-    let mut last_seg = outsegs.last_mut().unwrap();
-    last_seg.value_mut().ident = gen_mock_ident(&last_seg.value().ident);
-    syn::Path{leading_colon: path.leading_colon, segments: outsegs}
 }
 
 /// Generate a mock method and its expectation method
@@ -294,73 +287,73 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     (mock_output, expect_output)
 }
 
-/// Implement a struct's methods on its mock struct
-fn mock_impl(item: syn::ItemImpl) -> TokenStream {
-    let mut output = TokenStream::new();
-    let mut mock_body = TokenStream::new();
-    let mut expect_body = TokenStream::new();
-
-    let mock_type = match *item.self_ty {
+/// Implement a struct's methods on its mock struct.  Only works if the struct
+/// has a single impl block
+fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
+    let name = match *item_impl.self_ty {
         syn::Type::Path(type_path) => {
-            if let Some(_) = type_path.qself.as_ref() {
-                compile_error(type_path.span(),
-                    "Qualified types aren't valid in this context?");
-            }
-            gen_mock_path(&type_path.path)
+            find_ident_from_path(&type_path.path).0
         },
-        _ => {
-            compile_error(item.self_ty.span(),
-                "MockAll only supports implementing methods on Structs");
+        x => {
+            compile_error(x.span(),
+                "mockall_derive only supports mocking traits and structs");
             return TokenStream::new();
         }
     };
-
-    for impl_item in item.items {
-        match impl_item {
+    let methods = item_impl.items.iter().filter_map(|item| {
+        match item {
             syn::ImplItem::Const(_) => {
                 // const items can easily be added by the user in a separate
                 // impl block
+                None
             },
-            syn::ImplItem::Existential(ty) => ty.to_tokens(&mut mock_body),
-            syn::ImplItem::Type(ty) => ty.to_tokens(&mut mock_body),
             syn::ImplItem::Method(meth) => {
-                let (mock_meth, expect_meth) = gen_mock_method(
-                    meth.defaultness.as_ref(),
-                    &meth.vis,
-                    &meth.sig,
-                    None
-                );
-                mock_meth.to_tokens(&mut mock_body);
-                expect_meth.to_tokens(&mut expect_body);
+                Some(syn::TraitItemMethod {
+                    attrs: Vec::new(),
+                    default: None,
+                    sig: meth.sig.clone(),
+                    semi_token: Some(Token![;](Span::call_site()))
+                })
             },
-            _ => compile_error(impl_item.span(),
-                "This impl item is not yet supported by MockAll")
+            _ => {
+                compile_error(item.span(),
+                "This impl item is not yet supported by MockAll");
+                None
+            }
         }
-    }
-
-    // Put all mock methods in one impl block
-    item.unsafety.to_tokens(&mut output);
-    item.impl_token.to_tokens(&mut output);
-    item.generics.to_tokens(&mut output);
-    if let Some(trait_) = item.trait_ {
-        let (bang, path, for_) = trait_;
-        if let Some(b) = bang {
-            b.to_tokens(&mut output);
-        }
-        path.to_tokens(&mut output);
-        for_.to_tokens(&mut output);
-    }
-    mock_type.to_tokens(&mut output);
-    quote!({#mock_body}).to_tokens(&mut output);
-
-    // Put all expect methods in a separate impl block.  This is necessary when
-    // mocking a trait impl, where we can't add any new methods
-    item.impl_token.to_tokens(&mut output);
-    item.generics.to_tokens(&mut output);
-    mock_type.to_tokens(&mut output);
-    quote!({#expect_body}).to_tokens(&mut output);
-
-    output
+    }).collect::<Vec<_>>();
+    // automock makes everything public
+    let pub_token = syn::Token![pub](Span::call_site());
+    let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
+    let (methods, traits) = if let Some((_, path, _)) = item_impl.trait_ {
+        let items = methods.into_iter().map(|meth| {
+            syn::TraitItem::Method(meth)
+        }).collect::<Vec<_>>();
+        let trait_ = syn::ItemTrait {
+            attrs: Vec::new(),
+            vis: vis.clone(),
+            unsafety: item_impl.unsafety,
+            auto_token: None,
+            trait_token: syn::token::Trait::default(),
+            ident: find_ident_from_path(&path).0,
+            generics: item_impl.generics.clone(),
+            colon_token: None,
+            supertraits: syn::punctuated::Punctuated::new(),
+            brace_token: syn::token::Brace::default(),
+            items
+        };
+        (Vec::new(), vec![trait_])
+    } else {
+        (methods, Vec::new())
+    };
+    let mock = Mock {
+        vis,
+        name,
+        generics: item_impl.generics.clone(),
+        methods,
+        traits
+    };
+    mock.gen()
 }
 
 fn gen_struct<T>(vis: &syn::Visibility,
@@ -435,12 +428,6 @@ fn gen_struct<T>(vis: &syn::Visibility,
     output
 }
 
-fn mock_struct(item: syn::ItemStruct) -> TokenStream {
-    let subs = Vec::new();
-    let methods: &[syn::TraitItemMethod] = &[];
-    gen_struct(&item.vis, &item.ident, &item.generics, &subs, methods)
-}
-
 /// Find any associated types within the Trait, and present them as a Generics
 fn find_associated_types(item: &syn::ItemTrait) -> syn::Generics {
     let mut params = syn::punctuated::Punctuated::new();
@@ -472,6 +459,16 @@ fn find_associated_types(item: &syn::ItemTrait) -> syn::Generics {
             where_clause
         }
     }
+}
+
+fn find_ident_from_path(path: &syn::Path) -> (syn::Ident, syn::PathArguments) {
+        if path.segments.len() != 1 {
+            compile_error(path.span(),
+                "mockall_derive only supports structs defined in the current module");
+            return (syn::Ident::new("", path.span()), syn::PathArguments::None);
+        }
+        let last_seg = path.segments.last().unwrap();
+        (last_seg.value().ident.clone(), last_seg.value().arguments.clone())
 }
 
 /// Generate mock methods for a Trait
@@ -569,25 +566,23 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
 /// Generate a mock struct that implements a trait
 fn mock_trait(item: syn::ItemTrait) -> TokenStream {
     let associated_types = find_associated_types(&item);
-    let mock_ident = gen_mock_ident(&item.ident);
-    let subs = Vec::new();
-    let methods: &[syn::TraitItemMethod] = &[];
-    if item.generics.params.is_empty() {
-        let mut output = gen_struct(&item.vis, &item.ident, &associated_types,
-                                    &subs, methods);
-        mock_trait_methods(&mock_ident, Some(&associated_types), &item)
-            .to_tokens(&mut output);
-        output
+    let generics = if item.generics.params.is_empty() {
+        associated_types
     } else if associated_types.params.is_empty() {
-        let mut output = gen_struct(&item.vis, &item.ident, &item.generics,
-                                    &subs, methods);
-        mock_trait_methods(&mock_ident, None, &item).to_tokens(&mut output);
-        output
+        item.generics.clone()
     } else {
         compile_error(item.span(),
         "automock does not yet support generic traits with associated types");
-        TokenStream::new()
-    }
+        return TokenStream::new();
+    };
+    let mock = Mock {
+        vis: item.vis.clone(),
+        name: item.ident.clone(),
+        generics: generics,
+        methods: Vec::new(),
+        traits: vec![item.clone()]
+    };
+    mock.gen()
 }
 
 fn do_automock(input: TokenStream) -> TokenStream {
@@ -598,7 +593,6 @@ fn do_automock(input: TokenStream) -> TokenStream {
         }
     };
     match item {
-        syn::Item::Struct(item_struct) => mock_struct(item_struct),
         syn::Item::Impl(item_impl) => mock_impl(item_impl),
         syn::Item::Trait(item_trait) => mock_trait(item_trait),
         _ => {
@@ -635,7 +629,7 @@ fn do_mock(input: TokenStream) -> TokenStream {
 ///
 /// # Examples
 ///
-/// Mock a trait.  This is the simples use case.
+/// Mock a trait.  This is the simplest use case.
 /// ```
 /// # use mockall_derive::mock;
 /// trait Foo {
@@ -741,6 +735,7 @@ mod automock {
     }
 
     #[test]
+    #[ignore("automocking with associated types is TODO")]
     fn associated_types() {
         check(r#"
         #[derive(Default)]
@@ -773,7 +768,13 @@ mod automock {
         #[derive(Default)]
         struct MockA {
             e: ::mockall::GenericExpectations,
+            A_expectations : MockA_A ,
         }
+        #[derive(Default)]
+        struct MockA_A {
+            e: ::mockall::GenericExpectations,
+        }
+        impl MockA {}
         impl A for MockA {
             fn foo<T: 'static>(&self, t: T) {
                 self.e.called:: <(T), ()>("foo", (t))
@@ -795,26 +796,21 @@ mod automock {
     fn generic_struct() {
         check(r#"
         #[derive(Default)]
-        struct MockGenericStruct< 'a, T, V> {
-            e: ::mockall::GenericExpectations,
+        pub struct MockGenericStruct< 'a, T, V> {
+            e: ::mockall::GenericExpectations ,
+            foo: ::mockall::Expectation<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
             _t2: ::std::marker::PhantomData<V> ,
-        }"#, r#"
-        struct GenericStruct<'a, T, V> {
-            t: T,
-            v: &'a V
-        }"#);
-        check(r#"
-        impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
-            fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
-            }
         }
         impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
+            pub fn foo(&self, x: u32) -> i64 {
+                self.foo.call((x))
+            }
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
             {
-                self.e.expect:: <(u32), i64>("foo")
+                self.foo = ::mockall::Expectation::new();
+                &mut self.foo
             }
         }"#, r#"
         impl<'a, T, V> GenericStruct<'a, T, V> {
@@ -828,26 +824,21 @@ mod automock {
     fn generic_struct_with_bounds() {
         check(r#"
         #[derive(Default)]
-        struct MockGenericStruct< 'a, T: Copy, V: Clone> {
+        pub struct MockGenericStruct< 'a, T: Copy, V: Clone> {
             e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
             _t2: ::std::marker::PhantomData<V> ,
-        }"#, r#"
-        struct GenericStruct<'a, T: Copy, V: Clone> {
-            t: T,
-            v: &'a V
-        }"#);
-        check(r#"
-        impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
-            fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
-            }
         }
         impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
+            pub fn foo(&self, x: u32) -> i64 {
+                self.foo.call((x))
+            }
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
             {
-                self.e.expect:: <(u32), i64>("foo")
+                self.foo = ::mockall::Expectation::new();
+                &mut self.foo
             }
         }"#, r#"
         impl<'a, T: Copy, V: Clone> GenericStruct<'a, T, V> {
@@ -863,17 +854,27 @@ mod automock {
         #[derive(Default)]
         struct MockGenericTrait<T> {
             e: ::mockall::GenericExpectations,
+            GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
+        #[derive(Default)]
+        struct MockGenericTrait_GenericTrait<T> {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(), ()> ,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T> MockGenericTrait<T> {}
         impl<T> GenericTrait<T> for MockGenericTrait<T> {
             fn foo(&self) {
-                self.e.called:: <(), ()>("foo", ())
+                self.GenericTrait_expectations.foo.call(())
             }
         }
         impl<T> MockGenericTrait<T> {
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
             {
-                self.e.expect:: <(), ()>("foo")
+                self.GenericTrait_expectations.foo
+                    = ::mockall::Expectation::new();
+                &mut self.GenericTrait_expectations.foo
             }
         }"#, r#"
         trait GenericTrait<T> {
@@ -887,17 +888,27 @@ mod automock {
         #[derive(Default)]
         struct MockGenericTrait<T: Copy> {
             e: ::mockall::GenericExpectations,
+            GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
+        #[derive(Default)]
+        struct MockGenericTrait_GenericTrait<T: Copy> {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(), ()> ,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T: Copy> MockGenericTrait<T> {}
         impl<T: Copy> GenericTrait<T> for MockGenericTrait<T> {
             fn foo(&self) {
-                self.e.called:: <(), ()>("foo", ())
+                self.GenericTrait_expectations.foo.call(())
             }
         }
         impl<T: Copy> MockGenericTrait<T> {
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
             {
-                self.e.expect:: <(), ()>("foo")
+                self.GenericTrait_expectations.foo
+                    = ::mockall::Expectation::new();
+                &mut self.GenericTrait_expectations.foo
             }
         }"#, r#"
         trait GenericTrait<T: Copy> {
@@ -912,15 +923,26 @@ mod automock {
             fn foo(&self, x: u32) -> i64;
         }
         check(r#"
+        #[derive(Default)]
+        pub struct MockSomeStruct {
+            e: ::mockall::GenericExpectations ,
+            Foo_Expectations: MockSomeStruct_Foo ,
+        }
+        #[derive(Default)]
+        struct MockSomeStruct_Foo<T: Copy> {
+            e: ::mockall::Expectations ,
+            foo: ::mockall::Expectation<(u32), i64> ,
+        }
         impl Foo for MockSomeStruct {
             fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
+                self.Foo_Expectations.foo.call((x))
             }
         }
         impl MockSomeStruct {
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
             {
-                self.e.expect:: <(u32), i64>("foo")
+                self.Foo_Expectations.foo = ::mockall::Expectation::new();
+                &mut self.Foo_Expectations.foo 
             }
         }"#, r#"
         impl Foo for SomeStruct {
@@ -978,90 +1000,35 @@ mod automock {
     }
 
     #[test]
-    fn pub_crate_struct() {
-        check(r#"
-        #[derive(Default)]
-        pub(crate) struct MockPubCrateStruct {
-            e: ::mockall::GenericExpectations,
-        }"#, r#"
-        pub(crate) struct PubCrateStruct {
-            x: i16
-        }"#);
-        check(r#"
-        impl MockPubCrateStruct {
-            pub(crate) fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
-            }
-        }
-        impl MockPubCrateStruct {
-            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-            {
-                self.e.expect:: <(u32), i64>("foo")
-            }
-        }"#, r#"
-        impl PubCrateStruct {
-            pub(crate) fn foo(&self, x: u32) -> i64 {
-                42
-            }
-        }"#);
-    }
-
-    #[test]
-    fn pub_struct() {
-        check(r#"
-        #[derive(Default)]
-        pub struct MockPubStruct {
-            e: ::mockall::GenericExpectations,
-        }"#, r#"
-        pub struct PubStruct {
-            x: i16
-        }"#);
-        check(r#"
-        impl MockPubStruct {
-            pub fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
-            }
-        }
-        impl MockPubStruct {
-            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-            {
-                self.e.expect:: <(u32), i64>("foo")
-            }
-        }"#, r#"
-        impl PubStruct {
-            pub fn foo(&self, x: u32) -> i64 {
-                42
-            }
-        }
-        "#);
-    }
-
-    #[test]
-    fn pub_super_struct() {
+    fn pub_trait() {
         check(&r#"
         #[derive(Default)]
-        pub(super) struct MockPubSuperStruct {
+        pub struct MockSimpleTrait {
             e: ::mockall::GenericExpectations,
-        }"#, r#"
-        pub(super) struct PubSuperStruct {
-            x: i16
-        }"#);
-        check(&r#"
-        impl MockPubSuperStruct {
-            pub(super) fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
+            SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
+        }
+        #[derive(Default)]
+        struct MockSimpleTrait_SimpleTrait {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(), ()> ,
+        }
+        impl MockSimpleTrait {}
+        impl SimpleTrait for MockSimpleTrait {
+            fn foo(&self) {
+                self.SimpleTrait_expectations.foo.call(())
             }
         }
-        impl MockPubSuperStruct {
-            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+        impl MockSimpleTrait {
+            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
             {
-                self.e.expect:: <(u32), i64>("foo")
+                self.SimpleTrait_expectations.foo
+                    = ::mockall::Expectation::new();
+                &mut self.SimpleTrait_expectations.foo
             }
-        }"#, r#"
-        impl PubSuperStruct {
-            pub(super) fn foo(&self, x: u32) -> i64 {
-                42
-            }
+        }"#,
+        r#"
+        pub trait SimpleTrait {
+            fn foo(&self);
         }"#);
     }
 
@@ -1071,20 +1038,18 @@ mod automock {
         #[derive(Default)]
         struct MockSimpleStruct {
             e: ::mockall::GenericExpectations,
-        }"#, r#"
-        struct SimpleStruct {
-            x: i16
-        }"#);
-        check(r#"
+            foo: ::mockall::Expectation<(u32), i64> ,
+        }
         impl MockSimpleStruct {
             fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
+                self.foo.call((x))
             }
         }
         impl MockSimpleStruct {
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
             {
-                self.e.expect:: <(u32), i64>("foo")
+                self.foo = ::mockall::Expectation::new();
+                &mut self.foo
             }
         }"#, r#"
         impl SimpleStruct {
@@ -1100,16 +1065,25 @@ mod automock {
         #[derive(Default)]
         struct MockSimpleTrait {
             e: ::mockall::GenericExpectations,
+            SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
         }
+        #[derive(Default)]
+        struct MockSimpleTrait_SimpleTrait {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(u32), i64> ,
+        }
+        impl MockSimpleTrait {}
         impl SimpleTrait for MockSimpleTrait {
             fn foo(&self, x: u32) -> i64 {
-                self.e.called:: <(u32), i64>("foo", (x))
+                self.SimpleTrait_expectations.foo.call((x))
             }
         }
         impl MockSimpleTrait {
-            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
-            {
-                self.e.expect:: <(u32), i64>("foo")
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(u32), i64> {
+                self.SimpleTrait_expectations.foo
+                    = ::mockall::Expectation::new();
+                &mut self.SimpleTrait_expectations.foo
             }
         }"#,
         r#"
