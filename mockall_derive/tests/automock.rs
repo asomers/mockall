@@ -5,19 +5,19 @@ use mockall_derive::*;
 use std::default::Default;
 
 // automatic-style mocking with associated types
-//#[test]
-//fn associated_types_auto() {
-    //#[automock]
-    //trait A {
-        //type T: Clone + 'static;
-        //fn foo(&self, x: <Self as A>::T) -> <Self as A>::T;
-    //}
+#[test]
+fn associated_types_auto() {
+    #[automock(type T=u32;)]
+    trait A {
+        type T: Clone + 'static;
+        fn foo(&self, x: Self::T) -> Self::T;
+    }
 
-    //let mut mock = MockA::<u32>::default();
-    //mock.expect_foo()
-        //.returning(|x| x);
-    //assert_eq!(4, mock.foo(4));
-//}
+    let mut mock = MockA::default();
+    mock.expect_foo()
+        .returning(|x| x);
+    assert_eq!(4, mock.foo(4));
+}
 
 #[test]
 fn consume_parameters() {

@@ -5,7 +5,10 @@ extern crate proc_macro;
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
-use std::borrow::Borrow;
+use std::{
+    borrow::Borrow,
+    collections::HashMap
+};
 use syn::{
     braced,
     parse::{Parse, ParseStream},
@@ -27,6 +30,176 @@ cfg_if! {
         fn compile_error(_span: Span, msg: &str) {
             panic!("{}.  More information may be available when mockall is built with the \"nightly\" feature.", msg);
         }
+    }
+}
+
+/// A single automock attribute
+enum Attr {
+    Type(syn::TraitItemType),
+}
+
+impl Parse for Attr {
+    fn parse(input: ParseStream) -> syn::parse::Result<Self> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(Token![type]) {
+            input.parse().map(Attr::Type)
+        } else {
+            Err(lookahead.error())
+        }
+    }
+}
+
+/// automock attributes
+struct Attrs {
+    attrs: HashMap<syn::Ident, syn::Type>
+}
+
+impl Attrs {
+    fn get_path(&self, path: &syn::Path) -> Option<syn::Type> {
+        if path.leading_colon.is_none() & (path.segments.len() == 2) {
+            if path.segments.first().unwrap().value().ident == "Self" {
+                let ident = &path.segments.last().unwrap().value().ident;
+                self.attrs.get(ident).cloned()
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Recursively substitute types in the input
+    fn substitute_type(&self, ty: &mut syn::Type) {
+        match ty {
+            syn::Type::Slice(s) => {
+                self.substitute_type(s.elem.as_mut())
+            },
+            syn::Type::Array(a) => {
+                self.substitute_type(a.elem.as_mut())
+            },
+            syn::Type::Ptr(p) => {
+                self.substitute_type(p.elem.as_mut())
+            },
+            syn::Type::Reference(r) => {
+                self.substitute_type(r.elem.as_mut())
+            },
+            syn::Type::BareFn(bfn) => {
+                for fn_arg in bfn.inputs.iter_mut() {
+                    self.substitute_type(&mut fn_arg.ty);
+                }
+                if let syn::ReturnType::Type(_, ref mut ty) = &mut bfn.output {
+                    self.substitute_type(ty);
+                }
+            },
+            syn::Type::Tuple(tuple) => {
+                for elem in tuple.elems.iter_mut() {
+                    self.substitute_type(elem)
+                }
+            }
+            syn::Type::Path(path) => {
+                if let Some(ref _qself) = path.qself {
+                    compile_error(path.span(), "QSelf is TODO");
+                }
+                if let Some(newty) = self.get_path(&path.path) {
+                    *ty = newty;
+                }
+            },
+            syn::Type::TraitObject(to) => {
+                for bound in to.bounds.iter_mut() {
+                    self.substitute_type_param_bound(bound);
+                }
+            },
+            syn::Type::ImplTrait(it) => {
+                for bound in it.bounds.iter_mut() {
+                    self.substitute_type_param_bound(bound);
+                }
+            },
+            syn::Type::Paren(p) => {
+                self.substitute_type(p.elem.as_mut())
+            },
+            syn::Type::Group(g) => {
+                self.substitute_type(g.elem.as_mut())
+            },
+            syn::Type::Macro(_) | syn::Type::Verbatim(_) => {
+                compile_error(ty.span(),
+                    "mockall_derive does not support this type when using associated tyeps");
+            },
+            syn::Type::Infer(_) | syn::Type::Never(_) => {
+                /* Nothing to do */
+            }
+        }
+    }
+
+    fn substitute_type_param_bound(&self, bound: &mut syn::TypeParamBound) {
+        if let syn::TypeParamBound::Trait(t) = bound {
+            match self.get_path(&t.path) {
+                None => (), /* Nothing to do */
+                Some(syn::Type::Path(type_path)) => {
+                    t.path = type_path.path;
+                },
+                Some(_) => {
+                    compile_error(t.path.span(),
+                        "Can only substitute paths for trait bounds");
+                }
+            }
+        }
+    }
+
+    fn substitute_types(&self, item: &syn::ItemTrait) -> syn::ItemTrait {
+        let mut output = item.clone();
+        for trait_item in output.items.iter_mut() {
+            match trait_item {
+                syn::TraitItem::Type(tity) => {
+                    if let Some(ty) = self.attrs.get(&tity.ident) {
+                        let span = tity.span();
+                        tity.default = Some((syn::Token![=](span), ty.clone()));
+                        // Concrete associated types aren't allowed to have
+                        // bounds
+                        tity.bounds = syn::punctuated::Punctuated::new();
+                    } else {
+                        compile_error(tity.span(),
+                            "Default value not given for associated type");
+                    }
+                },
+                syn::TraitItem::Method(method) => {
+                    let decl = &mut method.sig.decl;
+                    for fn_arg in decl.inputs.iter_mut() {
+                        if let syn::FnArg::Captured(arg) = fn_arg {
+                            self.substitute_type(&mut arg.ty);
+                        }
+                    }
+                    if let syn::ReturnType::Type(_, ref mut ty) = &mut decl.output {
+                        self.substitute_type(ty);
+                    }
+                },
+                _ => {
+                    // Nothing to do
+                    ()
+                }
+            }
+        }
+        output
+    }
+}
+
+impl Parse for Attrs {
+    fn parse(input: ParseStream) -> syn::parse::Result<Self> {
+        let mut attrs = HashMap::new();
+        while !input.is_empty() {
+            let attr: Attr = input.parse()?;
+            match attr {
+                Attr::Type(trait_item_type) => {
+                    let ident = trait_item_type.ident.clone();
+                    if let Some((_, ty)) = trait_item_type.default {
+                        attrs.insert(ident, ty.clone());
+                    } else {
+                        compile_error(trait_item_type.span(),
+                          "automock type attributes must have a default value");
+                    }
+                }
+            }
+        }
+        Ok(Attrs{attrs})
     }
 }
 
@@ -501,39 +674,6 @@ fn gen_struct<T>(vis: &syn::Visibility,
     output
 }
 
-/// Find any associated types within the Trait, and present them as a Generics
-fn find_associated_types(item: &syn::ItemTrait) -> syn::Generics {
-    let mut params = syn::punctuated::Punctuated::new();
-    let where_clause = None;
-    for trait_item in item.items.iter() {
-        if let syn::TraitItem::Type(ty) = trait_item {
-            if !ty.generics.params.is_empty() {
-                compile_error(ty.generics.span(),
-                    "automock does not support generic associated types");
-            }
-            let tp = syn::TypeParam {
-                attrs: ty.attrs.clone(),
-                ident: ty.ident.clone(),
-                colon_token: ty.colon_token.clone(),
-                bounds: ty.bounds.clone(),
-                eq_token: None,
-                default: None
-            };
-            params.push(syn::GenericParam::Type(tp));
-        }
-    }
-    if params.is_empty() {
-        syn::Generics{lt_token: None, params, gt_token: None, where_clause}
-    } else {
-        syn::Generics{
-            lt_token: Some(syn::token::Lt::default()),
-            params,
-            gt_token: Some(syn::token::Gt::default()),
-            where_clause
-        }
-    }
-}
-
 fn find_ident_from_path(path: &syn::Path) -> (syn::Ident, syn::PathArguments) {
         if path.segments.len() != 1 {
             compile_error(path.span(),
@@ -594,13 +734,7 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                     // }
                     ty.to_tokens(&mut mock_body)
                 } else {
-                    // If we got here, then hopefully we're mocking this trait
-                    // using a generic struct.  The associated type should've
-                    // been found by find_associated_types, so we should define
-                    // the associated type to be the mocked generic type, which
-                    // has the same name.
-                    let ident = &ty.ident;
-                    quote!(type #ident = #ident;).to_tokens(&mut mock_body);
+                    compile_error(ty.span(), "Associated types must be made concrete for mocking.");
                 }
             },
             _ => {
@@ -637,28 +771,26 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
 }
 
 /// Generate a mock struct that implements a trait
-fn mock_trait(item: syn::ItemTrait) -> TokenStream {
-    let associated_types = find_associated_types(&item);
-    let generics = if item.generics.params.is_empty() {
-        associated_types
-    } else if associated_types.params.is_empty() {
-        item.generics.clone()
-    } else {
-        compile_error(item.span(),
-        "automock does not yet support generic traits with associated types");
-        return TokenStream::new();
-    };
+fn mock_trait(attrs: Attrs, item: syn::ItemTrait) -> TokenStream {
+    let generics = item.generics.clone();
+    let trait_ = attrs.substitute_types(&item);
     let mock = Mock {
         vis: item.vis.clone(),
         name: item.ident.clone(),
         generics: generics,
         methods: Vec::new(),
-        traits: vec![item.clone()]
+        traits: vec![trait_]
     };
     mock.gen()
 }
 
-fn do_automock(input: TokenStream) -> TokenStream {
+fn do_automock(attr_stream: TokenStream, input: TokenStream) -> TokenStream {
+    let attrs: Attrs = match syn::parse2(attr_stream) {
+        Ok(a) => a,
+        Err(err) => {
+            return err.to_compile_error();
+        }
+    };
     let item: syn::Item = match syn::parse2(input) {
         Ok(item) => item,
         Err(err) => {
@@ -667,7 +799,7 @@ fn do_automock(input: TokenStream) -> TokenStream {
     };
     match item {
         syn::Item::Impl(item_impl) => mock_impl(item_impl),
-        syn::Item::Trait(item_trait) => mock_trait(item_trait),
+        syn::Item::Trait(item_trait) => mock_trait(attrs, item_trait),
         _ => {
             compile_error(item.span(),
                 "#[automock] does not support this item type");
@@ -779,12 +911,12 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 /// Automatically generate mock types for Structs and Traits.
 #[proc_macro_attribute]
-pub fn automock(_attr: proc_macro::TokenStream, input: proc_macro::TokenStream)
+pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     -> proc_macro::TokenStream
 {
     let input: proc_macro2::TokenStream = input.into();
     let mut output = input.clone();
-    output.extend(do_automock(input));
+    output.extend(do_automock(attrs.into(), input));
     output.into()
 }
 
@@ -798,9 +930,10 @@ mod automock {
     use pretty_assertions::assert_eq;
     use super::super::*;
 
-    fn check(desired: &str, code: &str) {
-        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-        let output = do_automock(ts).to_string();
+    fn check(attrs: &str, desired: &str, code: &str) {
+        let attrs_ts = TokenStream::from_str(attrs).unwrap();
+        let ts = TokenStream::from_str(code).unwrap();
+        let output = do_automock(attrs_ts, ts).to_string();
         // Let proc_macro2 reformat the whitespace in the expected string
         let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
             .to_string();
@@ -808,37 +941,43 @@ mod automock {
     }
 
     #[test]
-    #[ignore("automocking with associated types is TODO")]
     fn associated_types() {
-        check(r#"
-        #[derive(Default)]
-        struct MockA<T: Clone + 'static> {
+        check("type T=u32;",
+        r#"#[derive(Default)]
+        struct MockA {
             e: ::mockall::GenericExpectations,
-            _t0 : :: std :: marker :: PhantomData < T > ,
+            A_expectations: MockA_A,
         }
-        impl<T: Clone + 'static> A for MockA<T> {
-            type T = T;
-            fn foo(&self, x: <Self as A> ::T) -> <Self as A> ::T {
-                self.e.called:: <(<Self as A> ::T), <Self as A> ::T>("foo", (x))
+        #[derive(Default)]
+        struct MockA_A {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(u32), u32> ,
+        }
+        impl MockA {}
+        impl A for MockA {
+            type T = u32;
+            fn foo(&self, x: u32) -> u32 {
+                self.A_expectations.foo.call((x))
             }
         }
-        impl<T: Clone + 'static> MockA<T> {
+        impl MockA {
             pub fn expect_foo(&mut self)
-                -> &mut ::mockall::Expectation<(<Self as A> ::T), <Self as A> ::T>
+                -> &mut ::mockall::Expectation<(u32), u32>
             {
-                self.e.expect:: <(<Self as A> ::T), <Self as A> ::T>("foo")
+                self.A_expectations.foo = ::mockall::Expectation::new();
+                &mut self.A_expectations.foo
             }
         }"#, r#"
         trait A {
             type T: Clone + 'static;
-            fn foo(&self, x: <Self as A> ::T) -> <Self as A> ::T;
+            fn foo(&self, x: Self::T) -> Self::T;
         }"#);
     }
 
     #[test]
     fn generic_method() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         struct MockA {
             e: ::mockall::GenericExpectations,
             A_expectations : MockA_A ,
@@ -867,8 +1006,8 @@ mod automock {
 
     #[test]
     fn generic_struct() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         pub struct MockGenericStruct< 'a, T, V> {
             e: ::mockall::GenericExpectations ,
             foo: ::mockall::Expectation<(u32), i64> ,
@@ -895,8 +1034,8 @@ mod automock {
 
     #[test]
     fn generic_struct_with_bounds() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         pub struct MockGenericStruct< 'a, T: Copy, V: Clone> {
             e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), i64> ,
@@ -923,8 +1062,8 @@ mod automock {
 
     #[test]
     fn generic_trait() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         struct MockGenericTrait<T> {
             e: ::mockall::GenericExpectations,
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
@@ -957,8 +1096,8 @@ mod automock {
 
     #[test]
     fn generic_trait_with_bound() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         struct MockGenericTrait<T: Copy> {
             e: ::mockall::GenericExpectations,
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
@@ -995,8 +1134,8 @@ mod automock {
         trait Foo {
             fn foo(&self, x: u32) -> i64;
         }
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         pub struct MockSomeStruct {
             e: ::mockall::GenericExpectations ,
             Foo_expectations: MockSomeStruct_Foo ,
@@ -1032,8 +1171,8 @@ mod automock {
         trait Foo {
             fn foo(&self, x: u32) -> i64;
         }
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         pub struct MockSomeStruct<T> {
             e: ::mockall::GenericExpectations,
             Foo_expectations: MockSomeStruct_Foo,
@@ -1067,8 +1206,8 @@ mod automock {
 
     #[test]
     fn method_by_value() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         pub struct MockMethodByValue {
             e: ::mockall::GenericExpectations ,
             foo: ::mockall::Expectation<(u32), i64> ,
@@ -1094,8 +1233,8 @@ mod automock {
 
     #[test]
     fn pub_trait() {
-        check(&r#"
-        #[derive(Default)]
+        check("",
+        &r#"#[derive(Default)]
         pub struct MockSimpleTrait {
             e: ::mockall::GenericExpectations,
             SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
@@ -1127,8 +1266,8 @@ mod automock {
 
     #[test]
     fn simple_struct() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         pub struct MockSimpleStruct {
             e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), i64> ,
@@ -1153,8 +1292,8 @@ mod automock {
 
     #[test]
     fn simple_trait() {
-        check(&r#"
-        #[derive(Default)]
+        check("",
+        &r#"#[derive(Default)]
         struct MockSimpleTrait {
             e: ::mockall::GenericExpectations,
             SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
@@ -1186,8 +1325,8 @@ mod automock {
 
     #[test]
     fn static_method() {
-        check(&r#"
-        #[derive(Default)]
+        check("",
+        &r#"#[derive(Default)]
         struct MockA {
             e: ::mockall::GenericExpectations,
             A_expectations: MockA_A ,
@@ -1224,8 +1363,8 @@ mod automock {
 
     #[test]
     fn two_args() {
-        check(r#"
-        #[derive(Default)]
+        check("",
+        r#"#[derive(Default)]
         pub struct MockTwoArgs {
             e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32, u32), i64> ,
