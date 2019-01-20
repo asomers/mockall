@@ -179,29 +179,29 @@ fn impl_trait() {
     assert_eq!(5, <MockSomeStruct as Foo>::foo(&mock, 4));
 }
 
-//#[test]
-//fn impl_trait_on_generic() {
-    //trait Foo {
-        //fn foo(&self, x: u32) -> i64;
-    //}
+#[test]
+fn impl_trait_on_generic() {
+    trait Foo {
+        fn foo(&self, x: u32) -> i64;
+    }
 
-    //#[allow(unused)]
-    //struct SomeStruct<T> {
-        //_t: std::marker::PhantomData<T>
-    //}
+    #[allow(unused)]
+    struct SomeStruct<T> {
+        _t: std::marker::PhantomData<T>
+    }
 
-    //#[automock]
-    //impl<T> Foo for SomeStruct<T> {
-        //fn foo(&self, _x: u32) -> i64 {
-            //42
-        //}
-    //}
+    #[automock]
+    impl<T> Foo for SomeStruct<T> {
+        fn foo(&self, _x: u32) -> i64 {
+            42
+        }
+    }
 
-    //let mut mock = MockSomeStruct::<u32>::default();
-    //mock.expect_foo()
-        //.returning(|x| i64::from(x) + 1);
-    //assert_eq!(5, mock.foo(4));
-//}
+    let mut mock = MockSomeStruct::<u32>::default();
+    mock.expect_foo()
+        .returning(|x| i64::from(x) + 1);
+    assert_eq!(5, mock.foo(4));
+}
 
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]
