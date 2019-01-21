@@ -361,18 +361,17 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
 
 struct MethodTypes {
     is_static: bool,
-    /// XXX: should this be a syn::TypeTuple instead of a Punctuated?
-    input_type: syn::punctuated::Punctuated<syn::Type, Token![,]>,
+    input_type: syn::TypeTuple,
     output_type: syn::Type
 }
 
 fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let mut is_static = true;
-    let mut input_type
+    let mut elems
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
     for fn_arg in sig.decl.inputs.iter() {
         match fn_arg {
-            syn::FnArg::Captured(arg) => input_type.push(arg.ty.clone()),
+            syn::FnArg::Captured(arg) => elems.push(arg.ty.clone()),
             syn::FnArg::SelfRef(_) => {
                 is_static = false;
             },
@@ -383,6 +382,8 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
                 "Should be unreachable for normal Rust code")
         }
     }
+    let paren_token = syn::token::Paren::default();
+    let input_type = syn::TypeTuple{paren_token, elems};
 
     let output_type = match &sig.decl.output {
         syn::ReturnType::Default => {
@@ -447,7 +448,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
 
     if !dedicated {
         quote!({
-            self.e.called::<(#input_type), #output_type>(#ident_s, (#(#args),*))
+            self.e.called::<#input_type, #output_type>(#ident_s, (#(#args),*))
         })
     } else if let Some(s) = sub {
         let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
@@ -466,20 +467,20 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
                                        sig.ident.span());
     if !dedicated {
         quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut ::mockall::Expectation<(#input_type), #output_type> {
-            self.e.expect::<(#input_type), #output_type>(#ident_s)
+               -> &mut ::mockall::Expectation<#input_type, #output_type> {
+            self.e.expect::<#input_type, #output_type>(#ident_s)
        })
     } else if let Some(s) = sub {
         let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
             Span::call_site());
         quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut ::mockall::Expectation<(#input_type), #output_type> {
+               -> &mut ::mockall::Expectation<#input_type, #output_type> {
             self.#sub_struct.#ident = ::mockall::Expectation::new();
             &mut self.#sub_struct.#ident
         })
     } else {
         quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut ::mockall::Expectation<(#input_type), #output_type> {
+               -> &mut ::mockall::Expectation<#input_type, #output_type> {
             self.#ident = ::mockall::Expectation::new();
             &mut self.#ident
         })
@@ -590,7 +591,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
         let meth_types = method_types(&meth.borrow().sig);
         let in_type = &meth_types.input_type;
         let out_type = &meth_types.output_type;
-        quote!(#method_ident: ::mockall::Expectation<(#in_type), #out_type>,)
+        quote!(#method_ident: ::mockall::Expectation<#in_type, #out_type>,)
             .to_tokens(&mut body);
     }
 
