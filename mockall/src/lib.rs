@@ -170,12 +170,18 @@ pub struct RefMutExpectation<I, O> {
 
 impl<I, O> RefMutExpectation<I, O> {
     pub fn call_mut(&mut self, i: I) -> &mut O {
-        let r = self.rfunc
-            .as_mut()
-            .expect("Must first set return function with RefMutExpectation::returning")
-            (i);
-        self.result = Some(r);
-        self.result.as_mut().unwrap()
+        if let Some(ref mut f) = self.rfunc {
+            self.result = Some(f(i));
+        }
+        self.result.as_mut().expect("Must first set return function with RefMutExpectation::returning or return_var")
+    }
+
+    /// Convenience method that can be used to supply a return value for a
+    /// `RefMutExpectation`.
+    pub fn return_var(&mut self, o: O) -> &mut Self
+    {
+        self.result = Some(o);
+        self
     }
 
     /// Supply a closure that the `RefMutExpectation` will use to create its

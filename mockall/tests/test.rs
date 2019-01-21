@@ -140,6 +140,13 @@ fn return_mutable_reference() {
     assert_eq!(5i32, *e.call_mut(()));
 }
 
+#[test]
+fn return_mutable_reference_return_var() {
+    let mut e = RefMutExpectation::<(), i32>::default();
+    e.return_var(5i32);
+    assert_eq!(5i32, *e.call_mut(()));
+}
+
 /// A MockObject with a simple method like:
 /// fn foo(&self, x: i32) -> u32
 #[test]
