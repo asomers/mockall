@@ -249,8 +249,8 @@ impl Mock {
         }
         // generate methods on traits
         let generics = &self.generics;
-        let reduced_generics = pathargs_from_generics(&generics);
-        quote!(impl #generics #mock_struct_name #reduced_generics {#mock_body})
+        let (ig, tg, wc) = generics.split_for_impl();
+        quote!(impl #ig #mock_struct_name #tg #wc {#mock_body})
             .to_tokens(&mut output);
         for trait_ in self.traits.iter() {
             mock_trait_methods(&mock_struct_name, Some(&generics), &trait_)
@@ -356,50 +356,6 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
             gt_token: Some(syn::Token![>](g.span())),
             where_clause: None
         }
-    }
-}
-
-/// Remove the bounds from  a Generics.  Eg:
-/// pathargs_from_generics(<'a, T: Copy>) == <'a, T>
-/// TODO: try using Generics::split_for_impl instead
-fn pathargs_from_generics(g: &syn::Generics) -> syn::PathArguments {
-    let mut args = syn::punctuated::Punctuated::new();
-    for param in g.params.iter() {
-        match param {
-            syn::GenericParam::Type(ty) => {
-                let mut segments = syn::punctuated::Punctuated::new();
-                segments.push(syn::PathSegment::from(ty.ident.clone()));
-                let type_path = syn::TypePath {
-                    qself: None,
-                    path: syn::Path {
-                        leading_colon: None,
-                        segments
-                    }
-                };
-                let type_ = syn::Type::Path(type_path);
-                args.push(syn::GenericArgument::Type(type_));
-            },
-            syn::GenericParam::Lifetime(lt) => {
-                let newlt = lt.lifetime.clone();
-                args.push(syn::GenericArgument::Lifetime(newlt));
-            },
-            syn::GenericParam::Const(_) => {
-                // https://github.com/rust-lang/rust/issues/44580
-                compile_error(param.span(),
-                    "Generic constants are not yet supported");
-            }
-        }
-    }
-    if args.is_empty() {
-        syn::PathArguments::None
-    } else {
-        let abga = syn::AngleBracketedGenericArguments {
-            colon2_token: None,
-            lt_token: syn::Token![<](g.span()),
-            args,
-            gt_token: syn::Token![>](g.span())
-        };
-        syn::PathArguments::AngleBracketed(abga)
     }
 }
 
@@ -619,10 +575,10 @@ fn gen_struct<T>(vis: &syn::Visibility,
     // Make Expectation fields for each method
     for (sub, sub_generics) in subs.iter() {
         let spn = Span::call_site();
-        let g = pathargs_from_generics(&sub_generics);
+        let (_, tg, _) = sub_generics.split_for_impl();
         let sub_struct = syn::Ident::new(&format!("{}_expectations", sub), spn);
         let sub_mock = syn::Ident::new(&format!("{}_{}", ident, sub), spn);
-        quote!(#sub_struct: #sub_mock #g,).to_tokens(&mut body);
+        quote!(#sub_struct: #sub_mock #tg,).to_tokens(&mut body);
     }
     for meth in methods.iter() {
         if ! meth.borrow().sig.decl.generics.params.is_empty() {
@@ -749,13 +705,12 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
     let ident = &item.ident;
     let trait_generics = &item.generics;
     let (merged_g, reduced_struct_g) = match struct_generics {
-        None => (trait_generics.clone(),
-            pathargs_from_generics(&trait_generics)),
+        None => (trait_generics.clone(), trait_generics.split_for_impl().1),
         Some(g) => {
-            (g.clone(), pathargs_from_generics(&g))
+            (g.clone(), g.split_for_impl().1)
         }
     };
-    let reduced_trait_g = pathargs_from_generics(&trait_generics);
+    let reduced_trait_g = trait_generics.split_for_impl().1;
     quote!(impl #merged_g #ident #reduced_trait_g
            for #mock_ident #reduced_struct_g {
         #mock_body
