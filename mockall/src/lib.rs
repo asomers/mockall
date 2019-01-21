@@ -69,19 +69,18 @@ cfg_if! {
                 panic!("Can only return default values for types that impl std::Default");
             }
         }
+
+        impl<I, O: Default> ReturnDefault<O> for Rfunc<I, O> {
+            fn return_default() -> O {
+                O::default()
+            }
+        }
     } else {
         impl<I, O> ReturnDefault<O> for Rfunc<I, O> {
             fn return_default() -> O {
                 panic!("Returning default values requires the \"nightly\" feature");
             }
         }
-    }
-}
-
-#[cfg(feature = "nightly")]
-impl<I, O: Default> ReturnDefault<O> for Rfunc<I, O> {
-    fn return_default() -> O {
-        O::default()
     }
 }
 
