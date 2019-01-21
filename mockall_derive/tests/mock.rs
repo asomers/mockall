@@ -69,7 +69,7 @@ mod external_generic_struct {
     // }
     // Could be mocked like this:
     mock!{
-        pub ExtGenericStruct<T: Clone + 'static> {
+        pub ExtGenericStruct<T: Clone> {
             fn foo(&self, x: T) -> T;
         }
     }
@@ -131,12 +131,12 @@ mod external_struct_with_trait {
 mod generic_struct_with_generic_trait {
     use super::*;
 
-    trait Foo<T: 'static> {
+    trait Foo<T> {
         fn foo(&self, x: T) -> T;
     }
     mock! {
-        ExternalStruct<T: 'static, Z: 'static> {}
-        trait Foo<T: 'static> {
+        ExternalStruct<T, Z> {}
+        trait Foo<T> {
             fn foo(&self, x: T) -> T;
         }
     }
@@ -199,5 +199,47 @@ mod multi_trait {
 
         let mock = MockMultiTrait::default();
         foo(mock);
+    }
+}
+
+mod reference_arguments {
+    use super::*;
+
+    mock!{
+        Foo<'a> {
+            fn foo(&self, x: &'a u32) -> u32;
+        }
+    }
+
+    #[test]
+    fn t() {
+        const Y: u32 = 5;
+        let mut mock = MockFoo::default();
+        {
+            mock.expect_foo().returning(|x| *x);
+        }
+        {
+            let r = mock.foo(&Y);
+            assert_eq!(5, r);
+        }
+    }
+}
+
+mod reference_return {
+    use super::*;
+
+    mock! {
+        Foo<'a> {
+            fn foo(&self) -> &'a u32;
+        }
+    }
+
+    #[test]
+    fn t() {
+        const X: u32 = 5;
+        let mut mock = MockFoo::default();
+        mock.expect_foo()
+            .returning(|_| &X);
+        assert_eq!(5, *mock.foo());
     }
 }

@@ -1496,6 +1496,42 @@ mod mock {
     }
 
     #[test]
+    fn generic_trait() {
+        let desired = r#"#[derive(Default)]
+        struct MockExternalStruct<T> {
+            e: ::mockall::GenericExpectations,
+            GenericTrait_expectations: MockExternalStruct_GenericTrait<T> ,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        #[derive(Default)]
+        struct MockExternalStruct_GenericTrait<T> {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(), ()> ,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T> MockExternalStruct<T> {}
+        impl<T> GenericTrait<T> for MockExternalStruct<T> {
+            fn foo(&self) {
+                self.GenericTrait_expectations.foo.call(())
+            }
+        }
+        impl<T> MockExternalStruct<T> {
+            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
+            {
+                self.GenericTrait_expectations.foo
+                    = ::mockall::Expectation::new();
+                &mut self.GenericTrait_expectations.foo
+            }
+        }"#;
+        let code = r#"
+        ExternalStruct<T> {}
+        trait GenericTrait<T> {
+            fn foo(&self);
+        }"#;
+        check(desired, code);
+    }
+
+    #[test]
     fn inherited_trait() {
         trait A {
             fn foo(&self);
@@ -1552,6 +1588,103 @@ mod mock {
             }
             trait B {
                 fn bar(&self);
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn reference_arguments() {
+        let desired = r#"
+        #[derive(Default)]
+        struct MockFoo< 'a> {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(& 'a u32), ()> ,
+            _t0: ::std::marker::PhantomData< & 'a ()> ,
+        }
+        impl< 'a> MockFoo< 'a> {
+            pub fn foo(&self, x: & 'a u32) {
+                self.foo.call((x))
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(& 'a u32), ()>
+            {
+                self.foo = ::mockall::Expectation::new();
+                &mut self.foo
+            }
+        }"#;
+
+        let code = r#"
+            Foo<'a> {
+                fn foo(&self, x: & 'a u32);
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn reference_return() {
+        let desired = r#"
+        #[derive(Default)]
+        struct MockFoo< 'a> {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(), & 'a u32> ,
+            _t0: ::std::marker::PhantomData< & 'a ()> ,
+        }
+        impl< 'a> MockFoo< 'a> {
+            pub fn foo(&self) -> & 'a u32 {
+                self.foo.call(())
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(), & 'a u32>
+            {
+                self.foo = ::mockall::Expectation::new();
+                &mut self.foo
+            }
+        }"#;
+
+        let code = r#"
+            Foo<'a> {
+                fn foo(&self) -> &'a u32;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn reference_return_from_trait() {
+        let desired = r#"
+        #[derive(Default)]
+        struct MockX< 'a> {
+            e: ::mockall::GenericExpectations,
+            Foo_expectations: MockX_Foo< 'a> ,
+            _t0: ::std::marker::PhantomData< & 'a ()> ,
+        }
+        #[derive(Default)]
+        struct MockX_Foo< 'a> {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::Expectation<(), & 'a u32> ,
+            _t0: ::std::marker::PhantomData< & 'a ()> ,
+        }
+        impl< 'a> MockX< 'a> {}
+        impl< 'a> Foo< 'a> for MockX< 'a> {
+            fn foo(&self) -> & 'a u32 {
+                self.Foo_expectations.foo.call(())
+            }
+        }
+        impl< 'a> MockX< 'a> {
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(), & 'a u32>
+            {
+                self.Foo_expectations.foo = ::mockall::Expectation::new();
+                &mut self.Foo_expectations.foo
+            }
+        }"#;
+
+        let code = r#"
+            X<'a> {}
+            trait Foo<'a> {
+                fn foo(&self) -> &'a u32;
             }
         "#;
         check(desired, code);
@@ -1666,6 +1799,5 @@ mod mock {
         "#;
         check(desired, code);
     }
-
 }
 }

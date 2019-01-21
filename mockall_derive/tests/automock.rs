@@ -9,7 +9,7 @@ use std::default::Default;
 fn associated_types_auto() {
     #[automock(type T=u32;)]
     trait A {
-        type T: Clone + 'static;
+        type T: Clone;
         fn foo(&self, x: Self::T) -> Self::T;
     }
 
@@ -232,6 +232,20 @@ fn method_self_by_value() {
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
+}
+
+#[test]
+fn reference_return() {
+    #[automock]
+    trait A<'a> {
+        fn foo(&self) -> &'a u32;
+    }
+
+    const X: u32 = 5;
+    let mut mock = MockA::default();
+    mock.expect_foo()
+        .returning(|_| &X);
+    assert_eq!(5, *mock.foo());
 }
 
 // TODO: mock non-'static lifetimes
