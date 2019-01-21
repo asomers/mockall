@@ -126,6 +126,20 @@ fn return_owned_too_many_times() {
     e.called::<(), NonCopy>(&"foo", ());
 }
 
+#[test]
+fn return_reference() {
+    let mut e = RefExpectation::<(), i32>::default();
+    e.return_const(5i32);
+    assert_eq!(5i32, *e.call(()));
+}
+
+#[test]
+fn return_mutable_reference() {
+    let mut e = RefMutExpectation::<(), i32>::default();
+    e.returning(|_| 5i32);
+    assert_eq!(5i32, *e.call_mut(()));
+}
+
 /// A MockObject with a simple method like:
 /// fn foo(&self, x: i32) -> u32
 #[test]

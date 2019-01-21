@@ -15,6 +15,10 @@ use std::{
 trait ExpectationT : Any + Send {}
 downcast!(ExpectationT);
 
+trait ReturnDefault<O> {
+    fn return_default() -> O;
+}
+
 /// Return functions for expectations
 enum Rfunc<I, O> {
     Default,
@@ -56,10 +60,6 @@ impl<I, O> Default for Rfunc<I, O> {
     fn default() -> Self {
         Rfunc::Default
     }
-}
-
-trait ReturnDefault<O> {
-    fn return_default() -> O;
 }
 
 cfg_if! {
@@ -135,6 +135,62 @@ impl<I, O> Expectation<I, O> {
 }
 
 impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
+
+/// Expectation type for methods that take a `&self` argument and return a
+/// reference with the same lifetime as `self`.
+#[derive(Default)]
+pub struct RefExpectation<I, O> {
+    result: Option<O>,
+    phantom: std::marker::PhantomData<I> ,
+}
+
+impl<I, O> RefExpectation<I, O> {
+    pub fn call(&self, _i: I) -> &O {
+        &self.result.as_ref()
+            .expect("Must set return value with RefExpectation::return_const")
+    }
+
+    pub fn return_const(&mut self, o: O) -> &mut Self {
+        self.result = Some(o);
+        self
+    }
+}
+
+impl<I, O> ExpectationT for RefExpectation<I, O>
+    where I: Send + 'static, O: Send + 'static
+{}
+
+/// Expectation type for methods that take a `&mut self` argument and return a
+/// mutable or immutable reference with the same lifetime as `self`.
+#[derive(Default)]
+pub struct RefMutExpectation<I, O> {
+    result: Option<O>,
+    rfunc: Option<Box<dyn FnMut(I) -> O + Send>>
+}
+
+impl<I, O> RefMutExpectation<I, O> {
+    pub fn call_mut(&mut self, i: I) -> &mut O {
+        let r = self.rfunc
+            .as_mut()
+            .expect("Must first set return function with RefMutExpectation::returning")
+            (i);
+        self.result = Some(r);
+        self.result.as_mut().unwrap()
+    }
+
+    /// Supply a closure that the `RefMutExpectation` will use to create its
+    /// return value.
+    pub fn returning<F>(&mut self, f: F) -> &mut Self
+        where F: FnMut(I) -> O + Send + 'static
+    {
+        mem::replace(&mut self.rfunc, Some(Box::new(f)));
+        self
+    }
+}
+
+impl<I, O> ExpectationT for RefMutExpectation<I, O>
+    where I: 'static, O: Send + 'static
+{}
 
 /// Non-generic keys to `GenericExpectations` internal storage
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
