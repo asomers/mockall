@@ -359,12 +359,14 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
     }
 }
 
-/// Return a type describing the arguments of a method, excluding "self".
-/// Also return whether or not the method is a static method.
-/// XXX: should this return a syn::TypeTuple instead of a Punctuated?
-fn method_input_type(sig: &syn::MethodSig)
-    -> (bool, syn::punctuated::Punctuated<syn::Type, Token![,]>)
-{
+struct MethodTypes {
+    is_static: bool,
+    /// XXX: should this be a syn::TypeTuple instead of a Punctuated?
+    input_type: syn::punctuated::Punctuated<syn::Type, Token![,]>,
+    output_type: syn::Type
+}
+
+fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let mut is_static = true;
     let mut input_type
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
@@ -381,19 +383,16 @@ fn method_input_type(sig: &syn::MethodSig)
                 "Should be unreachable for normal Rust code")
         }
     }
-    (is_static, input_type)
-}
 
-///  Return a type describing the return value of a method
-fn method_output_type(sig: &syn::MethodSig) -> syn::Type {
-    match &sig.decl.output {
+    let output_type = match &sig.decl.output {
         syn::ReturnType::Default => {
             let paren_token = syn::token::Paren{span: Span::call_site()};
             let elems = syn::punctuated::Punctuated::new();
             syn::Type::Tuple(syn::TypeTuple{paren_token, elems})
         },
         syn::ReturnType::Type(_, ty) => (**ty).clone()
-    }
+    };
+    MethodTypes{is_static, input_type, output_type}
 }
 
 /// Generate a mock method and its expectation method
@@ -422,9 +421,10 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
            #fn_token #ident #generics (#inputs) #output)
         .to_tokens(&mut mock_output);
 
-    let (is_static, input_type) = method_input_type(sig);
-    let output_type = method_output_type(sig);
-    if is_static {
+    let meth_types = method_types(sig);
+    let input_type = &meth_types.input_type;
+    let output_type = &meth_types.output_type;
+    if meth_types.is_static {
         quote!({unimplemented!("Expectations on static methods are TODO");})
             .to_tokens(&mut mock_output);
         return (mock_output, TokenStream::new())
@@ -587,8 +587,9 @@ fn gen_struct<T>(vis: &syn::Visibility,
             continue;
         }
         let method_ident = &meth.borrow().sig.ident;
-        let (_, in_type) = method_input_type(&meth.borrow().sig);
-        let out_type = method_output_type(&meth.borrow().sig);
+        let meth_types = method_types(&meth.borrow().sig);
+        let in_type = &meth_types.input_type;
+        let out_type = &meth_types.output_type;
         quote!(#method_ident: ::mockall::Expectation<(#in_type), #out_type>,)
             .to_tokens(&mut body);
     }
