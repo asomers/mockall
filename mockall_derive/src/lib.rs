@@ -362,7 +362,8 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
 struct MethodTypes {
     is_static: bool,
     input_type: syn::TypeTuple,
-    output_type: syn::Type
+    output_type: syn::Type,
+    expectation: syn::Type,
 }
 
 fn method_types(sig: &syn::MethodSig) -> MethodTypes {
@@ -385,15 +386,35 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let paren_token = syn::token::Paren::default();
     let input_type = syn::TypeTuple{paren_token, elems};
 
-    let output_type = match &sig.decl.output {
+    let (output_type, qe) = match &sig.decl.output {
         syn::ReturnType::Default => {
             let paren_token = syn::token::Paren{span: Span::call_site()};
             let elems = syn::punctuated::Punctuated::new();
-            syn::Type::Tuple(syn::TypeTuple{paren_token, elems})
+            (
+                syn::Type::Tuple(syn::TypeTuple{paren_token, elems}),
+                quote!(::mockall::Expectation)
+            )
         },
-        syn::ReturnType::Type(_, ty) => (**ty).clone()
+        syn::ReturnType::Type(_, ty) => {
+            match ty.as_ref() {
+                syn::Type::Reference(r) => {
+                    if let Some(ref lt) = r.lifetime {
+                        if lt.ident != &"static" {
+                            compile_error(r.span(), "Non-'static non-'self lifetimes are not yet supported");
+                        }
+                    }
+                    if r.mutability.is_some() {
+                        compile_error(r.span(), "Mutable reference return types are not yet supported");
+                    }
+                    ((*r.elem).clone(), quote!(::mockall::RefExpectation))
+                },
+                _ => ((**ty).clone(), quote!(::mockall::Expectation))
+            }
+        }
     };
-    MethodTypes{is_static, input_type, output_type}
+
+    let expectation: syn::Type = syn::parse2(qe).unwrap();
+    MethodTypes{is_static, input_type, output_type, expectation}
 }
 
 /// Generate a mock method and its expectation method
@@ -425,6 +446,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     let meth_types = method_types(sig);
     let input_type = &meth_types.input_type;
     let output_type = &meth_types.output_type;
+    let expectation = &meth_types.expectation;
     if meth_types.is_static {
         quote!({unimplemented!("Expectations on static methods are TODO");})
             .to_tokens(&mut mock_output);
@@ -467,21 +489,21 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
                                        sig.ident.span());
     if !dedicated {
         quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut ::mockall::Expectation<#input_type, #output_type> {
+               -> &mut #expectation<#input_type, #output_type> {
             self.e.expect::<#input_type, #output_type>(#ident_s)
        })
     } else if let Some(s) = sub {
         let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
             Span::call_site());
         quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut ::mockall::Expectation<#input_type, #output_type> {
-            self.#sub_struct.#ident = ::mockall::Expectation::new();
+               -> &mut #expectation<#input_type, #output_type> {
+            self.#sub_struct.#ident = #expectation::new();
             &mut self.#sub_struct.#ident
         })
     } else {
         quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut ::mockall::Expectation<#input_type, #output_type> {
-            self.#ident = ::mockall::Expectation::new();
+               -> &mut #expectation<#input_type, #output_type> {
+            self.#ident = #expectation::new();
             &mut self.#ident
         })
     }.to_tokens(&mut expect_output);
@@ -591,7 +613,8 @@ fn gen_struct<T>(vis: &syn::Visibility,
         let meth_types = method_types(&meth.borrow().sig);
         let in_type = &meth_types.input_type;
         let out_type = &meth_types.output_type;
-        quote!(#method_ident: ::mockall::Expectation<#in_type, #out_type>,)
+        let expectation = &meth_types.expectation;
+        quote!(#method_ident: #expectation<#in_type, #out_type>,)
             .to_tokens(&mut body);
     }
 
@@ -814,9 +837,9 @@ fn do_mock(input: TokenStream) -> TokenStream {
 /// ```
 /// # use mockall_derive::mock;
 /// mock!{
-///     pub Rc<T: 'static> {}
-///     trait AsRef<T: 'static> {
-///         fn as_ref(&self) -> &'static T;
+///     pub Rc<T> {}
+///     trait AsRef<T> {
+///         fn as_ref(&self) -> &T;
 ///     }
 /// }
 /// # fn main() {}
@@ -1628,26 +1651,25 @@ mod mock {
     fn reference_return() {
         let desired = r#"
         #[derive(Default)]
-        struct MockFoo< 'a> {
+        struct MockFoo {
             e: ::mockall::GenericExpectations,
-            foo: ::mockall::Expectation<(), & 'a u32> ,
-            _t0: ::std::marker::PhantomData< & 'a ()> ,
+            foo: ::mockall::RefExpectation<(), u32> ,
         }
-        impl< 'a> MockFoo< 'a> {
-            pub fn foo(&self) -> & 'a u32 {
+        impl MockFoo {
+            pub fn foo(&self) -> &u32 {
                 self.foo.call(())
             }
             pub fn expect_foo(&mut self)
-                -> &mut ::mockall::Expectation<(), & 'a u32>
+                -> &mut ::mockall::RefExpectation<(), u32>
             {
-                self.foo = ::mockall::Expectation::new();
+                self.foo = ::mockall::RefExpectation::new();
                 &mut self.foo
             }
         }"#;
 
         let code = r#"
-            Foo<'a> {
-                fn foo(&self) -> &'a u32;
+            Foo {
+                fn foo(&self) -> &u32;
             }
         "#;
         check(desired, code);
@@ -1657,36 +1679,34 @@ mod mock {
     fn reference_return_from_trait() {
         let desired = r#"
         #[derive(Default)]
-        struct MockX< 'a> {
+        struct MockX {
             e: ::mockall::GenericExpectations,
-            Foo_expectations: MockX_Foo< 'a> ,
-            _t0: ::std::marker::PhantomData< & 'a ()> ,
+            Foo_expectations: MockX_Foo ,
         }
         #[derive(Default)]
-        struct MockX_Foo< 'a> {
+        struct MockX_Foo {
             e: ::mockall::GenericExpectations,
-            foo: ::mockall::Expectation<(), & 'a u32> ,
-            _t0: ::std::marker::PhantomData< & 'a ()> ,
+            foo: ::mockall::RefExpectation<(), u32> ,
         }
-        impl< 'a> MockX< 'a> {}
-        impl< 'a> Foo< 'a> for MockX< 'a> {
-            fn foo(&self) -> & 'a u32 {
+        impl MockX {}
+        impl Foo for MockX {
+            fn foo(&self) -> &u32 {
                 self.Foo_expectations.foo.call(())
             }
         }
-        impl< 'a> MockX< 'a> {
+        impl MockX {
             pub fn expect_foo(&mut self)
-                -> &mut ::mockall::Expectation<(), & 'a u32>
+                -> &mut ::mockall::RefExpectation<(), u32>
             {
-                self.Foo_expectations.foo = ::mockall::Expectation::new();
+                self.Foo_expectations.foo = ::mockall::RefExpectation::new();
                 &mut self.Foo_expectations.foo
             }
         }"#;
 
         let code = r#"
-            X<'a> {}
-            trait Foo<'a> {
-                fn foo(&self) -> &'a u32;
+            X {}
+            trait Foo {
+                fn foo(&self) -> &u32;
             }
         "#;
         check(desired, code);

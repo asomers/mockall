@@ -138,7 +138,6 @@ impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
 
 /// Expectation type for methods that take a `&self` argument and return a
 /// reference with the same lifetime as `self`.
-#[derive(Default)]
 pub struct RefExpectation<I, O> {
     result: Option<O>,
     phantom: std::marker::PhantomData<I> ,
@@ -150,9 +149,19 @@ impl<I, O> RefExpectation<I, O> {
             .expect("Must set return value with RefExpectation::return_const")
     }
 
+    pub fn new() -> Self {
+        RefExpectation{result: None, phantom: std::marker::PhantomData}
+    }
+
     pub fn return_const(&mut self, o: O) -> &mut Self {
         self.result = Some(o);
         self
+    }
+}
+
+impl<I, O> Default for RefExpectation<I, O> {
+    fn default() -> Self {
+        RefExpectation::new()
     }
 }
 

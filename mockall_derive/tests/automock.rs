@@ -237,30 +237,14 @@ fn method_self_by_value() {
 #[test]
 fn reference_return() {
     #[automock]
-    trait A<'a> {
-        fn foo(&self) -> &'a u32;
+    trait A {
+        fn foo(&self) -> &u32;
     }
 
-    const X: u32 = 5;
     let mut mock = MockA::default();
-    mock.expect_foo()
-        .returning(|_| &X);
+    mock.expect_foo().return_const(5);
     assert_eq!(5, *mock.foo());
 }
-
-// TODO: mock non-'static lifetimes
-//#[test]
-//fn return_lifetime() {
-    //#[automock]
-    //trait A<'a> {
-        //fn foo(&'a self) -> &'a u32;
-    //}
-
-    //let mut mock = MockA::<'static>::default();
-    //mock.expect_foo()
-        //.returning(|_| &5);
-    //assert_eq!(5, *mock.foo());
-//}
 
 #[test]
 fn return_owned() {
