@@ -2,26 +2,18 @@
 
 use mockall::*;
 
-#[test]
-#[should_panic(expected = "No matching expectation found")]
-fn missing_expectation() {
-    let e = GenericExpectations::default();
-    e.call::<i32, u32>(&"foo", 5);
-}
-
 /// A MockObject with a method that takes &mut self like:
 /// fn foo(&mut self, x: i32) -> u32
 #[test]
 fn mutable_self() {
-    let mut e = GenericExpectations::default();
+    let mut e = Expectation::<(i32), i32>::default();
     let mut count = 0;
-    e.expect::<i32, i32>(&"foo")
-        .returning(move |x| {
+    e.returning(move |x| {
             count += x;
             count
         });
-    assert_eq!(5, e.call::<i32, i32>(&"foo", 5));
-    assert_eq!(10, e.call::<i32, i32>(&"foo", 5));
+    assert_eq!(5, e.call(5));
+    assert_eq!(10, e.call(5));
 }
 
 /// A mock struct has two different methods with the same name, from different
@@ -41,26 +33,29 @@ mod name_conflict {
 
     #[derive(Default)]
     struct MockA {
-        e: ::mockall::GenericExpectations,
+        foo_meth: ::mockall::Expectation<(), u32>,
+        bar_meth: ::mockall::Expectation<(), u32>,
     }
     impl MockA {
         fn expect_foo_meth(&mut self) -> &mut ::mockall::Expectation<(), u32>
         {
-            self.e.expect::<(), u32>("foo_meth")
+            self.foo_meth = ::mockall::Expectation::new();
+            &mut self.foo_meth
         }
         fn expect_bar_meth(&mut self) -> &mut ::mockall::Expectation<(), u32>
         {
-            self.e.expect::<(), u32>("bar_meth")
+            self.bar_meth = ::mockall::Expectation::new();
+            &mut self.bar_meth
         }
     }
     impl Foo for MockA {
         fn meth(&self) -> u32 {
-            self.e.call::<(), u32>("foo_meth", ())
+            self.foo_meth.call(())
         }
     }
     impl Bar for MockA {
         fn meth(&self) -> u32 {
-            self.e.call::<(), u32>("bar_meth", ())
+            self.bar_meth.call(())
         }
     }
 
@@ -78,19 +73,17 @@ mod name_conflict {
 /// fn foo(&self)
 #[test]
 fn no_args_or_returns() {
-    let mut e = GenericExpectations::default();
-    e.expect::<(), ()>(&"foo")
-        .returning(|_| ());
-    e.call::<(), ()>(&"foo", ());
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.call(());
 }
 
 /// Expectations return O::default() unless otherwise specified
 #[test]
 #[cfg_attr(not(feature = "nightly"), ignore)]
 fn return_default() {
-    let mut e = GenericExpectations::default();
-    e.expect::<(), u32>(&"foo");
-    let r = e.call::<(), u32>(&"foo", ());
+    let e = Expectation::<(), u32>::default();
+    let r = e.call(());
     assert_eq!(u32::default(), r);
 }
 
@@ -99,61 +92,36 @@ fn return_default() {
 #[should_panic]
 fn return_default_panics_for_non_default_types() {
     struct NonDefault{}
-    let mut e = GenericExpectations::default();
-    e.expect::<(), NonDefault>(&"foo");
-    e.call::<(), NonDefault>(&"foo", ());
+    let e = Expectation::<(), NonDefault>::default();
+    e.call(());
 }
 
 #[test]
 fn return_owned() {
     struct NonCopy{}
-    let mut e = GenericExpectations::default();
+    let mut e = Expectation::<(), NonCopy>::default();
     let r = NonCopy{};
-    e.expect::<(), NonCopy>(&"foo")
-        .return_once(|_| r);
-    e.call::<(), NonCopy>(&"foo", ());
+    e.return_once(|_| r);
+    e.call(());
 }
 
 #[test]
 #[should_panic(expected = "expected only once")]
 fn return_owned_too_many_times() {
     struct NonCopy{}
-    let mut e = GenericExpectations::default();
+    let mut e = Expectation::<(), NonCopy>::default();
     let r = NonCopy{};
-    e.expect::<(), NonCopy>(&"foo")
-        .return_once(|_| r);
-    e.call::<(), NonCopy>(&"foo", ());
-    e.call::<(), NonCopy>(&"foo", ());
-}
-
-#[test]
-fn return_reference() {
-    let mut e = RefExpectation::<(), i32>::default();
-    e.return_const(5i32);
-    assert_eq!(5i32, *e.call(()));
-}
-
-#[test]
-fn return_mutable_reference() {
-    let mut e = RefMutExpectation::<(), i32>::default();
-    e.returning(|_| 5i32);
-    assert_eq!(5i32, *e.call_mut(()));
-}
-
-#[test]
-fn return_mutable_reference_return_var() {
-    let mut e = RefMutExpectation::<(), i32>::default();
-    e.return_var(5i32);
-    assert_eq!(5i32, *e.call_mut(()));
+    e.return_once(|_| r);
+    e.call(());
+    e.call(());
 }
 
 /// A MockObject with a simple method like:
 /// fn foo(&self, x: i32) -> u32
 #[test]
 fn simple_method() {
-    let mut e = GenericExpectations::default();
-    e.expect::<i32, u32>(&"foo")
-        .returning(|_| 42);
-    let r = e.call::<i32, u32>(&"foo", 5);
+    let mut e = Expectation::<i32, u32>::default();
+    e.returning(|_| 42);
+    let r = e.call(5);
     assert_eq!(42, r);
 }
