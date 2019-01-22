@@ -242,3 +242,26 @@ mod reference_return {
         assert_eq!(5, *mock.foo());
     }
 }
+
+mod ref_mut_return {
+    use super::*;
+
+    mock! {
+        Foo {
+            fn foo(&mut self) -> &mut u32;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::default();
+        mock.expect_foo()
+            .return_var(5u32);
+        {
+            let r = mock.foo();
+            assert_eq!(5, *r);
+            *r = 6;
+        }
+        assert_eq!(6, *mock.foo());
+    }
+}

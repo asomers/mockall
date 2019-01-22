@@ -171,7 +171,6 @@ impl<I, O> ExpectationT for RefExpectation<I, O>
 
 /// Expectation type for methods that take a `&mut self` argument and return a
 /// mutable or immutable reference with the same lifetime as `self`.
-#[derive(Default)]
 pub struct RefMutExpectation<I, O> {
     result: Option<O>,
     rfunc: Option<Box<dyn FnMut(I) -> O + Send>>
@@ -183,6 +182,10 @@ impl<I, O> RefMutExpectation<I, O> {
             self.result = Some(f(i));
         }
         self.result.as_mut().expect("Must first set return function with RefMutExpectation::returning or return_var")
+    }
+
+    pub fn new() -> Self {
+        RefMutExpectation{result: None, rfunc: None}
     }
 
     /// Convenience method that can be used to supply a return value for a
@@ -200,6 +203,12 @@ impl<I, O> RefMutExpectation<I, O> {
     {
         mem::replace(&mut self.rfunc, Some(Box::new(f)));
         self
+    }
+}
+
+impl<I, O> Default for RefMutExpectation<I, O> {
+    fn default() -> Self {
+        RefMutExpectation::new()
     }
 }
 
@@ -240,7 +249,7 @@ impl GenericExpectations {
 
     // TODO: add a "called_nonstatic" method that can be used with types that
     // aren't 'static, and uses a different method to generate the key.
-    pub fn called<I: 'static, O: 'static>(&self, ident: &str, args: I) -> O {
+    pub fn call<I: 'static, O: 'static>(&self, ident: &str, args: I) -> O {
         let key = Key::new::<I, O>(ident);
         let e: &Expectation<I, O> = self.store.get(&key)
             .expect("No matching expectation found")

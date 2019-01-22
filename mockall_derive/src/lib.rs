@@ -364,6 +364,7 @@ struct MethodTypes {
     input_type: syn::TypeTuple,
     output_type: syn::Type,
     expectation: syn::Type,
+    call: syn::Ident
 }
 
 fn method_types(sig: &syn::MethodSig) -> MethodTypes {
@@ -386,13 +387,14 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let paren_token = syn::token::Paren::default();
     let input_type = syn::TypeTuple{paren_token, elems};
 
-    let (output_type, qe) = match &sig.decl.output {
+    let (output_type, qe, call) = match &sig.decl.output {
         syn::ReturnType::Default => {
             let paren_token = syn::token::Paren{span: Span::call_site()};
             let elems = syn::punctuated::Punctuated::new();
             (
                 syn::Type::Tuple(syn::TypeTuple{paren_token, elems}),
-                quote!(::mockall::Expectation)
+                quote!(::mockall::Expectation),
+                syn::Ident::new("call", Span::call_site())
             )
         },
         syn::ReturnType::Type(_, ty) => {
@@ -404,17 +406,30 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
                         }
                     }
                     if r.mutability.is_some() {
-                        compile_error(r.span(), "Mutable reference return types are not yet supported");
+                        (
+                            (*r.elem).clone(),
+                            quote!(::mockall::RefMutExpectation),
+                            syn::Ident::new("call_mut", Span::call_site())
+                        )
+                    } else {
+                        (
+                            (*r.elem).clone(),
+                            quote!(::mockall::RefExpectation),
+                            syn::Ident::new("call", Span::call_site())
+                        )
                     }
-                    ((*r.elem).clone(), quote!(::mockall::RefExpectation))
                 },
-                _ => ((**ty).clone(), quote!(::mockall::Expectation))
+                _ => (
+                    (**ty).clone(),
+                    quote!(::mockall::Expectation),
+                    syn::Ident::new("call", Span::call_site())
+                )
             }
         }
     };
 
     let expectation: syn::Type = syn::parse2(qe).unwrap();
-    MethodTypes{is_static, input_type, output_type, expectation}
+    MethodTypes{is_static, input_type, output_type, expectation, call}
 }
 
 /// Generate a mock method and its expectation method
@@ -447,6 +462,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     let input_type = &meth_types.input_type;
     let output_type = &meth_types.output_type;
     let expectation = &meth_types.expectation;
+    let call = &meth_types.call;
     if meth_types.is_static {
         quote!({unimplemented!("Expectations on static methods are TODO");})
             .to_tokens(&mut mock_output);
@@ -470,17 +486,17 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
 
     if !dedicated {
         quote!({
-            self.e.called::<#input_type, #output_type>(#ident_s, (#(#args),*))
+            self.e.#call::<#input_type, #output_type>(#ident_s, (#(#args),*))
         })
     } else if let Some(s) = sub {
         let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
             Span::call_site());
         quote!({
-            self.#sub_struct.#ident.call((#(#args),*))
+            self.#sub_struct.#ident.#call((#(#args),*))
         })
     } else {
         quote!({
-            self.#ident.call((#(#args),*))
+            self.#ident.#call((#(#args),*))
         })
     }.to_tokens(&mut mock_output);
 
@@ -969,7 +985,7 @@ mod automock {
         impl MockA {}
         impl A for MockA {
             fn foo<T: 'static>(&self, t: T) {
-                self.e.called:: <(T), ()>("foo", (t))
+                self.e.call:: <(T), ()>("foo", (t))
             }
         }
         impl MockA {
@@ -1393,7 +1409,7 @@ mod mock {
             }
             impl MockSomeStruct {
                 pub fn foo<T: 'static>(&self, t: T) {
-                    self.e.called:: <(T), ()>("foo", (t))
+                    self.e.call:: <(T), ()>("foo", (t))
                 }
                 pub fn expect_foo<T: 'static>(&mut self)
                     -> &mut ::mockall::Expectation<(T), ()>
@@ -1707,6 +1723,34 @@ mod mock {
             X {}
             trait Foo {
                 fn foo(&self) -> &u32;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn ref_mut_return() {
+        let desired = r#"
+        #[derive(Default)]
+        struct MockFoo {
+            e: ::mockall::GenericExpectations,
+            foo: ::mockall::RefMutExpectation<(), u32> ,
+        }
+        impl MockFoo {
+            pub fn foo(&mut self) -> &mut u32 {
+                self.foo.call_mut(())
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::RefMutExpectation<(), u32>
+            {
+                self.foo = ::mockall::RefMutExpectation::new();
+                &mut self.foo
+            }
+        }"#;
+
+        let code = r#"
+            Foo {
+                fn foo(&mut self) -> &mut u32;
             }
         "#;
         check(desired, code);

@@ -6,7 +6,7 @@ use mockall::*;
 #[should_panic(expected = "No matching expectation found")]
 fn missing_expectation() {
     let e = GenericExpectations::default();
-    e.called::<i32, u32>(&"foo", 5);
+    e.call::<i32, u32>(&"foo", 5);
 }
 
 /// A MockObject with a method that takes &mut self like:
@@ -20,8 +20,8 @@ fn mutable_self() {
             count += x;
             count
         });
-    assert_eq!(5, e.called::<i32, i32>(&"foo", 5));
-    assert_eq!(10, e.called::<i32, i32>(&"foo", 5));
+    assert_eq!(5, e.call::<i32, i32>(&"foo", 5));
+    assert_eq!(10, e.call::<i32, i32>(&"foo", 5));
 }
 
 /// A mock struct has two different methods with the same name, from different
@@ -55,12 +55,12 @@ mod name_conflict {
     }
     impl Foo for MockA {
         fn meth(&self) -> u32 {
-            self.e.called::<(), u32>("foo_meth", ())
+            self.e.call::<(), u32>("foo_meth", ())
         }
     }
     impl Bar for MockA {
         fn meth(&self) -> u32 {
-            self.e.called::<(), u32>("bar_meth", ())
+            self.e.call::<(), u32>("bar_meth", ())
         }
     }
 
@@ -81,7 +81,7 @@ fn no_args_or_returns() {
     let mut e = GenericExpectations::default();
     e.expect::<(), ()>(&"foo")
         .returning(|_| ());
-    e.called::<(), ()>(&"foo", ());
+    e.call::<(), ()>(&"foo", ());
 }
 
 /// Expectations return O::default() unless otherwise specified
@@ -90,7 +90,7 @@ fn no_args_or_returns() {
 fn return_default() {
     let mut e = GenericExpectations::default();
     e.expect::<(), u32>(&"foo");
-    let r = e.called::<(), u32>(&"foo", ());
+    let r = e.call::<(), u32>(&"foo", ());
     assert_eq!(u32::default(), r);
 }
 
@@ -101,7 +101,7 @@ fn return_default_panics_for_non_default_types() {
     struct NonDefault{}
     let mut e = GenericExpectations::default();
     e.expect::<(), NonDefault>(&"foo");
-    e.called::<(), NonDefault>(&"foo", ());
+    e.call::<(), NonDefault>(&"foo", ());
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn return_owned() {
     let r = NonCopy{};
     e.expect::<(), NonCopy>(&"foo")
         .return_once(|_| r);
-    e.called::<(), NonCopy>(&"foo", ());
+    e.call::<(), NonCopy>(&"foo", ());
 }
 
 #[test]
@@ -122,8 +122,8 @@ fn return_owned_too_many_times() {
     let r = NonCopy{};
     e.expect::<(), NonCopy>(&"foo")
         .return_once(|_| r);
-    e.called::<(), NonCopy>(&"foo", ());
-    e.called::<(), NonCopy>(&"foo", ());
+    e.call::<(), NonCopy>(&"foo", ());
+    e.call::<(), NonCopy>(&"foo", ());
 }
 
 #[test]
@@ -154,6 +154,6 @@ fn simple_method() {
     let mut e = GenericExpectations::default();
     e.expect::<i32, u32>(&"foo")
         .returning(|_| 42);
-    let r = e.called::<i32, u32>(&"foo", 5);
+    let r = e.call::<i32, u32>(&"foo", 5);
     assert_eq!(42, r);
 }
