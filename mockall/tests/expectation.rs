@@ -2,6 +2,40 @@
 
 use mockall::*;
 
+#[test]
+fn match_eq_ok() {
+    let mut e = Expectation::<(i32), ()>::default();
+    e.returning(|_| ());
+    e.with(predicates::ord::eq(5));
+    e.call(5);
+}
+
+#[test]
+#[should_panic]
+fn match_eq_fail() {
+    let mut e = Expectation::<(i32), ()>::default();
+    e.returning(|_| ());
+    e.with(predicates::ord::eq(4));
+    e.call(5);
+}
+
+#[test]
+fn match_fn_ok() {
+    let mut e = Expectation::<(i32), ()>::default();
+    e.returning(|_| ());
+    e.with(predicate::function(|x: &i32| *x == 5));
+    e.call(5);
+}
+
+#[test]
+#[should_panic]
+fn match_fn_fail() {
+    let mut e = Expectation::<(i32), ()>::default();
+    e.returning(|_| ());
+    e.with(predicate::function(|x: &i32| *x == 6));
+    e.call(5);
+}
+
 /// A MockObject with a method that takes &mut self like:
 /// fn foo(&mut self, x: i32) -> u32
 #[test]

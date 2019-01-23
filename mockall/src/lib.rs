@@ -12,6 +12,8 @@ use std::{
     sync::Mutex
 };
 
+pub use predicates::prelude::*;
+
 trait ExpectationT : Any + Send {}
 downcast!(ExpectationT);
 
@@ -84,8 +86,26 @@ cfg_if! {
     }
 }
 
+struct Matcher<I>(Box<dyn Predicate<I> + Send>);
+
+impl<I> Matcher<I> {
+    fn verify(&self, i: &I) {
+        if let Some(case) = self.0.find_case(false, &i) {
+            let c = &case as &predicates_tree::CaseTreeExt;
+            panic!("Expectation didn't match arguments:\n{}", c.tree());
+        }
+    }
+}
+
+impl<I> Default for Matcher<I> {
+    fn default() -> Self {
+        Matcher(Box::new(predicate::always()))
+    }
+}
+
 pub struct Expectation<I, O> {
-    rfunc: Mutex<Rfunc<I, O>>
+    rfunc: Mutex<Rfunc<I, O>>,
+    matcher: Matcher<I>
 }
 
 impl<I, O> Default for Expectation<I, O> {
@@ -96,13 +116,15 @@ impl<I, O> Default for Expectation<I, O> {
 
 impl<I, O> Expectation<I, O> {
     pub fn call(&self, i: I) -> O {
+        self.matcher.verify(&i);
         self.rfunc.lock().unwrap()
             .call_mut(i)
     }
 
     pub fn new() -> Self {
+        let matcher = Matcher::default();
         let rfunc = Mutex::new(Rfunc::Default);
-        Expectation{rfunc}
+        Expectation{matcher, rfunc}
     }
 
     pub fn returning<F>(&mut self, f: F) -> &mut Self
@@ -132,6 +154,13 @@ impl<I, O> Expectation<I, O> {
         }
         self
     }
+
+    pub fn with<P>(&mut self, p: P) -> &mut Self
+        where P: Predicate<I> + Send + 'static
+    {
+        self.matcher = Matcher(Box::new(p));
+        self
+    }
 }
 
 impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
@@ -140,21 +169,31 @@ impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
 /// reference with the same lifetime as `self`.
 pub struct RefExpectation<I, O> {
     result: Option<O>,
+    matcher: Matcher<I>,
     phantom: std::marker::PhantomData<I> ,
 }
 
 impl<I, O> RefExpectation<I, O> {
-    pub fn call(&self, _i: I) -> &O {
+    pub fn call(&self, i: I) -> &O {
+        self.matcher.verify(&i);
         &self.result.as_ref()
             .expect("Must set return value with RefExpectation::return_const")
     }
 
     pub fn new() -> Self {
-        RefExpectation{result: None, phantom: std::marker::PhantomData}
+        let matcher = Matcher::default();
+        RefExpectation{matcher, result: None, phantom: std::marker::PhantomData}
     }
 
     pub fn return_const(&mut self, o: O) -> &mut Self {
         self.result = Some(o);
+        self
+    }
+
+    pub fn with<P>(&mut self, p: P) -> &mut Self
+        where P: Predicate<I> + Send + 'static
+    {
+        self.matcher = Matcher(Box::new(p));
         self
     }
 }
@@ -173,11 +212,13 @@ impl<I, O> ExpectationT for RefExpectation<I, O>
 /// mutable or immutable reference with the same lifetime as `self`.
 pub struct RefMutExpectation<I, O> {
     result: Option<O>,
+    matcher: Matcher<I>,
     rfunc: Option<Box<dyn FnMut(I) -> O + Send>>
 }
 
 impl<I, O> RefMutExpectation<I, O> {
     pub fn call_mut(&mut self, i: I) -> &mut O {
+        self.matcher.verify(&i);
         if let Some(ref mut f) = self.rfunc {
             self.result = Some(f(i));
         }
@@ -185,7 +226,8 @@ impl<I, O> RefMutExpectation<I, O> {
     }
 
     pub fn new() -> Self {
-        RefMutExpectation{result: None, rfunc: None}
+        let matcher = Matcher::default();
+        RefMutExpectation{matcher, result: None, rfunc: None}
     }
 
     /// Convenience method that can be used to supply a return value for a
@@ -202,6 +244,13 @@ impl<I, O> RefMutExpectation<I, O> {
         where F: FnMut(I) -> O + Send + 'static
     {
         mem::replace(&mut self.rfunc, Some(Box::new(f)));
+        self
+    }
+
+    pub fn with<P>(&mut self, p: P) -> &mut Self
+        where P: Predicate<I> + Send + 'static
+    {
+        self.matcher = Matcher(Box::new(p));
         self
     }
 }

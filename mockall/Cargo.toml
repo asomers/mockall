@@ -11,3 +11,5 @@ nightly = []
 [dependencies]
 cfg-if = "0.1"
 downcast = "0.9"
+predicates = "1.0"
+predicates-tree = "1.0"
