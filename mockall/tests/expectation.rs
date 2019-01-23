@@ -159,3 +159,34 @@ fn simple_method() {
     let r = e.call(5);
     assert_eq!(42, r);
 }
+
+#[test]
+fn times_ok() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times(2);
+    e.call(());
+    e.call(());
+}
+
+#[test]
+#[should_panic(expected = "Expectation called fewer than 2 times")]
+fn times_too_few() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times(2);
+    e.call(());
+}
+
+#[test]
+#[should_panic(expected = "Expectation called more than 3 times")]
+fn times_too_many() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times(2);
+    e.call(());
+    e.call(());
+    e.call(());
+    // Verify that we panic quickly and don't reach code below this point.
+    panic!("Shouldn't get here!");
+}

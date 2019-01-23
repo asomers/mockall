@@ -8,8 +8,11 @@ use std::{
     collections::hash_map::{DefaultHasher, HashMap},
     hash::{Hash, Hasher},
     mem,
-    ops::DerefMut,
-    sync::Mutex
+    ops::{DerefMut, Range},
+    sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering}
+    }
 };
 
 pub use predicates::prelude::*;
@@ -103,9 +106,41 @@ impl<I> Default for Matcher<I> {
     }
 }
 
-pub struct Expectation<I, O> {
-    rfunc: Mutex<Rfunc<I, O>>,
-    matcher: Matcher<I>
+struct Times{
+    /// How many times has the expectation already been called?
+    count: AtomicUsize,
+    range: Range<usize>
+}
+
+impl Times {
+    fn call(&self) {
+        let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
+        if count >= self.range.end {
+            panic!("Expectation called more than {} times", self.range.end);
+        }
+    }
+
+    fn times(&mut self, n: usize) {
+        self.range = n..(n+1);
+    }
+}
+
+impl Default for Times {
+    fn default() -> Self {
+        // By default, allow any number of calls
+        let count = AtomicUsize::default();
+        let range = 0..usize::max_value();
+        Times{count, range}
+    }
+}
+
+impl Drop for Times {
+    fn drop(&mut self) {
+        let count = self.count.load(Ordering::Relaxed);
+        if count < self.range.start {
+            panic!("Expectation called fewer than {} times", self.range.start);
+        }
+    }
 }
 
 impl<I, O> Default for Expectation<I, O> {
@@ -114,9 +149,16 @@ impl<I, O> Default for Expectation<I, O> {
     }
 }
 
+pub struct Expectation<I, O> {
+    rfunc: Mutex<Rfunc<I, O>>,
+    matcher: Matcher<I>,
+    times: Times
+}
+
 impl<I, O> Expectation<I, O> {
     pub fn call(&self, i: I) -> O {
         self.matcher.verify(&i);
+        self.times.call();
         self.rfunc.lock().unwrap()
             .call_mut(i)
     }
@@ -124,7 +166,8 @@ impl<I, O> Expectation<I, O> {
     pub fn new() -> Self {
         let matcher = Matcher::default();
         let rfunc = Mutex::new(Rfunc::Default);
-        Expectation{matcher, rfunc}
+        let times = Times::default();
+        Expectation{matcher, rfunc, times}
     }
 
     pub fn returning<F>(&mut self, f: F) -> &mut Self
@@ -155,6 +198,12 @@ impl<I, O> Expectation<I, O> {
         self
     }
 
+    /// Require this expectation to be called exactly `n` times.
+    pub fn times(&mut self, n: usize) -> &mut Self {
+        self.times.times(n);
+        self
+    }
+
     pub fn with<P>(&mut self, p: P) -> &mut Self
         where P: Predicate<I> + Send + 'static
     {
@@ -170,23 +219,33 @@ impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
 pub struct RefExpectation<I, O> {
     result: Option<O>,
     matcher: Matcher<I>,
+    times: Times,
     phantom: std::marker::PhantomData<I> ,
 }
 
 impl<I, O> RefExpectation<I, O> {
     pub fn call(&self, i: I) -> &O {
         self.matcher.verify(&i);
+        self.times.call();
         &self.result.as_ref()
             .expect("Must set return value with RefExpectation::return_const")
     }
 
     pub fn new() -> Self {
         let matcher = Matcher::default();
-        RefExpectation{matcher, result: None, phantom: std::marker::PhantomData}
+        let times = Times::default();
+        let phantom = std::marker::PhantomData;
+        RefExpectation{matcher, result: None, phantom, times}
     }
 
     pub fn return_const(&mut self, o: O) -> &mut Self {
         self.result = Some(o);
+        self
+    }
+
+    /// Require this expectation to be called exactly `n` times.
+    pub fn times(&mut self, n: usize) -> &mut Self {
+        self.times.times(n);
         self
     }
 
@@ -213,12 +272,14 @@ impl<I, O> ExpectationT for RefExpectation<I, O>
 pub struct RefMutExpectation<I, O> {
     result: Option<O>,
     matcher: Matcher<I>,
-    rfunc: Option<Box<dyn FnMut(I) -> O + Send>>
+    rfunc: Option<Box<dyn FnMut(I) -> O + Send>>,
+    times: Times
 }
 
 impl<I, O> RefMutExpectation<I, O> {
     pub fn call_mut(&mut self, i: I) -> &mut O {
         self.matcher.verify(&i);
+        self.times.call();
         if let Some(ref mut f) = self.rfunc {
             self.result = Some(f(i));
         }
@@ -227,7 +288,8 @@ impl<I, O> RefMutExpectation<I, O> {
 
     pub fn new() -> Self {
         let matcher = Matcher::default();
-        RefMutExpectation{matcher, result: None, rfunc: None}
+        let times = Times::default();
+        RefMutExpectation{matcher, result: None, rfunc: None, times}
     }
 
     /// Convenience method that can be used to supply a return value for a
@@ -244,6 +306,12 @@ impl<I, O> RefMutExpectation<I, O> {
         where F: FnMut(I) -> O + Send + 'static
     {
         mem::replace(&mut self.rfunc, Some(Box::new(f)));
+        self
+    }
+
+    /// Require this expectation to be called exactly `n` times.
+    pub fn times(&mut self, n: usize) -> &mut Self {
+        self.times.times(n);
         self
     }
 

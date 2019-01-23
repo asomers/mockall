@@ -25,3 +25,34 @@ fn return_reference() {
     e.return_const(5i32);
     assert_eq!(5i32, *e.call(()));
 }
+
+#[test]
+fn times_ok() {
+    let mut e = RefExpectation::<(), ()>::default();
+    e.return_const(());
+    e.times(2);
+    e.call(());
+    e.call(());
+}
+
+#[test]
+#[should_panic(expected = "Expectation called fewer than 2 times")]
+fn times_too_few() {
+    let mut e = RefExpectation::<(), ()>::default();
+    e.return_const(());
+    e.times(2);
+    e.call(());
+}
+
+#[test]
+#[should_panic(expected = "Expectation called more than 3 times")]
+fn times_too_many() {
+    let mut e = RefExpectation::<(), ()>::default();
+    e.return_const(());
+    e.times(2);
+    e.call(());
+    e.call(());
+    e.call(());
+    // Verify that we panic quickly and don't reach code below this point.
+    panic!("Shouldn't get here!");
+}

@@ -33,4 +33,33 @@ fn return_mutable_reference_return_var() {
     assert_eq!(5i32, *e.call_mut(()));
 }
 
+#[test]
+fn times_ok() {
+    let mut e = RefMutExpectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times(2);
+    e.call_mut(());
+    e.call_mut(());
+}
 
+#[test]
+#[should_panic(expected = "Expectation called fewer than 2 times")]
+fn times_too_few() {
+    let mut e = RefMutExpectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times(2);
+    e.call_mut(());
+}
+
+#[test]
+#[should_panic(expected = "Expectation called more than 3 times")]
+fn times_too_many() {
+    let mut e = RefMutExpectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times(2);
+    e.call_mut(());
+    e.call_mut(());
+    e.call_mut(());
+    // Verify that we panic quickly and don't reach code below this point.
+    panic!("Shouldn't get here!");
+}
