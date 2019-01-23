@@ -10,9 +10,11 @@ use std::{
     mem,
     ops::{DerefMut, Range},
     sync::{
+        Arc,
         Mutex,
         atomic::{AtomicUsize, Ordering}
-    }
+    },
+    thread
 };
 
 pub use predicates::prelude::*;
@@ -129,6 +131,12 @@ impl Times {
         self.range = 0..usize::max_value();
     }
 
+    /// Is it required that this expectation be called an exact number of times,
+    /// or may it be satisfied by a range of call counts?
+    fn is_exact(&self) -> bool {
+        (self.range.end - self.range.start) == 1
+    }
+
     fn n(&mut self, n: usize) {
         self.range = n..(n+1);
     }
@@ -139,6 +147,12 @@ impl Times {
 
     fn range(&mut self, range: Range<usize>) {
         self.range = range;
+    }
+
+    /// Has this expectation already been called the minimum required number of
+    /// times?
+    fn is_satisfied(&self) -> bool {
+        self.count.load(Ordering::Relaxed) >= self.range.start
     }
 }
 
@@ -154,7 +168,7 @@ impl Default for Times {
 impl Drop for Times {
     fn drop(&mut self) {
         let count = self.count.load(Ordering::Relaxed);
-        if count < self.range.start {
+        if !thread::panicking() && (count < self.range.start) {
             panic!("Expectation called fewer than {} times", self.range.start);
         }
     }
@@ -168,6 +182,7 @@ impl<I, O> Default for Expectation<I, O> {
 
 struct ExpectationCommon<I> {
     matcher: Matcher<I>,
+    seq_handle: Option<SeqHandle>,
     times: Times
 }
 
@@ -175,11 +190,28 @@ impl<I> ExpectationCommon<I> {
     pub fn call(&self, i: &I) {
         self.matcher.verify(i);
         self.times.call();
+        self.verify_sequence();
+        if self.times.is_satisfied() {
+            self.satisfy_sequence()
+        }
+    }
+
+    pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Self {
+        assert!(self.times.is_exact(),
+            "Only Expectations with an exact call count have sequences");
+        self.seq_handle = Some(seq.next());
+        self
     }
 
     /// Forbid this expectation from ever being called
     pub fn never(&mut self) {
         self.times.never();
+    }
+
+    fn satisfy_sequence(&self) {
+        if let Some(handle) = &self.seq_handle {
+            handle.satisfy()
+        }
     }
 
     /// Require this expectation to be called exactly `n` times.
@@ -198,6 +230,12 @@ impl<I> ExpectationCommon<I> {
         self.times.range(range);
     }
 
+    fn verify_sequence(&self) {
+        if let Some(handle) = &self.seq_handle {
+            handle.verify()
+        }
+    }
+
     pub fn with<P>(&mut self, p: P)
         where P: Predicate<I> + Send + 'static
     {
@@ -209,7 +247,8 @@ impl<I> Default for ExpectationCommon<I> {
     fn default() -> Self {
         ExpectationCommon {
             times: Times::default(),
-            matcher: Matcher::default()
+            matcher: Matcher::default(),
+            seq_handle: None,
         }
     }
 }
@@ -218,6 +257,11 @@ impl<I> Default for ExpectationCommon<I> {
 /// impl<I, O> {} block
 macro_rules! expectation_common {
     ($common: ident, $klass:ident) => {
+        pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Self {
+            self.$common.in_sequence(seq);
+            self
+        }
+
         /// Forbid this expectation from ever being called
         pub fn never(&mut self) -> &mut Self {
             self.$common.never();
@@ -435,5 +479,59 @@ impl GenericExpectations {
             .downcast_ref()
             .unwrap();
         e.call(args)
+    }
+}
+
+struct SeqHandle {
+    inner: Arc<SeqInner>,
+    seq: usize
+}
+
+impl SeqHandle {
+    /// Tell the Sequence that this expectation has been fully satisfied
+    fn satisfy(&self) {
+        self.inner.satisfy(self.seq);
+    }
+
+    /// Verify that this handle was called in the correct order
+    fn verify(&self) {
+        self.inner.verify(self.seq);
+    }
+}
+
+#[derive(Default)]
+pub struct SeqInner {
+    satisfaction_level: AtomicUsize,
+}
+
+impl SeqInner {
+    /// Record the call identified by `seq` as fully satisfied.
+    fn satisfy(&self, seq: usize) {
+        let old_sl = self.satisfaction_level.fetch_add(1, Ordering::Relaxed);
+        assert_eq!(old_sl, seq, "Method sequence violation.  Was an already-satisfied method called another time?");
+    }
+
+    /// Verify that the call identified by `seq` was called in the correct order
+    fn verify(&self, seq: usize) {
+        assert_eq!(seq, self.satisfaction_level.load(Ordering::Relaxed),
+            "Method sequence violation")
+    }
+}
+
+#[derive(Default)]
+pub struct Sequence {
+    inner: Arc<SeqInner>,
+    next_seq: usize,
+}
+
+impl Sequence {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn next(&mut self) -> SeqHandle {
+        let handle = SeqHandle{inner: self.inner.clone(), seq: self.next_seq};
+        self.next_seq += 1;
+        handle
     }
 }

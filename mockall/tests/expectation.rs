@@ -166,6 +166,51 @@ fn return_owned_too_many_times() {
     e.call(());
 }
 
+#[test]
+#[should_panic(expected = "exact call count")]
+fn sequence_ambiguous() {
+    let mut seq = Sequence::new();
+    let mut e0 = Expectation::<(), ()>::default();
+    e0.times_range(1..3);
+    e0.in_sequence(&mut seq);
+    e0.call(());
+}
+
+#[test]
+#[should_panic(expected = "Method sequence violation")]
+fn sequence_fail() {
+    let mut seq = Sequence::new();
+    let mut e0 = Expectation::<(), ()>::default();
+    e0.times(1);
+    e0.returning(|_| ());
+    e0.in_sequence(&mut seq);
+
+    let mut e1 = Expectation::<(), ()>::default();
+    e1.times(1);
+    e1.returning(|_| ());
+    e1.in_sequence(&mut seq);
+
+    e1.call(());
+    e0.call(());
+}
+
+#[test]
+fn sequence_ok() {
+    let mut seq = Sequence::new();
+    let mut e0 = Expectation::<(), ()>::default();
+    e0.times(1);
+    e0.returning(|_| ());
+    e0.in_sequence(&mut seq);
+
+    let mut e1 = Expectation::<(), ()>::default();
+    e1.times(1);
+    e1.returning(|_| ());
+    e1.in_sequence(&mut seq);
+
+    e0.call(());
+    e1.call(());
+}
+
 /// A MockObject with a simple method like:
 /// fn foo(&self, x: i32) -> u32
 #[test]

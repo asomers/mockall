@@ -50,6 +50,41 @@ fn return_mutable_reference_return_var() {
 }
 
 #[test]
+#[should_panic(expected = "Method sequence violation")]
+fn sequence_fail() {
+    let mut seq = Sequence::new();
+    let mut e0 = RefMutExpectation::<(), ()>::default();
+    e0.returning(|_| ());
+    e0.times(1);
+    e0.in_sequence(&mut seq);
+
+    let mut e1 = RefMutExpectation::<(), ()>::default();
+    e1.returning(|_| ());
+    e1.times(1);
+    e1.in_sequence(&mut seq);
+
+    e1.call_mut(());
+    e0.call_mut(());
+}
+
+#[test]
+fn sequence_ok() {
+    let mut seq = Sequence::new();
+    let mut e0 = RefMutExpectation::<(), ()>::default();
+    e0.returning(|_| ());
+    e0.times(1);
+    e0.in_sequence(&mut seq);
+
+    let mut e1 = RefMutExpectation::<(), ()>::default();
+    e1.returning(|_| ());
+    e1.times(1);
+    e1.in_sequence(&mut seq);
+
+    e0.call_mut(());
+    e1.call_mut(());
+}
+
+#[test]
 fn times_any() {
     let mut e = RefMutExpectation::<(), ()>::default();
     e.returning(|_| ());

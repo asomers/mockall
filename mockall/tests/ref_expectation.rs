@@ -36,6 +36,41 @@ fn never_fail() {
 }
 
 #[test]
+#[should_panic(expected = "Method sequence violation")]
+fn sequence_fail() {
+    let mut seq = Sequence::new();
+    let mut e0 = RefExpectation::<(), ()>::default();
+    e0.return_const(());
+    e0.times(1);
+    e0.in_sequence(&mut seq);
+
+    let mut e1 = RefExpectation::<(), ()>::default();
+    e1.return_const(());
+    e1.times(1);
+    e1.in_sequence(&mut seq);
+
+    e1.call(());
+    e0.call(());
+}
+
+#[test]
+fn sequence_ok() {
+    let mut seq = Sequence::new();
+    let mut e0 = RefExpectation::<(), ()>::default();
+    e0.return_const(());
+    e0.times(1);
+    e0.in_sequence(&mut seq);
+
+    let mut e1 = RefExpectation::<(), ()>::default();
+    e1.return_const(());
+    e1.times(1);
+    e1.in_sequence(&mut seq);
+
+    e0.call(());
+    e1.call(());
+}
+
+#[test]
 fn return_reference() {
     let mut e = RefExpectation::<(), i32>::default();
     e.return_const(5i32);
