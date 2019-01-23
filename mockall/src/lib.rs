@@ -166,31 +166,109 @@ impl<I, O> Default for Expectation<I, O> {
     }
 }
 
-pub struct Expectation<I, O> {
-    rfunc: Mutex<Rfunc<I, O>>,
+struct ExpectationCommon<I> {
     matcher: Matcher<I>,
     times: Times
 }
 
+impl<I> ExpectationCommon<I> {
+    pub fn call(&self, i: &I) {
+        self.matcher.verify(i);
+        self.times.call();
+    }
+
+    /// Forbid this expectation from ever being called
+    pub fn never(&mut self) {
+        self.times.never();
+    }
+
+    /// Require this expectation to be called exactly `n` times.
+    pub fn times(&mut self, n: usize) {
+        self.times.n(n);
+    }
+
+    /// Allow this expectation to be called any number of times
+    pub fn times_any(&mut self) {
+        self.times.any();
+    }
+
+    /// Allow this expectation to be called any number of times within a given
+    /// range
+    pub fn times_range(&mut self, range: Range<usize>) {
+        self.times.range(range);
+    }
+
+    pub fn with<P>(&mut self, p: P)
+        where P: Predicate<I> + Send + 'static
+    {
+        self.matcher = Matcher(Box::new(p));
+    }
+}
+
+impl<I> Default for ExpectationCommon<I> {
+    fn default() -> Self {
+        ExpectationCommon {
+            times: Times::default(),
+            matcher: Matcher::default()
+        }
+    }
+}
+
+/// Add common methods to Expectation types.  Must be called from within an
+/// impl<I, O> {} block
+macro_rules! expectation_common {
+    ($common: ident, $klass:ident) => {
+        /// Forbid this expectation from ever being called
+        pub fn never(&mut self) -> &mut Self {
+            self.$common.never();
+            self
+        }
+
+        /// Require this expectation to be called exactly `n` times.
+        pub fn times(&mut self, n: usize) -> &mut Self {
+            self.$common.times(n);
+            self
+        }
+
+        /// Allow this expectation to be called any number of times
+        pub fn times_any(&mut self) -> &mut Self {
+            self.$common.times_any();
+            self
+        }
+
+        /// Allow this expectation to be called any number of times within a
+        /// given range
+        pub fn times_range(&mut self, range: Range<usize>) -> &mut Self {
+            self.$common.times_range(range);
+            self
+        }
+
+        pub fn with<P>(&mut self, p: P) -> &mut Self
+            where P: Predicate<I> + Send + 'static
+        {
+            self.$common.with(p);
+            self
+        }
+    }
+}
+
+/// Expectation type for methods that take return a `'static` type.
+pub struct Expectation<I, O> {
+    common: ExpectationCommon<I>,
+    rfunc: Mutex<Rfunc<I, O>>,
+}
+
 impl<I, O> Expectation<I, O> {
     pub fn call(&self, i: I) -> O {
-        self.matcher.verify(&i);
-        self.times.call();
+        self.common.call(&i);
         self.rfunc.lock().unwrap()
             .call_mut(i)
     }
 
-    /// Forbid this expectation from ever being called
-    pub fn never(&mut self) -> &mut Self {
-        self.times.never();
-        self
-    }
-
     pub fn new() -> Self {
-        let matcher = Matcher::default();
+        let common = ExpectationCommon::default();
         let rfunc = Mutex::new(Rfunc::Default);
-        let times = Times::default();
-        Expectation{matcher, rfunc, times}
+        Expectation{common, rfunc}
     }
 
     pub fn returning<F>(&mut self, f: F) -> &mut Self
@@ -221,31 +299,7 @@ impl<I, O> Expectation<I, O> {
         self
     }
 
-    /// Require this expectation to be called exactly `n` times.
-    pub fn times(&mut self, n: usize) -> &mut Self {
-        self.times.n(n);
-        self
-    }
-
-    /// Allow this expectation to be called any number of times
-    pub fn times_any(&mut self) -> &mut Self {
-        self.times.any();
-        self
-    }
-
-    /// Allow this expectation to be called any number of times within a given
-    /// range
-    pub fn times_range(&mut self, range: Range<usize>) -> &mut Self {
-        self.times.range(range);
-        self
-    }
-
-    pub fn with<P>(&mut self, p: P) -> &mut Self
-        where P: Predicate<I> + Send + 'static
-    {
-        self.matcher = Matcher(Box::new(p));
-        self
-    }
+    expectation_common!{common, Expectation}
 }
 
 impl<I: 'static, O: 'static> AnyExpectation for Expectation<I, O> {}
@@ -253,31 +307,22 @@ impl<I: 'static, O: 'static> AnyExpectation for Expectation<I, O> {}
 /// Expectation type for methods that take a `&self` argument and return a
 /// reference with the same lifetime as `self`.
 pub struct RefExpectation<I, O> {
+    common: ExpectationCommon<I>,
     result: Option<O>,
-    matcher: Matcher<I>,
-    times: Times,
     phantom: std::marker::PhantomData<I> ,
 }
 
 impl<I, O> RefExpectation<I, O> {
     pub fn call(&self, i: I) -> &O {
-        self.matcher.verify(&i);
-        self.times.call();
+        self.common.call(&i);
         &self.result.as_ref()
             .expect("Must set return value with RefExpectation::return_const")
     }
 
-    /// Forbid this expectation from ever being called
-    pub fn never(&mut self) -> &mut Self {
-        self.times.never();
-        self
-    }
-
     pub fn new() -> Self {
-        let matcher = Matcher::default();
-        let times = Times::default();
+        let common = ExpectationCommon::default();
         let phantom = std::marker::PhantomData;
-        RefExpectation{matcher, result: None, phantom, times}
+        RefExpectation{common, result: None, phantom}
     }
 
     pub fn return_const(&mut self, o: O) -> &mut Self {
@@ -285,31 +330,7 @@ impl<I, O> RefExpectation<I, O> {
         self
     }
 
-    /// Require this expectation to be called exactly `n` times.
-    pub fn times(&mut self, n: usize) -> &mut Self {
-        self.times.n(n);
-        self
-    }
-
-    /// Allow this expectation to be called any number of times
-    pub fn times_any(&mut self) -> &mut Self {
-        self.times.any();
-        self
-    }
-
-    /// Allow this expectation to be called any number of times within a given
-    /// range
-    pub fn times_range(&mut self, range: Range<usize>) -> &mut Self {
-        self.times.range(range);
-        self
-    }
-
-    pub fn with<P>(&mut self, p: P) -> &mut Self
-        where P: Predicate<I> + Send + 'static
-    {
-        self.matcher = Matcher(Box::new(p));
-        self
-    }
+    expectation_common!{common, RefExpectation}
 }
 
 impl<I, O> Default for RefExpectation<I, O> {
@@ -325,32 +346,23 @@ impl<I, O> AnyExpectation for RefExpectation<I, O>
 /// Expectation type for methods that take a `&mut self` argument and return a
 /// mutable or immutable reference with the same lifetime as `self`.
 pub struct RefMutExpectation<I, O> {
+    common: ExpectationCommon<I>,
     result: Option<O>,
-    matcher: Matcher<I>,
     rfunc: Option<Box<dyn FnMut(I) -> O + Send>>,
-    times: Times
 }
 
 impl<I, O> RefMutExpectation<I, O> {
     pub fn call_mut(&mut self, i: I) -> &mut O {
-        self.matcher.verify(&i);
-        self.times.call();
+        self.common.call(&i);
         if let Some(ref mut f) = self.rfunc {
             self.result = Some(f(i));
         }
         self.result.as_mut().expect("Must first set return function with RefMutExpectation::returning or return_var")
     }
 
-    /// Forbid this expectation from ever being called
-    pub fn never(&mut self) -> &mut Self {
-        self.times.never();
-        self
-    }
-
     pub fn new() -> Self {
-        let matcher = Matcher::default();
-        let times = Times::default();
-        RefMutExpectation{matcher, result: None, rfunc: None, times}
+        let common = ExpectationCommon::default();
+        RefMutExpectation{common, result: None, rfunc: None}
     }
 
     /// Convenience method that can be used to supply a return value for a
@@ -370,31 +382,7 @@ impl<I, O> RefMutExpectation<I, O> {
         self
     }
 
-    /// Require this expectation to be called exactly `n` times.
-    pub fn times(&mut self, n: usize) -> &mut Self {
-        self.times.n(n);
-        self
-    }
-
-    /// Allow this expectation to be called any number of times
-    pub fn times_any(&mut self) -> &mut Self {
-        self.times.any();
-        self
-    }
-
-    /// Allow this expectation to be called any number of times within a given
-    /// range
-    pub fn times_range(&mut self, range: Range<usize>) -> &mut Self {
-        self.times.range(range);
-        self
-    }
-
-    pub fn with<P>(&mut self, p: P) -> &mut Self
-        where P: Predicate<I> + Send + 'static
-    {
-        self.matcher = Matcher(Box::new(p));
-        self
-    }
+    expectation_common!{common, RefMutExpectation}
 }
 
 impl<I, O> Default for RefMutExpectation<I, O> {
