@@ -17,8 +17,8 @@ use std::{
 
 pub use predicates::prelude::*;
 
-trait ExpectationT : Any + Send {}
-downcast!(ExpectationT);
+trait AnyExpectation : Any + Send {}
+downcast!(AnyExpectation);
 
 trait ReturnDefault<O> {
     fn return_default() -> O;
@@ -248,7 +248,7 @@ impl<I, O> Expectation<I, O> {
     }
 }
 
-impl<I: 'static, O: 'static> ExpectationT for Expectation<I, O> {}
+impl<I: 'static, O: 'static> AnyExpectation for Expectation<I, O> {}
 
 /// Expectation type for methods that take a `&self` argument and return a
 /// reference with the same lifetime as `self`.
@@ -318,7 +318,7 @@ impl<I, O> Default for RefExpectation<I, O> {
     }
 }
 
-impl<I, O> ExpectationT for RefExpectation<I, O>
+impl<I, O> AnyExpectation for RefExpectation<I, O>
     where I: Send + 'static, O: Send + 'static
 {}
 
@@ -403,7 +403,7 @@ impl<I, O> Default for RefMutExpectation<I, O> {
     }
 }
 
-impl<I, O> ExpectationT for RefMutExpectation<I, O>
+impl<I, O> AnyExpectation for RefMutExpectation<I, O>
     where I: 'static, O: Send + 'static
 {}
 
@@ -422,7 +422,7 @@ impl Key {
 
 #[derive(Default)]
 pub struct GenericExpectations {
-    store: HashMap<Key, Box<dyn ExpectationT>>
+    store: HashMap<Key, Box<dyn AnyExpectation>>
 }
 
 impl GenericExpectations {
