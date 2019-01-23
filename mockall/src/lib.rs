@@ -116,12 +116,29 @@ impl Times {
     fn call(&self) {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
         if count >= self.range.end {
-            panic!("Expectation called more than {} times", self.range.end);
+            if self.range.end == 0 {
+                panic!("Expectation should not have been called");
+            } else {
+                let lim = self.range.end - 1;
+                panic!("Expectation called more than {} times", lim);
+            }
         }
     }
 
-    fn times(&mut self, n: usize) {
+    fn any(&mut self) {
+        self.range = 0..usize::max_value();
+    }
+
+    fn n(&mut self, n: usize) {
         self.range = n..(n+1);
+    }
+
+    fn never(&mut self) {
+        self.range = 0..0;
+    }
+
+    fn range(&mut self, range: Range<usize>) {
+        self.range = range;
     }
 }
 
@@ -163,6 +180,12 @@ impl<I, O> Expectation<I, O> {
             .call_mut(i)
     }
 
+    /// Forbid this expectation from ever being called
+    pub fn never(&mut self) -> &mut Self {
+        self.times.never();
+        self
+    }
+
     pub fn new() -> Self {
         let matcher = Matcher::default();
         let rfunc = Mutex::new(Rfunc::Default);
@@ -200,7 +223,20 @@ impl<I, O> Expectation<I, O> {
 
     /// Require this expectation to be called exactly `n` times.
     pub fn times(&mut self, n: usize) -> &mut Self {
-        self.times.times(n);
+        self.times.n(n);
+        self
+    }
+
+    /// Allow this expectation to be called any number of times
+    pub fn times_any(&mut self) -> &mut Self {
+        self.times.any();
+        self
+    }
+
+    /// Allow this expectation to be called any number of times within a given
+    /// range
+    pub fn times_range(&mut self, range: Range<usize>) -> &mut Self {
+        self.times.range(range);
         self
     }
 
@@ -231,6 +267,12 @@ impl<I, O> RefExpectation<I, O> {
             .expect("Must set return value with RefExpectation::return_const")
     }
 
+    /// Forbid this expectation from ever being called
+    pub fn never(&mut self) -> &mut Self {
+        self.times.never();
+        self
+    }
+
     pub fn new() -> Self {
         let matcher = Matcher::default();
         let times = Times::default();
@@ -245,7 +287,20 @@ impl<I, O> RefExpectation<I, O> {
 
     /// Require this expectation to be called exactly `n` times.
     pub fn times(&mut self, n: usize) -> &mut Self {
-        self.times.times(n);
+        self.times.n(n);
+        self
+    }
+
+    /// Allow this expectation to be called any number of times
+    pub fn times_any(&mut self) -> &mut Self {
+        self.times.any();
+        self
+    }
+
+    /// Allow this expectation to be called any number of times within a given
+    /// range
+    pub fn times_range(&mut self, range: Range<usize>) -> &mut Self {
+        self.times.range(range);
         self
     }
 
@@ -286,6 +341,12 @@ impl<I, O> RefMutExpectation<I, O> {
         self.result.as_mut().expect("Must first set return function with RefMutExpectation::returning or return_var")
     }
 
+    /// Forbid this expectation from ever being called
+    pub fn never(&mut self) -> &mut Self {
+        self.times.never();
+        self
+    }
+
     pub fn new() -> Self {
         let matcher = Matcher::default();
         let times = Times::default();
@@ -311,7 +372,20 @@ impl<I, O> RefMutExpectation<I, O> {
 
     /// Require this expectation to be called exactly `n` times.
     pub fn times(&mut self, n: usize) -> &mut Self {
-        self.times.times(n);
+        self.times.n(n);
+        self
+    }
+
+    /// Allow this expectation to be called any number of times
+    pub fn times_any(&mut self) -> &mut Self {
+        self.times.any();
+        self
+    }
+
+    /// Allow this expectation to be called any number of times within a given
+    /// range
+    pub fn times_range(&mut self, range: Range<usize>) -> &mut Self {
+        self.times.range(range);
         self
     }
 

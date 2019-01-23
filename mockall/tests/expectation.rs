@@ -103,6 +103,22 @@ mod name_conflict {
     }
 }
 
+#[test]
+fn never_ok() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.never();
+}
+
+#[test]
+#[should_panic(expected = "Expectation should not have been called")]
+fn never_fail() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.never();
+    e.call(());
+}
+
 /// A MockObject with a method that has no arguments or returns
 /// fn foo(&self)
 #[test]
@@ -161,6 +177,16 @@ fn simple_method() {
 }
 
 #[test]
+fn times_any() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times(1);
+    e.times_any();
+    e.call(());
+    e.call(());
+}
+
+#[test]
 fn times_ok() {
     let mut e = Expectation::<(), ()>::default();
     e.returning(|_| ());
@@ -179,11 +205,50 @@ fn times_too_few() {
 }
 
 #[test]
-#[should_panic(expected = "Expectation called more than 3 times")]
+#[should_panic(expected = "Expectation called more than 2 times")]
 fn times_too_many() {
     let mut e = Expectation::<(), ()>::default();
     e.returning(|_| ());
     e.times(2);
+    e.call(());
+    e.call(());
+    e.call(());
+    // Verify that we panic quickly and don't reach code below this point.
+    panic!("Shouldn't get here!");
+}
+
+#[test]
+fn times_range_ok() {
+    let mut e0 = Expectation::<(), ()>::default();
+    e0.returning(|_| ());
+    e0.times_range(2..4);
+    e0.call(());
+    e0.call(());
+
+    let mut e1 = Expectation::<(), ()>::default();
+    e1.returning(|_| ());
+    e1.times_range(2..4);
+    e1.call(());
+    e1.call(());
+    e1.call(());
+}
+
+#[test]
+#[should_panic(expected = "Expectation called fewer than 2 times")]
+fn times_range_too_few() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times_range(2..4);
+    e.call(());
+}
+
+#[test]
+#[should_panic(expected = "Expectation called more than 3 times")]
+fn times_range_too_many() {
+    let mut e = Expectation::<(), ()>::default();
+    e.returning(|_| ());
+    e.times_range(2..4);
+    e.call(());
     e.call(());
     e.call(());
     e.call(());
