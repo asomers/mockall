@@ -352,7 +352,6 @@ impl<I: 'static, O: 'static> AnyExpectation for Expectation<I, O> {}
 pub struct RefExpectation<I, O> {
     common: ExpectationCommon<I>,
     result: Option<O>,
-    phantom: std::marker::PhantomData<I> ,
 }
 
 impl<I, O> RefExpectation<I, O> {
@@ -364,8 +363,7 @@ impl<I, O> RefExpectation<I, O> {
 
     pub fn new() -> Self {
         let common = ExpectationCommon::default();
-        let phantom = std::marker::PhantomData;
-        RefExpectation{common, result: None, phantom}
+        RefExpectation{common, result: None}
     }
 
     pub fn return_const(&mut self, o: O) -> &mut Self {
