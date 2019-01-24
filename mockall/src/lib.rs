@@ -93,6 +93,10 @@ cfg_if! {
 struct Matcher<I>(Box<dyn Predicate<I> + Send>);
 
 impl<I> Matcher<I> {
+    fn matches(&self, i: &I) -> bool {
+        self.0.eval(&i)
+    }
+
     fn verify(&self, i: &I) {
         if let Some(case) = self.0.find_case(false, &i) {
             let c = &case as &predicates_tree::CaseTreeExt;
@@ -107,6 +111,7 @@ impl<I> Default for Matcher<I> {
     }
 }
 
+#[derive(Debug)]
 struct Times{
     /// How many times has the expectation already been called?
     count: AtomicUsize,
@@ -200,6 +205,10 @@ impl<I> ExpectationCommon<I> {
             "Only Expectations with an exact call count have sequences");
         self.seq_handle = Some(seq.next());
         self
+    }
+
+    pub fn matches(&self, i: &I) -> bool {
+        self.matcher.matches(i)
     }
 
     /// Forbid this expectation from ever being called
@@ -308,6 +317,10 @@ impl<I, O> Expectation<I, O> {
             .call_mut(i)
     }
 
+    fn matches(&self, i: &I) -> bool {
+        self.common.matches(i)
+    }
+
     pub fn new() -> Self {
         let common = ExpectationCommon::default();
         let rfunc = Mutex::new(Rfunc::Default);
@@ -343,6 +356,34 @@ impl<I, O> Expectation<I, O> {
     }
 
     expectation_common!{common, Expectation}
+}
+
+pub struct Expectations<I, O>(Vec<Expectation<I, O>>);
+
+impl<I, O> Expectations<I, O> {
+    pub fn call(&self, i: I) -> O {
+        match self.0.iter().rev().find(|e| e.matches(&i)) {
+            None => panic!("No matching expectation found"),
+            Some(e) => e.call(i)
+        }
+    }
+
+    pub fn expect(&mut self) -> &mut Expectation<I, O> {
+        let e = Expectation::new();
+        self.0.push(e);
+        let l = self.0.len();
+        &mut self.0[l - 1]
+    }
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<I, O> Default for Expectations<I, O> {
+    fn default() -> Self {
+        Expectations(Vec::new())
+    }
 }
 
 impl<I: 'static, O: 'static> AnyExpectation for Expectation<I, O> {}

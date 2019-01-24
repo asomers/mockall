@@ -6,7 +6,7 @@ use mockall::*;
 fn match_eq_ok() {
     let mut e = Expectation::<(i32), ()>::default();
     e.returning(|_| ());
-    e.with(predicates::ord::eq(5));
+    e.with(predicate::eq(5));
     e.call(5);
 }
 
@@ -15,7 +15,7 @@ fn match_eq_ok() {
 fn match_eq_fail() {
     let mut e = Expectation::<(i32), ()>::default();
     e.returning(|_| ());
-    e.with(predicates::ord::eq(4));
+    e.with(predicate::eq(4));
     e.call(5);
 }
 
@@ -299,4 +299,118 @@ fn times_range_too_many() {
     e.call(());
     // Verify that we panic quickly and don't reach code below this point.
     panic!("Shouldn't get here!");
+}
+
+mod expectations {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "No matching expectation found")]
+    fn no_expectations() {
+        let e = Expectations::<i32, i32>::new();
+        e.call(5);
+    }
+
+
+    /// Like Mockers, calls should use the most matching recent expectation, if
+    /// multiple expectations match
+    #[test]
+    fn lifo_order() {
+        let mut e = Expectations::<i32, i32>::new();
+        e.expect()
+            .with(predicate::always())
+            .returning(|_| 42);
+        e.expect()
+            .with(predicate::eq(5))
+            .returning(|_| 99);
+
+        assert_eq!(99, e.call(5));
+    }
+
+    #[test]
+    #[should_panic(expected = "No matching expectation found")]
+    fn nothing_matches() {
+        let mut e = Expectations::<i32, i32>::new();
+        e.expect()
+            .with(predicate::eq(5))
+            .returning(|_| 99);
+
+        e.call(6);
+    }
+
+    #[test]
+    fn one_match() {
+        let mut e = Expectations::<i32, i32>::new();
+        e.expect()
+            .with(predicate::eq(4))
+            .returning(|_| 42);
+        e.expect()
+            .with(predicate::eq(5))
+            .returning(|_| 99);
+
+        assert_eq!(42, e.call(4));
+    }
+
+    #[test]
+    #[should_panic(expected = "Method sequence violation")]
+    fn sequence_fail() {
+        let mut seq = Sequence::new();
+        let mut e = Expectations::<i32, i32>::new();
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(1))
+            .returning(|_| 42);
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(3))
+            .returning(|_| 42);
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(2))
+            .returning(|_| 42);
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(4))
+            .returning(|_| 42);
+
+        e.call(1);
+        e.call(2);
+        e.call(3);
+        e.call(4);
+    }
+
+    #[test]
+    fn sequence_ok() {
+        let mut seq = Sequence::new();
+        let mut e = Expectations::<i32, i32>::new();
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(1))
+            .returning(|_| 42);
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(2))
+            .returning(|_| 42);
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(3))
+            .returning(|_| 42);
+        e.expect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .with(predicate::eq(4))
+            .returning(|_| 42);
+
+        e.call(1);
+        e.call(2);
+        e.call(3);
+        e.call(4);
+    }
 }
