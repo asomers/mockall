@@ -5,8 +5,7 @@ use cfg_if::cfg_if;
 use downcast::*;
 use std::{
     any,
-    collections::hash_map::{DefaultHasher, HashMap},
-    hash::{Hash, Hasher},
+    collections::hash_map::HashMap,
     mem,
     ops::{DerefMut, Range},
     sync::{
@@ -439,30 +438,26 @@ impl<I, O> AnyExpectation for RefMutExpectation<I, O>
     where I: 'static, O: Send + 'static
 {}
 
-/// Non-generic keys to `GenericExpectations` internal storage
+/// Non-generic keys to `GenericExpectation` internal storage
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-struct Key(u64);
+struct Key(any::TypeId);
 
 impl Key {
-    fn new<I: 'static, O: 'static>(ident: &str) -> Self {
-        let mut hasher = DefaultHasher::new();
-        ident.hash(&mut hasher);
-        any::TypeId::of::<(I, O)>().hash(&mut hasher);
-        Key(hasher.finish())
+    fn new<I: 'static, O: 'static>() -> Self {
+        Key(any::TypeId::of::<(I, O)>())
     }
 }
 
 #[derive(Default)]
-pub struct GenericExpectations {
+pub struct GenericExpectation {
     store: HashMap<Key, Box<dyn AnyExpectation>>
 }
 
-impl GenericExpectations {
-    pub fn expect<'e, I, O>(&'e mut self, ident: &str)
-        -> &'e mut Expectation<I, O>
+impl GenericExpectation {
+    pub fn expect<'e, I, O>(&'e mut self) -> &'e mut Expectation<I, O>
         where I: 'static, O: 'static
     {
-        let key = Key::new::<I, O>(ident);
+        let key = Key::new::<I, O>();
         let e = Box::new(Expectation::<I, O>::new());
         self.store.insert(key.clone(), e);
         self.store.get_mut(&key).unwrap()
@@ -472,8 +467,8 @@ impl GenericExpectations {
 
     // TODO: add a "called_nonstatic" method that can be used with types that
     // aren't 'static, and uses a different method to generate the key.
-    pub fn call<I: 'static, O: 'static>(&self, ident: &str, args: I) -> O {
-        let key = Key::new::<I, O>(ident);
+    pub fn call<I: 'static, O: 'static>(&self, args: I) -> O {
+        let key = Key::new::<I, O>();
         let e: &Expectation<I, O> = self.store.get(&key)
             .expect("No matching expectation found")
             .downcast_ref()

@@ -13,8 +13,14 @@ struct MethodTypes {
     is_static: bool,
     input_type: syn::TypeTuple,
     output_type: syn::Type,
+    /// Type of Expectation object stored in the mock structure
+    expect_obj: syn::Type,
+    /// Type of Expectation returned by the expect method
     expectation: syn::Type,
-    call: syn::Ident
+    /// Method to call when invoking the expectation
+    call: syn::Ident,
+    /// Any turbofish needed when invoking the expectation
+    call_turbofish: Option<syn::MethodTurbofish>
 }
 
 pub(crate) struct Mock {
@@ -123,7 +129,7 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     let generics = &sig.decl.generics;
     let inputs = &sig.decl.inputs;
     let output = &sig.decl.output;
-    let dedicated = generics.params.is_empty();
+    let generic = !generics.params.is_empty();
 
     // First the mock method
     quote!(#defaultness #vis #constness #unsafety #asyncness #abi
@@ -135,12 +141,12 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     let output_type = &meth_types.output_type;
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
+    let call_turbofish = &meth_types.call_turbofish;
     if meth_types.is_static {
         quote!({unimplemented!("Expectations on static methods are TODO");})
             .to_tokens(&mut mock_output);
         return (mock_output, TokenStream::new())
     }
-    let ident_s = format!("{}", sig.ident);
     let mut args = Vec::new();
     for p in sig.decl.inputs.iter() {
         match p {
@@ -156,43 +162,38 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
         }
     }
 
-    if !dedicated {
-        quote!({
-            self.e.#call::<#input_type, #output_type>(#ident_s, (#(#args),*))
-        })
-    } else if let Some(s) = sub {
+    if let Some(s) = sub {
         let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
             Span::call_site());
         quote!({
-            self.#sub_struct.#ident.#call((#(#args),*))
+            self.#sub_struct.#ident.#call#call_turbofish((#(#args),*))
         })
     } else {
         quote!({
-            self.#ident.#call((#(#args),*))
+            self.#ident.#call#call_turbofish((#(#args),*))
         })
     }.to_tokens(&mut mock_output);
 
     // Then the expectation method
     let expect_ident = syn::Ident::new(&format!("expect_{}", sig.ident),
                                        sig.ident.span());
-    if !dedicated {
-        quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut #expectation<#input_type, #output_type> {
-            self.e.expect::<#input_type, #output_type>(#ident_s)
-       })
-    } else if let Some(s) = sub {
+    let receiver = if let Some(s) = sub {
         let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
             Span::call_site());
+        quote!(self.#sub_struct.#ident)
+    } else {
+        quote!(self.#ident)
+    };
+    if generic {
         quote!(pub fn #expect_ident #generics(&mut self)
                -> &mut #expectation<#input_type, #output_type> {
-            self.#sub_struct.#ident = #expectation::new();
-            &mut self.#sub_struct.#ident
-        })
+            #receiver.expect#call_turbofish()
+       })
     } else {
         quote!(pub fn #expect_ident #generics(&mut self)
                -> &mut #expectation<#input_type, #output_type> {
-            self.#ident = #expectation::new();
-            &mut self.#ident
+            #receiver = #expectation::new();
+            &mut #receiver
         })
     }.to_tokens(&mut expect_output);
 
@@ -208,10 +209,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
 {
     let mut output = TokenStream::new();
     let ident = gen_mock_ident(&ident);
-    // TODO: don't emit the GenericExpectations object for structs that don't
-    // need it.
-    let mut body: TokenStream = "e: ::mockall::GenericExpectations,".parse()
-        .unwrap();
+    let mut body = TokenStream::new();
 
     // Make Expectation fields for each method
     for (sub, sub_generics) in subs.iter() {
@@ -222,18 +220,10 @@ fn gen_struct<T>(vis: &syn::Visibility,
         quote!(#sub_struct: #sub_mock #tg,).to_tokens(&mut body);
     }
     for meth in methods.iter() {
-        if ! meth.borrow().sig.decl.generics.params.is_empty() {
-            // Generic methods don't use dedicated expectation objects, because
-            // we don't know how they'll be called.
-            continue;
-        }
         let method_ident = &meth.borrow().sig.ident;
         let meth_types = method_types(&meth.borrow().sig);
-        let in_type = &meth_types.input_type;
-        let out_type = &meth_types.output_type;
-        let expectation = &meth_types.expectation;
-        quote!(#method_ident: #expectation<#in_type, #out_type>,)
-            .to_tokens(&mut body);
+        let expect_obj = &meth_types.expect_obj;
+        quote!(#method_ident: #expect_obj,).to_tokens(&mut body);
     }
 
     // Make PhantomData fields, if necessary
@@ -277,6 +267,7 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let mut is_static = true;
     let mut elems
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
+    let is_generic = !sig.decl.generics.params.is_empty();
     for fn_arg in sig.decl.inputs.iter() {
         match fn_arg {
             syn::FnArg::Captured(arg) => elems.push(arg.ty.clone()),
@@ -293,14 +284,15 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let paren_token = syn::token::Paren::default();
     let input_type = syn::TypeTuple{paren_token, elems};
 
-    let (output_type, qe, call) = match &sig.decl.output {
+    let span = Span::call_site();
+    let (output_type, partial_expect, call) = match &sig.decl.output {
         syn::ReturnType::Default => {
-            let paren_token = syn::token::Paren{span: Span::call_site()};
+            let paren_token = syn::token::Paren{span};
             let elems = syn::punctuated::Punctuated::new();
             (
                 syn::Type::Tuple(syn::TypeTuple{paren_token, elems}),
-                quote!(::mockall::Expectation),
-                syn::Ident::new("call", Span::call_site())
+                syn::Ident::new("Expectation", span),
+                syn::Ident::new("call", span)
             )
         },
         syn::ReturnType::Type(_, ty) => {
@@ -314,28 +306,53 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
                     if r.mutability.is_some() {
                         (
                             (*r.elem).clone(),
-                            quote!(::mockall::RefMutExpectation),
-                            syn::Ident::new("call_mut", Span::call_site())
+                            syn::Ident::new("RefMutExpectation", span),
+                            syn::Ident::new("call_mut", span)
                         )
                     } else {
                         (
                             (*r.elem).clone(),
-                            quote!(::mockall::RefExpectation),
-                            syn::Ident::new("call", Span::call_site())
+                            syn::Ident::new("RefExpectation", span),
+                            syn::Ident::new("call", span)
                         )
                     }
                 },
                 _ => (
                     (**ty).clone(),
-                    quote!(::mockall::Expectation),
-                    syn::Ident::new("call", Span::call_site())
+                    syn::Ident::new("Expectation", span),
+                    syn::Ident::new("call", span)
                 )
             }
         }
     };
 
-    let expectation: syn::Type = syn::parse2(qe).unwrap();
-    MethodTypes{is_static, input_type, output_type, expectation, call}
+    let call_turbofish = if is_generic {
+        let mut args = syn::punctuated::Punctuated::new();
+        let input_type_type = syn::Type::Tuple(input_type.clone());
+        args.push(syn::GenericMethodArgument::Type(input_type_type));
+        args.push(syn::GenericMethodArgument::Type(output_type.clone()));
+        Some(syn::MethodTurbofish{
+            colon2_token: syn::token::Colon2::default(),
+            lt_token: syn::token::Lt::default(),
+            args,
+            gt_token: syn::token::Gt::default()
+        })
+    } else {
+        None
+    };
+    let expect_obj = if is_generic {
+        let name = syn::Ident::new(&format!("Generic{}", partial_expect), span);
+        syn::parse2(quote!(::mockall::#name)).unwrap()
+    } else {
+        syn::parse2(
+            quote!(::mockall::#partial_expect<#input_type, #output_type>)
+        ).unwrap()
+    };
+    let expect_ts = quote!(::mockall::#partial_expect);
+    let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
+
+    MethodTypes{is_static, input_type, output_type, expectation, call,
+                expect_obj, call_turbofish}
 }
 
 /// Generate mock methods for a Trait
@@ -456,16 +473,16 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockSomeStruct {
-                e: ::mockall::GenericExpectations,
+                foo: ::mockall::GenericExpectation,
             }
             impl MockSomeStruct {
                 pub fn foo<T: 'static>(&self, t: T) {
-                    self.e.call:: <(T), ()>("foo", (t))
+                    self.foo.call:: <(T), ()>((t))
                 }
                 pub fn expect_foo<T: 'static>(&mut self)
                     -> &mut ::mockall::Expectation<(T), ()>
                 {
-                    self.e.expect:: <(T), ()>("foo")
+                    self.foo.expect:: <(T), ()>()
                 }
             }
         "#;
@@ -482,7 +499,6 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockExternalStruct<T: Clone> {
-                e: ::mockall::GenericExpectations,
                 foo: ::mockall::Expectation<(u32), i64> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -513,13 +529,11 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockExternalStruct<T: Copy + 'static> {
-                e: ::mockall::GenericExpectations,
                 Foo_expectations: MockExternalStruct_Foo,
                 _t0: ::std::marker::PhantomData<T> ,
             }
             #[derive(Default)]
             struct MockExternalStruct_Foo {
-                e: ::mockall::GenericExpectations,
                 foo: ::mockall::Expectation<(u32), u32> ,
             }
             impl<T: Copy + 'static> MockExternalStruct<T> {}
@@ -552,14 +566,12 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockExternalStruct<T: 'static, Z: 'static> {
-                e: ::mockall::GenericExpectations,
                 Foo_expectations: MockExternalStruct_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
             }
             #[derive(Default)]
             struct MockExternalStruct_Foo<T: 'static> {
-                e: ::mockall::GenericExpectations,
                 foo: ::mockall::Expectation<(T), T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -591,13 +603,11 @@ mod t {
     fn generic_trait() {
         let desired = r#"#[derive(Default)]
         struct MockExternalStruct<T> {
-            e: ::mockall::GenericExpectations,
             GenericTrait_expectations: MockExternalStruct_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
         #[derive(Default)]
         struct MockExternalStruct_GenericTrait<T> {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -634,18 +644,15 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockExternalStruct {
-            e: ::mockall::GenericExpectations,
             A_expectations: MockExternalStruct_A,
             B_expectations: MockExternalStruct_B,
         }
         #[derive(Default)]
         struct MockExternalStruct_A {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(), ()> ,
         }
         #[derive(Default)]
         struct MockExternalStruct_B {
-            e: ::mockall::GenericExpectations,
             bar: ::mockall::Expectation<(), ()> ,
         }
         impl MockExternalStruct {}
@@ -690,7 +697,6 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockFoo< 'a> {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(& 'a u32), ()> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
         }
@@ -719,7 +725,6 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockFoo {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::RefExpectation<(), u32> ,
         }
         impl MockFoo {
@@ -747,12 +752,10 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockX {
-            e: ::mockall::GenericExpectations,
             Foo_expectations: MockX_Foo ,
         }
         #[derive(Default)]
         struct MockX_Foo {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::RefExpectation<(), u32> ,
         }
         impl MockX {}
@@ -784,7 +787,6 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockFoo {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::RefMutExpectation<(), u32> ,
         }
         impl MockFoo {
@@ -813,7 +815,6 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockExternalStruct {
-                e: ::mockall::GenericExpectations,
                 foo: ::mockall::Expectation<(u32), i64> ,
             }
             impl MockExternalStruct {
@@ -843,12 +844,10 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockExternalStruct {
-                e: ::mockall::GenericExpectations,
                 Foo_expectations: MockExternalStruct_Foo,
             }
             #[derive(Default)]
             struct MockExternalStruct_Foo {
-                e: ::mockall::GenericExpectations,
                 foo: ::mockall::Expectation<(u32), i64> ,
             }
             impl MockExternalStruct { }
@@ -882,12 +881,10 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockMyIter {
-                e: ::mockall::GenericExpectations,
                 Iterator_expectations: MockMyIter_Iterator,
             }
             #[derive(Default)]
             struct MockMyIter_Iterator {
-                e: ::mockall::GenericExpectations,
                 next: ::mockall::Expectation<(), Option<u32> > ,
             }
             impl MockMyIter { }

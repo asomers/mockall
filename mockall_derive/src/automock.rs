@@ -383,12 +383,10 @@ mod t {
         check("type T=u32;",
         r#"#[derive(Default)]
         struct MockA {
-            e: ::mockall::GenericExpectations,
             A_expectations: MockA_A,
         }
         #[derive(Default)]
         struct MockA_A {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), u32> ,
         }
         impl MockA {}
@@ -417,24 +415,23 @@ mod t {
         check("",
         r#"#[derive(Default)]
         struct MockA {
-            e: ::mockall::GenericExpectations,
             A_expectations : MockA_A ,
         }
         #[derive(Default)]
         struct MockA_A {
-            e: ::mockall::GenericExpectations,
+            foo: ::mockall::GenericExpectation,
         }
         impl MockA {}
         impl A for MockA {
             fn foo<T: 'static>(&self, t: T) {
-                self.e.call:: <(T), ()>("foo", (t))
+                self.A_expectations.foo.call:: <(T), ()>((t))
             }
         }
         impl MockA {
             pub fn expect_foo<T: 'static>(&mut self)
                 -> &mut ::mockall::Expectation<(T), ()>
             {
-                self.e.expect:: <(T), ()>("foo")
+                self.A_expectations.foo.expect:: <(T), ()>()
             }
         }"#, r#"
         trait A {
@@ -447,7 +444,6 @@ mod t {
         check("",
         r#"#[derive(Default)]
         pub struct MockGenericStruct< 'a, T, V> {
-            e: ::mockall::GenericExpectations ,
             foo: ::mockall::Expectation<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
@@ -475,7 +471,6 @@ mod t {
         check("",
         r#"#[derive(Default)]
         pub struct MockGenericStruct< 'a, T: Copy, V: Clone> {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
@@ -503,13 +498,11 @@ mod t {
         check("",
         r#"#[derive(Default)]
         struct MockGenericTrait<T> {
-            e: ::mockall::GenericExpectations,
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
         #[derive(Default)]
         struct MockGenericTrait_GenericTrait<T> {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -537,13 +530,11 @@ mod t {
         check("",
         r#"#[derive(Default)]
         struct MockGenericTrait<T: Copy> {
-            e: ::mockall::GenericExpectations,
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
         #[derive(Default)]
         struct MockGenericTrait_GenericTrait<T: Copy> {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -575,12 +566,10 @@ mod t {
         check("",
         r#"#[derive(Default)]
         pub struct MockSomeStruct {
-            e: ::mockall::GenericExpectations ,
             Foo_expectations: MockSomeStruct_Foo ,
         }
         #[derive(Default)]
         struct MockSomeStruct_Foo {
-            e: ::mockall::GenericExpectations ,
             foo: ::mockall::Expectation<(u32), i64> ,
         }
         impl MockSomeStruct { }
@@ -612,13 +601,11 @@ mod t {
         check("",
         r#"#[derive(Default)]
         pub struct MockSomeStruct<T> {
-            e: ::mockall::GenericExpectations,
             Foo_expectations: MockSomeStruct_Foo,
             _t0: ::std::marker::PhantomData<T> ,
         }
         #[derive(Default)]
         struct MockSomeStruct_Foo {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), i64> ,
         }
         impl<T> MockSomeStruct<T> {}
@@ -647,7 +634,6 @@ mod t {
         check("",
         r#"#[derive(Default)]
         pub struct MockMethodByValue {
-            e: ::mockall::GenericExpectations ,
             foo: ::mockall::Expectation<(u32), i64> ,
         }
         impl MockMethodByValue {
@@ -674,12 +660,10 @@ mod t {
         check("",
         &r#"#[derive(Default)]
         pub struct MockSimpleTrait {
-            e: ::mockall::GenericExpectations,
             SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
         }
         #[derive(Default)]
         struct MockSimpleTrait_SimpleTrait {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(), ()> ,
         }
         impl MockSimpleTrait {}
@@ -707,7 +691,6 @@ mod t {
         check("",
         r#"#[derive(Default)]
         pub struct MockSimpleStruct {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), i64> ,
         }
         impl MockSimpleStruct {
@@ -733,12 +716,10 @@ mod t {
         check("",
         &r#"#[derive(Default)]
         struct MockSimpleTrait {
-            e: ::mockall::GenericExpectations,
             SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
         }
         #[derive(Default)]
         struct MockSimpleTrait_SimpleTrait {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), i64> ,
         }
         impl MockSimpleTrait {}
@@ -766,12 +747,10 @@ mod t {
         check("",
         &r#"#[derive(Default)]
         struct MockA {
-            e: ::mockall::GenericExpectations,
             A_expectations: MockA_A ,
         }
         #[derive(Default)]
         struct MockA_A {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32), u32> ,
             bar: ::mockall::Expectation<(), u32> ,
         }
@@ -804,7 +783,6 @@ mod t {
         check("",
         r#"#[derive(Default)]
         pub struct MockTwoArgs {
-            e: ::mockall::GenericExpectations,
             foo: ::mockall::Expectation<(u32, u32), i64> ,
         }
         impl MockTwoArgs {
