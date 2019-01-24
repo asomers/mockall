@@ -18,8 +18,8 @@ use std::{
 
 pub use predicates::prelude::*;
 
-trait AnyExpectation : Any + Send {}
-downcast!(AnyExpectation);
+trait AnyExpectations : Any + Send {}
+downcast!(AnyExpectations);
 
 trait ReturnDefault<O> {
     fn return_default() -> O;
@@ -270,6 +270,10 @@ macro_rules! expectation_common {
             self
         }
 
+        fn matches(&self, i: &I) -> bool {
+            self.common.matches(i)
+        }
+
         /// Forbid this expectation from ever being called
         pub fn never(&mut self) -> &mut Self {
             self.$common.never();
@@ -304,6 +308,30 @@ macro_rules! expectation_common {
     }
 }
 
+/// Add common methods to Expectations types.  Must be called from within an
+/// impl<I, O> {} block
+macro_rules! expectations_common {
+    ($klass:ident, $call:ident, $self_ty:ty, $iter:ident, $oty:ty) => {
+        pub fn $call(self: $self_ty, i: I) -> $oty {
+            match (self.0).$iter().rev().find(|e| e.matches(&i)) {
+                None => panic!("No matching expectation found"),
+                Some(e) => e.$call(i)
+            }
+        }
+
+        pub fn expect(&mut self) -> &mut $klass<I, O> {
+            let e = $klass::new();
+            self.0.push(e);
+            let l = self.0.len();
+            &mut self.0[l - 1]
+        }
+
+        pub fn new() -> Self {
+            Self::default()
+        }
+    }
+}
+
 /// Expectation type for methods that take return a `'static` type.
 pub struct Expectation<I, O> {
     common: ExpectationCommon<I>,
@@ -315,10 +343,6 @@ impl<I, O> Expectation<I, O> {
         self.common.call(&i);
         self.rfunc.lock().unwrap()
             .call_mut(i)
-    }
-
-    fn matches(&self, i: &I) -> bool {
-        self.common.matches(i)
     }
 
     pub fn new() -> Self {
@@ -358,26 +382,12 @@ impl<I, O> Expectation<I, O> {
     expectation_common!{common, Expectation}
 }
 
+/// A Collection of `Expectation`s.  Allows you to set more than one expectation
+/// on the same method.
 pub struct Expectations<I, O>(Vec<Expectation<I, O>>);
 
 impl<I, O> Expectations<I, O> {
-    pub fn call(&self, i: I) -> O {
-        match self.0.iter().rev().find(|e| e.matches(&i)) {
-            None => panic!("No matching expectation found"),
-            Some(e) => e.call(i)
-        }
-    }
-
-    pub fn expect(&mut self) -> &mut Expectation<I, O> {
-        let e = Expectation::new();
-        self.0.push(e);
-        let l = self.0.len();
-        &mut self.0[l - 1]
-    }
-
-    pub fn new() -> Self {
-        Self::default()
-    }
+    expectations_common!{Expectation, call, &Self, iter, O}
 }
 
 impl<I, O> Default for Expectations<I, O> {
@@ -386,7 +396,7 @@ impl<I, O> Default for Expectations<I, O> {
     }
 }
 
-impl<I: 'static, O: 'static> AnyExpectation for Expectation<I, O> {}
+impl<I: 'static, O: 'static> AnyExpectations for Expectations<I, O> {}
 
 /// Expectation type for methods that take a `&self` argument and return a
 /// reference with the same lifetime as `self`.
@@ -421,7 +431,21 @@ impl<I, O> Default for RefExpectation<I, O> {
     }
 }
 
-impl<I, O> AnyExpectation for RefExpectation<I, O>
+/// A Collection of `RefExpectation`s.  Allows you to set more than one
+/// expectation on the same method.
+pub struct RefExpectations<I, O>(Vec<RefExpectation<I, O>>);
+
+impl<I, O> RefExpectations<I, O> {
+    expectations_common!{RefExpectation, call, &Self, iter, &O}
+}
+
+impl<I, O> Default for RefExpectations<I, O> {
+    fn default() -> Self {
+        RefExpectations(Vec::new())
+    }
+}
+
+impl<I, O> AnyExpectations for RefExpectations<I, O>
     where I: 'static, O: Send + 'static
 {}
 
@@ -473,7 +497,22 @@ impl<I, O> Default for RefMutExpectation<I, O> {
     }
 }
 
-impl<I, O> AnyExpectation for RefMutExpectation<I, O>
+/// A Collection of `RefMutExpectation`s.  Allows you to set more than one
+/// expectation on the same method.
+pub struct RefMutExpectations<I, O>(Vec<RefMutExpectation<I, O>>);
+
+impl<I, O> RefMutExpectations<I, O> {
+    expectations_common!{RefMutExpectation, call_mut, &mut Self, iter_mut,
+        &mut O}
+}
+
+impl<I, O> Default for RefMutExpectations<I, O> {
+    fn default() -> Self {
+        RefMutExpectations(Vec::new())
+    }
+}
+
+impl<I, O> AnyExpectations for RefMutExpectations<I, O>
     where I: 'static, O: Send + 'static
 {}
 
@@ -490,31 +529,36 @@ impl Key {
 /// Expectation type for generic methods with `'static` return values.
 /// Currently requires `'static` arguments as well.
 #[derive(Default)]
-pub struct GenericExpectation {
-    store: HashMap<Key, Box<dyn AnyExpectation>>
+pub struct GenericExpectations {
+    store: HashMap<Key, Box<dyn AnyExpectations>>
 }
 
-impl GenericExpectation {
-    pub fn expect<'e, I, O>(&'e mut self) -> &'e mut Expectation<I, O>
-        where I: 'static, O: 'static
-    {
-        let key = Key::new::<I, O>();
-        let e = Box::new(Expectation::<I, O>::new());
-        self.store.insert(key.clone(), e);
-        self.store.get_mut(&key).unwrap()
-            .downcast_mut()
-            .unwrap()
-    }
-
-    // TODO: add a "called_nonstatic" method that can be used with types that
-    // aren't 'static, and uses a different method to generate the key.
+impl GenericExpectations {
     pub fn call<I: 'static, O: 'static>(&self, args: I) -> O {
         let key = Key::new::<I, O>();
-        let e: &Expectation<I, O> = self.store.get(&key)
+        let e: &Expectations<I, O> = self.store.get(&key)
             .expect("No matching expectation found")
             .downcast_ref()
             .unwrap();
         e.call(args)
+    }
+
+    pub fn expect<'e, I, O>(&'e mut self) -> &'e mut Expectation<I, O>
+        where I: 'static, O: 'static
+    {
+        let key = Key::new::<I, O>();
+        if ! self.store.contains_key(&key) {
+            let expectations = Box::new(Expectations::<I, O>::new());
+            self.store.insert(key.clone(), expectations);
+        }
+        let ee: &mut Expectations<I, O> = self.store.get_mut(&key).unwrap()
+            .downcast_mut()
+            .unwrap();
+        ee.expect()
+    }
+
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -522,25 +566,28 @@ impl GenericExpectation {
 /// with the same lifetime as `self`.  Currently requires `'static` input
 /// arguments as well.
 #[derive(Default)]
-pub struct GenericRefExpectation {
-    store: HashMap<Key, Box<dyn AnyExpectation>>,
+pub struct GenericRefExpectations {
+    store: HashMap<Key, Box<dyn AnyExpectations>>,
 }
 
-impl GenericRefExpectation {
+impl GenericRefExpectations {
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefExpectation<I, O>
         where I: 'static, O: Send + 'static
     {
         let key = Key::new::<I, O>();
-        let e = Box::new(RefExpectation::<I, O>::new());
-        self.store.insert(key.clone(), e);
-        self.store.get_mut(&key).unwrap()
+        if ! self.store.contains_key(&key) {
+            let expectations = Box::new(RefExpectations::<I, O>::new());
+            self.store.insert(key.clone(), expectations);
+        }
+        let ee: &mut RefExpectations<I, O> = self.store.get_mut(&key).unwrap()
             .downcast_mut()
-            .unwrap()
+            .unwrap();
+        ee.expect()
     }
 
     pub fn call<I: 'static, O: 'static>(&self, args: I) -> &O {
         let key = Key::new::<I, O>();
-        let e: &RefExpectation<I, O> = self.store.get(&key)
+        let e: &RefExpectations<I, O> = self.store.get(&key)
             .expect("No matching expectation found")
             .downcast_ref()
             .unwrap();
@@ -552,29 +599,33 @@ impl GenericRefExpectation {
 /// reference with the same lifetime as `self`.  Currently requires `'static`
 /// input arguments as well.
 #[derive(Default)]
-pub struct GenericRefMutExpectation {
-    store: HashMap<Key, Box<dyn AnyExpectation>>,
+pub struct GenericRefMutExpectations {
+    store: HashMap<Key, Box<dyn AnyExpectations>>,
 }
 
-impl GenericRefMutExpectation {
-    pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefMutExpectation<I, O>
-        where I: 'static, O: Send + 'static
-    {
-        let key = Key::new::<I, O>();
-        let e = Box::new(RefMutExpectation::<I, O>::new());
-        self.store.insert(key.clone(), e);
-        self.store.get_mut(&key).unwrap()
-            .downcast_mut()
-            .unwrap()
-    }
-
+impl GenericRefMutExpectations {
     pub fn call_mut<I: 'static, O: 'static>(&mut self, args: I) -> &mut O {
         let key = Key::new::<I, O>();
-        let e: &mut RefMutExpectation<I, O> = self.store.get_mut(&key)
+        let e: &mut RefMutExpectations<I, O> = self.store.get_mut(&key)
             .expect("No matching expectation found")
             .downcast_mut()
             .unwrap();
         e.call_mut(args)
+    }
+
+    pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefMutExpectation<I, O>
+        where I: 'static, O: Send + 'static
+    {
+        let key = Key::new::<I, O>();
+        if ! self.store.contains_key(&key) {
+            let expectations = Box::new(RefMutExpectations::<I, O>::new());
+            self.store.insert(key.clone(), expectations);
+        }
+        let ee: &mut RefMutExpectations<I, O> = self.store.get_mut(&key)
+            .unwrap()
+            .downcast_mut()
+            .unwrap();
+        ee.expect()
     }
 }
 

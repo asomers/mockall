@@ -6,7 +6,7 @@ use mockall::*;
 fn match_eq_ok() {
     let mut e = RefExpectation::<(i32), i32>::default();
     e.return_const(99i32);
-    e.with(predicates::ord::eq(5));
+    e.with(predicate::eq(5));
     e.call(5);
 }
 
@@ -15,7 +15,7 @@ fn match_eq_ok() {
 fn match_eq_fail() {
     let mut e = RefExpectation::<(i32), i32>::default();
     e.return_const(99i32);
-    e.with(predicates::ord::eq(4));
+    e.with(predicate::eq(4));
     e.call(5);
 }
 

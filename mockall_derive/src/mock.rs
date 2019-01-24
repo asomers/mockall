@@ -473,7 +473,7 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockSomeStruct {
-                foo: ::mockall::GenericExpectation,
+                foo: ::mockall::GenericExpectations,
             }
             impl MockSomeStruct {
                 pub fn foo<T: 'static>(&self, t: T) {

@@ -419,7 +419,7 @@ mod t {
         }
         #[derive(Default)]
         struct MockA_A {
-            foo: ::mockall::GenericExpectation,
+            foo: ::mockall::GenericExpectations,
         }
         impl MockA {}
         impl A for MockA {
