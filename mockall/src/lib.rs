@@ -16,6 +16,7 @@ use std::{
     thread
 };
 
+pub use mockall_derive::*;
 pub use predicates::prelude::*;
 
 trait AnyExpectations : Any + Send {}

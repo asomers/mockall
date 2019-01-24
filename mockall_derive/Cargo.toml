@@ -13,10 +13,10 @@ nightly = ["proc-macro2/nightly"]
 
 [dependencies]
 cfg-if = "0.1"
-mockall = { path = "../mockall" }
 proc-macro2 = "0.4"
 quote = "0.6"
 syn = { version = "0.15", features = ["full"] }
 
 [dev-dependencies]
+mockall = { path = "../mockall" }
 pretty_assertions = "0.5"
