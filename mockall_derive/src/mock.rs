@@ -129,7 +129,6 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     let generics = &sig.decl.generics;
     let inputs = &sig.decl.inputs;
     let output = &sig.decl.output;
-    let generic = !generics.params.is_empty();
 
     // First the mock method
     quote!(#defaultness #vis #constness #unsafety #asyncness #abi
@@ -184,18 +183,10 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
     } else {
         quote!(self.#ident)
     };
-    if generic {
-        quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut #expectation<#input_type, #output_type> {
-            #receiver.expect#call_turbofish()
-       })
-    } else {
-        quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut #expectation<#input_type, #output_type> {
-            #receiver = #expectation::new();
-            &mut #receiver
-        })
-    }.to_tokens(&mut expect_output);
+    quote!(pub fn #expect_ident #generics(&mut self)
+           -> &mut #expectation<#input_type, #output_type> {
+        #receiver.expect#call_turbofish()
+    }).to_tokens(&mut expect_output);
 
     (mock_output, expect_output)
 }
@@ -285,7 +276,7 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let input_type = syn::TypeTuple{paren_token, elems};
 
     let span = Span::call_site();
-    let (output_type, partial_expect, call) = match &sig.decl.output {
+    let (output_type, partial_ex, call) = match &sig.decl.output {
         syn::ReturnType::Default => {
             let paren_token = syn::token::Paren{span};
             let elems = syn::punctuated::Punctuated::new();
@@ -341,14 +332,15 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
         None
     };
     let expect_obj = if is_generic {
-        let name = syn::Ident::new(&format!("Generic{}", partial_expect), span);
+        let name = syn::Ident::new(&format!("Generic{}s", partial_ex), span);
         syn::parse2(quote!(::mockall::#name)).unwrap()
     } else {
+        let name = syn::Ident::new(&format!("{}s", partial_ex), span);
         syn::parse2(
-            quote!(::mockall::#partial_expect<#input_type, #output_type>)
+            quote!(::mockall::#name<#input_type, #output_type>)
         ).unwrap()
     };
-    let expect_ts = quote!(::mockall::#partial_expect);
+    let expect_ts = quote!(::mockall::#partial_ex);
     let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
 
     MethodTypes{is_static, input_type, output_type, expectation, call,
@@ -499,7 +491,7 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockExternalStruct<T: Clone> {
-                foo: ::mockall::Expectation<(u32), i64> ,
+                foo: ::mockall::Expectations<(u32), i64> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
             impl<T: Clone> MockExternalStruct<T> {
@@ -509,8 +501,7 @@ mod t {
                 pub fn expect_foo(&mut self)
                     -> &mut ::mockall::Expectation<(u32), i64>
                 {
-                    self.foo = ::mockall::Expectation::new();
-                    &mut self.foo
+                    self.foo.expect()
                 }
             }
         "#;
@@ -534,7 +525,7 @@ mod t {
             }
             #[derive(Default)]
             struct MockExternalStruct_Foo {
-                foo: ::mockall::Expectation<(u32), u32> ,
+                foo: ::mockall::Expectations<(u32), u32> ,
             }
             impl<T: Copy + 'static> MockExternalStruct<T> {}
             impl<T: Copy + 'static> Foo for MockExternalStruct<T> {
@@ -546,8 +537,7 @@ mod t {
                 pub fn expect_foo(&mut self)
                     -> &mut ::mockall::Expectation<(u32), u32>
                 {
-                    self.Foo_expectations.foo = ::mockall::Expectation::new();
-                    &mut self.Foo_expectations.foo
+                    self.Foo_expectations.foo.expect()
                 }
             }
         "#;
@@ -572,7 +562,7 @@ mod t {
             }
             #[derive(Default)]
             struct MockExternalStruct_Foo<T: 'static> {
-                foo: ::mockall::Expectation<(T), T> ,
+                foo: ::mockall::Expectations<(T), T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
             impl<T: 'static, Z: 'static> MockExternalStruct<T, Z> {}
@@ -585,8 +575,7 @@ mod t {
                 pub fn expect_foo(&mut self)
                     -> &mut ::mockall::Expectation<(T), T>
                 {
-                    self.Foo_expectations.foo = ::mockall::Expectation::new();
-                    &mut self.Foo_expectations.foo
+                    self.Foo_expectations.foo.expect()
                 }
             }
         "#;
@@ -608,7 +597,7 @@ mod t {
         }
         #[derive(Default)]
         struct MockExternalStruct_GenericTrait<T> {
-            foo: ::mockall::Expectation<(), ()> ,
+            foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
         impl<T> MockExternalStruct<T> {}
@@ -620,9 +609,7 @@ mod t {
         impl<T> MockExternalStruct<T> {
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
             {
-                self.GenericTrait_expectations.foo
-                    = ::mockall::Expectation::new();
-                &mut self.GenericTrait_expectations.foo
+                self.GenericTrait_expectations.foo.expect()
             }
         }"#;
         let code = r#"
@@ -649,11 +636,11 @@ mod t {
         }
         #[derive(Default)]
         struct MockExternalStruct_A {
-            foo: ::mockall::Expectation<(), ()> ,
+            foo: ::mockall::Expectations<(), ()> ,
         }
         #[derive(Default)]
         struct MockExternalStruct_B {
-            bar: ::mockall::Expectation<(), ()> ,
+            bar: ::mockall::Expectations<(), ()> ,
         }
         impl MockExternalStruct {}
         impl A for MockExternalStruct {
@@ -664,8 +651,7 @@ mod t {
         impl MockExternalStruct {
             pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
             {
-                self.A_expectations.foo = ::mockall::Expectation::new();
-                &mut self.A_expectations.foo
+                self.A_expectations.foo.expect()
             }
         }
         impl B for MockExternalStruct {
@@ -676,8 +662,7 @@ mod t {
         impl MockExternalStruct {
             pub fn expect_bar(&mut self) -> &mut ::mockall::Expectation<(), ()>
             {
-                self.B_expectations.bar = ::mockall::Expectation::new();
-                &mut self.B_expectations.bar
+                self.B_expectations.bar.expect()
             }
         }"#;
         let code = r#"
@@ -697,7 +682,7 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockFoo< 'a> {
-            foo: ::mockall::Expectation<(& 'a u32), ()> ,
+            foo: ::mockall::Expectations<(& 'a u32), ()> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
         }
         impl< 'a> MockFoo< 'a> {
@@ -707,8 +692,7 @@ mod t {
             pub fn expect_foo(&mut self)
                 -> &mut ::mockall::Expectation<(& 'a u32), ()>
             {
-                self.foo = ::mockall::Expectation::new();
-                &mut self.foo
+                self.foo.expect()
             }
         }"#;
 
@@ -725,7 +709,7 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockFoo {
-            foo: ::mockall::RefExpectation<(), u32> ,
+            foo: ::mockall::RefExpectations<(), u32> ,
         }
         impl MockFoo {
             pub fn foo(&self) -> &u32 {
@@ -734,8 +718,7 @@ mod t {
             pub fn expect_foo(&mut self)
                 -> &mut ::mockall::RefExpectation<(), u32>
             {
-                self.foo = ::mockall::RefExpectation::new();
-                &mut self.foo
+                self.foo.expect()
             }
         }"#;
 
@@ -756,7 +739,7 @@ mod t {
         }
         #[derive(Default)]
         struct MockX_Foo {
-            foo: ::mockall::RefExpectation<(), u32> ,
+            foo: ::mockall::RefExpectations<(), u32> ,
         }
         impl MockX {}
         impl Foo for MockX {
@@ -768,8 +751,7 @@ mod t {
             pub fn expect_foo(&mut self)
                 -> &mut ::mockall::RefExpectation<(), u32>
             {
-                self.Foo_expectations.foo = ::mockall::RefExpectation::new();
-                &mut self.Foo_expectations.foo
+                self.Foo_expectations.foo.expect()
             }
         }"#;
 
@@ -787,7 +769,7 @@ mod t {
         let desired = r#"
         #[derive(Default)]
         struct MockFoo {
-            foo: ::mockall::RefMutExpectation<(), u32> ,
+            foo: ::mockall::RefMutExpectations<(), u32> ,
         }
         impl MockFoo {
             pub fn foo(&mut self) -> &mut u32 {
@@ -796,8 +778,7 @@ mod t {
             pub fn expect_foo(&mut self)
                 -> &mut ::mockall::RefMutExpectation<(), u32>
             {
-                self.foo = ::mockall::RefMutExpectation::new();
-                &mut self.foo
+                self.foo.expect()
             }
         }"#;
 
@@ -815,7 +796,7 @@ mod t {
         let desired = r#"
             #[derive(Default)]
             struct MockExternalStruct {
-                foo: ::mockall::Expectation<(u32), i64> ,
+                foo: ::mockall::Expectations<(u32), i64> ,
             }
             impl MockExternalStruct {
                 pub fn foo(&self, x: u32) -> i64 {
@@ -824,8 +805,7 @@ mod t {
                 pub fn expect_foo(&mut self)
                     -> &mut ::mockall::Expectation<(u32), i64>
                 {
-                    self.foo = ::mockall::Expectation::new();
-                    &mut self.foo
+                    self.foo.expect()
                 }
             }
         "#;
@@ -848,7 +828,7 @@ mod t {
             }
             #[derive(Default)]
             struct MockExternalStruct_Foo {
-                foo: ::mockall::Expectation<(u32), i64> ,
+                foo: ::mockall::Expectations<(u32), i64> ,
             }
             impl MockExternalStruct { }
             impl Foo for MockExternalStruct {
@@ -860,8 +840,7 @@ mod t {
                 pub fn expect_foo(&mut self)
                     -> &mut ::mockall::Expectation<(u32), i64>
                 {
-                    self.Foo_expectations.foo = ::mockall::Expectation::new();
-                    &mut self.Foo_expectations.foo
+                    self.Foo_expectations.foo.expect()
                 }
             }
         "#;
@@ -885,7 +864,7 @@ mod t {
             }
             #[derive(Default)]
             struct MockMyIter_Iterator {
-                next: ::mockall::Expectation<(), Option<u32> > ,
+                next: ::mockall::Expectations<(), Option<u32> > ,
             }
             impl MockMyIter { }
             impl Iterator for MockMyIter {
@@ -898,8 +877,7 @@ mod t {
                 pub fn expect_next(&mut self)
                     -> &mut ::mockall::Expectation<(), Option<u32> >
                 {
-                    self.Iterator_expectations.next = ::mockall::Expectation::new();
-                    &mut self.Iterator_expectations.next
+                    self.Iterator_expectations.next.expect()
                 }
             }
         "#;
