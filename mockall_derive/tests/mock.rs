@@ -127,6 +127,28 @@ mod external_struct_with_trait {
     }
 }
 
+mod generic_method_returning_reference {
+    use super::*;
+
+    trait Foo {
+        fn foo<T: 'static>(&self, t: T) -> &u32;
+    }
+
+    mock!{
+        MyStruct {}
+        trait Foo {
+            fn foo<T: 'static>(&self, t: T) -> &u32;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockMyStruct::default();
+        mock.expect_foo::<i16>().return_const(5u32);
+        assert_eq!(5u32, *mock.foo(99i16));
+    }
+}
+
 /// Use mock! to mock a generic struct
 mod generic_struct_with_generic_trait {
     use super::*;

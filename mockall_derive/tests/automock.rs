@@ -50,6 +50,18 @@ fn generic_parameters() {
 }
 
 #[test]
+fn generic_parameters_returning_ref() {
+    #[automock]
+    trait A {
+        fn foo<T: 'static>(&self, t: T) -> &u32;
+    }
+
+    let mut mock = MockA::default();
+    mock.expect_foo::<u32>().return_const(5);
+    assert_eq!(5, *mock.foo(42u32));
+}
+
+#[test]
 fn generic_return() {
     #[automock]
     trait A {
