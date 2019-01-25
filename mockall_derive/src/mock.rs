@@ -89,10 +89,9 @@ impl Parse for Mock {
 
         let impl_content;
         let _brace_token = braced!(impl_content in input);
-        let methods_item: syn::punctuated::Punctuated<syn::TraitItem, Token![;]>
-            = impl_content.parse_terminated(syn::TraitItem::parse)?;
         let mut methods = Vec::new();
-        for method in methods_item.iter() {
+        while !impl_content.is_empty() {
+            let method: syn::TraitItem = impl_content.parse()?;
             match method {
                 syn::TraitItem::Method(meth) => methods.push(meth.clone()),
                 _ => {
@@ -867,6 +866,7 @@ mod t {
             #[derive(Default)]
             struct MockExternalStruct {
                 foo: ::mockall::Expectations<(u32), i64> ,
+                bar: ::mockall::Expectations<(u64), i32> ,
             }
             impl MockExternalStruct {
                 pub fn foo(&self, x: u32) -> i64 {
@@ -877,11 +877,20 @@ mod t {
                 {
                     self.foo.expect()
                 }
+                pub fn bar(&self, y: u64) -> i32 {
+                    self.bar.call((y))
+                }
+                pub fn expect_bar(&mut self)
+                    -> &mut ::mockall::Expectation<(u64), i32>
+                {
+                    self.bar.expect()
+                }
             }
         "#;
         let code = r#"
             ExternalStruct {
                 fn foo(&self, x: u32) -> i64;
+                fn bar(&self, y: u64) -> i32;
             }
         "#;
         check(desired, code);
