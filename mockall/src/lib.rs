@@ -11,6 +11,7 @@ use std::{
     sync::{
         Arc,
         Mutex,
+        MutexGuard,
         atomic::{AtomicUsize, Ordering}
     },
     thread
@@ -18,6 +19,9 @@ use std::{
 
 pub use mockall_derive::*;
 pub use predicates::prelude::*;
+/// For mocking static methods
+#[doc(hidden)]
+pub use lazy_static::lazy_static;
 
 trait AnyExpectations : Any + Send {}
 downcast!(AnyExpectations);
@@ -629,6 +633,69 @@ impl GenericRefMutExpectations {
         ee.expect()
     }
 }
+
+/// Useful for mocking static methods.  Forwards accesses to an
+/// `Expectation<I, O>` object.
+// We must return the MutexGuard to the caller so he can configure the
+// expectation.  But we can't bundle both the guard and the &Expectation into
+// the same structure; the borrow checker won't let us.  Instead we'll record
+// the expectation's position within the Expectations vector so we can proxy its
+// methods.
+pub struct ExpectationGuard<'guard, I, O>{
+    guard: MutexGuard<'guard, Expectations<I, O>>,
+    i: usize
+}
+
+impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
+    pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Expectation<I, O>
+    {
+        self.guard.0[self.i].in_sequence(seq)
+    }
+
+    pub fn never(&mut self) -> &mut Expectation<I, O> {
+        self.guard.0[self.i].never()
+    }
+
+    // Should only be called from the mockall_derive generated code
+    #[doc(hidden)]
+    pub fn new(mut guard: MutexGuard<'guard, Expectations<I, O>>) -> Self {
+        guard.expect(); // Drop the &Expectation
+        let i = guard.0.len() - 1;
+        ExpectationGuard{guard, i}
+    }
+
+    pub fn returning<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: FnMut(I) -> O + Send + 'static
+    {
+        self.guard.0[self.i].returning(f)
+    }
+
+    pub fn return_once<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: FnOnce(I) -> O + Send + 'static
+    {
+        self.guard.0[self.i].return_once(f)
+    }
+
+    pub fn times(&mut self, n: usize) -> &mut Expectation<I, O> {
+        self.guard.0[self.i].times(n)
+    }
+
+    pub fn times_any(&mut self) -> &mut Expectation<I, O> {
+        self.guard.0[self.i].times_any()
+    }
+
+    pub fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<I, O>
+    {
+        self.guard.0[self.i].times_range(range)
+    }
+
+    pub fn with<P>(&mut self, p: P) -> &mut Expectation<I, O>
+        where P: Predicate<I> + Send + 'static
+    {
+        self.guard.0[self.i].with(p)
+    }
+}
+
 
 struct SeqHandle {
     inner: Arc<SeqInner>,

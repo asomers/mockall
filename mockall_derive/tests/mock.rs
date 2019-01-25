@@ -287,3 +287,20 @@ mod ref_mut_return {
         assert_eq!(6, *mock.foo());
     }
 }
+
+mod static_method {
+    use super::*;
+
+    mock!{
+        Foo {
+            fn bar(x: u32) -> u64;
+        }
+    }
+
+    #[test]
+    fn t() {
+        MockFoo::expect_bar()
+            .returning(|x| u64::from(x + 1));
+        assert_eq!(42, MockFoo::bar(41));
+    }
+}

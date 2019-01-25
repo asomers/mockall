@@ -63,7 +63,8 @@ impl Mock {
             // All mocked methods are public
             let pub_token = syn::token::Pub{span: Span::call_site()};
             let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
-            let (mm, em) = gen_mock_method(None, &vis, &meth.sig, None);
+            let (mm, em) = gen_mock_method(&mock_struct_name, None, &vis,
+                                           &meth.sig, None);
             mm.to_tokens(&mut mock_body);
             em.to_tokens(&mut mock_body);
         }
@@ -111,7 +112,8 @@ impl Parse for Mock {
 }
 
 /// Generate a mock method and its expectation method
-fn gen_mock_method(defaultness: Option<&syn::token::Default>,
+fn gen_mock_method(mock_ident: &syn::Ident,
+                   defaultness: Option<&syn::token::Default>,
                    vis: &syn::Visibility,
                    sig: &syn::MethodSig,
                    sub: Option<&syn::Ident>) -> (TokenStream, TokenStream)
@@ -135,18 +137,30 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
            #fn_token #ident #generics (#inputs) #output)
         .to_tokens(&mut mock_output);
 
+    let sub_name = if let Some(s) = sub {
+        format!("{}_", s)
+    } else {
+        "".to_string()
+    };
     let meth_types = method_types(sig);
     let input_type = &meth_types.input_type;
     let output_type = &meth_types.output_type;
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
     let call_turbofish = &meth_types.call_turbofish;
-    if meth_types.is_static {
-        quote!({unimplemented!("Expectations on static methods are TODO");})
-            .to_tokens(&mut mock_output);
-        return (mock_output, TokenStream::new())
-    }
     let mut args = Vec::new();
+    let expect_obj_name = if meth_types.is_static {
+        let name = syn::Ident::new(
+            &format!("{}_{}{}_expectation", mock_ident, sub_name, sig.ident),
+            Span::call_site());
+        quote!(#name)
+    } else if let Some(s) = sub {
+        let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
+            Span::call_site());
+        quote!(self.#sub_struct.#ident)
+    } else {
+        quote!(self.#ident)
+    };
     for p in sig.decl.inputs.iter() {
         match p {
             syn::FnArg::SelfRef(_) | syn::FnArg::SelfValue(_) => {
@@ -161,32 +175,41 @@ fn gen_mock_method(defaultness: Option<&syn::token::Default>,
         }
     }
 
-    if let Some(s) = sub {
-        let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
-            Span::call_site());
+    if meth_types.is_static {
         quote!({
-            self.#sub_struct.#ident.#call#call_turbofish((#(#args),*))
+            #expect_obj_name.lock().unwrap().call((#(#args),*))
         })
     } else {
         quote!({
-            self.#ident.#call#call_turbofish((#(#args),*))
+            #expect_obj_name.#call#call_turbofish((#(#args),*))
         })
     }.to_tokens(&mut mock_output);
 
     // Then the expectation method
     let expect_ident = syn::Ident::new(&format!("expect_{}", sig.ident),
                                        sig.ident.span());
-    let receiver = if let Some(s) = sub {
-        let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
+    if meth_types.is_static {
+        let name = syn::Ident::new(
+            &format!("{}_{}{}_expectation", mock_ident, sub_name, sig.ident),
             Span::call_site());
-        quote!(self.#sub_struct.#ident)
+        let mut g = generics.clone();
+        let lt = syn::Lifetime::new("'guard", Span::call_site());
+        let ltd = syn::LifetimeDef::new(lt);
+        g.params.push(syn::GenericParam::Lifetime(ltd.clone()));
+        quote!(pub fn #expect_ident #g()
+               -> ::mockall::ExpectationGuard<#ltd, #input_type, #output_type>
+            {
+                ::mockall::ExpectationGuard::new(
+                    #name.lock().unwrap()
+                )
+            }
+        )
     } else {
-        quote!(self.#ident)
-    };
-    quote!(pub fn #expect_ident #generics(&mut self)
-           -> &mut #expectation<#input_type, #output_type> {
-        #receiver.expect#call_turbofish()
-    }).to_tokens(&mut expect_output);
+        quote!(pub fn #expect_ident #generics(&mut self)
+               -> &mut #expectation<#input_type, #output_type> {
+            #expect_obj_name.expect#call_turbofish()
+        })
+    }.to_tokens(&mut expect_output);
 
     (mock_output, expect_output)
 }
@@ -201,6 +224,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     let mut output = TokenStream::new();
     let ident = gen_mock_ident(&ident);
     let mut body = TokenStream::new();
+    let mut statics = TokenStream::new();
 
     // Make Expectation fields for each method
     for (sub, sub_generics) in subs.iter() {
@@ -214,7 +238,16 @@ fn gen_struct<T>(vis: &syn::Visibility,
         let method_ident = &meth.borrow().sig.ident;
         let meth_types = method_types(&meth.borrow().sig);
         let expect_obj = &meth_types.expect_obj;
-        quote!(#method_ident: #expect_obj,).to_tokens(&mut body);
+        if meth_types.is_static {
+            let name = syn::Ident::new(
+                &format!("{}_{}_expectation", ident, method_ident),
+                Span::call_site());
+            quote!(static ref #name: ::std::sync::Mutex<#expect_obj> =
+                   ::std::sync::Mutex::new(::mockall::Expectations::new());
+                ).to_tokens(&mut statics);
+        } else {
+            quote!(#method_ident: #expect_obj,).to_tokens(&mut body);
+        }
     }
 
     // Make PhantomData fields, if necessary
@@ -250,6 +283,11 @@ fn gen_struct<T>(vis: &syn::Visibility,
             #body
         }
     ).to_tokens(&mut output);
+    if ! statics.is_empty() {
+        quote!(::mockall::lazy_static! {
+            #statics
+        }).to_tokens(&mut output);
+    }
 
     output
 }
@@ -371,6 +409,7 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
             },
             syn::TraitItem::Method(meth) => {
                 let (mock_meth, expect_meth) = gen_mock_method(
+                    mock_ident,
                     None,
                     &syn::Visibility::Inherited,
                     &meth.sig,
@@ -785,6 +824,37 @@ mod t {
         let code = r#"
             Foo {
                 fn foo(&mut self) -> &mut u32;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn static_method() {
+        let desired = r#"
+            #[derive(Default)]
+            struct MockFoo {
+            }
+            ::mockall::lazy_static!{
+                static ref MockFoo_bar_expectation: ::std::sync::Mutex< ::mockall::Expectations<(u32), u64> >
+                = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            }
+            impl MockFoo {
+                pub fn bar(x: u32) -> u64 {
+                    MockFoo_bar_expectation.lock().unwrap().call((x))
+                }
+                pub fn expect_bar< 'guard>()
+                    -> ::mockall::ExpectationGuard< 'guard, (u32), u64>
+                {
+                    ::mockall::ExpectationGuard::new(
+                        MockFoo_bar_expectation.lock().unwrap()
+                    )
+                }
+            }
+        "#;
+        let code = r#"
+            Foo {
+                fn bar(x: u32) -> u64;
             }
         "#;
         check(desired, code);

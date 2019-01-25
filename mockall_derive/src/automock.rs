@@ -738,7 +738,9 @@ mod t {
         #[derive(Default)]
         struct MockA_A {
             foo: ::mockall::Expectations<(u32), u32> ,
-            bar: ::mockall::Expectations<(), u32> ,
+        }
+        ::mockall::lazy_static!{
+            static ref MockA_A_bar_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), u32> > = ::std::sync::Mutex::new(::mockall::Expectations::new());
         }
         impl MockA {}
         impl A for MockA {
@@ -746,7 +748,7 @@ mod t {
                 self.A_expectations.foo.call((x))
             }
             fn bar() -> u32 {
-                unimplemented!("Expectations on static methods are TODO");
+                MockA_A_bar_expectation.lock().unwrap().call(())
             }
         }
         impl MockA {
@@ -754,6 +756,13 @@ mod t {
                 -> &mut ::mockall::Expectation<(u32), u32>
             {
                 self.A_expectations.foo.expect()
+            }
+            pub fn expect_bar< 'guard>()
+                -> ::mockall::ExpectationGuard< 'guard, (), u32>
+            {
+                ::mockall::ExpectationGuard::new(
+                    MockA_A_bar_expectation.lock().unwrap()
+                )
             }
         }"#,
         r#"

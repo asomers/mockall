@@ -11,6 +11,7 @@ nightly = []
 [dependencies]
 cfg-if = "0.1"
 downcast = "0.9"
+lazy_static = "1.0"
 predicates = "1.0"
 predicates-tree = "1.0"
 mockall_derive = { path = "../mockall_derive" }
