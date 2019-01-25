@@ -3,6 +3,54 @@
 use mockall::*;
 
 #[test]
+fn checkpoint_ok() {
+    let mut e = Expectations::<i32, i32>::new();
+    e.expect()
+        .returning(|_| 42)
+        .times_range(1..3);
+    e.call(0);
+    e.checkpoint();
+}
+
+#[test]
+fn checkpoint_and_expect_again() {
+    let mut e = Expectations::<i32, i32>::new();
+    e.expect()
+        .returning(|_| 42)
+        .times_range(1..3);
+    e.call(0);
+    e.checkpoint();
+
+    e.expect()
+        .returning(|_| 25);
+    assert_eq!(25, e.call(0));
+}
+
+#[test]
+#[should_panic(expected = "Expectation called fewer than 1 times")]
+fn checkpoint_not_yet_satisfied() {
+    let mut e = Expectations::<i32, i32>::new();
+    e.expect()
+        .returning(|_| 42)
+        .times(1);
+    e.checkpoint();
+    panic!("Shouldn't get here!");
+}
+
+#[test]
+#[should_panic(expected = "No matching expectation found")]
+fn checkpoint_removes_old_expectations() {
+    let mut e = Expectations::<i32, i32>::new();
+    e.expect()
+        .returning(|_| 42)
+        .times_range(1..3);
+    e.call(0);
+    e.checkpoint();
+    e.call(0);
+    panic!("Shouldn't get here!");
+}
+
+#[test]
 #[should_panic(expected = "No matching expectation found")]
 fn no_expectations() {
     let e = Expectations::<i32, i32>::new();

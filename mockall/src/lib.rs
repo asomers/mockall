@@ -324,6 +324,11 @@ macro_rules! expectations_common {
             }
         }
 
+        /// Verify that all current expectations are satisfied and clear them.
+        pub fn checkpoint(&mut self) {
+            self.0.drain(..);
+        }
+
         pub fn expect(&mut self) -> &mut $klass<I, O> {
             let e = $klass::new();
             self.0.push(e);
