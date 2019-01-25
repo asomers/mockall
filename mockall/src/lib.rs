@@ -553,6 +553,11 @@ impl GenericExpectations {
         e.call(args)
     }
 
+    /// Verify that all current expectations are satisfied and clear them.
+    pub fn checkpoint(&mut self) {
+        self.store.clear();
+    }
+
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut Expectation<I, O>
         where I: 'static, O: 'static
     {
@@ -581,6 +586,20 @@ pub struct GenericRefExpectations {
 }
 
 impl GenericRefExpectations {
+    pub fn call<I: 'static, O: 'static>(&self, args: I) -> &O {
+        let key = Key::new::<I, O>();
+        let e: &RefExpectations<I, O> = self.store.get(&key)
+            .expect("No matching expectation found")
+            .downcast_ref()
+            .unwrap();
+        e.call(args)
+    }
+
+    /// Verify that all current expectations are satisfied and clear them.
+    pub fn checkpoint(&mut self) {
+        self.store.clear();
+    }
+
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefExpectation<I, O>
         where I: 'static, O: Send + 'static
     {
@@ -593,15 +612,6 @@ impl GenericRefExpectations {
             .downcast_mut()
             .unwrap();
         ee.expect()
-    }
-
-    pub fn call<I: 'static, O: 'static>(&self, args: I) -> &O {
-        let key = Key::new::<I, O>();
-        let e: &RefExpectations<I, O> = self.store.get(&key)
-            .expect("No matching expectation found")
-            .downcast_ref()
-            .unwrap();
-        e.call(args)
     }
 }
 
@@ -621,6 +631,11 @@ impl GenericRefMutExpectations {
             .downcast_mut()
             .unwrap();
         e.call_mut(args)
+    }
+
+    /// Verify that all current expectations are satisfied and clear them.
+    pub fn checkpoint(&mut self) {
+        self.store.clear();
     }
 
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefMutExpectation<I, O>

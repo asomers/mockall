@@ -6,6 +6,54 @@ mod generic_expectation {
     use super::*;
 
     #[test]
+    fn checkpoint_ok() {
+        let mut e = GenericExpectations::default();
+        e.expect::<i32, u32>()
+            .returning(|_| 42)
+            .times_range(1..3);
+        e.call::<i32, u32>(0);
+        e.checkpoint();
+    }
+
+    #[test]
+    fn checkpoint_and_expect_again() {
+        let mut e = GenericExpectations::default();
+        e.expect::<i32, u32>()
+            .returning(|_| 42)
+            .times_range(1..3);
+        e.call::<i32, u32>(0);
+        e.checkpoint();
+
+        e.expect::<i32, u32>()
+            .returning(|_| 25);
+        assert_eq!(25, e.call::<i32, u32>(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called fewer than 1 times")]
+    fn checkpoint_not_yet_satisfied() {
+        let mut e = GenericExpectations::default();
+        e.expect::<i32, u32>()
+            .returning(|_| 42)
+            .times(1);
+        e.checkpoint();
+        panic!("Shouldn't get here!");
+    }
+
+    #[test]
+    #[should_panic(expected = "No matching expectation found")]
+    fn checkpoint_removes_old_expectations() {
+        let mut e = GenericExpectations::default();
+        e.expect::<i32, u32>()
+            .returning(|_| 42)
+            .times_range(1..3);
+        e.call::<i32, u32>(0);
+        e.checkpoint();
+        e.call::<i32, u32>(0);
+        panic!("Shouldn't get here!");
+    }
+
+    #[test]
     #[should_panic(expected = "No matching expectation found")]
     fn missing_expectation() {
         let e = GenericExpectations::default();
