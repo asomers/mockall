@@ -96,7 +96,7 @@ impl Attrs {
             },
             syn::Type::Macro(_) | syn::Type::Verbatim(_) => {
                 compile_error(ty.span(),
-                    "mockall_derive does not support this type when using associated tyeps");
+                    "mockall_derive does not support this type when using associated types");
             },
             syn::Type::Infer(_) | syn::Type::Never(_) => {
                 /* Nothing to do */
