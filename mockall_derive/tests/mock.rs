@@ -3,6 +3,107 @@
 
 use mockall_derive::*;
 
+mod checkpoint {
+    use super::*;
+
+    // Each checkpoint test must use a separate Mock class, because of the
+    // static method.
+    macro_rules! mock_foo {
+        () => {
+            mock!{
+                Foo {
+                    fn bar(&self) -> u32;
+                    fn baz() -> u32;
+                }
+            }
+        }
+    }
+
+    mod ok {
+        use super::*;
+        mock_foo!{}
+
+        #[test]
+        fn t() {
+            let mut mock = MockFoo::default();
+            mock.expect_bar()
+                .returning(|_| 5)
+                .times_range(1..3);
+            mock.bar();
+            mock.checkpoint();
+        }
+    }
+
+    mod expect_again {
+        use super::*;
+        mock_foo!{}
+
+        #[test]
+        fn t() {
+            let mut mock = MockFoo::default();
+            mock.expect_bar()
+                .returning(|_| 42)
+                .times_range(1..3);
+            mock.bar();
+            mock.checkpoint();
+
+            mock.expect_bar()
+                .returning(|_| 25);
+            assert_eq!(25, mock.bar());
+        }
+    }
+
+    mod not_yet_satisfied {
+        use super::*;
+        mock_foo!{}
+
+        #[test]
+        #[should_panic(expected = "Expectation called fewer than 1 times")]
+        fn t() {
+            let mut mock = MockFoo::default();
+            mock.expect_bar()
+                .returning(|_| 42)
+                .times(1);
+            mock.checkpoint();
+            panic!("Shouldn't get here!");
+        }
+    }
+
+    mod removes_old_expectations {
+        use super::*;
+        mock_foo!{}
+
+        #[test]
+        #[should_panic(expected = "No matching expectation found")]
+        fn t() {
+            let mut mock = MockFoo::default();
+            mock.expect_bar()
+                .returning(|_| 42)
+                .times_range(1..3);
+            mock.bar();
+            mock.checkpoint();
+            mock.bar();
+            panic!("Shouldn't get here!");
+        }
+    }
+
+    mod static_method {
+        use super::*;
+        mock_foo!{}
+
+        #[test]
+        #[should_panic(expected = "Expectation called fewer than 1 times")]
+        fn t() {
+            let mut mock = MockFoo::default();
+            MockFoo::expect_baz()
+                .returning(|_| 32)
+                .times_range(1..3);
+            mock.checkpoint();
+            panic!("Shouldn't get here!");
+        }
+    }
+}
+
 // Semiautomatic style mocking with associated types
 mod associated_types_mock {
     use super::*;

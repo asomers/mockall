@@ -389,7 +389,16 @@ mod t {
         struct MockA_A {
             foo: ::mockall::Expectations<(u32), u32> ,
         }
-        impl MockA {}
+        impl MockA_A {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.A_expectations.checkpoint();
+            }
+        }
         impl A for MockA {
             type T = u32;
             fn foo(&self, x: u32) -> u32 {
@@ -420,7 +429,16 @@ mod t {
         struct MockA_A {
             foo: ::mockall::GenericExpectations,
         }
-        impl MockA {}
+        impl MockA_A {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.A_expectations.checkpoint();
+            }
+        }
         impl A for MockA {
             fn foo<T: 'static>(&self, t: T) {
                 self.A_expectations.foo.call:: <(T), ()>((t))
@@ -456,6 +474,9 @@ mod t {
             {
                 self.foo.expect()
             }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
         }"#, r#"
         impl<'a, T, V> GenericStruct<'a, T, V> {
             fn foo(&self, x: u32) -> i64 {
@@ -482,6 +503,9 @@ mod t {
             {
                 self.foo.expect()
             }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
         }"#, r#"
         impl<'a, T: Copy, V: Clone> GenericStruct<'a, T, V> {
             fn foo(&self, x: u32) -> i64 {
@@ -503,7 +527,16 @@ mod t {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        impl<T> MockGenericTrait<T> {}
+        impl<T> MockGenericTrait_GenericTrait<T> {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl<T> MockGenericTrait<T> {
+            pub fn checkpoint(&mut self) {
+                self.GenericTrait_expectations.checkpoint();
+            }
+        }
         impl<T> GenericTrait<T> for MockGenericTrait<T> {
             fn foo(&self) {
                 self.GenericTrait_expectations.foo.call(())
@@ -533,7 +566,16 @@ mod t {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        impl<T: Copy> MockGenericTrait<T> {}
+        impl<T: Copy> MockGenericTrait_GenericTrait<T> {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl<T: Copy> MockGenericTrait<T> {
+            pub fn checkpoint(&mut self) {
+                self.GenericTrait_expectations.checkpoint();
+            }
+        }
         impl<T: Copy> GenericTrait<T> for MockGenericTrait<T> {
             fn foo(&self) {
                 self.GenericTrait_expectations.foo.call(())
@@ -566,7 +608,16 @@ mod t {
         struct MockSomeStruct_Foo {
             foo: ::mockall::Expectations<(u32), i64> ,
         }
-        impl MockSomeStruct { }
+        impl MockSomeStruct_Foo {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl MockSomeStruct {
+            pub fn checkpoint(&mut self) {
+                self.Foo_expectations.checkpoint();
+            }
+        }
         impl Foo for MockSomeStruct {
             fn foo(&self, x: u32) -> i64 {
                 self.Foo_expectations.foo.call((x))
@@ -601,7 +652,16 @@ mod t {
         struct MockSomeStruct_Foo {
             foo: ::mockall::Expectations<(u32), i64> ,
         }
-        impl<T> MockSomeStruct<T> {}
+        impl MockSomeStruct_Foo {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl<T> MockSomeStruct<T> {
+            pub fn checkpoint(&mut self) {
+                self.Foo_expectations.checkpoint();
+            }
+        }
         impl<T> Foo for MockSomeStruct<T> {
             fn foo(&self, x: u32) -> i64 {
                 self.Foo_expectations.foo.call((x))
@@ -637,6 +697,9 @@ mod t {
             {
                 self.foo.expect()
             }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
         }"#, r#"
         impl MethodByValue {
             fn foo(self, x: u32) -> i64 {
@@ -657,7 +720,16 @@ mod t {
         struct MockSimpleTrait_SimpleTrait {
             foo: ::mockall::Expectations<(), ()> ,
         }
-        impl MockSimpleTrait {}
+        impl MockSimpleTrait_SimpleTrait {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl MockSimpleTrait {
+            pub fn checkpoint(&mut self) {
+                self.SimpleTrait_expectations.checkpoint();
+            }
+        }
         impl SimpleTrait for MockSimpleTrait {
             fn foo(&self) {
                 self.SimpleTrait_expectations.foo.call(())
@@ -691,6 +763,9 @@ mod t {
             {
                 self.foo.expect()
             }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
         }"#, r#"
         impl SimpleStruct {
             fn foo(&self, x: u32) -> i64 {
@@ -710,7 +785,16 @@ mod t {
         struct MockSimpleTrait_SimpleTrait {
             foo: ::mockall::Expectations<(u32), i64> ,
         }
-        impl MockSimpleTrait {}
+        impl MockSimpleTrait_SimpleTrait {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl MockSimpleTrait {
+            pub fn checkpoint(&mut self) {
+                self.SimpleTrait_expectations.checkpoint();
+            }
+        }
         impl SimpleTrait for MockSimpleTrait {
             fn foo(&self, x: u32) -> i64 {
                 self.SimpleTrait_expectations.foo.call((x))
@@ -742,7 +826,17 @@ mod t {
         ::mockall::lazy_static!{
             static ref MockA_A_bar_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), u32> > = ::std::sync::Mutex::new(::mockall::Expectations::new());
         }
-        impl MockA {}
+        impl MockA_A {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+                MockA_A_bar_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.A_expectations.checkpoint();
+            }
+        }
         impl A for MockA {
             fn foo(&self, x: u32) -> u32 {
                 self.A_expectations.foo.call((x))
@@ -787,6 +881,9 @@ mod t {
                 -> &mut ::mockall::Expectation<(u32, u32), i64>
             {
                 self.foo.expect()
+            }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
             }
         }"#, r#"
         impl TwoArgs {
