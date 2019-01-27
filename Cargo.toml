@@ -4,3 +4,4 @@ members = ["mockall", "mockall_derive"]
 [patch.crates-io]
 predicates = { git = "https://github.com/assert-rs/predicates-rs/", rev = "0efce97" }
 predicates-tree = { git = "https://github.com/assert-rs/predicates-rs/", rev = "0efce97" }
+downcast = { git = "https://github.com/asomers/downcast-rs/", rev = "c65a1aa"}
