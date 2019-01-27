@@ -13,10 +13,14 @@ struct MethodTypes {
     is_static: bool,
     input_type: syn::TypeTuple,
     output_type: syn::Type,
-    /// Type of Expectation object stored in the mock structure
-    expect_obj: syn::Type,
     /// Type of Expectation returned by the expect method
     expectation: syn::Type,
+    /// Type of Expectations container used by the expect method, without its
+    /// generics fields
+    expectations: syn::Type,
+    /// Type of Expectation object stored in the mock structure, with generics
+    /// fields
+    expect_obj: syn::Type,
     /// Method to call when invoking the expectation
     call: syn::Ident,
     /// Any turbofish needed when invoking the expectation
@@ -258,6 +262,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     let ident = gen_mock_ident(&ident);
     let mut body = TokenStream::new();
     let mut statics = TokenStream::new();
+    let mut default_body = TokenStream::new();
 
     // Make Expectation fields for each method
     for (sub, sub_generics) in subs.iter() {
@@ -266,11 +271,14 @@ fn gen_struct<T>(vis: &syn::Visibility,
         let sub_struct = syn::Ident::new(&format!("{}_expectations", sub), spn);
         let sub_mock = syn::Ident::new(&format!("{}_{}", ident, sub), spn);
         quote!(#sub_struct: #sub_mock #tg,).to_tokens(&mut body);
+        quote!(#sub_struct: #sub_mock::default(),)
+            .to_tokens(&mut default_body)
     }
     for meth in methods.iter() {
         let method_ident = &meth.borrow().sig.ident;
         let meth_types = method_types(&meth.borrow().sig);
         let expect_obj = &meth_types.expect_obj;
+        let expectations = &meth_types.expectations;
         if meth_types.is_static {
             let name = syn::Ident::new(
                 &format!("{}_{}_expectation", ident, method_ident),
@@ -280,6 +288,8 @@ fn gen_struct<T>(vis: &syn::Visibility,
                 ).to_tokens(&mut statics);
         } else {
             quote!(#method_ident: #expect_obj,).to_tokens(&mut body);
+            quote!(#method_ident: #expectations::default(),)
+                .to_tokens(&mut default_body)
         }
     }
 
@@ -308,10 +318,11 @@ fn gen_struct<T>(vis: &syn::Visibility,
                     "#automock does not yet support generic constants");
             }
         }
+        quote!(#phident: ::std::marker::PhantomData,)
+            .to_tokens(&mut default_body);
         count += 1;
     }
     quote!(
-        #[derive(Default)]
         #vis struct #ident #generics {
             #body
         }
@@ -321,6 +332,14 @@ fn gen_struct<T>(vis: &syn::Visibility,
             #statics
         }).to_tokens(&mut output);
     }
+    let (ig, tg, wc) = generics.split_for_impl();
+    quote!(impl #ig ::std::default::Default for #ident #tg #wc {
+        fn default() -> Self {
+            Self {
+                #default_body
+            }
+        }
+    }).to_tokens(&mut output);
 
     output
 }
@@ -402,20 +421,26 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     } else {
         None
     };
-    let expect_obj = if is_generic {
-        let name = syn::Ident::new(&format!("Generic{}s", partial_ex), span);
-        syn::parse2(quote!(::mockall::#name)).unwrap()
+    let expectations_ident = if is_generic {
+        syn::Ident::new(&format!("Generic{}s", partial_ex), span)
     } else {
-        let name = syn::Ident::new(&format!("{}s", partial_ex), span);
+        syn::Ident::new(&format!("{}s", partial_ex), span)
+    };
+    let expectations = syn::parse2(
+        quote!(::mockall::#expectations_ident)
+    ).unwrap();
+    let expect_obj = if is_generic {
+        syn::parse2(quote!(#expectations)).unwrap()
+    } else {
         syn::parse2(
-            quote!(::mockall::#name<#input_type, #output_type>)
+            quote!(#expectations<#input_type, #output_type>)
         ).unwrap()
     };
     let expect_ts = quote!(::mockall::#partial_ex);
     let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
 
-    MethodTypes{is_static, input_type, output_type, expectation, call,
-                expect_obj, call_turbofish}
+    MethodTypes{is_static, input_type, output_type, expectation, expectations,
+                call, expect_obj, call_turbofish}
 }
 
 /// Generate mock methods for a Trait
@@ -535,9 +560,15 @@ mod t {
     #[test]
     fn generic_method() {
         let desired = r#"
-            #[derive(Default)]
             struct MockSomeStruct {
                 foo: ::mockall::GenericExpectations,
+            }
+            impl ::std::default::Default for MockSomeStruct {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::GenericExpectations::default(),
+                    }
+                }
             }
             impl MockSomeStruct {
                 pub fn foo<T: 'static>(&self, t: T) {
@@ -564,10 +595,17 @@ mod t {
     #[test]
     fn generic_struct() {
         let desired = r#"
-            #[derive(Default)]
             struct MockExternalStruct<T: Clone> {
                 foo: ::mockall::Expectations<(u32), i64> ,
                 _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T: Clone> ::std::default::Default for MockExternalStruct<T> {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
             }
             impl<T: Clone> MockExternalStruct<T> {
                 pub fn foo(&self, x: u32) -> i64 {
@@ -596,14 +634,28 @@ mod t {
     #[test]
     fn generic_struct_with_trait() {
         let desired = r#"
-            #[derive(Default)]
             struct MockExternalStruct<T: Copy + 'static> {
                 Foo_expectations: MockExternalStruct_Foo,
                 _t0: ::std::marker::PhantomData<T> ,
             }
-            #[derive(Default)]
+            impl<T: Copy + 'static>
+            ::std::default::Default for MockExternalStruct<T> {
+                fn default() -> Self {
+                    Self {
+                        Foo_expectations: MockExternalStruct_Foo::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
             struct MockExternalStruct_Foo {
                 foo: ::mockall::Expectations<(u32), u32> ,
+            }
+            impl ::std::default::Default for MockExternalStruct_Foo {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                    }
+                }
             }
             impl MockExternalStruct_Foo {
                 fn checkpoint(&mut self) {
@@ -641,16 +693,33 @@ mod t {
     #[test]
     fn generic_struct_with_generic_trait() {
         let desired = r#"
-            #[derive(Default)]
             struct MockExternalStruct<T: 'static, Z: 'static> {
                 Foo_expectations: MockExternalStruct_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
             }
-            #[derive(Default)]
+            impl<T: 'static, Z: 'static>
+            ::std::default::Default for MockExternalStruct<T, Z> {
+                fn default() -> Self {
+                    Self {
+                        Foo_expectations: MockExternalStruct_Foo::default(),
+                        _t0: ::std::marker::PhantomData,
+                        _t1: ::std::marker::PhantomData,
+                    }
+                }
+            }
             struct MockExternalStruct_Foo<T: 'static> {
                 foo: ::mockall::Expectations<(T), T> ,
                 _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T: 'static>
+            ::std::default::Default for MockExternalStruct_Foo<T> {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
             }
             impl<T: 'static> MockExternalStruct_Foo<T> {
                 fn checkpoint(&mut self) {
@@ -686,15 +755,30 @@ mod t {
 
     #[test]
     fn generic_trait() {
-        let desired = r#"#[derive(Default)]
+        let desired = r#"
         struct MockExternalStruct<T> {
             GenericTrait_expectations: MockExternalStruct_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        #[derive(Default)]
+        impl<T> ::std::default::Default for MockExternalStruct<T> {
+            fn default() -> Self {
+                Self {
+                    GenericTrait_expectations: MockExternalStruct_GenericTrait::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
         struct MockExternalStruct_GenericTrait<T> {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T> ::std::default::Default for MockExternalStruct_GenericTrait<T> {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
         }
         impl<T> MockExternalStruct_GenericTrait<T> {
             fn checkpoint(&mut self) {
@@ -734,23 +818,42 @@ mod t {
             fn bar(&self);
         }
         let desired = r#"
-        #[derive(Default)]
         struct MockExternalStruct {
             A_expectations: MockExternalStruct_A,
             B_expectations: MockExternalStruct_B,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockExternalStruct {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockExternalStruct_A::default(),
+                    B_expectations: MockExternalStruct_B::default(),
+                }
+            }
+        }
         struct MockExternalStruct_A {
             foo: ::mockall::Expectations<(), ()> ,
+        }
+        impl ::std::default::Default for MockExternalStruct_A {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockExternalStruct_A {
             fn checkpoint(&mut self) {
                 self.foo.checkpoint();
             }
         }
-        #[derive(Default)]
         struct MockExternalStruct_B {
             bar: ::mockall::Expectations<(), ()> ,
+        }
+        impl ::std::default::Default for MockExternalStruct_B {
+            fn default() -> Self {
+                Self {
+                    bar: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockExternalStruct_B {
             fn checkpoint(&mut self) {
@@ -800,10 +903,17 @@ mod t {
     #[test]
     fn reference_arguments() {
         let desired = r#"
-        #[derive(Default)]
         struct MockFoo< 'a> {
             foo: ::mockall::Expectations<(& 'a u32), ()> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
+        }
+        impl< 'a> ::std::default::Default for MockFoo< 'a> {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
         }
         impl< 'a> MockFoo< 'a> {
             pub fn foo(&self, x: & 'a u32) {
@@ -830,9 +940,15 @@ mod t {
     #[test]
     fn reference_return() {
         let desired = r#"
-        #[derive(Default)]
         struct MockFoo {
             foo: ::mockall::RefExpectations<(), u32> ,
+        }
+        impl ::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::RefExpectations::default(),
+                }
+            }
         }
         impl MockFoo {
             pub fn foo(&self) -> &u32 {
@@ -859,13 +975,25 @@ mod t {
     #[test]
     fn reference_return_from_trait() {
         let desired = r#"
-        #[derive(Default)]
         struct MockX {
             Foo_expectations: MockX_Foo ,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockX {
+            fn default() -> Self {
+                Self {
+                    Foo_expectations: MockX_Foo::default(),
+                }
+            }
+        }
         struct MockX_Foo {
             foo: ::mockall::RefExpectations<(), u32> ,
+        }
+        impl ::std::default::Default for MockX_Foo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::RefExpectations::default(),
+                }
+            }
         }
         impl MockX_Foo {
             fn checkpoint(&mut self) {
@@ -902,9 +1030,15 @@ mod t {
     #[test]
     fn ref_mut_return() {
         let desired = r#"
-        #[derive(Default)]
         struct MockFoo {
             foo: ::mockall::RefMutExpectations<(), u32> ,
+        }
+        impl ::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::RefMutExpectations::default(),
+                }
+            }
         }
         impl MockFoo {
             pub fn foo(&mut self) -> &mut u32 {
@@ -931,12 +1065,16 @@ mod t {
     #[test]
     fn static_method() {
         let desired = r#"
-            #[derive(Default)]
             struct MockFoo {
             }
             ::mockall::lazy_static!{
                 static ref MockFoo_bar_expectation: ::std::sync::Mutex< ::mockall::Expectations<(u32), u64> >
                 = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            }
+            impl ::std::default::Default for MockFoo {
+                fn default() -> Self {
+                    Self { }
+                }
             }
             impl MockFoo {
                 pub fn bar(x: u32) -> u64 {
@@ -965,15 +1103,25 @@ mod t {
     #[test]
     fn static_trait_method() {
         let desired = r#"
-            #[derive(Default)]
             struct MockFoo {
                 Bar_expectations: MockFoo_Bar,
             }
-            #[derive(Default)]
+            impl ::std::default::Default for MockFoo {
+                fn default() -> Self {
+                    Self {
+                        Bar_expectations: MockFoo_Bar::default(),
+                    }
+                }
+            }
             struct MockFoo_Bar {}
             ::mockall::lazy_static!{
                 static ref MockFoo_Bar_baz_expectation: ::std::sync::Mutex< ::mockall::Expectations<(u32), u64> >
                 = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            }
+            impl ::std::default::Default for MockFoo_Bar {
+                fn default() -> Self {
+                    Self {}
+                }
             }
             impl MockFoo_Bar {
                 fn checkpoint(&mut self) {
@@ -1013,10 +1161,17 @@ mod t {
     #[test]
     fn struct_() {
         let desired = r#"
-            #[derive(Default)]
             struct MockExternalStruct {
                 foo: ::mockall::Expectations<(u32), i64> ,
                 bar: ::mockall::Expectations<(u64), i32> ,
+            }
+            impl ::std::default::Default for MockExternalStruct {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                        bar: ::mockall::Expectations::default(),
+                    }
+                }
             }
             impl MockExternalStruct {
                 pub fn foo(&self, x: u32) -> i64 {
@@ -1055,13 +1210,25 @@ mod t {
     #[test]
     fn struct_with_trait() {
         let desired = r#"
-            #[derive(Default)]
             struct MockExternalStruct {
                 Foo_expectations: MockExternalStruct_Foo,
             }
-            #[derive(Default)]
+            impl ::std::default::Default for MockExternalStruct {
+                fn default() -> Self {
+                    Self {
+                        Foo_expectations: MockExternalStruct_Foo::default(),
+                    }
+                }
+            }
             struct MockExternalStruct_Foo {
                 foo: ::mockall::Expectations<(u32), i64> ,
+            }
+            impl ::std::default::Default for MockExternalStruct_Foo {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                    }
+                }
             }
             impl MockExternalStruct_Foo  {
                 fn checkpoint(&mut self) {
@@ -1100,13 +1267,25 @@ mod t {
     #[test]
     fn struct_with_trait_with_associated_types() {
         let desired = r#"
-            #[derive(Default)]
             struct MockMyIter {
                 Iterator_expectations: MockMyIter_Iterator,
             }
-            #[derive(Default)]
+            impl ::std::default::Default for MockMyIter {
+                fn default() -> Self {
+                    Self {
+                        Iterator_expectations: MockMyIter_Iterator::default(),
+                    }
+                }
+            }
             struct MockMyIter_Iterator {
                 next: ::mockall::Expectations<(), Option<u32> > ,
+            }
+            impl ::std::default::Default for MockMyIter_Iterator {
+                fn default() -> Self {
+                    Self {
+                        next: ::mockall::Expectations::default(),
+                    }
+                }
             }
             impl MockMyIter_Iterator {
                 fn checkpoint(&mut self) {

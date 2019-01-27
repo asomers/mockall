@@ -250,6 +250,31 @@ mod generic_method_returning_reference {
     }
 }
 
+/// mock a generic struct and instantiate it with a parameter type that does not
+/// implement Default
+mod generic_struct_with_non_default_parameter {
+    use super::*;
+
+    struct NonDefault();
+
+    trait Foo<T> {
+        fn foo(&self) -> T;
+    }
+    mock! {
+        ExternalStruct<T> {}
+        trait Foo<T> {
+            fn foo(&self) -> T;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockExternalStruct::<NonDefault>::default();
+        mock.expect_foo().returning(|_| NonDefault());
+        mock.foo();
+    }
+}
+
 /// Use mock! to mock a generic struct
 mod generic_struct_with_generic_trait {
     use super::*;

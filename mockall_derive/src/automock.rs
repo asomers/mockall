@@ -381,13 +381,26 @@ mod t {
     #[test]
     fn associated_types() {
         check("type T=u32;",
-        r#"#[derive(Default)]
+        r#"
         struct MockA {
             A_expectations: MockA_A,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockA_A::default(),
+                }
+            }
+        }
         struct MockA_A {
             foo: ::mockall::Expectations<(u32), u32> ,
+        }
+        impl ::std::default::Default for MockA_A {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
@@ -421,13 +434,26 @@ mod t {
     #[test]
     fn generic_method() {
         check("",
-        r#"#[derive(Default)]
+        r#"
         struct MockA {
             A_expectations : MockA_A ,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockA_A::default(),
+                }
+            }
+        }
         struct MockA_A {
             foo: ::mockall::GenericExpectations,
+        }
+        impl ::std::default::Default for MockA_A {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::GenericExpectations::default(),
+                }
+            }
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
@@ -459,12 +485,23 @@ mod t {
     #[test]
     fn generic_struct() {
         check("",
-        r#"#[derive(Default)]
+        r#"
         pub struct MockGenericStruct< 'a, T, V> {
             foo: ::mockall::Expectations<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
             _t2: ::std::marker::PhantomData<V> ,
+        }
+        impl< 'a, T, V>
+        ::std::default::Default for MockGenericStruct< 'a, T, V> {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                    _t1: ::std::marker::PhantomData,
+                    _t2: ::std::marker::PhantomData,
+                }
+            }
         }
         impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
             pub fn foo(&self, x: u32) -> i64 {
@@ -487,13 +524,23 @@ mod t {
 
     #[test]
     fn generic_struct_with_bounds() {
-        check("",
-        r#"#[derive(Default)]
+        check("", r#"
         pub struct MockGenericStruct< 'a, T: Copy, V: Clone> {
             foo: ::mockall::Expectations<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
             _t2: ::std::marker::PhantomData<V> ,
+        }
+        impl< 'a, T: Copy, V: Clone>
+        ::std::default::Default for MockGenericStruct< 'a, T, V> {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                    _t1: ::std::marker::PhantomData,
+                    _t2: ::std::marker::PhantomData,
+                }
+            }
         }
         impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
             pub fn foo(&self, x: u32) -> i64 {
@@ -516,16 +563,31 @@ mod t {
 
     #[test]
     fn generic_trait() {
-        check("",
-        r#"#[derive(Default)]
+        check("", r#"
         struct MockGenericTrait<T> {
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        #[derive(Default)]
+        impl<T> ::std::default::Default for MockGenericTrait<T> {
+            fn default() -> Self {
+                Self {
+                    GenericTrait_expectations:
+                        MockGenericTrait_GenericTrait::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
         struct MockGenericTrait_GenericTrait<T> {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T> ::std::default::Default for MockGenericTrait_GenericTrait<T> {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
         }
         impl<T> MockGenericTrait_GenericTrait<T> {
             fn checkpoint(&mut self) {
@@ -556,16 +618,34 @@ mod t {
     #[test]
     fn generic_trait_with_bound() {
         check("",
-        r#"#[derive(Default)]
+        r#"
         struct MockGenericTrait<T: Copy> {
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        #[derive(Default)]
+        impl<T: Copy> ::std::default::Default for MockGenericTrait<T> {
+            fn default() -> Self {
+                Self {
+                    GenericTrait_expectations:
+                        MockGenericTrait_GenericTrait::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
         struct MockGenericTrait_GenericTrait<T: Copy> {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
+        impl<T: Copy>
+        ::std::default::Default for MockGenericTrait_GenericTrait<T> {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
+
         impl<T: Copy> MockGenericTrait_GenericTrait<T> {
             fn checkpoint(&mut self) {
                 self.foo.checkpoint();
@@ -600,13 +680,26 @@ mod t {
             fn foo(&self, x: u32) -> i64;
         }
         check("",
-        r#"#[derive(Default)]
+        r#"
         pub struct MockSomeStruct {
             Foo_expectations: MockSomeStruct_Foo ,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockSomeStruct {
+            fn default() -> Self {
+                Self {
+                    Foo_expectations: MockSomeStruct_Foo::default(),
+                }
+            }
+        }
         struct MockSomeStruct_Foo {
             foo: ::mockall::Expectations<(u32), i64> ,
+        }
+        impl ::std::default::Default for MockSomeStruct_Foo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockSomeStruct_Foo {
             fn checkpoint(&mut self) {
@@ -643,14 +736,28 @@ mod t {
             fn foo(&self, x: u32) -> i64;
         }
         check("",
-        r#"#[derive(Default)]
+        r#"
         pub struct MockSomeStruct<T> {
             Foo_expectations: MockSomeStruct_Foo,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        #[derive(Default)]
+        impl<T> ::std::default::Default for MockSomeStruct<T> {
+            fn default() -> Self {
+                Self {
+                    Foo_expectations: MockSomeStruct_Foo::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
         struct MockSomeStruct_Foo {
             foo: ::mockall::Expectations<(u32), i64> ,
+        }
+        impl ::std::default::Default for MockSomeStruct_Foo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockSomeStruct_Foo {
             fn checkpoint(&mut self) {
@@ -684,9 +791,16 @@ mod t {
     #[test]
     fn method_by_value() {
         check("",
-        r#"#[derive(Default)]
+        r#"
         pub struct MockMethodByValue {
             foo: ::mockall::Expectations<(u32), i64> ,
+        }
+        impl ::std::default::Default for MockMethodByValue {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockMethodByValue {
             pub fn foo(self, x: u32) -> i64 {
@@ -712,13 +826,26 @@ mod t {
     #[test]
     fn pub_trait() {
         check("",
-        &r#"#[derive(Default)]
+        &r#"
         pub struct MockSimpleTrait {
             SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockSimpleTrait {
+            fn default() -> Self {
+                Self {
+                    SimpleTrait_expectations: MockSimpleTrait_SimpleTrait::default(),
+                }
+            }
+        }
         struct MockSimpleTrait_SimpleTrait {
             foo: ::mockall::Expectations<(), ()> ,
+        }
+        impl ::std::default::Default for MockSimpleTrait_SimpleTrait {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockSimpleTrait_SimpleTrait {
             fn checkpoint(&mut self) {
@@ -750,9 +877,16 @@ mod t {
     #[test]
     fn simple_struct() {
         check("",
-        r#"#[derive(Default)]
+        r#"
         pub struct MockSimpleStruct {
             foo: ::mockall::Expectations<(u32), i64> ,
+        }
+        impl ::std::default::Default for MockSimpleStruct {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockSimpleStruct {
             pub fn foo(&self, x: u32) -> i64 {
@@ -777,13 +911,26 @@ mod t {
     #[test]
     fn simple_trait() {
         check("",
-        &r#"#[derive(Default)]
+        &r#"
         struct MockSimpleTrait {
             SimpleTrait_expectations: MockSimpleTrait_SimpleTrait,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockSimpleTrait {
+            fn default() -> Self {
+                Self {
+                    SimpleTrait_expectations: MockSimpleTrait_SimpleTrait::default(),
+                }
+            }
+        }
         struct MockSimpleTrait_SimpleTrait {
             foo: ::mockall::Expectations<(u32), i64> ,
+        }
+        impl ::std::default::Default for MockSimpleTrait_SimpleTrait {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockSimpleTrait_SimpleTrait {
             fn checkpoint(&mut self) {
@@ -815,16 +962,29 @@ mod t {
     #[test]
     fn static_method() {
         check("",
-        &r#"#[derive(Default)]
+        &r#"
         struct MockA {
             A_expectations: MockA_A ,
         }
-        #[derive(Default)]
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockA_A::default(),
+                }
+            }
+        }
         struct MockA_A {
             foo: ::mockall::Expectations<(u32), u32> ,
         }
         ::mockall::lazy_static!{
             static ref MockA_A_bar_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), u32> > = ::std::sync::Mutex::new(::mockall::Expectations::new());
+        }
+        impl ::std::default::Default for MockA_A {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
@@ -869,9 +1029,16 @@ mod t {
     #[test]
     fn two_args() {
         check("",
-        r#"#[derive(Default)]
+        r#"
         pub struct MockTwoArgs {
             foo: ::mockall::Expectations<(u32, u32), i64> ,
+        }
+        impl ::std::default::Default for MockTwoArgs {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
         }
         impl MockTwoArgs {
             pub fn foo(&self, x: u32, y: u32) -> i64 {
@@ -892,5 +1059,4 @@ mod t {
             }
         }"#);
     }
-
 }
