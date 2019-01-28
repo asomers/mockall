@@ -411,6 +411,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.A_expectations.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }
         impl A for MockA {
             type T = u32;
@@ -464,6 +467,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.A_expectations.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }
         impl A for MockA {
             fn foo<T: 'static>(&self, t: T) {
@@ -514,6 +520,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }"#, r#"
         impl<'a, T, V> GenericStruct<'a, T, V> {
             fn foo(&self, x: u32) -> i64 {
@@ -552,6 +561,9 @@ mod t {
             }
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }"#, r#"
         impl<'a, T: Copy, V: Clone> GenericStruct<'a, T, V> {
@@ -597,6 +609,9 @@ mod t {
         impl<T> MockGenericTrait<T> {
             pub fn checkpoint(&mut self) {
                 self.GenericTrait_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }
         impl<T> GenericTrait<T> for MockGenericTrait<T> {
@@ -655,6 +670,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.GenericTrait_expectations.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }
         impl<T: Copy> GenericTrait<T> for MockGenericTrait<T> {
             fn foo(&self) {
@@ -709,6 +727,9 @@ mod t {
         impl MockSomeStruct {
             pub fn checkpoint(&mut self) {
                 self.Foo_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }
         impl Foo for MockSomeStruct {
@@ -768,6 +789,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.Foo_expectations.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }
         impl<T> Foo for MockSomeStruct<T> {
             fn foo(&self, x: u32) -> i64 {
@@ -814,6 +838,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }"#, r#"
         impl MethodByValue {
             fn foo(self, x: u32) -> i64 {
@@ -855,6 +882,9 @@ mod t {
         impl MockSimpleTrait {
             pub fn checkpoint(&mut self) {
                 self.SimpleTrait_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }
         impl SimpleTrait for MockSimpleTrait {
@@ -900,6 +930,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }"#, r#"
         impl SimpleStruct {
             fn foo(&self, x: u32) -> i64 {
@@ -940,6 +973,9 @@ mod t {
         impl MockSimpleTrait {
             pub fn checkpoint(&mut self) {
                 self.SimpleTrait_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }
         impl SimpleTrait for MockSimpleTrait {
@@ -996,6 +1032,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.A_expectations.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }
         impl A for MockA {
             fn foo(&self, x: u32) -> u32 {
@@ -1051,6 +1090,9 @@ mod t {
             }
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }"#, r#"
         impl TwoArgs {

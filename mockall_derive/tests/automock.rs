@@ -13,7 +13,7 @@ fn associated_types_auto() {
         fn foo(&self, x: Self::T) -> Self::T;
     }
 
-    let mut mock = MockA::default();
+    let mut mock = MockA::new();
     mock.expect_foo()
         .returning(|x| x);
     assert_eq!(4, mock.foo(4));
@@ -27,7 +27,7 @@ fn consume_parameters() {
         fn foo(&self, x: NonCopy);
     }
 
-    let mut mock = MockT::default();
+    let mut mock = MockT::new();
     mock.expect_foo()
         .returning(|_x: NonCopy| ());
     mock.foo(NonCopy{});
@@ -40,7 +40,7 @@ fn generic_parameters() {
         fn foo<T: 'static>(&self, t: T);
     }
 
-    let mut mock = MockA::default();
+    let mut mock = MockA::new();
     mock.expect_foo::<u32>()
         .returning(|_x: u32| ());
     mock.expect_foo::<i16>()
@@ -56,7 +56,7 @@ fn generic_parameters_returning_ref() {
         fn foo<T: 'static>(&self, t: T) -> &u32;
     }
 
-    let mut mock = MockA::default();
+    let mut mock = MockA::new();
     mock.expect_foo::<u32>().return_const(5);
     assert_eq!(5, *mock.foo(42u32));
 }
@@ -68,7 +68,7 @@ fn generic_return() {
         fn foo<T: 'static>(&self, t: T) -> T;
     }
 
-    let mut mock = MockA::default();
+    let mut mock = MockA::new();
     mock.expect_foo::<u32>()
         .returning(|_x: u32| 42u32);
     mock.expect_foo::<i16>()
@@ -92,7 +92,7 @@ fn generic_struct() {
         }
     }
 
-    let mut mock = MockGenericStruct::<'static, u8, i8>::default();
+    let mut mock = MockGenericStruct::<'static, u8, i8>::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
@@ -113,7 +113,7 @@ fn generic_struct_with_bounds() {
         }
     }
 
-    let mut mock = MockGenericStruct::<'static, u8, i8>::default();
+    let mut mock = MockGenericStruct::<'static, u8, i8>::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
@@ -126,7 +126,7 @@ fn generic_trait() {
         fn foo(&self);
     }
 
-    let mut mock = MockA::<u32>::default();
+    let mut mock = MockA::<u32>::new();
     mock.expect_foo()
         .returning(|_| ());
     mock.foo();
@@ -139,7 +139,7 @@ fn generic_trait_with_bounds() {
         fn foo(&self);
     }
 
-    let mut mock = MockA::<u32>::default();
+    let mut mock = MockA::<u32>::new();
     mock.expect_foo()
         .returning(|_| ());
     mock.foo();
@@ -163,7 +163,7 @@ fn impl_generic_trait() {
         }
     }
 
-    let mut mock = MockSomeStruct::<u32>::default();
+    let mut mock = MockSomeStruct::<u32>::new();
     mock.expect_foo()
         .returning(|t| t);
     assert_eq!(4, <MockSomeStruct<u32> as Foo<u32>>::foo(&mock, 4));
@@ -185,7 +185,7 @@ fn impl_trait() {
         }
     }
 
-    let mut mock = MockSomeStruct::default();
+    let mut mock = MockSomeStruct::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, <MockSomeStruct as Foo>::foo(&mock, 4));
@@ -209,7 +209,7 @@ fn impl_trait_on_generic() {
         }
     }
 
-    let mut mock = MockSomeStruct::<u32>::default();
+    let mut mock = MockSomeStruct::<u32>::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
@@ -226,7 +226,7 @@ fn many_args() {
                _a12: u8, _a13: u8, _a14: u8, _a15: u8);
     }
 
-    let mut mock = MockManyArgs::default();
+    let mut mock = MockManyArgs::new();
     mock.expect_foo()
         .returning(|_: (u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8)| ());
     mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -240,10 +240,39 @@ fn method_self_by_value() {
         fn foo(self, _x: u32) -> i64;
     }
 
-    let mut mock = MockMethodByValue::default();
+    let mut mock = MockMethodByValue::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
+}
+
+/// Structs with a "new" method should mock that method rather than add a new
+/// method just for the mock object.
+#[test]
+#[allow(unused)]
+fn new_method() {
+    pub struct Foo{}
+
+    #[automock]
+    impl Foo {
+        pub fn foo(&self) -> i16 {
+            unimplemented!()
+        }
+
+        pub fn new(_x: u32) -> Self {
+            unimplemented!()
+        }
+    }
+
+    let mut mock = MockFoo::default();
+    mock.expect_foo()
+        .returning(|_| -1);
+
+    MockFoo::expect_new()
+        .return_once(|_| mock);
+
+    let mock = MockFoo::new(5);
+    assert_eq!(-1, mock.foo());
 }
 
 #[test]
@@ -253,7 +282,7 @@ fn reference_return() {
         fn foo(&self) -> &u32;
     }
 
-    let mut mock = MockA::default();
+    let mut mock = MockA::new();
     mock.expect_foo().return_const(5);
     assert_eq!(5, *mock.foo());
 }
@@ -265,7 +294,7 @@ fn ref_mut_return() {
         fn foo(&mut self) -> &mut u32;
     }
 
-    let mut mock = MockA::default();
+    let mut mock = MockA::new();
     mock.expect_foo().return_var(5);
     {
         let r = mock.foo();
@@ -283,7 +312,7 @@ fn return_owned() {
         fn foo(&self) -> NonCopy;
     }
 
-    let mut mock = MockT::default();
+    let mut mock = MockT::new();
     let r = NonCopy{};
     mock.expect_foo()
         .return_once(|_| r);
@@ -299,7 +328,7 @@ fn return_owned() {
         //fn foo(&self, x: &mut u32);
     //}
 
-    //let mut mock = MockT::default();
+    //let mut mock = MockT::new();
     //let mut x = 5;
     //mock.expect_foo()
         //.returning(|x: &mut u32| {
@@ -316,7 +345,7 @@ fn send() {
         fn foo(&self) -> u32;
     }
 
-    let mock = MockT::default();
+    let mock = MockT::new();
     Box::new(mock) as Box<T + Send>;
 }
 
@@ -332,7 +361,7 @@ fn simple_struct() {
         }
     }
 
-    let mut mock = MockSimpleStruct::default();
+    let mut mock = MockSimpleStruct::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
@@ -345,7 +374,7 @@ fn simple_trait() {
         fn foo(&self, x: u32) -> u32;
     }
 
-    let mut mock = MockSimpleTrait::default();
+    let mut mock = MockSimpleTrait::new();
     mock.expect_foo()
         .returning(|x| x + 1);
     assert_eq!(5, mock.foo(4));

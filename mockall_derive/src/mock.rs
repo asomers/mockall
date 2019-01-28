@@ -40,6 +40,7 @@ impl Mock {
         let mut output = TokenStream::new();
         let mut mock_body = TokenStream::new();
         let mut cp_body = TokenStream::new();
+        let mut has_new = false;
         let mock_struct_name = gen_mock_ident(&self.name);
         let subs = self.traits.iter().map(|trait_| {
             (trait_.ident.to_string(), trait_.generics.clone())
@@ -85,6 +86,7 @@ impl Mock {
         // generate methods on the mock structure itself
         for meth in self.methods.iter() {
             // All mocked methods are public
+            has_new |= meth.sig.ident == &"new";
             let pub_token = syn::token::Pub{span: Span::call_site()};
             let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
             let (mm, em, cp) = gen_mock_method(&mock_struct_name, None, &vis,
@@ -93,10 +95,22 @@ impl Mock {
             em.to_tokens(&mut mock_body);
             cp.to_tokens(&mut cp_body);
         }
-        // generate the checkpoint method
-        quote!(pub fn checkpoint(&mut self) {
-            #cp_body
-        }).to_tokens(&mut mock_body);
+        // generate the mock struct's inherent methods
+        quote!(
+            pub fn checkpoint(&mut self) {
+                #cp_body
+            }
+        ).to_tokens(&mut mock_body);
+        // Add a "new" method if the struct doesn't already have one.  Add it
+        // even if the struct implements a trait that has a new method.  The
+        // trait's new method can still be called as `<MockX as TraitY>::new`
+        if !has_new {
+            quote!(
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            ).to_tokens(&mut mock_body);
+        }
         // generate methods on traits
         let generics = &self.generics;
         let (ig, tg, wc) = generics.split_for_impl();
@@ -172,9 +186,9 @@ fn gen_mock_method(mock_ident: &syn::Ident,
     } else {
         "".to_string()
     };
-    let meth_types = method_types(sig);
+    let mut meth_types = method_types(mock_ident, sig);
     let input_type = &meth_types.input_type;
-    let output_type = &meth_types.output_type;
+    let output_type = &mut meth_types.output_type;
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
     let call_turbofish = &meth_types.call_turbofish;
@@ -276,7 +290,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     }
     for meth in methods.iter() {
         let method_ident = &meth.borrow().sig.ident;
-        let meth_types = method_types(&meth.borrow().sig);
+        let meth_types = method_types(&ident, &meth.borrow().sig);
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
         if meth_types.is_static {
@@ -344,7 +358,61 @@ fn gen_struct<T>(vis: &syn::Visibility,
     output
 }
 
-fn method_types(sig: &syn::MethodSig) -> MethodTypes {
+/// Replace any references to `Self` in `literal_type` with `actual`.  Useful
+/// for constructor methods
+fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
+    match literal_type {
+        syn::Type::Slice(s) => {
+            deselfify(s.elem.as_mut(), actual);
+        },
+        syn::Type::Array(a) => {
+            deselfify(a.elem.as_mut(), actual);
+        },
+        syn::Type::Ptr(p) => {
+            deselfify(p.elem.as_mut(), actual);
+        },
+        syn::Type::Reference(r) => {
+            deselfify(r.elem.as_mut(), actual);
+        },
+        syn::Type::BareFn(_bfn) => {
+            unimplemented!()
+        },
+        syn::Type::Tuple(tuple) => {
+            for elem in tuple.elems.iter_mut() {
+                deselfify(elem, actual);
+            }
+        }
+        syn::Type::Path(type_path) => {
+            if let Some(ref _qself) = type_path.qself {
+                compile_error(type_path.span(), "QSelf is TODO");
+            }
+            let p = &mut type_path.path;
+            if p.leading_colon.is_none() & (p.segments.len() == 1) {
+                if p.segments.first().unwrap().value().ident == "Self" {
+                    p.segments.last_mut().unwrap().value_mut().ident
+                        = actual.clone();
+                }
+            }
+        },
+        syn::Type::Paren(p) => {
+            deselfify(p.elem.as_mut(), actual);
+        },
+        syn::Type::Group(g) => {
+            deselfify(g.elem.as_mut(), actual);
+        },
+        syn::Type::Macro(_) | syn::Type::Verbatim(_) => {
+            compile_error(literal_type.span(),
+                "mockall_derive does not support this type as a return argument");
+        },
+        syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
+            | syn::Type::Infer(_) | syn::Type::Never(_) =>
+        {
+            /* Nothing to do */
+        }
+    }
+}
+
+fn method_types(mock_ident: &syn::Ident, sig: &syn::MethodSig) -> MethodTypes {
     let mut is_static = true;
     let mut elems
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
@@ -366,7 +434,7 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
     let input_type = syn::TypeTuple{paren_token, elems};
 
     let span = Span::call_site();
-    let (output_type, partial_ex, call) = match &sig.decl.output {
+    let (mut output_type, partial_ex, call) = match &sig.decl.output {
         syn::ReturnType::Default => {
             let paren_token = syn::token::Paren{span};
             let elems = syn::punctuated::Punctuated::new();
@@ -406,6 +474,9 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes {
             }
         }
     };
+    if is_static {
+        deselfify(&mut output_type, &mock_ident);
+    }
 
     let call_turbofish = if is_generic {
         let mut args = syn::punctuated::Punctuated::new();
@@ -582,6 +653,9 @@ mod t {
                 pub fn checkpoint(&mut self) {
                     self.foo.checkpoint();
                 }
+                pub fn new() -> Self {
+                    Self::default()
+                }
             }
         "#;
         let code = r#"
@@ -618,6 +692,9 @@ mod t {
                 }
                 pub fn checkpoint(&mut self) {
                     self.foo.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
                 }
             }
         "#;
@@ -665,6 +742,9 @@ mod t {
             impl<T: Copy + 'static> MockExternalStruct<T> {
                 pub fn checkpoint(&mut self) {
                     self.Foo_expectations.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
                 }
             }
             impl<T: Copy + 'static> Foo for MockExternalStruct<T> {
@@ -730,6 +810,9 @@ mod t {
                 pub fn checkpoint(&mut self) {
                     self.Foo_expectations.checkpoint();
                 }
+                pub fn new() -> Self {
+                    Self::default()
+                }
             }
             impl<T: 'static, Z: 'static> Foo<T> for MockExternalStruct<T, Z> {
                 fn foo(&self, x: T) -> T {
@@ -788,6 +871,9 @@ mod t {
         impl<T> MockExternalStruct<T> {
             pub fn checkpoint(&mut self) {
                 self.GenericTrait_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }
         impl<T> GenericTrait<T> for MockExternalStruct<T> {
@@ -865,6 +951,9 @@ mod t {
                 self.A_expectations.checkpoint();
                 self.B_expectations.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }
         impl A for MockExternalStruct {
             fn foo(&self) {
@@ -900,6 +989,60 @@ mod t {
         check(desired, code);
     }
 
+    /// Structs or traits that have a "new" method shouldn't have a "new" method
+    /// added to the mock object
+    #[test]
+    fn new_method() {
+        let desired = r#"
+            struct MockFoo {
+                foo: ::mockall::Expectations<(), u32> ,
+            }
+            ::mockall::lazy_static!{
+                static ref MockFoo_new_expectation:
+                    ::std::sync::Mutex< ::mockall::Expectations<(u32), MockFoo> >
+                    = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            }
+            impl ::std::default::Default for MockFoo {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                    }
+                }
+            }
+            impl MockFoo {
+                pub fn foo(&self) -> u32 {
+                    self.foo.call(())
+                }
+                pub fn expect_foo(&mut self)
+                    -> &mut ::mockall::Expectation<(), u32>
+                {
+                    self.foo.expect()
+                }
+                pub fn new(x: u32) -> Self {
+                    MockFoo_new_expectation.lock().unwrap().call((x))
+                }
+                pub fn expect_new< 'guard>()
+                    -> ::mockall::ExpectationGuard< 'guard, (u32), MockFoo>
+                {
+                    ::mockall::ExpectationGuard::new(
+                        MockFoo_new_expectation.lock().unwrap()
+                    )
+                }
+                pub fn checkpoint(&mut self) {
+                    self.foo.checkpoint();
+                    MockFoo_new_expectation.lock().unwrap().checkpoint();
+                }
+            }
+        "#;
+        let code = r#"
+            Foo {
+                fn foo(&self) -> u32;
+                fn new(x: u32) -> Self;
+            }
+        "#;
+        check(desired, code);
+    }
+
     #[test]
     fn reference_arguments() {
         let desired = r#"
@@ -926,6 +1069,9 @@ mod t {
             }
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }"#;
 
@@ -961,6 +1107,9 @@ mod t {
             }
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }"#;
 
@@ -1003,6 +1152,9 @@ mod t {
         impl MockX {
             pub fn checkpoint(&mut self) {
                 self.Foo_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
             }
         }
         impl Foo for MockX {
@@ -1052,6 +1204,9 @@ mod t {
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
             }
+            pub fn new() -> Self {
+                Self::default()
+            }
         }"#;
 
         let code = r#"
@@ -1089,6 +1244,9 @@ mod t {
                 }
                 pub fn checkpoint(&mut self) {
                     MockFoo_bar_expectation.lock().unwrap().checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
                 }
             }
         "#;
@@ -1131,6 +1289,9 @@ mod t {
             impl MockFoo {
                 pub fn checkpoint(&mut self) {
                     self.Bar_expectations.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
                 }
             }
             impl Bar for MockFoo {
@@ -1194,6 +1355,9 @@ mod t {
                     self.foo.checkpoint();
                     self.bar.checkpoint();
                 }
+                pub fn new() -> Self {
+                    Self::default()
+                }
             }
         "#;
         let code = r#"
@@ -1238,6 +1402,9 @@ mod t {
             impl MockExternalStruct {
                 pub fn checkpoint(&mut self) {
                     self.Foo_expectations.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
                 }
             }
             impl Foo for MockExternalStruct {
@@ -1295,6 +1462,9 @@ mod t {
             impl MockMyIter {
                 pub fn checkpoint(&mut self) {
                     self.Iterator_expectations.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
                 }
             }
             impl Iterator for MockMyIter {

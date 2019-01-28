@@ -25,7 +25,7 @@ mod checkpoint {
 
         #[test]
         fn t() {
-            let mut mock = MockFoo::default();
+            let mut mock = MockFoo::new();
             mock.expect_bar()
                 .returning(|_| 5)
                 .times_range(1..3);
@@ -40,7 +40,7 @@ mod checkpoint {
 
         #[test]
         fn t() {
-            let mut mock = MockFoo::default();
+            let mut mock = MockFoo::new();
             mock.expect_bar()
                 .returning(|_| 42)
                 .times_range(1..3);
@@ -60,7 +60,7 @@ mod checkpoint {
         #[test]
         #[should_panic(expected = "Expectation called fewer than 1 times")]
         fn t() {
-            let mut mock = MockFoo::default();
+            let mut mock = MockFoo::new();
             mock.expect_bar()
                 .returning(|_| 42)
                 .times(1);
@@ -76,7 +76,7 @@ mod checkpoint {
         #[test]
         #[should_panic(expected = "No matching expectation found")]
         fn t() {
-            let mut mock = MockFoo::default();
+            let mut mock = MockFoo::new();
             mock.expect_bar()
                 .returning(|_| 42)
                 .times_range(1..3);
@@ -94,7 +94,7 @@ mod checkpoint {
         #[test]
         #[should_panic(expected = "Expectation called fewer than 1 times")]
         fn t() {
-            let mut mock = MockFoo::default();
+            let mut mock = MockFoo::new();
             MockFoo::expect_baz()
                 .returning(|_| 32)
                 .times_range(1..3);
@@ -119,7 +119,7 @@ mod associated_types_mock {
 
     #[test]
     fn t() {
-        let mut mock = MockMyIter::default();
+        let mut mock = MockMyIter::new();
         mock.expect_next()
             .returning(|_| Some(5));
         assert_eq!(5, mock.next().unwrap());
@@ -148,7 +148,7 @@ mod external_struct {
 
     #[test]
     fn t() {
-        let mut mock = MockExternalStruct::default();
+        let mut mock = MockExternalStruct::new();
         mock.expect_foo()
             .returning(|x| x + 1);
         assert_eq!(6, mock.foo(5));
@@ -177,7 +177,7 @@ mod external_generic_struct {
 
     #[test]
     fn t() {
-        let mut mock = MockExtGenericStruct::<u32>::default();
+        let mut mock = MockExtGenericStruct::<u32>::new();
         mock.expect_foo()
             .returning(|x| x.clone());
         assert_eq!(5, mock.foo(5));
@@ -218,7 +218,7 @@ mod external_struct_with_trait {
 
     #[test]
     fn t() {
-        let mut mock = MockExternalStruct::default();
+        let mut mock = MockExternalStruct::new();
         mock.expect_foo()
             .returning(|x| x + 1);
         mock.expect_bar()
@@ -244,7 +244,7 @@ mod generic_method_returning_reference {
 
     #[test]
     fn t() {
-        let mut mock = MockMyStruct::default();
+        let mut mock = MockMyStruct::new();
         mock.expect_foo::<i16>().return_const(5u32);
         assert_eq!(5u32, *mock.foo(99i16));
     }
@@ -269,7 +269,7 @@ mod generic_struct_with_non_default_parameter {
 
     #[test]
     fn t() {
-        let mut mock = MockExternalStruct::<NonDefault>::default();
+        let mut mock = MockExternalStruct::<NonDefault>::new();
         mock.expect_foo().returning(|_| NonDefault());
         mock.foo();
     }
@@ -291,7 +291,7 @@ mod generic_struct_with_generic_trait {
 
     #[test]
     fn t() {
-        let mut mock = MockExternalStruct::<u32, u64>::default();
+        let mut mock = MockExternalStruct::<u32, u64>::new();
         mock.expect_foo()
             .returning(|x| x);
         assert_eq!(5u32, mock.foo(5u32));
@@ -321,7 +321,7 @@ mod inherited_trait {
 
     #[test]
     fn t() {
-        let mut mock = MockB::default();
+        let mut mock = MockB::new();
         mock.expect_foo().returning(|_| ());
         mock.expect_bar().returning(|_| ());
         mock.foo();
@@ -345,8 +345,32 @@ mod multi_trait {
     fn t() {
         fn foo<T: A + B>(_t: T) {}
 
-        let mock = MockMultiTrait::default();
+        let mock = MockMultiTrait::new();
         foo(mock);
+    }
+}
+
+mod new_method {
+    use super::*;
+
+    mock! {
+        Foo {
+            fn foo(&self) -> u32;
+            fn new(x: u32) -> Self;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::default();
+        mock.expect_foo()
+            .returning(|_| 42);
+
+        MockFoo::expect_new()
+            .return_once(|_| mock);
+
+        let mock = MockFoo::new(5);
+        assert_eq!(42, mock.foo());
     }
 }
 
@@ -362,7 +386,7 @@ mod reference_arguments {
     #[test]
     fn t() {
         const Y: u32 = 5;
-        let mut mock = MockFoo::default();
+        let mut mock = MockFoo::new();
         {
             mock.expect_foo().returning(|x| *x);
         }
@@ -384,7 +408,7 @@ mod reference_return {
 
     #[test]
     fn t() {
-        let mut mock = MockFoo::default();
+        let mut mock = MockFoo::new();
         mock.expect_foo()
             .return_const(5u32);
         assert_eq!(5, *mock.foo());
@@ -402,7 +426,7 @@ mod ref_mut_return {
 
     #[test]
     fn t() {
-        let mut mock = MockFoo::default();
+        let mut mock = MockFoo::new();
         mock.expect_foo()
             .return_var(5u32);
         {
