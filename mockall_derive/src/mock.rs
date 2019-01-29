@@ -6,26 +6,7 @@ use syn::{
     braced,
     parse::{Parse, ParseStream},
     spanned::Spanned,
-    Token
 };
-
-struct MethodTypes {
-    is_static: bool,
-    input_type: syn::TypeTuple,
-    output_type: syn::Type,
-    /// Type of Expectation returned by the expect method
-    expectation: syn::Type,
-    /// Type of Expectations container used by the expect method, without its
-    /// generics fields
-    expectations: syn::Type,
-    /// Type of Expectation object stored in the mock structure, with generics
-    /// fields
-    expect_obj: syn::Type,
-    /// Method to call when invoking the expectation
-    call: syn::Ident,
-    /// Any turbofish needed when invoking the expectation
-    call_turbofish: Option<syn::MethodTurbofish>
-}
 
 pub(crate) struct Mock {
     pub(crate) vis: syn::Visibility,
@@ -186,9 +167,9 @@ fn gen_mock_method(mock_ident: &syn::Ident,
     } else {
         "".to_string()
     };
-    let mut meth_types = method_types(mock_ident, sig);
+    let meth_types = method_types(Some(mock_ident), sig);
     let input_type = &meth_types.input_type;
-    let output_type = &mut meth_types.output_type;
+    let output_type = &meth_types.output_type;
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
     let call_turbofish = &meth_types.call_turbofish;
@@ -289,7 +270,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     }
     for meth in methods.iter() {
         let method_ident = &meth.borrow().sig.ident;
-        let meth_types = method_types(&ident, &meth.borrow().sig);
+        let meth_types = method_types(Some(&ident), &meth.borrow().sig);
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
         if meth_types.is_static {
@@ -355,186 +336,6 @@ fn gen_struct<T>(vis: &syn::Visibility,
     }).to_tokens(&mut output);
 
     output
-}
-
-/// Turn a non-'static reference argument into a pointer argument.  This is
-/// sadly necessary because Fn(I) -> O objects aren't 'static unless I is.  And
-/// we don't want to restrict our users to use bare fn pointers.
-fn derefify(arg: &syn::ArgCaptured) -> (TokenStream, syn::Type) {
-    let pat = &arg.pat;
-    if let syn::Type::Reference(r) = &arg.ty {
-        if let Some(lt) = &r.lifetime {
-            if lt.ident == &"static" {
-                return (quote!(#pat), arg.ty.clone());
-            }
-        }
-        let ty = r.elem.as_ref();
-        if r.mutability.is_some() {
-            (quote!(#pat as *mut _), syn::parse2(quote!(*mut #ty)).unwrap())
-        } else {
-            (quote!(#pat as *const _), syn::parse2(quote!(*const #ty)).unwrap())
-        }
-    } else {
-        (quote!(#pat), arg.ty.clone())
-    }
-}
-
-/// Replace any references to `Self` in `literal_type` with `actual`.  Useful
-/// for constructor methods
-fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
-    match literal_type {
-        syn::Type::Slice(s) => {
-            deselfify(s.elem.as_mut(), actual);
-        },
-        syn::Type::Array(a) => {
-            deselfify(a.elem.as_mut(), actual);
-        },
-        syn::Type::Ptr(p) => {
-            deselfify(p.elem.as_mut(), actual);
-        },
-        syn::Type::Reference(r) => {
-            deselfify(r.elem.as_mut(), actual);
-        },
-        syn::Type::BareFn(_bfn) => {
-            unimplemented!()
-        },
-        syn::Type::Tuple(tuple) => {
-            for elem in tuple.elems.iter_mut() {
-                deselfify(elem, actual);
-            }
-        }
-        syn::Type::Path(type_path) => {
-            if let Some(ref _qself) = type_path.qself {
-                compile_error(type_path.span(), "QSelf is TODO");
-            }
-            let p = &mut type_path.path;
-            if p.leading_colon.is_none() & (p.segments.len() == 1) {
-                if p.segments.first().unwrap().value().ident == "Self" {
-                    p.segments.last_mut().unwrap().value_mut().ident
-                        = actual.clone();
-                }
-            }
-        },
-        syn::Type::Paren(p) => {
-            deselfify(p.elem.as_mut(), actual);
-        },
-        syn::Type::Group(g) => {
-            deselfify(g.elem.as_mut(), actual);
-        },
-        syn::Type::Macro(_) | syn::Type::Verbatim(_) => {
-            compile_error(literal_type.span(),
-                "mockall_derive does not support this type as a return argument");
-        },
-        syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
-            | syn::Type::Infer(_) | syn::Type::Never(_) =>
-        {
-            /* Nothing to do */
-        }
-    }
-}
-
-fn method_types(mock_ident: &syn::Ident, sig: &syn::MethodSig) -> MethodTypes {
-    let mut is_static = true;
-    let mut elems
-        = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
-    let is_generic = !sig.decl.generics.params.is_empty();
-    for fn_arg in sig.decl.inputs.iter() {
-        match fn_arg {
-            syn::FnArg::Captured(arg) => {
-                elems.push(derefify(arg).1.clone());
-            },
-            syn::FnArg::SelfRef(_) => {
-                is_static = false;
-            },
-            syn::FnArg::SelfValue(_) => {
-                is_static = false;
-            },
-            _ => compile_error(fn_arg.span(),
-                "Should be unreachable for normal Rust code")
-        }
-    }
-    let paren_token = syn::token::Paren::default();
-    let input_type = syn::TypeTuple{paren_token, elems};
-
-    let span = Span::call_site();
-    let (mut output_type, partial_ex, call) = match &sig.decl.output {
-        syn::ReturnType::Default => {
-            let paren_token = syn::token::Paren{span};
-            let elems = syn::punctuated::Punctuated::new();
-            (
-                syn::Type::Tuple(syn::TypeTuple{paren_token, elems}),
-                syn::Ident::new("Expectation", span),
-                syn::Ident::new("call", span)
-            )
-        },
-        syn::ReturnType::Type(_, ty) => {
-            match ty.as_ref() {
-                syn::Type::Reference(r) => {
-                    if let Some(ref lt) = r.lifetime {
-                        if lt.ident != &"static" {
-                            compile_error(r.span(), "Non-'static non-'self lifetimes are not yet supported");
-                        }
-                    }
-                    if r.mutability.is_some() {
-                        (
-                            (*r.elem).clone(),
-                            syn::Ident::new("RefMutExpectation", span),
-                            syn::Ident::new("call_mut", span)
-                        )
-                    } else {
-                        (
-                            (*r.elem).clone(),
-                            syn::Ident::new("RefExpectation", span),
-                            syn::Ident::new("call", span)
-                        )
-                    }
-                },
-                _ => (
-                    (**ty).clone(),
-                    syn::Ident::new("Expectation", span),
-                    syn::Ident::new("call", span)
-                )
-            }
-        }
-    };
-    if is_static {
-        deselfify(&mut output_type, &mock_ident);
-    }
-
-    let call_turbofish = if is_generic {
-        let mut args = syn::punctuated::Punctuated::new();
-        let input_type_type = syn::Type::Tuple(input_type.clone());
-        args.push(syn::GenericMethodArgument::Type(input_type_type));
-        args.push(syn::GenericMethodArgument::Type(output_type.clone()));
-        Some(syn::MethodTurbofish{
-            colon2_token: syn::token::Colon2::default(),
-            lt_token: syn::token::Lt::default(),
-            args,
-            gt_token: syn::token::Gt::default()
-        })
-    } else {
-        None
-    };
-    let expectations_ident = if is_generic {
-        syn::Ident::new(&format!("Generic{}s", partial_ex), span)
-    } else {
-        syn::Ident::new(&format!("{}s", partial_ex), span)
-    };
-    let expectations = syn::parse2(
-        quote!(::mockall::#expectations_ident)
-    ).unwrap();
-    let expect_obj = if is_generic {
-        syn::parse2(quote!(#expectations)).unwrap()
-    } else {
-        syn::parse2(
-            quote!(#expectations<#input_type, #output_type>)
-        ).unwrap()
-    };
-    let expect_ts = quote!(::mockall::#partial_ex);
-    let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
-
-    MethodTypes{is_static, input_type, output_type, expectation, expectations,
-                call, expect_obj, call_turbofish}
 }
 
 /// Generate mock methods for a Trait

@@ -34,6 +34,30 @@ fn consume_parameters() {
 }
 
 #[test]
+fn foreign_c() {
+    #[automock(mod mock_ffi;)]
+    extern "C" {
+        #[allow(unused)]
+        pub fn foo(x: u32) -> i64;
+    }
+
+    mock_ffi::expect_foo().returning(|x| i64::from(x));
+    assert_eq!(42, mock_ffi::foo(42));
+}
+
+#[test]
+fn foreign_rust() {
+    #[automock(mod mock_ffi;)]
+    extern "Rust" {
+        #[allow(unused)]
+        pub fn foo(x: u32) -> i64;
+    }
+
+    mock_ffi::expect_foo().returning(|x| i64::from(x));
+    assert_eq!(42, mock_ffi::foo(42));
+}
+
+#[test]
 fn generic_parameters() {
     #[automock]
     trait A {
