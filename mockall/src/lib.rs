@@ -19,6 +19,8 @@ use std::{
 
 pub use mockall_derive::*;
 pub use predicates::prelude::*;
+pub use predicates::boolean::PredicateBooleanExt;
+
 /// For mocking static methods
 #[doc(hidden)]
 pub use lazy_static::lazy_static;
