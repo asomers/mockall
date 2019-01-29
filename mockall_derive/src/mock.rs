@@ -211,8 +211,7 @@ fn gen_mock_method(mock_ident: &syn::Ident,
                 // Don't output the "self" argument
             },
             syn::FnArg::Captured(arg) => {
-                let pat = &arg.pat;
-                args.push(quote!(#pat));
+                args.push(derefify(&arg).0);
             },
             _ => compile_error(p.span(),
                 "Should be unreachable for normal Rust code")
@@ -358,6 +357,28 @@ fn gen_struct<T>(vis: &syn::Visibility,
     output
 }
 
+/// Turn a non-'static reference argument into a pointer argument.  This is
+/// sadly necessary because Fn(I) -> O objects aren't 'static unless I is.  And
+/// we don't want to restrict our users to use bare fn pointers.
+fn derefify(arg: &syn::ArgCaptured) -> (TokenStream, syn::Type) {
+    let pat = &arg.pat;
+    if let syn::Type::Reference(r) = &arg.ty {
+        if let Some(lt) = &r.lifetime {
+            if lt.ident == &"static" {
+                return (quote!(#pat), arg.ty.clone());
+            }
+        }
+        let ty = r.elem.as_ref();
+        if r.mutability.is_some() {
+            (quote!(#pat as *mut _), syn::parse2(quote!(*mut #ty)).unwrap())
+        } else {
+            (quote!(#pat as *const _), syn::parse2(quote!(*const #ty)).unwrap())
+        }
+    } else {
+        (quote!(#pat), arg.ty.clone())
+    }
+}
+
 /// Replace any references to `Self` in `literal_type` with `actual`.  Useful
 /// for constructor methods
 fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
@@ -419,7 +440,9 @@ fn method_types(mock_ident: &syn::Ident, sig: &syn::MethodSig) -> MethodTypes {
     let is_generic = !sig.decl.generics.params.is_empty();
     for fn_arg in sig.decl.inputs.iter() {
         match fn_arg {
-            syn::FnArg::Captured(arg) => elems.push(arg.ty.clone()),
+            syn::FnArg::Captured(arg) => {
+                elems.push(derefify(arg).1.clone());
+            },
             syn::FnArg::SelfRef(_) => {
                 is_static = false;
             },
@@ -1046,29 +1069,38 @@ mod t {
     #[test]
     fn reference_arguments() {
         let desired = r#"
-        struct MockFoo< 'a> {
-            foo: ::mockall::Expectations<(& 'a u32), ()> ,
-            _t0: ::std::marker::PhantomData< & 'a ()> ,
+        struct MockFoo {
+            foo: ::mockall::Expectations<(*const u32), ()> ,
+            bar: ::mockall::Expectations<(& 'static u32), ()> ,
         }
-        impl< 'a> ::std::default::Default for MockFoo< 'a> {
+        impl::std::default::Default for MockFoo {
             fn default() -> Self {
                 Self {
                     foo: ::mockall::Expectations::default(),
-                    _t0: ::std::marker::PhantomData,
+                    bar: ::mockall::Expectations::default(),
                 }
             }
         }
-        impl< 'a> MockFoo< 'a> {
-            pub fn foo(&self, x: & 'a u32) {
-                self.foo.call((x))
+        impl MockFoo {
+            pub fn foo(&self, x: &u32) {
+                self.foo.call((x as *const _))
             }
             pub fn expect_foo(&mut self)
-                -> &mut ::mockall::Expectation<(& 'a u32), ()>
+                -> &mut ::mockall::Expectation<(*const u32), ()>
             {
                 self.foo.expect()
             }
+            pub fn bar(&self, y: & 'static u32) {
+                self.bar.call((y))
+            }
+            pub fn expect_bar(&mut self)
+                -> &mut ::mockall::Expectation<(& 'static u32), ()>
+            {
+                self.bar.expect()
+            }
             pub fn checkpoint(&mut self) {
                 self.foo.checkpoint();
+                self.bar.checkpoint();
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1076,8 +1108,9 @@ mod t {
         }"#;
 
         let code = r#"
-            Foo<'a> {
-                fn foo(&self, x: & 'a u32);
+            Foo {
+                fn foo(&self, x: &u32);
+                fn bar(&self, y: &'static u32);
             }
         "#;
         check(desired, code);

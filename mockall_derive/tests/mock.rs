@@ -378,8 +378,8 @@ mod reference_arguments {
     use super::*;
 
     mock!{
-        Foo<'a> {
-            fn foo(&self, x: &'a u32) -> u32;
+        Foo {
+            fn foo(&self, x: &u32) -> u32;
         }
     }
 
@@ -388,7 +388,7 @@ mod reference_arguments {
         const Y: u32 = 5;
         let mut mock = MockFoo::new();
         {
-            mock.expect_foo().returning(|x| *x);
+            mock.expect_foo().returning(|x| unsafe{*x});
         }
         {
             let r = mock.foo(&Y);
