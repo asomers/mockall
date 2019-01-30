@@ -301,21 +301,29 @@ fn mock_foreign(attrs: Attrs, foreign_mod: syn::ItemForeignMod) -> TokenStream {
 /// Mock a foreign function the same way we mock static trait methods: with a
 /// global Expectations object
 fn mock_foreign_function(f: syn::ForeignItemFn) -> TokenStream {
-    let vis = &f.vis;
-    let ident = &f.ident;
-    let fn_token = &f.decl.fn_token;
-    let generics = &f.decl.generics;
-    let inputs = &f.decl.inputs;
-    let output = &f.decl.output;
+    mock_function(&f.vis, &None, &None, &None, &f.ident, &f.decl)
+}
+
+fn mock_function(vis: &syn::Visibility,
+                 constness: &Option<syn::token::Const>,
+                 unsafety: &Option<syn::token::Unsafe>,
+                 asyncness: &Option<syn::token::Async>,
+                 ident: &syn::Ident,
+                 decl: &syn::FnDecl) -> TokenStream
+{
+    let fn_token = &decl.fn_token;
+    let generics = &decl.generics;
+    let inputs = &decl.inputs;
+    let output = &decl.output;
     let mut args = Vec::new();
 
-    if f.decl.variadic.is_some() {
-        compile_error(f.decl.variadic.span(),
+    if decl.variadic.is_some() {
+        compile_error(decl.variadic.span(),
             "Mockall does not support variadic extern functions");
         return TokenStream::new();
     }
 
-    for p in f.decl.inputs.iter() {
+    for p in decl.inputs.iter() {
         match p {
             syn::FnArg::Captured(arg) => {
                 args.push(derefify(&arg).0);
@@ -326,12 +334,12 @@ fn mock_foreign_function(f: syn::ForeignItemFn) -> TokenStream {
     }
 
     let sig = syn::MethodSig {
-        constness: None,
-        unsafety: None,
-        asyncness: None,
+        constness: constness.clone(),
+        unsafety: unsafety.clone(),
+        asyncness: asyncness.clone(),
         abi: None,
-        ident: f.ident.clone(),
-        decl: (*f.decl).clone()
+        ident: ident.clone(),
+        decl: (*decl).clone()
     };
     let meth_types = method_types(None, &sig);
     let expect_obj = &meth_types.expect_obj;
@@ -352,7 +360,8 @@ fn mock_foreign_function(f: syn::ForeignItemFn) -> TokenStream {
             static ref #obj: ::std::sync::Mutex<#expect_obj> = 
                 ::std::sync::Mutex::new(::mockall::Expectations::new());
         }
-        #vis #fn_token #ident #generics (#inputs) #output {
+        #vis #constness #unsafety #asyncness
+        #fn_token #ident #generics (#inputs) #output {
             #obj.lock().unwrap().call((#(#args),*))
         }
         pub fn #expect_ident #g()
@@ -433,6 +442,76 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
     mock.gen()
 }
 
+/// Generate mock functions for an entire module
+fn mock_module(mod_: syn::ItemMod) -> TokenStream {
+    let mut body = TokenStream::new();
+    let mut cp_body = TokenStream::new();
+    let modname = syn::Ident::new(&format!("mock_{}", mod_.ident),
+        mod_.ident.span());
+
+    let items = if let Some((_, items)) = mod_.content {
+        items
+    } else {
+        Vec::new()
+    };
+    for item in items.iter() {
+        match item {
+            syn::Item::ExternCrate(_) | syn::Item::Use(_)
+                | syn::Item::Impl(_) =>
+            {
+                // Ignore
+            },
+            syn::Item::Static(is) => {
+                is.to_tokens(&mut body)
+            },
+            syn::Item::Const(ic) => ic.to_tokens(&mut body),
+            syn::Item::Fn(f) => {
+                let obj = syn::Ident::new(
+                    &format!("{}_expectation", &f.ident),
+                    Span::call_site());
+                quote!(#obj.lock().unwrap().checkpoint();)
+                    .to_tokens(&mut cp_body);
+                mock_native_function(&f).to_tokens(&mut body);
+            },
+            syn::Item::Mod(_) | syn::Item::ForeignMod(_)
+                | syn::Item::Struct(_) | syn::Item::Enum(_)
+                | syn::Item::Union(_) | syn::Item::Trait(_) =>
+            {
+                compile_error(item.span(),
+                    "Mockall does not yet support deriving nested mocks");
+            },
+            syn::Item::Type(ty) => {
+                // Copy verbatim
+                ty.to_tokens(&mut body)
+            },
+            syn::Item::Existential(_) => {
+                compile_error(item.span(),
+                    "Mockall does not yet support named existential types");
+            },
+            syn::Item::TraitAlias(ta) => {
+                // Copy verbatim
+                ta.to_tokens(&mut body)
+            },
+            syn::Item::Macro(m) => compile_error(m.span(),
+                "Mockall does not support macros in this context"),
+            syn::Item::Macro2(m) => compile_error(m.span(),
+                "Mockall does not support macros in this context"),
+            syn::Item::Verbatim(v) => compile_error(v.span(),
+                "Content unrecognized by Mockall"),
+        }
+    }
+
+    quote!(pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
+    quote!(mod #modname { #body })
+}
+
+/// Mock a function the same way we mock static trait methods: with a
+/// global Expectations object
+fn mock_native_function(f: &syn::ItemFn) -> TokenStream {
+    mock_function(&f.vis, &f.constness, &f.unsafety, &f.asyncness, &f.ident,
+                  &f.decl)
+}
+
 /// Generate a mock struct that implements a trait
 fn mock_trait(attrs: Attrs, item: syn::ItemTrait) -> TokenStream {
     let generics = item.generics.clone();
@@ -465,6 +544,7 @@ fn do_automock(attr_stream: TokenStream, input: TokenStream) -> TokenStream
     match item {
         syn::Item::Impl(item_impl) => mock_impl(item_impl),
         syn::Item::ForeignMod(foreign_mod) => mock_foreign(attrs, foreign_mod),
+        syn::Item::Mod(item_mod) => mock_module(item_mod),
         syn::Item::Trait(item_trait) => mock_trait(attrs, item_trait),
         _ => {
             compile_error(item.span(),
@@ -994,6 +1074,38 @@ mod t {
             }
         }
         "#);
+    }
+
+    #[test]
+    fn module() {
+        let desired = r#"
+        mod mock_foo {
+            ::mockall::lazy_static!{
+                static ref bar_expectation:
+                    ::std::sync::Mutex< ::mockall::Expectations<(u32), i64> >
+                    = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            }
+            pub fn bar(x: u32) -> i64 {
+                bar_expectation.lock().unwrap().call((x))
+            }
+            pub fn expect_bar< 'guard>()
+                -> ::mockall::ExpectationGuard< 'guard, (u32), i64>
+            {
+                ::mockall::ExpectationGuard::new(
+                    bar_expectation.lock().unwrap()
+                )
+            }
+            pub fn checkpoint() {
+                bar_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        "#;
+        let code = r#"
+        mod foo {
+            pub fn bar(x: u32) -> i64 {unimplemented!()}
+        }
+        "#;
+        check(&"", &desired, &code);
     }
 
     #[test]
