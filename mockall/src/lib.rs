@@ -394,6 +394,16 @@ impl<I, O> Expectation<I, O> {
     expectation_common!{common, Expectation}
 }
 
+impl<I, O: Clone + Send + 'static> Expectation<I, O> {
+    /// Return a constant value from the `Expectation`
+    ///
+    /// The output type must be `Clone`.
+    pub fn return_const(&mut self, c: O) -> &mut Self {
+        let f = move |_| c.clone();
+        self.returning(f)
+    }
+}
+
 /// A Collection of `Expectation`s.  Allows you to set more than one expectation
 /// on the same method.
 pub struct Expectations<I, O>(Vec<Expectation<I, O>>);

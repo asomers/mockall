@@ -128,6 +128,13 @@ fn no_args_or_returns() {
     e.call(());
 }
 
+#[test]
+fn return_const() {
+    let mut e = Expectation::<(), u32>::default();
+    e.return_const(42);
+    assert_eq!(42, e.call(()));
+}
+
 /// Expectations return O::default() unless otherwise specified
 #[test]
 #[cfg_attr(not(feature = "nightly"), ignore)]
