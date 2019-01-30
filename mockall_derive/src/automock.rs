@@ -301,7 +301,10 @@ fn mock_foreign(attrs: Attrs, foreign_mod: syn::ItemForeignMod) -> TokenStream {
 /// Mock a foreign function the same way we mock static trait methods: with a
 /// global Expectations object
 fn mock_foreign_function(f: syn::ForeignItemFn) -> TokenStream {
-    mock_function(&f.vis, &None, &None, &None, &f.ident, &f.decl)
+    // Foreign functions are always unsafe.  Mock foreign functions should be
+    // unsafe too, to prevent "warning: unused unsafe" messages.
+    let unsafety = Some(syn::Token![unsafe](f.span()));
+    mock_function(&f.vis, &None, &unsafety, &None, &f.ident, &f.decl)
 }
 
 fn mock_function(vis: &syn::Visibility,
@@ -637,7 +640,7 @@ mod t {
                     ::std::sync::Mutex< ::mockall::Expectations<(u32), i64> >
                     = ::std::sync::Mutex::new(::mockall::Expectations::new());
             }
-            pub fn foo(x: u32) -> i64 {
+            pub unsafe fn foo(x: u32) -> i64 {
                 foo_expectation.lock().unwrap().call((x))
             }
             pub fn expect_foo< 'guard>()

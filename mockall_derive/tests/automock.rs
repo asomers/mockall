@@ -47,7 +47,7 @@ fn foreign_c() {
     }
 
     mock_ffi::expect_foo().returning(|x| i64::from(x));
-    assert_eq!(42, mock_ffi::foo(42));
+    assert_eq!(42, unsafe{mock_ffi::foo(42)});
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn foreign_rust() {
     }
 
     mock_ffi::expect_foo().returning(|x| i64::from(x));
-    assert_eq!(42, mock_ffi::foo(42));
+    assert_eq!(42, unsafe{mock_ffi::foo(42)});
 }
 
 #[test]
