@@ -353,10 +353,11 @@ macro_rules! expectation_common {
         /// let e1 = Expectation::<(u32, u32), ()>::new()
         ///     .withf(|(x, y)| x == y);
         /// ```
-        pub fn withf<F>(&mut self, f: F)
+        pub fn withf<F>(&mut self, f: F) -> &mut Self
             where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
         {
-            self.$common.withf(f)
+            self.$common.withf(f);
+            self
         }
     }
 }
@@ -830,7 +831,7 @@ impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
 
     /// Just like
     /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-    pub fn withf<F>(&mut self, f: F)
+    pub fn withf<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
     {
         self.guard.0[self.i].withf(f)
