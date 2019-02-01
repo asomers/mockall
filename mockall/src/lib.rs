@@ -827,6 +827,14 @@ impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
     {
         self.guard.0[self.i].with(p)
     }
+
+    /// Just like
+    /// [`Expectation::withf`](struct.Expectation.html#method.withf)
+    pub fn withf<F>(&mut self, f: F)
+        where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
+    {
+        self.guard.0[self.i].withf(f)
+    }
 }
 
 
