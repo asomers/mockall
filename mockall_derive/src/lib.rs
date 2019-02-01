@@ -328,7 +328,31 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_mock(item.into()).into()
 }
 
-/// Automatically generate mock types for Structs and Traits.
+/// Automatically generate mock types for structs and traits.
+///
+/// This is by far the easiest way to use Mockall.  It works on almost all
+/// traits, and almost all structs that have a single `impl` block.  In either
+/// case, it will generate a mock struct whose name is the name of the mocked
+/// struct/trait prepended with "Mock".  For each method of the original, the
+/// mock struct will have a method named `expect_whatever` that allows you to
+/// set expectations.  There will also be one `checkpoint` method that calls
+/// [`checkpoint`] for every single method.  The easiest way to learn
+/// how to use `[#automock]` is through examples:
+///
+/// # Examples
+///
+/// The simplest use case is mocking a no-frills trait
+/// ```
+/// # use mockall_derive::*;
+/// #[automock]
+/// pub trait Foo {
+///     fn foo(&self, key: i16);
+/// }
+///
+/// let mock = MockFoo::new();
+/// ```
+///
+/// [`checkpoint`]: ../mockall/struct.Expectations.html#method.checkpoint
 #[proc_macro_attribute]
 pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     -> proc_macro::TokenStream

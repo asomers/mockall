@@ -1,4 +1,353 @@
 // vim: tw=80
+//! A powerful mock object library for Rust.
+//!
+//! Mockall provides provides tools to create mock versions of almost any trait
+//! or struct.  They can be used in unit tests as a stand-in for the real
+//! object.
+//!
+//! # Usage
+//!
+//! There are three ways to use Mockall.  The easiest is to use
+//! [`#[automock]`](../mockall_derive/attr.automock.html).  It can mock most
+//! traits, or structs that only have a single `impl` block.  For things it
+//! can't handle, there is [`mock!`].  Finally, there are rare
+//! cases where one may need to manually construct a mock object from things
+//! like [`Expectations`].
+//!
+//! Whichever method is used, the basic idea is the same.
+//! * Create a mock struct.  It's name will be the same as the original, with
+//!   "Mock" prepended.
+//! * In your test, instantiate the mock struct with its `new` or `default`
+//!   method.
+//! * Set expectations on the mock struct.  Each expectation can have required
+//!   argument matchers, a required call count, and a required position in a
+//!   [`Sequence`].  Each expectation must also have a return value.
+//! * Supply the mock object to the code that you're testing.  It will return
+//!   the preprogrammed return values supplied in the previous step.  Any
+//!   accesses contrary to your expectations will cause a panic.
+//!
+//! # User Guide
+//!
+//! * [`Getting started`](#getting-started)
+//! * [`Return values`](#return-values)
+//! * [`Matching arguments`](#matching-arguments)
+//! * [`Call counts`](#call-counts)
+//! * [`Getting started`](#getting-started)
+//! * [`Sequences`](#sequences)
+//! * [`Checkpoints`](#checkpoints)
+//! * [`Reference arguments`](#reference-arguments)
+//! * [`Reference return values`](#reference-return-values)
+//! * [`Mocking structs`](#mocking-structs)
+//! * [`Generic methods`](#generic-methods)
+//! * [`Generic traits and structs`](#generic-traits-and-structs)
+//! * [`Associated types`](#associated-types)
+//! * [`Multiple and inherited traits`](#multiple-and-inherited-traits)
+//! * [`Static methods`](#static-methods)
+//! * [`Foreign functions`](#foreign-functions)
+//! * [`Crate features`](#crate-features)
+//!
+//! ```
+//! use mockall::*;
+//! use mockall::predicate::*;
+//! #[automock]
+//! trait MyTrait {
+//!     fn foo(&self, x: u32) -> u32;
+//! }
+//!
+//! fn call_with_four(x: &MyTrait) -> u32 {
+//!     x.foo(4)
+//! }
+//!
+//! let mut mock = MockMyTrait::new();
+//! mock.expect_foo()
+//!     .with(predicate::eq(4))
+//!     .times(1)
+//!     .returning(|x| x + 1);
+//! assert_eq!(5, call_with_four(&mock));
+//! ```
+//!
+//! ## Return values
+//!
+//! Every expectation must have an associated return value (though when the
+//! *nightly* feature is enabled expectations will automatically return the
+//! default values of their return types, if their return types implement
+//! `Default`.).  For `'static` return types there are two ways to set the
+//! return value: with a constant or a closure.  A closure will take the
+//! method's arguments by value.
+//!
+//! ```
+//! # use mockall::*;
+//! #[automock]
+//! trait MyTrait {
+//!     fn foo(&self) -> u32;
+//!     fn bar(&self, x: u32, y: u32) -> u32;
+//! }
+//!
+//! let mut mock = MockMyTrait::new();
+//! mock.expect_foo()
+//!     .return_const(42);
+//! mock.expect_bar()
+//!     .returning(|(x, y)| x + y);
+//! ```
+//!
+//! Additionally, constants that aren't `Clone` can be returned with the
+//! [`return_once`] method.
+//!
+//! ```
+//! # use mockall::*;
+//! struct NonClone();
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self) -> NonClone;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! let r = NonClone{};
+//! mock.expect_foo()
+//!     .return_once(move |_| r);
+//! ```
+//!
+//! ## Matching arguments
+//!
+//! Optionally, expectations may have argument matchers set.  A matcher will
+//! verify that the expectation was called with the expected arguments, or panic
+//! otherwise.  A matcher is anything that implements the [`Predicate`] trait.
+//! For example:
+//!
+//! ```should_panic
+//! # use mockall::*;
+//! # use mockall::predicate::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self, x: u32);
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .with(eq(42))
+//!     .return_const(());
+//!
+//! mock.foo(0);    // Panics!
+//! ```
+//!
+//! See [`predicates`] for a list of Mockall's builtin predicate functions.
+//! For convenience, [`withf`] is a shorthand for setting the commonly used
+//! [`function`] predicate.  The arguments to the predicate function are the
+//! method's arguments, *by reference*.  For example:
+//!
+//! ```should_panic
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self, x: u32, y: u32);
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .withf(|(x, y): &(u32, u32)| x == y)
+//!     .return_const(());
+//!
+//! mock.foo(2 + 2, 5);    // Panics!
+//! ```
+//!
+//! ### Matching multiple calls
+//!
+//! Matchers can also be used to discriminate between different invocations of
+//! the same function.  Used that way, they can provide different return values
+//! for different arguments.  The way this works is that on a method call, all
+//! expectations set on a given method are evaluated in LIFO order.  The first
+//! matching expectation is used.  Only if none of the expectations match does
+//! Mockall panic.  For example:
+//!
+//! ```
+//! # use mockall::*;
+//! # use mockall::predicate::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self, x: u32) -> u32;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .with(eq(5))
+//!     .return_const(50);
+//! mock.expect_foo()
+//!     .with(eq(6))
+//!     .return_const(60);
+//! ```
+//!
+//! One common pattern is to use multiple expectations in order of increasing
+//! specificity.  The first expectation can provide a default or fallback value,
+//! and subsequent ones can be more specific.  For example:
+//!
+//! ```
+//! # use mockall::*;
+//! # use mockall::predicate::*;
+//! #[automock]
+//! trait Foo {
+//!     fn open(&self, path: String) -> Option<u32>;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_open()
+//!     .return_const(None);
+//! mock.expect_open()
+//!     .with(eq(String::from("something.txt")))
+//!     .return_once(|_| Some(5));
+//! ```
+//!
+//! ## Call counts
+//!
+//! By default, every expectation is allowed to be called an unlimited number of
+//! times.  But Mockall can optionally verify that an expectation was called a
+//! fixed number of times, or any number of times within a given range.
+//!
+//! ```should_panic
+//! # use mockall::*;
+//! # use mockall::predicate::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self, x: u32);
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .times(1)
+//!     .return_const(());
+//!
+//! mock.foo(0);    // Ok
+//! mock.foo(1);    // Panics!
+//! ```
+//!
+//! See also [`never`], [`times`], [`times_any`], and [`times_range`].
+//!
+//! ## Sequences
+//!
+//! By default expectations may be matched in any order.  But it's possible to
+//! specify the order by using a [`Sequence`].  Any expectations may be added to
+//! the same sequence.  They don't even need to come from the same object.
+//!
+//! ```should_panic(expected = "Method sequence violation")
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self);
+//! }
+//!
+//! let mut seq = Sequence::new();
+//!
+//! let mut mock1 = MockFoo::new();
+//! mock1.expect_foo()
+//!     .in_sequence(&mut seq)
+//!     .returning(|_| ());
+//!
+//! let mut mock2 = MockFoo::new();
+//! mock2.expect_foo()
+//!     .in_sequence(&mut seq)
+//!     .returning(|_| ());
+//!
+//! mock2.foo();    // Panics!  mock1.foo should've been called first.
+//! ```
+//!
+//! ## Checkpoints
+//!
+//! Sometimes its useful to validate all expectations mid-test, throw them away,
+//! and add new ones.  That's what checkpoints are for.  Every mock object has a
+//! `checkpoint` method.  When called, it will immediately validate all methods'
+//! expectations.  So any expectations that haven't satisfied their call count
+//! will panic.  Afterwards, those expectations will be cleared so you can add
+//! new expectations and keep testing.
+//!
+//! ```should_panic
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self);
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .times(2)
+//!     .returning(|_| ());
+//!
+//! mock.foo();
+//! mock.checkpoint();  // Panics!  foo hasn't yet been called twice.
+//! ```
+//!
+//! ```should_panic
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self);
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .times(1)
+//!     .returning(|_| ());
+//!
+//! mock.foo();
+//! mock.checkpoint();
+//! mock.foo();         // Panics!  The expectation has been cleared.
+//! ```
+//!
+//! ## Reference arguments
+//!
+//! Mocking methods with non-`'static` arguments is tricky.  Fundamentally, in
+//! Rust an `Fn(I) -> O` object has the same lifetime parameters as `I` and `O`.
+//! So rather than remove the ability to use closures for matchers, Mockall
+//! takes a shortcut: it converts all reference arguments into pointer
+//! arguments.  The user is responsible for ensuring that there lifetimes are
+//! satisfied.  That's not typically a problem since unit tests a short-lived.
+//!
+//! ```
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self, x: &u32) -> u32;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .returning(|x: *const u32| unsafe {*x + 1});
+//!
+//! assert_eq!(6, mock.foo(&5));
+//! ```
+//!
+//! ## Reference return values
+//!
+//! ## Mocking structs
+//!
+//! ## Generic methods
+//!
+//! ## Generic traits and structs
+//!
+//! ## Associated types
+//!
+//! ## Multiple and inherited traits
+//!
+//! ## Static methods
+//!
+//! ## Foreign functions
+//!
+//! ## Crate features
+//!
+//! For additional examples, see [`#[automock]`] and [`mock!`].
+//!
+//! [`#[automock]`]: ../mockall_derive/attr.automock.html
+//! [`mock!`]: ../mockall_derive/macro.mock.html
+//! [`Expectations`]: struct.Expectations.html
+//! [`Sequence`]: struct.Sequence.html
+//! [`return_once`]: struct.Expectation.html#method.return_once
+//! [`Predicate`]: trait.Predicate.html
+//! [`predicates`]: predicate/index.html
+//! [`function`]: predicate/fn.function.html
+//! [`withf`]: struct.Expectation.html#method.withf
+//! [`never`]: struct.Expectation.html#method.never
+//! [`times`]: struct.Expectation.html#method.times
+//! [`times_any`]: struct.Expectation.html#method.times_any
+//! [`times_range`]: struct.Expectation.html#method.times_range
+
 #![cfg_attr(feature = "nightly", feature(specialization))]
 
 use cfg_if::cfg_if;
@@ -17,7 +366,7 @@ use std::{
     thread
 };
 
-pub use mockall_derive::*;
+pub use mockall_derive::{mock, automock};
 pub use predicates::prelude::*;
 pub use predicates::boolean::PredicateBooleanExt;
 

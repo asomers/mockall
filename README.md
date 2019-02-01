@@ -36,6 +36,7 @@ Then use it like this:
 
 ```rust
 use mockall::*
+use mockall::predicate::*
 #[automock]
 trait MyTrait {
     fn foo(&self, x: u32) -> u32;
@@ -43,9 +44,9 @@ trait MyTrait {
 
 let mut mock = MockMyTrait::new();
 mock.expect_foo()
-	.with(4)
-	.times(1)
-	.returning(|x| x + 1);
+    .with(eq(4))
+    .times(1)
+    .returning(|x| x + 1);
 assert_eq!(5, mock.foo(4));
 ```
 
