@@ -198,7 +198,8 @@ struct ExpectationCommon<I> {
 }
 
 impl<I> ExpectationCommon<I> {
-    pub fn call(&self, i: &I) {
+    /// Simulating calling the real method for this expectation
+    fn call(&self, i: &I) {
         self.matcher.verify(i);
         self.times.call();
         self.verify_sequence();
@@ -207,22 +208,23 @@ impl<I> ExpectationCommon<I> {
         }
     }
 
-    pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Self {
+    fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Self {
         assert!(self.times.is_exact(),
             "Only Expectations with an exact call count have sequences");
         self.seq_handle = Some(seq.next());
         self
     }
 
-    pub fn matches(&self, i: &I) -> bool {
+    fn matches(&self, i: &I) -> bool {
         self.matcher.matches(i)
     }
 
     /// Forbid this expectation from ever being called
-    pub fn never(&mut self) {
+    fn never(&mut self) {
         self.times.never();
     }
 
+    /// Let the sequence know that this expectation has been satisfied
     fn satisfy_sequence(&self) {
         if let Some(handle) = &self.seq_handle {
             handle.satisfy()
@@ -230,30 +232,38 @@ impl<I> ExpectationCommon<I> {
     }
 
     /// Require this expectation to be called exactly `n` times.
-    pub fn times(&mut self, n: usize) {
+    fn times(&mut self, n: usize) {
         self.times.n(n);
     }
 
     /// Allow this expectation to be called any number of times
-    pub fn times_any(&mut self) {
+    fn times_any(&mut self) {
         self.times.any();
     }
 
     /// Allow this expectation to be called any number of times within a given
     /// range
-    pub fn times_range(&mut self, range: Range<usize>) {
+    fn times_range(&mut self, range: Range<usize>) {
         self.times.range(range);
     }
 
+    /// Validate this expectation's sequence constraint
     fn verify_sequence(&self) {
         if let Some(handle) = &self.seq_handle {
             handle.verify()
         }
     }
 
-    pub fn with<P>(&mut self, p: P)
+    fn with<P>(&mut self, p: P)
         where P: Predicate<I> + Send + 'static
     {
+        self.matcher = Matcher(Box::new(p));
+    }
+
+    fn withf<F>(&mut self, f: F)
+        where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
+    {
+        let p = predicate::function(f);
         self.matcher = Matcher(Box::new(p));
     }
 }
@@ -272,11 +282,13 @@ impl<I> Default for ExpectationCommon<I> {
 /// impl<I, O> {} block
 macro_rules! expectation_common {
     ($common: ident, $klass:ident) => {
+        /// Add this expectation to a [`Sequence`](struct.Sequence.html).
         pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Self {
             self.$common.in_sequence(seq);
             self
         }
 
+        /// Validate this expectation's matcher.
         fn matches(&self, i: &I) -> bool {
             self.common.matches(i)
         }
@@ -294,6 +306,9 @@ macro_rules! expectation_common {
         }
 
         /// Allow this expectation to be called any number of times
+        ///
+        /// This behavior is the default, but the method is provided in case the
+        /// default behavior changes.
         pub fn times_any(&mut self) -> &mut Self {
             self.$common.times_any();
             self
@@ -306,11 +321,42 @@ macro_rules! expectation_common {
             self
         }
 
+        /// Set matching crieteria for this Expectation.
+        ///
+        /// The matching predicate can be anything implemening the
+        /// [`Predicate`](#trait.Predicate) trait.  Only one matcher can be set
+        /// per `Expectation` at a time.
+        ///
+        /// # Examples
+        /// ```
+        /// # use mockall::*;
+        /// let e1 = Expectation::<(u32, u32), ()>::new()
+        ///     .with(predicate::function(|(x, y)| x == y));
+        /// let e2 = Expectation::<u32, ()>::new()
+        ///     .with(predicate::eq(5));
+        /// ```
         pub fn with<P>(&mut self, p: P) -> &mut Self
             where P: Predicate<I> + Send + 'static
         {
             self.$common.with(p);
             self
+        }
+
+        /// Set a matching function for this Expectation.
+        ///
+        /// This is equivalent to calling [`with`](#method.with) with a function
+        /// argument, like `with(predicate::function(f))`.
+        ///
+        /// # Examples
+        /// ```
+        /// # use mockall::*;
+        /// let e1 = Expectation::<(u32, u32), ()>::new()
+        ///     .withf(|(x, y)| x == y);
+        /// ```
+        pub fn withf<F>(&mut self, f: F)
+            where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
+        {
+            self.$common.withf(f)
         }
     }
 }
@@ -319,6 +365,9 @@ macro_rules! expectation_common {
 /// impl<I, O> {} block
 macro_rules! expectations_common {
     ($klass:ident, $call:ident, $self_ty:ty, $iter:ident, $oty:ty) => {
+        /// Simulating calling the real method.  Every current expectation will
+        /// be checked in LIFO order and the first one with matching arguments
+        /// will be used.
         pub fn $call(self: $self_ty, i: I) -> $oty {
             match (self.0).$iter().rev().find(|e| e.matches(&i)) {
                 None => panic!("No matching expectation found"),
@@ -331,6 +380,7 @@ macro_rules! expectations_common {
             self.0.drain(..);
         }
 
+        /// Create a new expectation for this method.
         pub fn expect(&mut self) -> &mut $klass<I, O> {
             let e = $klass::new();
             self.0.push(e);
@@ -351,6 +401,7 @@ pub struct Expectation<I, O> {
 }
 
 impl<I, O> Expectation<I, O> {
+    /// Simulating calling the real method for this expectation
     pub fn call(&self, i: I) -> O {
         self.common.call(&i);
         self.rfunc.lock().unwrap()
@@ -363,6 +414,8 @@ impl<I, O> Expectation<I, O> {
         Expectation{common, rfunc}
     }
 
+    /// Supply a closure that will provide the return value for this
+    /// Expectation.  The method's arguments are passed to the closure by value.
     pub fn returning<F>(&mut self, f: F) -> &mut Self
         where F: FnMut(I) -> O + Send + 'static
     {
@@ -373,6 +426,9 @@ impl<I, O> Expectation<I, O> {
         self
     }
 
+    /// Supply an `FnOnce` closure that will provide the return value for this
+    /// Expectation.  This is useful for return typess that aren't `Clone`.  It
+    /// will be an error to call this Expectation multiple times.
     pub fn return_once<F>(&mut self, f: F) -> &mut Self
         where F: FnOnce(I) -> O + Send + 'static
     {
@@ -404,8 +460,8 @@ impl<I, O: Clone + Send + 'static> Expectation<I, O> {
     }
 }
 
-/// A Collection of `Expectation`s.  Allows you to set more than one expectation
-/// on the same method.
+/// A Collection of [`Expectation`](struct.Expectation.html)s.  Allows you to
+/// set more than one expectation on the same method.
 pub struct Expectations<I, O>(Vec<Expectation<I, O>>);
 
 impl<I, O> Expectations<I, O> {
@@ -428,6 +484,7 @@ pub struct RefExpectation<I, O> {
 }
 
 impl<I, O> RefExpectation<I, O> {
+    /// Simulating calling the real method for this expectation
     pub fn call(&self, i: I) -> &O {
         self.common.call(&i);
         &self.result.as_ref()
@@ -439,6 +496,7 @@ impl<I, O> RefExpectation<I, O> {
         RefExpectation{common, result: None}
     }
 
+    /// Return a reference to a constant value from the `RefExpectation`
     pub fn return_const(&mut self, o: O) -> &mut Self {
         self.result = Some(o);
         self
@@ -453,8 +511,8 @@ impl<I, O> Default for RefExpectation<I, O> {
     }
 }
 
-/// A Collection of `RefExpectation`s.  Allows you to set more than one
-/// expectation on the same method.
+/// A Collection of [`RefExpectation`](struct.RefExpectation.html)s.  Allows you
+/// to set more than one expectation on the same method.
 pub struct RefExpectations<I, O>(Vec<RefExpectation<I, O>>);
 
 impl<I, O> RefExpectations<I, O> {
@@ -480,6 +538,7 @@ pub struct RefMutExpectation<I, O> {
 }
 
 impl<I, O> RefMutExpectation<I, O> {
+    /// Simulating calling the real method for this expectation
     pub fn call_mut(&mut self, i: I) -> &mut O {
         self.common.call(&i);
         if let Some(ref mut f) = self.rfunc {
@@ -494,7 +553,7 @@ impl<I, O> RefMutExpectation<I, O> {
     }
 
     /// Convenience method that can be used to supply a return value for a
-    /// `RefMutExpectation`.
+    /// `RefMutExpectation`.  The value will be returned by mutable reference.
     pub fn return_var(&mut self, o: O) -> &mut Self
     {
         self.result = Some(o);
@@ -502,7 +561,7 @@ impl<I, O> RefMutExpectation<I, O> {
     }
 
     /// Supply a closure that the `RefMutExpectation` will use to create its
-    /// return value.
+    /// return value.  The return value will be returned by mutable reference.
     pub fn returning<F>(&mut self, f: F) -> &mut Self
         where F: FnMut(I) -> O + Send + 'static
     {
@@ -519,8 +578,8 @@ impl<I, O> Default for RefMutExpectation<I, O> {
     }
 }
 
-/// A Collection of `RefMutExpectation`s.  Allows you to set more than one
-/// expectation on the same method.
+/// A Collection of [`RefMutExpectation`](struct.RefMutExpectation.html)s.
+/// Allows you to set more than one expectation on the same method.
 pub struct RefMutExpectations<I, O>(Vec<RefMutExpectation<I, O>>);
 
 impl<I, O> RefMutExpectations<I, O> {
@@ -548,14 +607,21 @@ impl Key {
     }
 }
 
-/// Expectation type for generic methods with `'static` return values.
-/// Currently requires `'static` arguments as well.
+/// Container for the expectations of generic methods.
+///
+/// Effectively this contains a separate
+/// [`Expectations`](struct.Expectations.html) object for each unique set of
+/// generic parameters.
+///
+/// Requires the methods to have `'static` return values.  Currently requires
+/// `'static` arguments as well.
 #[derive(Default)]
 pub struct GenericExpectations {
     store: HashMap<Key, Box<dyn AnyExpectations>>
 }
 
 impl GenericExpectations {
+    /// Simulating calling the real method.
     pub fn call<I: 'static, O: 'static>(&self, args: I) -> O {
         let key = Key::new::<I, O>();
         let e: &Expectations<I, O> = self.store.get(&key)
@@ -565,11 +631,13 @@ impl GenericExpectations {
         e.call(args)
     }
 
-    /// Verify that all current expectations are satisfied and clear them.
+    /// Verify that all current expectations are satisfied and clear them.  This
+    /// applies to all sets of generic parameters!
     pub fn checkpoint(&mut self) {
         self.store.clear();
     }
 
+    /// Create a new [`Expectation`](struct.Expectation.html).
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut Expectation<I, O>
         where I: 'static, O: 'static
     {
@@ -589,15 +657,21 @@ impl GenericExpectations {
     }
 }
 
-/// Expectation type for generic methods with a `&self` and return a reference
-/// with the same lifetime as `self`.  Currently requires `'static` input
-/// arguments as well.
+/// Container for the expectations of generic methods that take `&self`
+/// arguments and return immutable references with the same lifetime as `&self`.
+///
+/// Effectively this contains a separate
+/// [`RefExpectations`](struct.RefExpectations.html) object for each unique set
+/// of generic parameters.
+///
+/// Currently requires `'static` input arguments.
 #[derive(Default)]
 pub struct GenericRefExpectations {
     store: HashMap<Key, Box<dyn AnyExpectations>>,
 }
 
 impl GenericRefExpectations {
+    /// Simulating calling the real method.
     pub fn call<I: 'static, O: 'static>(&self, args: I) -> &O {
         let key = Key::new::<I, O>();
         let e: &RefExpectations<I, O> = self.store.get(&key)
@@ -607,11 +681,13 @@ impl GenericRefExpectations {
         e.call(args)
     }
 
-    /// Verify that all current expectations are satisfied and clear them.
+    /// Verify that all current expectations are satisfied and clear them.  This
+    /// affects all sets of generic parameters!
     pub fn checkpoint(&mut self) {
         self.store.clear();
     }
 
+    /// Create a new [`RefExpectation`](struct.RefExpectation.html).
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefExpectation<I, O>
         where I: 'static, O: Send + 'static
     {
@@ -627,15 +703,21 @@ impl GenericRefExpectations {
     }
 }
 
-/// Expectation type for generic methods with a `&mut self` and return a
-/// reference with the same lifetime as `self`.  Currently requires `'static`
-/// input arguments as well.
+/// Container for the expectations of generic methods that take `&mut self`
+/// arguments and return references with the same lifetime as `&self`.
+///
+/// Effectively this contains a separate
+/// [`RefMutExpectations`](struct.RefMutExpectations.html) object for each
+/// unique set of generic parameters.
+///
+/// Currently requires `'static` input arguments.
 #[derive(Default)]
 pub struct GenericRefMutExpectations {
     store: HashMap<Key, Box<dyn AnyExpectations>>,
 }
 
 impl GenericRefMutExpectations {
+    /// Simulating calling the real method.
     pub fn call_mut<I: 'static, O: 'static>(&mut self, args: I) -> &mut O {
         let key = Key::new::<I, O>();
         let e: &mut RefMutExpectations<I, O> = self.store.get_mut(&key)
@@ -645,11 +727,13 @@ impl GenericRefMutExpectations {
         e.call_mut(args)
     }
 
-    /// Verify that all current expectations are satisfied and clear them.
+    /// Verify that all current expectations are satisfied and clear them.  This
+    /// affects all sets of generic parameters!
     pub fn checkpoint(&mut self) {
         self.store.clear();
     }
 
+    /// Create a new [`RefMutExpectation`](struct.RefMutExpectation.html).
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefMutExpectation<I, O>
         where I: 'static, O: Send + 'static
     {
@@ -666,7 +750,8 @@ impl GenericRefMutExpectations {
     }
 }
 
-/// Useful for mocking static methods.  Forwards accesses to an
+/// Like an [`&Expectation`](struct.Expectation.html) but protected by a Mutex
+/// guard.  Useful for mocking static methods.  Forwards accesses to an
 /// `Expectation<I, O>` object.
 // We must return the MutexGuard to the caller so he can configure the
 // expectation.  But we can't bundle both the guard and the &Expectation into
@@ -679,11 +764,15 @@ pub struct ExpectationGuard<'guard, I, O>{
 }
 
 impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
+    /// Just like
+    /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
     pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Expectation<I, O>
     {
         self.guard.0[self.i].in_sequence(seq)
     }
 
+    /// Just like
+    /// [`Expectation::never`](struct.Expectation.html#method.never)
     pub fn never(&mut self) -> &mut Expectation<I, O> {
         self.guard.0[self.i].never()
     }
@@ -696,31 +785,43 @@ impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
         ExpectationGuard{guard, i}
     }
 
+    /// Just like
+    /// [`Expectation::returning`](struct.Expectation.html#method.returning)
     pub fn returning<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: FnMut(I) -> O + Send + 'static
     {
         self.guard.0[self.i].returning(f)
     }
 
+    /// Just like
+    /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
     pub fn return_once<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: FnOnce(I) -> O + Send + 'static
     {
         self.guard.0[self.i].return_once(f)
     }
 
+    /// Just like
+    /// [`Expectation::times`](struct.Expectation.html#method.times)
     pub fn times(&mut self, n: usize) -> &mut Expectation<I, O> {
         self.guard.0[self.i].times(n)
     }
 
+    /// Just like
+    /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
     pub fn times_any(&mut self) -> &mut Expectation<I, O> {
         self.guard.0[self.i].times_any()
     }
 
+    /// Just like
+    /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
     pub fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<I, O>
     {
         self.guard.0[self.i].times_range(range)
     }
 
+    /// Just like
+    /// [`Expectation::with`](struct.Expectation.html#method.with)
     pub fn with<P>(&mut self, p: P) -> &mut Expectation<I, O>
         where P: Predicate<I> + Send + 'static
     {
@@ -765,6 +866,40 @@ impl SeqInner {
     }
 }
 
+/// Used to enforce that mock calls must happen in the sequence specified.
+///
+/// Each expectation must expect to be called a fixed number of times.  Once
+/// satisfied, the next expectation in the sequence will expect to be called.
+///
+/// # Examples
+/// ```
+/// # use mockall::*;
+/// let mut seq = Sequence::new();
+///
+/// let mut e1 = Expectation::<u32, ()>::new();
+/// e1.times(1);
+/// e1.returning(|_| ());
+/// e1.in_sequence(&mut seq);
+///
+/// let mut e2 = Expectation::<(), u32>::new();
+/// e2.times(1);
+/// e2.returning(|_| 42);
+/// e2.in_sequence(&mut seq);
+///
+/// e1.call(5);
+/// e2.call(());
+/// ```
+///
+/// It is an error to add an expectation to a `Sequence` if its call count is
+/// unspecified.
+/// ```should_panic(expected = "with an exact call count")
+/// # use mockall::*;
+/// let mut seq = Sequence::new();
+///
+/// let mut e1 = Expectation::<u32, ()>::new();
+/// e1.returning(|_| ());
+/// e1.in_sequence(&mut seq);   // panics!
+/// ```
 #[derive(Default)]
 pub struct Sequence {
     inner: Arc<SeqInner>,
