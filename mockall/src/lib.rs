@@ -747,7 +747,7 @@ impl SeqHandle {
 }
 
 #[derive(Default)]
-pub struct SeqInner {
+struct SeqInner {
     satisfaction_level: AtomicUsize,
 }
 
