@@ -505,10 +505,13 @@
 //! }
 //!
 //! mock! {
+//!     // Structure to mock
 //!     C {}
+//!     // First trait to implement on C
 //!     trait A {
 //!         fn foo(&self);
 //!     }
+//!     // Second trait to implement on C
 //!     trait B: A {
 //!         fn bar(&self);
 //!     }

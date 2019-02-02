@@ -341,8 +341,7 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// struct/trait prepended with "Mock".  For each method of the original, the
 /// mock struct will have a method named `expect_whatever` that allows you to
 /// set expectations.  There will also be one `checkpoint` method that calls
-/// [`checkpoint`] for every single method.  The easiest way to learn
-/// how to use `[#automock]` is through examples:
+/// [`checkpoint`] for every single method.
 ///
 /// # Examples
 ///
@@ -355,6 +354,41 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// }
 ///
 /// let mock = MockFoo::new();
+/// ```
+///
+/// Mocking a structure:
+/// ```
+/// # use mockall_derive::*;
+/// struct Foo {}
+/// #[automock]
+/// impl Foo {
+///     fn foo(&self) -> u32 {
+///         // ...
+///         # unimplemented!()
+///     }
+/// }
+/// ```
+///
+/// Mocking a trait with associated types requires adding a metaitem to the
+/// attribute:
+/// ```
+/// # use mockall_derive::*;
+/// #[automock(type Item=u32;)]
+/// trait Foo {
+///     type Item;
+///     fn foo(&self) -> Self::Item;
+/// }
+/// ```
+///
+/// Finally, `#[automock]` can also mock foreign functions.  This requires
+/// another metaitem to specify the mock module name.
+///
+/// ```
+/// # use mockall_derive::*;
+/// #[automock(mod mock_ffi;)]
+/// extern "C" {
+///     fn foo() -> u32;
+/// }
 /// ```
 ///
 /// [`checkpoint`]: ../mockall/struct.Expectations.html#method.checkpoint
