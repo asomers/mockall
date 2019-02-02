@@ -1327,6 +1327,62 @@ mod t {
     }
 
     #[test]
+    fn static_constructor_in_trait() {
+        let desired = r#"
+        struct MockA {
+            A_expectations: MockA_A ,
+        }
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockA_A::default(),
+                }
+            }
+        }
+        struct MockA_A { }
+        ::mockall::lazy_static!{
+            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), MockA> > = ::std::sync::Mutex::new(::mockall::Expectations::new());
+        }
+        impl ::std::default::Default for MockA_A {
+            fn default() -> Self {
+                Self { }
+            }
+        }
+        impl MockA_A {
+            fn checkpoint(&mut self) {
+                MockA_A_new_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.A_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl A for MockA {
+            fn new() -> Self {
+                MockA_A_new_expectation.lock().unwrap().call(())
+            }
+        }
+        impl MockA {
+            pub fn expect_new< 'guard>()
+                -> ::mockall::ExpectationGuard< 'guard, (), MockA>
+            {
+                ::mockall::ExpectationGuard::new(
+                    MockA_A_new_expectation.lock().unwrap()
+                )
+            }
+        }"#;
+        let code = r#"
+        trait A {
+            fn new() -> Self;
+        }"#;
+        check("", desired, code);
+    }
+
+    #[test]
     fn two_args() {
         check("",
         r#"

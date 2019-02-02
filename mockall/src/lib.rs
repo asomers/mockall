@@ -561,8 +561,8 @@
 //! assert_eq!(42, foo.foo());
 //! ```
 //! One more thing: Mockall normally creates a zero-argument `new` method for
-//! every mock struct.  But it *won't* do that when mocking a trait or struct
-//! that already has a method named `new`.
+//! every mock struct.  But it *won't* do that when mocking a struct that
+//! already has a method named `new`.
 //!
 //! ## Foreign functions
 //!

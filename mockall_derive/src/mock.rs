@@ -27,7 +27,8 @@ impl Mock {
             (trait_.ident.to_string(), trait_.generics.clone())
         }).collect::<Vec<_>>();
         // generate the mock structure
-        gen_struct(&self.vis, &self.name, &self.generics, &subs, &self.methods)
+        gen_struct(&mock_struct_name, &self.vis, &self.name, &self.generics,
+                   &subs, &self.methods)
             .to_tokens(&mut output);
         // generate sub structures
         for trait_ in self.traits.iter() {
@@ -47,12 +48,13 @@ impl Mock {
                 }
             }).collect::<Vec<_>>();
             let vis = syn::Visibility::Inherited;
-            gen_struct(&vis, &sub_mock,
+            gen_struct(&mock_struct_name, &vis, &sub_mock,
                        &trait_.generics, &[], &methods)
                 .to_tokens(&mut output);
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
-                let (_, _, cp) = gen_mock_method(&mock_sub_name, None, &vis,
+                let (_, _, cp) = gen_mock_method(Some(&mock_struct_name),
+                                                 &mock_sub_name, None, &vis,
                                                  &meth.borrow().sig, None);
                 cp.to_tokens(&mut sub_cp_body);
             }
@@ -70,7 +72,8 @@ impl Mock {
             has_new |= meth.sig.ident == &"new";
             let pub_token = syn::token::Pub{span: Span::call_site()};
             let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
-            let (mm, em, cp) = gen_mock_method(&mock_struct_name, None, &vis,
+            let (mm, em, cp) = gen_mock_method(Some(&mock_struct_name),
+                                               &mock_struct_name, None, &vis,
                                                &meth.sig, None);
             mm.to_tokens(&mut mock_body);
             em.to_tokens(&mut mock_body);
@@ -135,7 +138,8 @@ impl Parse for Mock {
 }
 
 /// Generate a mock method and its expectation method
-fn gen_mock_method(mock_ident: &syn::Ident,
+fn gen_mock_method(self_ident: Option<&syn::Ident>,
+                   mock_ident: &syn::Ident,
                    defaultness: Option<&syn::token::Default>,
                    vis: &syn::Visibility,
                    sig: &syn::MethodSig,
@@ -167,7 +171,7 @@ fn gen_mock_method(mock_ident: &syn::Ident,
     } else {
         "".to_string()
     };
-    let meth_types = method_types(Some(mock_ident), sig);
+    let meth_types = method_types(self_ident, sig);
     let input_type = &meth_types.input_type;
     let output_type = &meth_types.output_type;
     let expectation = &meth_types.expectation;
@@ -245,7 +249,8 @@ fn gen_mock_method(mock_ident: &syn::Ident,
     (mock_output, expect_output, cp_output)
 }
 
-fn gen_struct<T>(vis: &syn::Visibility,
+fn gen_struct<T>(mock_ident: &syn::Ident,
+                 vis: &syn::Visibility,
                  ident: &syn::Ident,
                  generics: &syn::Generics,
                  subs: &[(String, syn::Generics)],
@@ -270,7 +275,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     }
     for meth in methods.iter() {
         let method_ident = &meth.borrow().sig.ident;
-        let meth_types = method_types(Some(&ident), &meth.borrow().sig);
+        let meth_types = method_types(Some(&mock_ident), &meth.borrow().sig);
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
         if meth_types.is_static {
@@ -362,6 +367,7 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
             },
             syn::TraitItem::Method(meth) => {
                 let (mock_meth, expect_meth, _cp) = gen_mock_method(
+                    Some(mock_ident),
                     mock_ident,
                     None,
                     &syn::Visibility::Inherited,

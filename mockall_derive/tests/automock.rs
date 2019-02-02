@@ -439,3 +439,14 @@ fn static_method() {
         .returning(|_| 42);
     assert_eq!(42, MockA::bar());
 }
+
+#[test]
+fn trait_with_constructor() {
+    #[automock]
+    trait A {
+        fn new() -> Self;
+    }
+
+    MockA::expect_new().returning(|_| MockA::default());
+    let _a: MockA = MockA::new();
+}
