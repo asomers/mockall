@@ -40,7 +40,7 @@
 //! * [`Mocking structs`](#mocking-structs)
 //! * [`Generic methods`](#generic-methods)
 //! * [`Generic traits and structs`](#generic-traits-and-structs)
-//! * [`Associated types`](#associated-types)
+//! * [`Associated types`](#associated-types-1)
 //! * [`Multiple and inherited traits`](#multiple-and-inherited-traits)
 //! * [`Static methods`](#static-methods)
 //! * [`Foreign functions`](#foreign-functions)
@@ -320,17 +320,249 @@
 //!
 //! ## Reference return values
 //!
+//! Unlike arguments, Mockall can use reference return values directly.  There
+//! is one restriction: the lifetime of the returned reference must be the same
+//! as the lifetime of the mock object.
+//!
+//! Mockall creates different expectation types for methods that return
+//! references.  Their API is the same as the usual [`Expectation`], except for
+//! setting return values.
+//!
+//! Methods that take a `&self` argument use the [`RefExpectation`] class, which
+//! gets its return value from the
+//! [`return_const`](struct.RefExpectation.html#method.return_const) method.
+//!
+//! ```
+//! # use mockall::*;
+//! struct Thing(u32);
+//!
+//! #[automock]
+//! trait Container {
+//!     fn get(&self, i: u32) -> &Thing;
+//! }
+//!
+//! let thing = Thing(42);
+//! let mut mock = MockContainer::new();
+//! mock.expect_get()
+//!     .return_const(thing);
+//!
+//! assert_eq!(42, mock.get(0).0);
+//! ```
+//!
+//! Methods that take a `&mut self` argument use the [`RefMutExpectation`]
+//! class, regardless of whether the return value is actually mutable.  They can
+//! take their return value either from the
+//! [`return_var`](struct.RefMutExpectation.html#method.return_var) or
+//! [`returning`](struct.RefMutExpectation.html#method.returning) methods.
+//!
+//! ```
+//! # use mockall::*;
+//! struct Thing(u32);
+//!
+//! #[automock]
+//! trait Container {
+//!     fn get_mut(&mut self, i: u32) -> &mut Thing;
+//! }
+//!
+//! let thing = Thing(42);
+//! let mut mock = MockContainer::new();
+//! mock.expect_get_mut()
+//!     .return_var(thing);
+//!
+//! mock.get_mut(0).0 = 43;
+//! assert_eq!(43, mock.get_mut(0).0);
+//! ```
+//!
 //! ## Mocking structs
+//!
+//! Mockall can also mock structs.  The problem here is a namespace problem:
+//! it's hard to supply the mock object to your code under test, because it has
+//! a different name.  The solution is to alter import paths during test.  The
+//! [`cfg-if`] crate helps.
+//!
+//! [`#[automock]`] works for structs that have a single `impl` block:
+//! ```no_run
+//! # use mockall::*;
+//! # use cfg_if::cfg_if;
+//! mod thing {
+//!     use mockall::automock;
+//!
+//!     pub struct Thing{}
+//!     #[automock]
+//!     impl Thing {
+//!         pub fn foo(&self) -> u32 {
+//!             unimplemented!()
+//!         }
+//!     }
+//! }
+//!
+//! cfg_if! {
+//!     if #[cfg(test)] {
+//!         use thing::MockThing as Thing;
+//!     } else {
+//!         use thing::Thing;
+//!     }
+//! }
+//!
+//! fn do_stuff(thing: &Thing) -> u32 {
+//!     thing.foo()
+//! }
+//!
+//! #[cfg(test)]
+//! mod t {
+//!     use super::*;
+//!
+//!     #[test]
+//!     fn test_foo() {
+//!         let mut mock = Thing::default();
+//!         mock.expect_foo().returning(|_| 42);
+//!         do_stuff(&mock);
+//!     }
+//! }
+//! ```
+//! For structs with more than one `impl` block, see [`mock!`] instead.
 //!
 //! ## Generic methods
 //!
+//! Generic methods can be mocked, too.  Effectively each generic method is an
+//! infinite set of regular methods, and each of those works just like any other
+//! regular method.  The expect_ method is generic, too, and usually must be
+//! called with a turbofish.
+//!
+//! ```
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo<T: 'static>(&self, t: T) -> i32;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo::<i16>()
+//!     .returning(|t| i32::from(t));
+//! mock.expect_foo::<i8>()
+//!     .returning(|t| -i32::from(t));
+//!
+//! assert_eq!(5, mock.foo(5i16));
+//! assert_eq!(-5, mock.foo(5i8));
+//! ```
+//!
 //! ## Generic traits and structs
+//!
+//! Mocking generic structs and generic traits is not a problem.  The mock
+//! struct will be generic, too.
+//!
+//! ```
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo<T> {
+//!     fn foo(&self, t: T) -> i32;
+//! }
+//!
+//! let mut mock = MockFoo::<i16>::new();
+//! mock.expect_foo()
+//!     .returning(|t| i32::from(t));
+//! assert_eq!(5, mock.foo(5i16));
+//! ```
 //!
 //! ## Associated types
 //!
+//! Traits with associated types can be mocked too.  Unlike generic traits, the
+//! mock struct will not be generic.  Instead, we must specify the associated
+//! types when defining the mock struct.  They're specified as metaitems to the
+//! [`#[automock]`] attribute.
+//!
+//! ```
+//! # use mockall::*;
+//! #[automock(type Key=u16; type Value=i32;)]
+//! pub trait A {
+//!     type Key;
+//!     type Value;
+//!     fn foo(&self, k: Self::Key) -> Self::Value;
+//! }
+//!
+//! let mut mock = MockA::new();
+//! mock.expect_foo()
+//!     .returning(|x| i32::from(x));
+//! assert_eq!(4, mock.foo(4));
+//! ```
+//!
 //! ## Multiple and inherited traits
 //!
+//! Creating a mock struct that implements multiple traits, whether inherited or
+//! not, requires using the [`mock!`] macro.  But once created, using it is just
+//! the same as using any other mock object
+//!
+//! ```
+//! # use mockall::*;
+//!
+//! pub trait A {
+//!     fn foo(&self);
+//! }
+//!
+//! pub trait B: A {
+//!     fn bar(&self);
+//! }
+//!
+//! mock! {
+//!     C {}
+//!     trait A {
+//!         fn foo(&self);
+//!     }
+//!     trait B: A {
+//!         fn bar(&self);
+//!     }
+//! }
+//! # fn main() {
+//! let mut mock = MockC::new();
+//! mock.expect_foo().returning(|_| ());
+//! mock.expect_bar().returning(|_| ());
+//! mock.foo();
+//! mock.bar();
+//! # }
+//! ```
+//!
 //! ## Static methods
+//!
+//! Mockall can also mock static methods.  But be careful!  The expectations are
+//! global.  If you want to use a static method in multiple tests, you must
+//! provide your own synchronization.
+//!
+//! ```
+//! # use mockall::*;
+//! #[automock]
+//! pub trait A {
+//!     fn foo() -> u32;
+//! }
+//!
+//! MockA::expect_foo().returning(|_| 99);
+//! assert_eq!(99, MockA::foo());
+//! ```
+//!
+//! A common pattern is mocking a trait with a construtor method.  In this case,
+//! you can easily set the mock constructor method to return a mock object.
+//!
+//! ```
+//! # use mockall::*;
+//! struct Foo{}
+//! #[automock]
+//! impl Foo {
+//!     fn from_i32(x: i32) -> Self {unimplemented!()}
+//!     fn foo(&self) -> i32 {unimplemented!()}
+//! }
+//!
+//! MockFoo::expect_from_i32()
+//!     .returning(|x| {
+//!         let mut mock = MockFoo::default();
+//!         mock.expect_foo()
+//!             .return_const(x);
+//!         mock
+//!     });
+//! let foo = MockFoo::from_i32(42);
+//! assert_eq!(42, foo.foo());
+//! ```
+//! One more thing: Mockall normally creates a zero-argument `new` method for
+//! every mock struct.  But it *won't* do that when mocking a trait or struct
+//! that already has a method named `new`.
 //!
 //! ## Foreign functions
 //!
@@ -339,19 +571,22 @@
 //! For additional examples, see [`#[automock]`] and [`mock!`].
 //!
 //! [`#[automock]`]: ../mockall_derive/attr.automock.html
-//! [`mock!`]: ../mockall_derive/macro.mock.html
+//! [`Expectation`]: struct.Expectation.html
 //! [`Expectations`]: struct.Expectations.html
-//! [`Sequence`]: struct.Sequence.html
-//! [`return_once`]: struct.Expectation.html#method.return_once
 //! [`Predicate`]: trait.Predicate.html
-//! [`predicates`]: predicate/index.html
+//! [`RefExpectation`]: struct.RefExpectation.html
+//! [`Sequence`]: struct.Sequence.html
+//! [`cfg-if`]: https://crates.io/crates/cfg-if
 //! [`function`]: predicate/fn.function.html
-//! [`withf`]: struct.Expectation.html#method.withf
-//! [`withf_unsafe`]: struct.Expectation.html#method.withf_unsafe
+//! [`mock!`]: ../mockall_derive/macro.mock.html
 //! [`never`]: struct.Expectation.html#method.never
-//! [`times`]: struct.Expectation.html#method.times
+//! [`predicates`]: predicate/index.html
+//! [`return_once`]: struct.Expectation.html#method.return_once
 //! [`times_any`]: struct.Expectation.html#method.times_any
 //! [`times_range`]: struct.Expectation.html#method.times_range
+//! [`times`]: struct.Expectation.html#method.times
+//! [`withf_unsafe`]: struct.Expectation.html#method.withf_unsafe
+//! [`withf`]: struct.Expectation.html#method.withf
 
 #![cfg_attr(feature = "nightly", feature(specialization))]
 
