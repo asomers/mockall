@@ -300,6 +300,9 @@
 //! arguments.  The user is responsible for ensuring that there lifetimes are
 //! satisfied.  That's not typically a problem since unit tests a short-lived.
 //!
+//! When setting matchers with pointer arguments, you'll normally have to use
+//! [`withf_unsafe`] instead of [`withf`], because pointers aren't `Send`.
+//!
 //! ```
 //! # use mockall::*;
 //! #[automock]
@@ -308,8 +311,9 @@
 //! }
 //!
 //! let mut mock = MockFoo::new();
-//! mock.expect_foo()
+//! let e = mock.expect_foo()
 //!     .returning(|x: *const u32| unsafe {*x + 1});
+//! unsafe{ e.withf_unsafe(|x: &*const u32| unsafe {**x == 5}); }
 //!
 //! assert_eq!(6, mock.foo(&5));
 //! ```
@@ -343,6 +347,7 @@
 //! [`predicates`]: predicate/index.html
 //! [`function`]: predicate/fn.function.html
 //! [`withf`]: struct.Expectation.html#method.withf
+//! [`withf_unsafe`]: struct.Expectation.html#method.withf_unsafe
 //! [`never`]: struct.Expectation.html#method.never
 //! [`times`]: struct.Expectation.html#method.times
 //! [`times_any`]: struct.Expectation.html#method.times_any
@@ -351,6 +356,7 @@
 #![cfg_attr(feature = "nightly", feature(specialization))]
 
 use cfg_if::cfg_if;
+use core::fmt::{self, Display};
 use downcast::*;
 use std::{
     any,
@@ -367,8 +373,7 @@ use std::{
 };
 
 pub use mockall_derive::{mock, automock};
-pub use predicates::prelude::*;
-pub use predicates::boolean::PredicateBooleanExt;
+pub use predicates::prelude::{Predicate, predicate};
 
 /// For mocking static methods
 #[doc(hidden)]
@@ -446,6 +451,36 @@ cfg_if! {
     }
 }
 
+/// Like predicates::function::FnPredicate, but unsafely implements `Send`.
+/// Useful for methods with pointer arguments.  The onus is on the user to
+/// ensure that it can be safely sent between threads.
+struct UnsafeFnPredicate<F, T>(predicates::function::FnPredicate<F, T>)
+    where F: Fn(&T) -> bool, T: ?Sized;
+
+impl<F, T> Display for UnsafeFnPredicate<F, T>
+    where F: Fn(&T) -> bool, T: ?Sized
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<F, T> predicates::reflection::PredicateReflection for UnsafeFnPredicate<F, T>
+    where F: Fn(&T) -> bool, T: ?Sized
+{}
+
+impl<F, T> predicates::prelude::Predicate<T> for UnsafeFnPredicate<F, T>
+    where F: Fn(&T) -> bool, T: ?Sized
+{
+    fn eval(&self, var: &T) -> bool {
+        self.0.eval(var)
+    }
+}
+
+unsafe impl<F, T> Send for UnsafeFnPredicate<F, T>
+    where F: Fn(&T) -> bool, T: ?Sized
+{}
+
 struct Matcher<I>(Box<dyn Predicate<I> + Send>);
 
 impl<I> Matcher<I> {
@@ -463,7 +498,7 @@ impl<I> Matcher<I> {
 
 impl<I> Default for Matcher<I> {
     fn default() -> Self {
-        Matcher(Box::new(predicate::always()))
+        Matcher(Box::new(predicates::constant::always()))
     }
 }
 
@@ -706,6 +741,28 @@ macro_rules! expectation_common {
             where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
         {
             self.$common.withf(f);
+            self
+        }
+
+        /// Like [`withf`](#method.withf), but it unsafely implements `Send`.
+        ///
+        /// This method is useful when working with methods that take pointer
+        /// or reference arguments.
+        ///
+        /// # Safety
+        ///
+        /// The only `unsafe` thing this method does is to unsafely implement
+        /// `Send` on an object built from the supplied closure.  It's `unsafe`
+        /// because raw pointers aren't `Send`.  For the common case of mocking
+        /// a method with reference arguments converted into pointers by
+        /// Mockall, it should be sufficient that your closure does not copy the
+        /// pointers or retain a reference to anything they point to.  And of
+        /// course, it's safe to use in single-threaded tests.
+        pub unsafe fn withf_unsafe<F>(&mut self, f: F) -> &mut Self
+            where F: Fn(&I) -> bool + 'static, I: 'static
+        {
+            let p = UnsafeFnPredicate(predicate::function(f));
+            self.$common.with(p);
             self
         }
     }
@@ -1184,6 +1241,14 @@ impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
         where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
     {
         self.guard.0[self.i].withf(f)
+    }
+
+    /// Just like
+    /// [`Expectation::withf_unsafe`](struct.Expectation.html#method.withf_unsafe)
+    pub unsafe fn withf_unsafe<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: Fn(&I) -> bool + 'static, I: 'static
+    {
+        self.guard.0[self.i].withf_unsafe(f)
     }
 }
 

@@ -36,6 +36,17 @@ fn match_fn_fail() {
     e.call(5);
 }
 
+#[test]
+fn match_pointer_args() {
+    let mut e = Expectation::<(*const u32), ()>::default();
+    e.returning(|_| ());
+    unsafe {
+        e.withf_unsafe(|x: &*const u32| **x == 6);
+    }
+    let x = 6u32;
+    e.call(&x as *const u32);
+}
+
 /// A MockObject with a method that takes &mut self like:
 /// fn foo(&mut self, x: i32) -> u32
 #[test]

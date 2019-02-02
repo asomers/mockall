@@ -387,13 +387,11 @@ mod reference_arguments {
     fn t() {
         const Y: u32 = 5;
         let mut mock = MockFoo::new();
-        {
-            mock.expect_foo().returning(|x| unsafe{*x});
-        }
-        {
-            let r = mock.foo(&Y);
-            assert_eq!(5, r);
-        }
+        let e = mock.expect_foo()
+            .returning(|x| unsafe{*x});
+        unsafe {e.withf_unsafe(|x| **x == 5);}
+        let r = mock.foo(&Y);
+        assert_eq!(5, r);
     }
 }
 
