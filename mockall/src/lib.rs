@@ -69,7 +69,7 @@
 //! ## Return values
 //!
 //! Every expectation must have an associated return value (though when the
-//! *nightly* feature is enabled expectations will automatically return the
+//! **nightly** feature is enabled expectations will automatically return the
 //! default values of their return types, if their return types implement
 //! `Default`.).  For `'static` return types there are two ways to set the
 //! return value: with a constant or a closure.  A closure will take the
@@ -385,13 +385,13 @@
 //! # use mockall::*;
 //! # use cfg_if::cfg_if;
 //! mod thing {
-//!     use mockall::automock;
-//!
+//!     # use mockall::automock;
 //!     pub struct Thing{}
 //!     #[automock]
 //!     impl Thing {
 //!         pub fn foo(&self) -> u32 {
-//!             unimplemented!()
+//!             // ...
+//!             # unimplemented!()
 //!         }
 //!     }
 //! }
@@ -546,8 +546,14 @@
 //! struct Foo{}
 //! #[automock]
 //! impl Foo {
-//!     fn from_i32(x: i32) -> Self {unimplemented!()}
-//!     fn foo(&self) -> i32 {unimplemented!()}
+//!     fn from_i32(x: i32) -> Self {
+//!         // ...
+//!         # unimplemented!()
+//!     }
+//!     fn foo(&self) -> i32 {
+//!         // ...
+//!         # unimplemented!()
+//!     }
 //! }
 //!
 //! MockFoo::expect_from_i32()
@@ -566,9 +572,69 @@
 //!
 //! ## Foreign functions
 //!
+//! Mockall can also mock foreign functions.  Like static methods, the
+//! expectations are global.  And like mocking structs, you'll probably have to
+//! fiddle with your imports to make the mock function accessible.  Finally,
+//! like associated types, you'll need to provide some extra info to
+//! [`#[automock]`] to make it work.
+//!
+//! ```no_run
+//! # use mockall::*;
+//! # use cfg_if::cfg_if;
+//! mod ffi {
+//!     # use mockall::automock;
+//!     #[automock(mod mock;)]
+//!     extern "C" {
+//!         pub fn foo(x: u32) -> i64;
+//!     }
+//! }
+//!
+//! cfg_if! {
+//!     if #[cfg(test)] {
+//!         use ffi::mock::foo;
+//!     } else {
+//!         use ffi::foo;
+//!     }
+//! }
+//!
+//! fn do_stuff() -> i64 {
+//!     unsafe{ foo(42) }
+//! }
+//!
+//! #[cfg(test)]
+//! mod t {
+//!     use super::*;
+//!
+//!     #[test]
+//!     fn test_foo() {
+//!         ffi::mock::expect_foo()
+//!             .returning(|x| i64::from(x + 1));
+//!         do_stuff();
+//!     }
+//! }
+//! ```
+//!
 //! ## Crate features
 //!
-//! For additional examples, see [`#[automock]`] and [`mock!`].
+//! Mockall has a **nightly** feature.  When enabled, expectations for methods
+//! whose return type implements `Default` needn't have their return values
+//! explicitly set.  Instead, they will automatically return the default value.
+//! Also, the compiler will produce better error messages with **nightly**
+//! enabled.
+//!
+//! With **nightly** enabled, you can omit the return value like this:
+// Ignore the test because I can't figure out how to conditionalize it.
+//! ```ignore
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self) -> Vec<u32>;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo();
+//! assert!(mock.foo().is_empty());
+//! ```
 //!
 //! [`#[automock]`]: ../mockall_derive/attr.automock.html
 //! [`Expectation`]: struct.Expectation.html
