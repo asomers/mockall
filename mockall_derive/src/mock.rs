@@ -386,7 +386,6 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                     // Trait normally can't get here (unless the
                     // associated_type_defaults feature is enabled), but we can
                     // get here from mock! if invoked like
-                    // mock!
                     // mock!{
                     //     Foo { }
                     //     trait Bar {
@@ -455,6 +454,62 @@ mod t {
         let expected = proc_macro2::TokenStream::from_str(desired).unwrap()
             .to_string();
         assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn clone() {
+        let desired = r#"
+        struct MockA {
+            Clone_expectations: MockA_Clone,
+        }
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    Clone_expectations: MockA_Clone::default(),
+                }
+            }
+        }
+        struct MockA_Clone {
+            clone: ::mockall::Expectations<(), MockA> ,
+        }
+        impl ::std::default::Default for MockA_Clone {
+            fn default() -> Self {
+                Self {
+                    clone: ::mockall::Expectations::default(),
+                }
+            }
+        }
+        impl MockA_Clone {
+            fn checkpoint(&mut self) {
+                self.clone.checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.Clone_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl Clone for MockA {
+            fn clone(&self) -> Self {
+                self.Clone_expectations.clone.call(())
+            }
+        }
+        impl MockA {
+            pub fn expect_clone(&mut self)
+            -> &mut ::mockall::Expectation<(), MockA>
+            {
+                self.Clone_expectations.clone.expect()
+            }
+        }"#;
+        let code = r#"
+        A {}
+        trait Clone {
+            fn clone(&self) -> Self;
+        }"#;
+        check(desired, code);
     }
 
     /// Mocking a struct with a generic method with mock!{}

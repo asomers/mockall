@@ -1,4 +1,9 @@
 // vim: tw=80
+//! Proc Macros for use with Mockall
+//!
+//! You probably don't want to use this crate directly.  Instead, you use use
+//! its reexports via the [`mockall`](../mockall/index.html) crate.
+
 #![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
 extern crate proc_macro;
 
@@ -197,7 +202,7 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
             }
         }
     };
-    if is_static && mock_ident.is_some() {
+    if mock_ident.is_some() {
         deselfify(&mut output_type, &mock_ident.as_ref().unwrap());
     }
 

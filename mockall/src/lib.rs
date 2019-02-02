@@ -42,6 +42,7 @@
 //! * [`Generic traits and structs`](#generic-traits-and-structs)
 //! * [`Associated types`](#associated-types-1)
 //! * [`Multiple and inherited traits`](#multiple-and-inherited-traits)
+//! * [`External traits`](#external-traits)
 //! * [`Static methods`](#static-methods)
 //! * [`Foreign functions`](#foreign-functions)
 //! * [`Crate features`](#crate-features)
@@ -518,6 +519,30 @@
 //! mock.expect_bar().returning(|_| ());
 //! mock.foo();
 //! mock.bar();
+//! # }
+//! ```
+//!
+//! ## External traits
+//!
+//! Mockall can mock traits and structs defined in external crates that are
+//! beyond your control, but you must use [`mock!`] instead of [`#[automock]`].
+//! Mock an external trait like this:
+//!
+//! ```
+//! # use mockall::*;
+//! mock! {
+//!     MyStruct {}     // Name of the mock struct, less the "Mock" prefix
+//!     trait Clone {   // definition of the trait to mock
+//!         fn clone(&self) -> Self;
+//!     }
+//! }
+//!
+//! # fn main() {
+//! let mut mock1 = MockMyStruct::new();
+//! let mock2 = MockMyStruct::new();
+//! mock1.expect_clone()
+//!     .return_once(move |_| mock2);
+//! let cloned = mock1.clone();
 //! # }
 //! ```
 //!
