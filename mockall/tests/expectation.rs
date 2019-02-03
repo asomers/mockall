@@ -1,6 +1,7 @@
 // vim: tw=80
 
 use mockall::*;
+use std::rc::Rc;
 
 #[test]
 fn match_eq_ok() {
@@ -137,6 +138,16 @@ fn no_args_or_returns() {
     let mut e = Expectation::<(), ()>::default();
     e.returning(|_| ());
     e.call(());
+}
+
+#[test]
+fn non_send() {
+    let mut e = Expectation::<Rc<u32>, Rc<u32>>::default();
+    let y = Rc::new(43u32);
+    e.returning_st(move |_| y.clone());
+    let x = Rc::new(42u32);
+    assert_eq!(43, *e.call(x).as_ref());
+
 }
 
 #[test]

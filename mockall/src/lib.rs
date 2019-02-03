@@ -687,6 +687,7 @@
 use cfg_if::cfg_if;
 use core::fmt::{self, Display};
 use downcast::*;
+use fragile::Fragile;
 use std::{
     any,
     collections::hash_map::HashMap,
@@ -1200,6 +1201,22 @@ impl<I, O> Expectation<I, O> {
         self
     }
 
+    /// Single-threaded version of [`returning`](#method.returning).  Can be
+    /// used when the argument or return type isn't `Send`.
+    pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+        where F: FnMut(I) -> O + 'static
+    {
+        let mut fragile = Fragile::new(f);
+        let fmut = move |i: I| {
+            (fragile.get_mut())(i)
+        };
+        {
+            let mut guard = self.rfunc.lock().unwrap();
+            mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
+        }
+        self
+    }
+
     expectation_common!{common, Expectation}
 }
 
@@ -1319,6 +1336,19 @@ impl<I, O> RefMutExpectation<I, O> {
         where F: FnMut(I) -> O + Send + 'static
     {
         mem::replace(&mut self.rfunc, Some(Box::new(f)));
+        self
+    }
+
+    /// Single-threaded version of [`returning`](#method.returning).  Can be
+    /// used when the argument or return type isn't `Send`.
+    pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+        where F: FnMut(I) -> O + 'static
+    {
+        let mut fragile = Fragile::new(f);
+        let fmut = move |i: I| {
+            (fragile.get_mut())(i)
+        };
+        mem::replace(&mut self.rfunc, Some(Box::new(fmut)));
         self
     }
 
@@ -1552,6 +1582,14 @@ impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
         where F: FnOnce(I) -> O + Send + 'static
     {
         self.guard.0[self.i].return_once(f)
+    }
+
+    /// Just like
+    /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
+    pub fn returning_st<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: FnMut(I) -> O + 'static
+    {
+        self.guard.0[self.i].returning_st(f)
     }
 
     /// Just like
