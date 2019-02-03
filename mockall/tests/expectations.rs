@@ -185,3 +185,42 @@ fn sequence_ok() {
     e.call(3);
     e.call(4);
 }
+
+/// When adding multiple calls of a single method, with the same arguments, to a
+/// sequence, expectations should not be called after they are done if there are
+/// more expectations to follow.
+#[test]
+fn sequence_of_single_method() {
+    let mut seq = Sequence::new();
+    let mut e = Expectations::<(), i32>::new();
+    e.expect()
+        .times(1)
+        .in_sequence(&mut seq)
+        .returning(|_| 1);
+    e.expect()
+        .times(1)
+        .in_sequence(&mut seq)
+        .returning(|_| 2);
+    e.expect()
+        .times(1)
+        .in_sequence(&mut seq)
+        .returning(|_| 3);
+
+    assert_eq!(1, e.call(()));
+    assert_eq!(2, e.call(()));
+    assert_eq!(3, e.call(()));
+}
+
+#[test]
+#[should_panic(expected = "Expectation called more than 2 times")]
+fn times_too_many() {
+    let mut e = Expectations::<(), ()>::default();
+    e.expect()
+        .times(2)
+        .returning(|_| ());
+    e.call(());
+    e.call(());
+    e.call(());
+    // Verify that we panic quickly and don't reach code below this point.
+    panic!("Shouldn't get here!");
+}

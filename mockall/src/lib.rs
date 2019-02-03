@@ -855,10 +855,22 @@ impl Times {
         self.range = 0..usize::max_value();
     }
 
+    /// Has this expectation already been called the maximum allowed number of
+    /// times?
+    fn is_done(&self) -> bool {
+        self.count.load(Ordering::Relaxed) >= self.range.end - 1
+    }
+
     /// Is it required that this expectation be called an exact number of times,
     /// or may it be satisfied by a range of call counts?
     fn is_exact(&self) -> bool {
         (self.range.end - self.range.start) == 1
+    }
+
+    /// Has this expectation already been called the minimum required number of
+    /// times?
+    fn is_satisfied(&self) -> bool {
+        self.count.load(Ordering::Relaxed) >= self.range.start
     }
 
     fn n(&mut self, n: usize) {
@@ -871,12 +883,6 @@ impl Times {
 
     fn range(&mut self, range: Range<usize>) {
         self.range = range;
-    }
-
-    /// Has this expectation already been called the minimum required number of
-    /// times?
-    fn is_satisfied(&self) -> bool {
-        self.count.load(Ordering::Relaxed) >= self.range.start
     }
 }
 
@@ -926,6 +932,10 @@ impl<I> ExpectationCommon<I> {
             "Only Expectations with an exact call count have sequences");
         self.seq_handle = Some(seq.next());
         self
+    }
+
+    fn is_done(&self) -> bool {
+        self.times.is_done()
     }
 
     fn matches(&self, i: &I) -> bool {
@@ -999,6 +1009,10 @@ macro_rules! expectation_common {
         pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Self {
             self.$common.in_sequence(seq);
             self
+        }
+
+        fn is_done(&self) -> bool {
+            self.common.is_done()
         }
 
         /// Validate this expectation's matcher.
@@ -1105,7 +1119,10 @@ macro_rules! expectations_common {
         /// be checked in FIFO order and the first one with matching arguments
         /// will be used.
         pub fn $call(self: $self_ty, i: I) -> $oty {
-            match (self.0).$iter().find(|e| e.matches(&i)) {
+            let n = self.0.len();
+            match (self.0).$iter().find(|e| e.matches(&i) &&
+                                        (!e.is_done() || n == 1))
+            {
                 None => panic!("No matching expectation found"),
                 Some(e) => e.$call(i)
             }
