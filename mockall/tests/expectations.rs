@@ -58,17 +58,17 @@ fn no_expectations() {
 }
 
 
-/// Like Mockers, calls should use the most matching recent expectation, if
+/// Unlike Mockers, calls should use the oldest matching expectation, if
 /// multiple expectations match
 #[test]
-fn lifo_order() {
+fn fifo_order() {
     let mut e = Expectations::<i32, i32>::new();
-    e.expect()
-        .with(predicate::always())
-        .returning(|_| 42);
     e.expect()
         .with(predicate::eq(5))
         .returning(|_| 99);
+    e.expect()
+        .with(predicate::always())
+        .returning(|_| 42);
 
     assert_eq!(99, e.call(5));
 }

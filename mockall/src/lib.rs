@@ -156,7 +156,7 @@
 //! Matchers can also be used to discriminate between different invocations of
 //! the same function.  Used that way, they can provide different return values
 //! for different arguments.  The way this works is that on a method call, all
-//! expectations set on a given method are evaluated in LIFO order.  The first
+//! expectations set on a given method are evaluated in FIFO order.  The first
 //! matching expectation is used.  Only if none of the expectations match does
 //! Mockall panic.  For example:
 //!
@@ -177,9 +177,9 @@
 //!     .return_const(60);
 //! ```
 //!
-//! One common pattern is to use multiple expectations in order of increasing
-//! specificity.  The first expectation can provide a default or fallback value,
-//! and subsequent ones can be more specific.  For example:
+//! One common pattern is to use multiple expectations in order of decreasing
+//! specificity.  The last expectation can provide a default or fallback value,
+//! and earlier ones can be more specific.  For example:
 //!
 //! ```
 //! # use mockall::*;
@@ -191,10 +191,10 @@
 //!
 //! let mut mock = MockFoo::new();
 //! mock.expect_open()
-//!     .return_const(None);
-//! mock.expect_open()
 //!     .with(eq(String::from("something.txt")))
 //!     .return_once(|_| Some(5));
+//! mock.expect_open()
+//!     .return_const(None);
 //! ```
 //!
 //! ## Call counts
@@ -1102,10 +1102,10 @@ macro_rules! expectation_common {
 macro_rules! expectations_common {
     ($klass:ident, $call:ident, $self_ty:ty, $iter:ident, $oty:ty) => {
         /// Simulating calling the real method.  Every current expectation will
-        /// be checked in LIFO order and the first one with matching arguments
+        /// be checked in FIFO order and the first one with matching arguments
         /// will be used.
         pub fn $call(self: $self_ty, i: I) -> $oty {
-            match (self.0).$iter().rev().find(|e| e.matches(&i)) {
+            match (self.0).$iter().find(|e| e.matches(&i)) {
                 None => panic!("No matching expectation found"),
                 Some(e) => e.$call(i)
             }
