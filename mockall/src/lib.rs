@@ -1192,18 +1192,6 @@ impl<I, O> Expectation<I, O> {
         Expectation{common, rfunc}
     }
 
-    /// Supply a closure that will provide the return value for this
-    /// Expectation.  The method's arguments are passed to the closure by value.
-    pub fn returning<F>(&mut self, f: F) -> &mut Self
-        where F: FnMut(I) -> O + Send + 'static
-    {
-        {
-            let mut guard = self.rfunc.lock().unwrap();
-            mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
-        }
-        self
-    }
-
     /// Supply an `FnOnce` closure that will provide the return value for this
     /// Expectation.  This is useful for return types that aren't `Clone`.  It
     /// will be an error to call this Expectation multiple times.
@@ -1225,8 +1213,47 @@ impl<I, O> Expectation<I, O> {
         self
     }
 
+    /// Single-threaded version of [`return_once`](#method.return_once).  This
+    /// is useful for return types that are neither `Send` nor `Clone`.
+    ///
+    /// It is a runtime error to call the mock method from a different thread
+    /// than the one that originally called this method.  It is also a runtime
+    /// error to call the method more than once.
+    pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
+        where F: FnOnce(I) -> O + 'static
+    {
+        let mut fragile = Some(Fragile::new(f));
+        let fmut = Box::new(move |i: I| {
+            match fragile.take() {
+                Some(frag) => (frag.into_inner())(i),
+                None => panic!(
+                    "Called a method twice that was expected only once")
+            }
+        });
+        {
+            let mut guard = self.rfunc.lock().unwrap();
+            mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
+        }
+        self
+    }
+
+    /// Supply a closure that will provide the return value for this
+    /// Expectation.  The method's arguments are passed to the closure by value.
+    pub fn returning<F>(&mut self, f: F) -> &mut Self
+        where F: FnMut(I) -> O + Send + 'static
+    {
+        {
+            let mut guard = self.rfunc.lock().unwrap();
+            mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+        }
+        self
+    }
+
     /// Single-threaded version of [`returning`](#method.returning).  Can be
     /// used when the argument or return type isn't `Send`.
+    ///
+    /// It is a runtime error to call the mock method from a different thread
+    /// than the one that originally called this method.
     pub fn returning_st<F>(&mut self, f: F) -> &mut Self
         where F: FnMut(I) -> O + 'static
     {

@@ -147,7 +147,16 @@ fn non_send() {
     e.returning_st(move |_| y.clone());
     let x = Rc::new(42u32);
     assert_eq!(43, *e.call(x).as_ref());
+}
 
+#[test]
+fn non_send_nor_clone() {
+    struct MyType(Rc<u32>);
+    let mut e = Expectation::<MyType, MyType>::default();
+    let y = MyType(Rc::new(43u32));
+    e.return_once_st(move |_| y);
+    let x = MyType(Rc::new(42u32));
+    assert_eq!(43, *e.call(x).0.as_ref());
 }
 
 #[test]
