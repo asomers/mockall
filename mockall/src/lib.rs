@@ -108,6 +108,30 @@
 //!     .return_once(move |_| r);
 //! ```
 //!
+//! [`return_once`] can also be used for computing the return value with an
+//! `FnOnce` closure.  This is useful for returning a non-`Clone` value and also
+//! triggering side effects at the same time.
+//!
+//! ```
+//! # use mockall::*;
+//! fn do_something() {}
+//!
+//! struct NonClone();
+//!
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self) -> NonClone;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! let r = NonClone{};
+//! mock.expect_foo()
+//!     .return_once(move |_| {
+//!         do_something();
+//!         r
+//!     });
+//! ```
+//!
 //! ## Matching arguments
 //!
 //! Optionally, expectations may have argument matchers set.  A matcher will
@@ -192,7 +216,7 @@
 //! let mut mock = MockFoo::new();
 //! mock.expect_open()
 //!     .with(eq(String::from("something.txt")))
-//!     .return_once(|_| Some(5));
+//!     .returning(|_| Some(5));
 //! mock.expect_open()
 //!     .return_const(None);
 //! ```
@@ -1181,7 +1205,7 @@ impl<I, O> Expectation<I, O> {
     }
 
     /// Supply an `FnOnce` closure that will provide the return value for this
-    /// Expectation.  This is useful for return typess that aren't `Clone`.  It
+    /// Expectation.  This is useful for return types that aren't `Clone`.  It
     /// will be an error to call this Expectation multiple times.
     pub fn return_once<F>(&mut self, f: F) -> &mut Self
         where F: FnOnce(I) -> O + Send + 'static
