@@ -715,6 +715,7 @@ use fragile::Fragile;
 use std::{
     any,
     collections::hash_map::HashMap,
+    marker::PhantomData,
     mem,
     ops::{DerefMut, Range},
     sync::{
@@ -1684,6 +1685,160 @@ impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
         where F: Fn(&I) -> bool + 'static, I: 'static
     {
         self.guard.0[self.i].withf_unsafe(f)
+    }
+}
+
+/// Like an [`&ExpectationGuard`](struct.ExpectationGuard.html) but for generic
+/// methods.
+pub struct GenericExpectationGuard<'guard, I: 'static, O: 'static> {
+    guard: MutexGuard<'guard, GenericExpectations>,
+    i: usize,
+    _i: PhantomData<I>,
+    _o: PhantomData<O>,
+}
+
+impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
+    /// Just like
+    /// [`GenericExpectation::in_sequence`](struct.GenericExpectation.html#method.in_sequence)
+    pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Expectation<I, O>
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].in_sequence(seq)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::never`](struct.GenericExpectation.html#method.never)
+    pub fn never(&mut self) -> &mut Expectation<I, O> {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].never()
+    }
+
+    // Should only be called from the mockall_derive generated code
+    #[doc(hidden)]
+    pub fn new(mut guard: MutexGuard<'guard, GenericExpectations>)
+        -> Self
+    {
+        let key = Key::new::<I, O>();
+        if ! guard.store.contains_key(&key) {
+            let expectations = Box::new(Expectations::<I, O>::new());
+            guard.store.insert(key.clone(), expectations);
+        }
+
+        let ee: &mut Expectations<I, O> = guard.store.get_mut(&key).unwrap()
+            .downcast_mut()
+            .unwrap();
+        ee.expect();    // Drop the &Expectation
+        let i = ee.0.len() - 1;
+        GenericExpectationGuard{guard, i, _i: PhantomData, _o: PhantomData}
+    }
+
+    /// Just like
+    /// [`GenericExpectation::returning`](struct.GenericExpectation.html#method.returning)
+    pub fn returning<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: FnMut(I) -> O + Send + 'static
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].returning(f)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::return_once`](struct.GenericExpectation.html#method.return_once)
+    pub fn return_once<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: FnOnce(I) -> O + Send + 'static
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].return_once(f)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::returning_st`](struct.GenericExpectation.html#method.returning_st)
+    pub fn returning_st<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: FnMut(I) -> O + 'static
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].returning_st(f)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::times`](struct.GenericExpectation.html#method.times)
+    pub fn times(&mut self, n: usize) -> &mut Expectation<I, O> {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].times(n)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::times_any`](struct.GenericExpectation.html#method.times_any)
+    pub fn times_any(&mut self) -> &mut Expectation<I, O> {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].times_any()
+    }
+
+    /// Just like
+    /// [`GenericExpectation::times_range`](struct.GenericExpectation.html#method.times_range)
+    pub fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<I, O>
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].times_range(range)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::with`](struct.GenericExpectation.html#method.with)
+    pub fn with<P>(&mut self, p: P) -> &mut Expectation<I, O>
+        where P: Predicate<I> + Send + 'static
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].with(p)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::withf`](struct.GenericExpectation.html#method.withf)
+    pub fn withf<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].withf(f)
+    }
+
+    /// Just like
+    /// [`GenericExpectation::withf_unsafe`](struct.GenericExpectation.html#method.withf_unsafe)
+    pub unsafe fn withf_unsafe<F>(&mut self, f: F) -> &mut Expectation<I, O>
+        where F: Fn(&I) -> bool + 'static, I: 'static
+    {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].withf_unsafe(f)
     }
 }
 

@@ -205,7 +205,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
 
     if meth_types.is_static {
         quote!({
-            #expect_obj_name.lock().unwrap().call((#(#args),*))
+            #expect_obj_name.lock().unwrap().#call#call_turbofish((#(#args),*))
         })
     } else {
         quote!({
@@ -224,12 +224,15 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
         let lt = syn::Lifetime::new("'guard", Span::call_site());
         let ltd = syn::LifetimeDef::new(lt);
         g.params.push(syn::GenericParam::Lifetime(ltd.clone()));
+        let guard_name = if generics.params.is_empty() {
+            syn::Ident::new("ExpectationGuard", Span::call_site())
+        } else {
+            syn::Ident::new("GenericExpectationGuard", Span::call_site())
+        };
         quote!(pub fn #expect_ident #g()
-               -> ::mockall::ExpectationGuard<#ltd, #input_type, #output_type>
+               -> ::mockall::#guard_name<#ltd, #input_type, #output_type>
             {
-                ::mockall::ExpectationGuard::new(
-                    #name.lock().unwrap()
-                )
+                ::mockall::#guard_name::new(#name.lock().unwrap())
             }
         )
     } else {
@@ -283,7 +286,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
                 &format!("{}_{}_expectation", ident, method_ident),
                 Span::call_site());
             quote!(static ref #name: ::std::sync::Mutex<#expect_obj> =
-                   ::std::sync::Mutex::new(::mockall::Expectations::new());
+                   ::std::sync::Mutex::new(#expectations::new());
                 ).to_tokens(&mut statics);
         } else {
             quote!(#method_ident: #expect_obj,).to_tokens(&mut body);
@@ -547,6 +550,47 @@ mod t {
             SomeStruct {
                 fn foo<T: 'static>(&self, t: T);
             }"#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn generic_static_method() {
+        let desired = r#"
+            struct MockFoo {
+            }
+            ::mockall::lazy_static!{
+                static ref MockFoo_bar_expectation: ::std::sync::Mutex< ::mockall::GenericExpectations >
+                = ::std::sync::Mutex::new(::mockall::GenericExpectations::new());
+            }
+            impl ::std::default::Default for MockFoo {
+                fn default() -> Self {
+                    Self { }
+                }
+            }
+            impl MockFoo {
+                pub fn bar<T>(x: T) {
+                    MockFoo_bar_expectation.lock().unwrap().call:: <(T), ()>((x))
+                }
+                pub fn expect_bar< 'guard, T, >()
+                    -> ::mockall::GenericExpectationGuard< 'guard, (T), ()>
+                {
+                    ::mockall::GenericExpectationGuard::new(
+                        MockFoo_bar_expectation.lock().unwrap()
+                    )
+                }
+                pub fn checkpoint(&mut self) {
+                    MockFoo_bar_expectation.lock().unwrap().checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+        "#;
+        let code = r#"
+            Foo {
+                fn bar<T>(x: T);
+            }
+        "#;
         check(desired, code);
     }
 

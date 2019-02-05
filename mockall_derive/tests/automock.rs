@@ -107,6 +107,19 @@ fn generic_return() {
 }
 
 #[test]
+fn generic_static_method() {
+    #[automock]
+    trait A {
+        fn bar<T: 'static>(t: T) -> u32;
+    }
+
+    MockA::expect_bar::<i16>()
+        .times(1)
+        .returning(|_| 42);
+    assert_eq!(42, MockA::bar(-1i16));
+}
+
+#[test]
 fn generic_struct() {
     #[allow(unused)]
     struct GenericStruct<'a, T, V> {
