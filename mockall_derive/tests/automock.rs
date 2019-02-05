@@ -463,3 +463,54 @@ fn trait_with_constructor() {
     MockA::expect_new().returning(|_| MockA::default());
     let _a: MockA = MockA::new();
 }
+
+#[test]
+fn where_clause_on_method() {
+    #[automock]
+    trait A {
+        fn foo<T>(&self, t: T) where T: 'static;
+    }
+
+    let mut mock = MockA::new();
+    mock.expect_foo::<u32>()
+        .returning(|_x: u32| ());
+    mock.expect_foo::<i16>()
+        .returning(|_x: i16| ());
+    mock.foo(5u32);
+    mock.foo(-1i16);
+}
+
+#[test]
+fn where_clause_on_struct() {
+    #[allow(unused)]
+    struct GenericStruct<T> {
+        t: T,
+    }
+    #[automock]
+    impl<T> GenericStruct<T>
+        where T: Clone + Default
+    {
+        #[allow(unused)]
+        fn foo(&self, x: T) -> T {
+            x.clone()
+        }
+    }
+
+    let mut mock = MockGenericStruct::<u8>::default();
+    mock.expect_foo()
+        .returning(|x| x);
+    assert_eq!(4, mock.foo(4u8));
+}
+
+#[test]
+fn where_clause_on_trait() {
+    #[automock]
+    trait Foo<T> where T: Clone {
+        fn foo(&self);
+    }
+
+    let mut mock = MockFoo::<u8>::default();
+    mock.expect_foo()
+        .returning(|_| ());
+    mock.foo();
+}

@@ -1418,4 +1418,106 @@ mod t {
             }
         }"#);
     }
+
+    #[test]
+    fn where_clause_on_struct() {
+        let desired = r#"
+            pub struct MockFoo<T> {
+                foo: ::mockall::Expectations<(T), T> ,
+                _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T> ::std::default::Default for MockFoo<T> where T: Clone {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
+            impl<T> MockFoo<T> where T: Clone {
+                pub fn foo(&self, x: T) -> T {
+                    self.foo.call((x))
+                }
+                pub fn expect_foo(&mut self)
+                    -> &mut ::mockall::Expectation<(T), T>
+                {
+                    self.foo.expect()
+                }
+                pub fn checkpoint(&mut self) {
+                    self.foo.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+        "#;
+        let code = r#"
+            impl<T> Foo<T> where T: Clone {
+                fn foo(&self, x: T) -> T {
+                    x.clone()
+                }
+            }
+        "#;
+        check(&"", desired, code);
+    }
+
+    #[test]
+    fn where_clause_on_trait() {
+        let desired = r#"
+        struct MockFoo<T> {
+            Foo_expectations: MockFoo_Foo<T> ,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T> ::std::default::Default for MockFoo<T> where T: Clone {
+            fn default() -> Self {
+                Self {
+                    Foo_expectations:
+                        MockFoo_Foo::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
+        struct MockFoo_Foo<T> {
+            foo: ::mockall::Expectations<(), ()> ,
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        impl<T> ::std::default::Default for MockFoo_Foo<T> where T: Clone {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
+        impl<T> MockFoo_Foo<T> where T: Clone {
+            fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+        }
+        impl<T> MockFoo<T> where T: Clone {
+            pub fn checkpoint(&mut self) {
+                self.Foo_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl<T> Foo<T> for MockFoo<T> where T: Clone {
+            fn foo(&self) {
+                self.Foo_expectations.foo.call(())
+            }
+        }
+        impl<T> MockFoo<T> where T: Clone {
+            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
+            {
+                self.Foo_expectations.foo.expect()
+            }
+        }"#;
+        let code = r#"
+            trait Foo<T> where T: Clone {
+                fn foo(&self);
+            }
+        "#;
+        check(&"", desired, code);
+    }
 }

@@ -158,12 +158,13 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     let fn_token = &sig.decl.fn_token;
     let ident = &sig.ident;
     let generics = &sig.decl.generics;
+    let where_clause = &sig.decl.generics.where_clause;
     let inputs = &sig.decl.inputs;
     let output = &sig.decl.output;
 
     // First the mock method
     quote!(#defaultness #vis #constness #unsafety #asyncness #abi
-           #fn_token #ident #generics (#inputs) #output)
+           #fn_token #ident #generics (#inputs) #output #where_clause)
         .to_tokens(&mut mock_output);
 
     let sub_name = if let Some(s) = sub {
@@ -237,7 +238,9 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
         )
     } else {
         quote!(pub fn #expect_ident #generics(&mut self)
-               -> &mut #expectation<#input_type, #output_type> {
+               -> &mut #expectation<#input_type, #output_type>
+               #where_clause
+        {
             #expect_obj_name.expect#call_turbofish()
         })
     }.to_tokens(&mut expect_output);
@@ -411,6 +414,7 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
     item.unsafety.to_tokens(&mut output);
     let ident = &item.ident;
     let trait_generics = &item.generics;
+    let wc = &item.generics.where_clause;
     let (merged_g, reduced_struct_g) = match struct_generics {
         None => (trait_generics.clone(), trait_generics.split_for_impl().1),
         Some(g) => {
@@ -419,13 +423,13 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
     };
     let reduced_trait_g = trait_generics.split_for_impl().1;
     quote!(impl #merged_g #ident #reduced_trait_g
-           for #mock_ident #reduced_struct_g {
+           for #mock_ident #reduced_struct_g #wc {
         #mock_body
     }).to_tokens(&mut output);
 
     // Put all expect methods in a separate impl block.  This is necessary when
     // mocking a trait impl, where we can't add any new methods
-    quote!(impl #merged_g #mock_ident #reduced_struct_g {
+    quote!(impl #merged_g #mock_ident #reduced_struct_g #wc {
         #expect_body
     }).to_tokens(&mut output);
 
@@ -1431,4 +1435,44 @@ mod t {
         check(desired, code);
     }
 
+    #[test]
+    fn where_clause_on_method() {
+        let desired = r#"
+            struct MockSomeStruct {
+                foo: ::mockall::GenericExpectations,
+            }
+            impl ::std::default::Default for MockSomeStruct {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::GenericExpectations::default(),
+                    }
+                }
+            }
+            impl MockSomeStruct {
+                pub fn foo<T>(&self, t: T)
+                    where T: 'static
+                {
+                    self.foo.call:: <(T), ()>((t))
+                }
+                pub fn expect_foo<T>(&mut self)
+                    -> &mut ::mockall::Expectation<(T), ()>
+                    where T: 'static
+                {
+                    self.foo.expect:: <(T), ()>()
+                }
+                pub fn checkpoint(&mut self) {
+                    self.foo.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+        "#;
+        let code = r#"
+            SomeStruct {
+                fn foo<T>(&self, t: T)
+                    where T: 'static;
+            }"#;
+        check(desired, code);
+    }
 }
