@@ -46,6 +46,7 @@
 //! * [`External traits`](#external-traits)
 //! * [`Static methods`](#static-methods)
 //! * [`Foreign functions`](#foreign-functions)
+//! * [`Modules`](#modules)
 //! * [`Crate features`](#crate-features)
 //!
 //! ```
@@ -734,13 +735,62 @@
 //! }
 //! ```
 //!
+//! ## Modules
+//!
+//! In addition to mocking foreign functions, Mockall can also derive mocks for
+//! entire modules of Rust functions,  This requires the **nightly** feature,
+//! and it requires the consuming crate to enable `feature(proc_macro_hygiene)`.
+//! Usage is the same as when mocking foreign functions, except that the mock
+//! module name is automatically derived.
+//!
+//! ```ignore
+//! #![feature(proc_macro_hygiene)]
+//! # use mockall::*;
+//! # use cfg_if::cfg_if;
+//! mod foo {
+//!     # use mockall::automock;
+//!     #[automock()]
+//!     mod foo {
+//!         pub fn bar(x: u32) -> i64 {
+//!             // ...
+//!             # 4
+//!         }
+//!     }
+//! }
+//!
+//! cfg_if! {
+//!     if #[cfg(test)] {
+//!         use mock_foo::*;
+//!     } else {
+//!         use foo::*;
+//!     }
+//! }
+//!
+//! #[cfg(test)]
+//! mod t {
+//!     use super::*;
+//!
+//!     #[test]
+//!     fn test_foo_bar() {
+//!         mock_foo::expect_bar()
+//!             .returning(|x| i64::from(x + 1));
+//!         assert_eq!(5, foo(4));
+//!     }
+//! }
+//! ```
+//!
 //! ## Crate features
 //!
-//! Mockall has a **nightly** feature.  When enabled, expectations for methods
-//! whose return type implements `Default` needn't have their return values
-//! explicitly set.  Instead, they will automatically return the default value.
-//! Also, the compiler will produce better error messages with **nightly**
-//! enabled.
+//! Mockall has a **nightly** feature.  Currently this feature has three
+//! effects:
+//!
+//! * The compiler will produce better error messages.
+//!
+//! * Mocking modules will be enabled.
+//!
+//! * Expectations for methods whose return type implements `Default` needn't
+//!   have their return values explicitly set.  Instead, they will automatically
+//!   return the default value.
 //!
 //! With **nightly** enabled, you can omit the return value like this:
 // Ignore the test because I can't figure out how to conditionalize it.
