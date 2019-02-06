@@ -298,6 +298,24 @@ mod generic_struct_with_generic_trait {
     }
 }
 
+mod impl_trait {
+    use std::fmt::Debug;
+    use super::*;
+
+    mock!{
+        Foo {
+            fn foo(&self) -> impl Debug + Send;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo().returning(|_| Box::new(4));
+        format!("{:?}", mock.foo());
+    }
+}
+
 mod inherited_trait {
     use super::*;
 

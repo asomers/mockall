@@ -7,7 +7,7 @@
 
 use cfg_if::cfg_if;
 use mockall_derive::*;
-use std::default::Default;
+use std::fmt::Debug;
 
 // automatic-style mocking with associated types
 #[test]
@@ -213,6 +213,22 @@ fn impl_generic_trait() {
 
 #[test]
 fn impl_trait() {
+    #[allow(unused)]
+    pub struct Foo {}
+
+    #[automock]
+    impl Foo {
+        #[allow(unused)]
+        fn foo(&self) -> impl Debug + Send { unimplemented!()}
+    }
+
+    let mut mock = MockFoo::new();
+    mock.expect_foo().returning(|_| Box::new(4));
+    format!("{:?}", mock.foo());
+}
+
+#[test]
+fn impl_trait_on_struct() {
     trait Foo {
         fn foo(&self, x: u32) -> i64;
     }

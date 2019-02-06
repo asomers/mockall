@@ -55,6 +55,14 @@ cfg_if! {
     }
 }
 
+/// Replace any "impl trait" types with "Box<dyn trait>" equivalents
+fn deimplify(ty: &mut syn::Type) {
+    if let syn::Type::ImplTrait(tit) = ty {
+        let bounds = &tit.bounds; // Punctuated<TypeParamBound, Add>
+        *ty = syn::parse2(quote!(Box<dyn #bounds>)).unwrap();
+    }
+}
+
 /// Turn a non-'static reference argument into a pointer argument.  This is
 /// sadly necessary because Fn(I) -> O objects aren't 'static unless I is.  And
 /// we don't want to restrict our users to use bare fn pointers.
@@ -205,6 +213,7 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
     if mock_ident.is_some() {
         deselfify(&mut output_type, &mock_ident.as_ref().unwrap());
     }
+    deimplify(&mut output_type);
 
     let call_turbofish = if is_generic {
         let mut args = syn::punctuated::Punctuated::new();

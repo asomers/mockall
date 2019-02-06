@@ -920,9 +920,47 @@ mod t {
         }"#);
     }
 
-    /// Mock implementing a trait on a structure
+    /// "impl trait" in a method return value
     #[test]
     fn impl_trait() {
+        check("",
+        r#"
+        pub struct MockFoo {
+            foo: ::mockall::Expectations<(), Box<dyn Debug + Send> > ,
+        }
+        impl ::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                }
+            }
+        }
+        impl MockFoo {
+            pub fn foo(&self) -> impl Debug + Send {
+                self.foo.call(())
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(), Box<dyn Debug + Send> >
+            {
+                self.foo.expect()
+            }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }"#, r#"
+        impl Foo {
+            fn foo(&self) -> impl Debug + Send {
+                42
+            }
+        }"#);
+    }
+
+    /// Mock implementing a trait on a structure
+    #[test]
+    fn impl_trait_on_struct() {
         trait Foo {
             fn foo(&self, x: u32) -> i64;
         }

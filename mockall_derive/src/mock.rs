@@ -828,6 +828,45 @@ mod t {
         check(desired, code);
     }
 
+    /// "impl trait" in method return types should work.
+    #[test]
+    fn impl_trait() {
+        let desired = r#"
+            struct MockFoo {
+                foo: ::mockall::Expectations<(), Box<dyn Debug + Send> > ,
+            }
+            impl ::std::default::Default for MockFoo {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                    }
+                }
+            }
+            impl MockFoo {
+                pub fn foo(&self) -> impl Debug + Send {
+                    self.foo.call(())
+                }
+                pub fn expect_foo(&mut self)
+                    -> &mut ::mockall::Expectation<(), Box<dyn Debug + Send> >
+                {
+                    self.foo.expect()
+                }
+                pub fn checkpoint(&mut self) {
+                    self.foo.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+        "#;
+        let code = r#"
+            Foo {
+                fn foo(&self) -> impl Debug + Send;
+            }
+        "#;
+        check(desired, code);
+    }
+
     #[test]
     fn inherited_trait() {
         trait A {
