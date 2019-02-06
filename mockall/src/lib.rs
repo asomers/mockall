@@ -743,7 +743,8 @@
 //! Usage is the same as when mocking foreign functions, except that the mock
 //! module name is automatically derived.
 //!
-//! ```ignore
+#![cfg_attr(feature = "nightly", doc = "```")]
+#![cfg_attr(not(feature = "nightly"), doc = "```ignore")]
 //! #![feature(proc_macro_hygiene)]
 //! # use mockall::*;
 //! # use cfg_if::cfg_if;
@@ -793,8 +794,8 @@
 //!   return the default value.
 //!
 //! With **nightly** enabled, you can omit the return value like this:
-// Ignore the test because I can't figure out how to conditionalize it.
-//! ```ignore
+#![cfg_attr(feature = "nightly", doc = "```")]
+#![cfg_attr(not(feature = "nightly"), doc = "```ignore")]
 //! # use mockall::*;
 //! #[automock]
 //! trait Foo {
