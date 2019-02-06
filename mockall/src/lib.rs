@@ -37,6 +37,7 @@
 //! * [`Checkpoints`](#checkpoints)
 //! * [`Reference arguments`](#reference-arguments)
 //! * [`Reference return values`](#reference-return-values)
+//! * [`impl Trait`](#impl-trait)
 //! * [`Mocking structs`](#mocking-structs)
 //! * [`Generic methods`](#generic-methods)
 //! * [`Generic traits and structs`](#generic-traits-and-structs)
@@ -397,6 +398,73 @@
 //! mock.get_mut(0).0 = 43;
 //! assert_eq!(43, mock.get_mut(0).0);
 //! ```
+//!
+//! ## Impl Trait
+//!
+//! Rust 1.26.0 introduced the `impl Trait` feature.  It allows functions to
+//! return concrete but unnamed types (and, less usefully, to take them as
+//! arguments).  It's *almost* the same as `Box<dyn Trait>` but without the
+//! extra allocation.  Mockall supports deriving mocks for methods that return
+//! `impl Trait`, with limitations.  When you derive the mock for such a method,
+//! Mockall internally transforms the Expectation's return type to `Box<dyn
+//! Trait>`, without changing the mock method's signature.  So you can use it
+//! like this:
+//!
+//! ```
+//! # use mockall::*;
+//! # use std::fmt::Debug;
+//! struct Foo {}
+//! #[automock]
+//! impl Foo {
+//!     fn foo(&self) -> impl Debug {
+//!         // ...
+//!         # 4
+//!     }
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .returning(|_| Box::new(String::from("Hello, World!")));
+//! println!("{:?}", mock.foo());
+//! ```
+//!
+//! However, `impl Trait` isn't *exactly* equivalent to `Box<dyn Trait>` but
+//! with fewer allocations.  There are some things the former can do but the
+//! latter can't.  For one thing, you can't build a trait object out of a
+//! `Sized` trait.  So this won't work:
+//!
+//! ```compile_fail
+//! # use mockall::*;
+//! struct Foo {}
+//! #[automock]
+//! impl Foo {
+//!     fn foo(&self) -> impl Clone {
+//!         // ...
+//!         # 4
+//!     }
+//! }
+//! ```
+//!
+//! Nor can you create a trait object that implements two or more non-auto
+//! types.  So this won't work either:
+//!
+//! ```compile_fail
+//! # use mockall::*;
+//! struct Foo {}
+//! #[automock]
+//! impl Foo {
+//!     fn foo(&self) -> impl Debug + Display {
+//!         // ...
+//!         # 4
+//!     }
+//! }
+//! ```
+//!
+//! For such cases, there is no magic bullet.  The best way to mock methods like
+//! those would be to refactor them to return named (but possibly opaque) types
+//! instead.
+//!
+//! See Also [`impl-trait-for-returning-complex-types-with-ease.html`](https://rust-lang-nursery.github.io/edition-guide/rust-2018/trait-system/impl-trait-for-returning-complex-types-with-ease)
 //!
 //! ## Mocking structs
 //!
