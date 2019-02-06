@@ -1052,6 +1052,12 @@ macro_rules! expectation_common {
             self
         }
 
+        /// Expect this expectation to be called exactly once.  Shortcut for
+        /// [`times(1)`](#method.times).
+        pub fn once(&mut self) -> &mut Self {
+            self.times(1)
+        }
+
         /// Require this expectation to be called exactly `n` times.
         pub fn times(&mut self, n: usize) -> &mut Self {
             self.$common.times(n);
@@ -1620,6 +1626,11 @@ impl<'guard, I, O> ExpectationGuard<'guard, I, O> {
         ExpectationGuard{guard, i}
     }
 
+    /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
+    pub fn once(&mut self) -> &mut Expectation<I, O> {
+        self.guard.0[self.i].once()
+    }
+
     /// Just like
     /// [`Expectation::returning`](struct.Expectation.html#method.returning)
     pub fn returning<F>(&mut self, f: F) -> &mut Expectation<I, O>
@@ -1699,7 +1710,7 @@ pub struct GenericExpectationGuard<'guard, I: 'static, O: 'static> {
 
 impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     /// Just like
-    /// [`GenericExpectation::in_sequence`](struct.GenericExpectation.html#method.in_sequence)
+    /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
     pub fn in_sequence(&mut self, seq: &mut Sequence) -> &mut Expectation<I, O>
     {
         let key = Key::new::<I, O>();
@@ -1710,7 +1721,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::never`](struct.GenericExpectation.html#method.never)
+    /// [`Expectation::never`](struct.Expectation.html#method.never)
     pub fn never(&mut self) -> &mut Expectation<I, O> {
         let key = Key::new::<I, O>();
         let ee: &mut Expectations<I, O> =
@@ -1739,7 +1750,17 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::returning`](struct.GenericExpectation.html#method.returning)
+    /// [`Expectation::once`](struct.Expectation.html#method.once)
+    pub fn once(&mut self) -> &mut Expectation<I, O> {
+        let key = Key::new::<I, O>();
+        let ee: &mut Expectations<I, O> =
+            self.guard.store.get_mut(&key).unwrap()
+            .downcast_mut().unwrap();
+        ee.0[self.i].once()
+    }
+
+    /// Just like
+    /// [`Expectation::returning`](struct.Expectation.html#method.returning)
     pub fn returning<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: FnMut(I) -> O + Send + 'static
     {
@@ -1751,7 +1772,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::return_once`](struct.GenericExpectation.html#method.return_once)
+    /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
     pub fn return_once<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: FnOnce(I) -> O + Send + 'static
     {
@@ -1763,7 +1784,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::returning_st`](struct.GenericExpectation.html#method.returning_st)
+    /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
     pub fn returning_st<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: FnMut(I) -> O + 'static
     {
@@ -1775,7 +1796,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::times`](struct.GenericExpectation.html#method.times)
+    /// [`Expectation::times`](struct.Expectation.html#method.times)
     pub fn times(&mut self, n: usize) -> &mut Expectation<I, O> {
         let key = Key::new::<I, O>();
         let ee: &mut Expectations<I, O> =
@@ -1785,7 +1806,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::times_any`](struct.GenericExpectation.html#method.times_any)
+    /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
     pub fn times_any(&mut self) -> &mut Expectation<I, O> {
         let key = Key::new::<I, O>();
         let ee: &mut Expectations<I, O> =
@@ -1795,7 +1816,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::times_range`](struct.GenericExpectation.html#method.times_range)
+    /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
     pub fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<I, O>
     {
         let key = Key::new::<I, O>();
@@ -1806,7 +1827,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::with`](struct.GenericExpectation.html#method.with)
+    /// [`Expectation::with`](struct.Expectation.html#method.with)
     pub fn with<P>(&mut self, p: P) -> &mut Expectation<I, O>
         where P: Predicate<I> + Send + 'static
     {
@@ -1818,7 +1839,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::withf`](struct.GenericExpectation.html#method.withf)
+    /// [`Expectation::withf`](struct.Expectation.html#method.withf)
     pub fn withf<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
     {
@@ -1830,7 +1851,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
     }
 
     /// Just like
-    /// [`GenericExpectation::withf_unsafe`](struct.GenericExpectation.html#method.withf_unsafe)
+    /// [`Expectation::withf_unsafe`](struct.Expectation.html#method.withf_unsafe)
     pub unsafe fn withf_unsafe<F>(&mut self, f: F) -> &mut Expectation<I, O>
         where F: Fn(&I) -> bool + 'static, I: 'static
     {
