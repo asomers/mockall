@@ -477,7 +477,18 @@ fn trait_with_constructor() {
     }
 
     MockA::expect_new().returning(|_| MockA::default());
-    let _a: MockA = MockA::new();
+    let _a: MockA = <MockA as A>::new();
+}
+
+#[test]
+fn trait_with_boxed_constructor() {
+    #[automock]
+    trait A {
+        fn new() -> Box<Self>;
+    }
+
+    MockA::expect_new().returning(|_| Box::new(MockA::default()));
+    let _a: Box<MockA> = <MockA as A>::new();
 }
 
 #[test]

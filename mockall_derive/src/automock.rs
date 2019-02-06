@@ -1421,6 +1421,179 @@ mod t {
     }
 
     #[test]
+    fn static_boxed_constructor() {
+        let desired = r#"
+        struct MockA {
+            A_expectations: MockA_A,
+        }
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockA_A::default(),
+                }
+            }
+        }
+        struct MockA_A {}
+        ::mockall::lazy_static! {
+            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), Box<MockA> > >
+            = ::std::sync::Mutex::new(::mockall::Expectations::new());
+        }
+        impl ::std::default::Default for MockA_A {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+        impl MockA_A {
+            fn checkpoint(&mut self) {
+                MockA_A_new_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.A_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl A for MockA {
+            fn new() -> Box<Self> {
+                MockA_A_new_expectation.lock().unwrap().call(())
+            }
+        }
+        impl MockA {
+            pub fn expect_new< 'guard>()
+                -> ::mockall::ExpectationGuard< 'guard, (), Box<MockA> >
+            {
+                ::mockall::ExpectationGuard::new(MockA_A_new_expectation.lock()
+                .unwrap())
+            }
+        }"#;
+
+        let code = r#"
+        trait A {
+            fn new() -> Box<Self>;
+        }"#;
+        check("", desired, code);
+    }
+
+    #[test]
+    fn static_impl_trait_constructor() {
+        let desired = r#"
+        struct MockA {
+            A_expectations: MockA_A,
+        }
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockA_A::default(),
+                }
+            }
+        }
+        struct MockA_A {}
+        ::mockall::lazy_static! {
+            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), Box<Future<Item = MockA, Error = () > > > >
+            = ::std::sync::Mutex::new(::mockall::Expectations::new());
+        }
+        impl ::std::default::Default for MockA_A {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+        impl MockA_A {
+            fn checkpoint(&mut self) {
+                MockA_A_new_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.A_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl A for MockA {
+            fn new() -> impl Future<Item = Self, Error = ()> {
+                MockA_A_new_expectation.lock().unwrap().call(())
+            }
+        }
+        impl MockA {
+            pub fn expect_new< 'guard>()
+                -> ::mockall::ExpectationGuard< 'guard, (), Box<Future<Item = MockA, Error = ()> > >
+            {
+                ::mockall::ExpectationGuard::new(MockA_A_new_expectation.lock().unwrap())
+            }
+        }"#;
+        let code = r#"
+        trait A {
+            fn new() -> impl Future<Item=Self, Error=()>;
+        }"#;
+        check("", desired, code);
+    }
+
+    #[test]
+    fn static_trait_object_constructor() {
+        let desired = r#"
+        struct MockA {
+            A_expectations: MockA_A,
+        }
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    A_expectations: MockA_A::default(),
+                }
+            }
+        }
+        struct MockA_A {}
+        ::mockall::lazy_static! {
+            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), Box<MockA> > >
+            = ::std::sync::Mutex::new(::mockall::Expectations::new());
+        }
+        impl ::std::default::Default for MockA_A {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+        impl MockA_A {
+            fn checkpoint(&mut self) {
+                MockA_A_new_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        impl MockA {
+            pub fn checkpoint(&mut self) {
+                self.A_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl A for MockA {
+            fn new() -> Box<dyn Self> {
+                MockA_A_new_expectation.lock().unwrap().call(())
+            }
+        }
+        impl MockA {
+            pub fn expect_new< 'guard>()
+                -> ::mockall::ExpectationGuard< 'guard, (), Box<MockA> >
+            {
+                ::mockall::ExpectationGuard::new(MockA_A_new_expectation.lock()
+                .unwrap())
+            }
+        }"#;
+
+        // As of rustc 1.33.0-nightly 2019-01-25 this code doesn't even compile.
+        // It returns erro E0411 "`Self` is only available in impls, traits, and
+        // type definitions".  But it looks like something that might reasonably
+        // work someday, so let's make sure we can deselfify it anyway.
+        let code = r#"
+        trait A {
+            fn new() -> Box<dyn Self>;
+        }"#;
+        check("", desired, code);
+    }
+
+    #[test]
     fn two_args() {
         check("",
         r#"

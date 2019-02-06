@@ -114,10 +114,22 @@ fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
                 compile_error(type_path.span(), "QSelf is TODO");
             }
             let p = &mut type_path.path;
-            if p.leading_colon.is_none() & (p.segments.len() == 1) {
-                if p.segments.first().unwrap().value().ident == "Self" {
-                    p.segments.last_mut().unwrap().value_mut().ident
-                        = actual.clone();
+            for seg in p.segments.iter_mut() {
+                if seg.ident == "Self" {
+                    seg.ident = actual.clone()
+                }
+                if let syn::PathArguments::AngleBracketed(abga) =
+                    &mut seg.arguments
+                {
+                    for arg in abga.args.iter_mut() {
+                        match arg {
+                            syn::GenericArgument::Type(ty) =>
+                                deselfify(ty, actual),
+                            syn::GenericArgument::Binding(b) =>
+                                deselfify(&mut b.ty, actual),
+                            _ => /* Nothing to do */(),
+                        }
+                    }
                 }
             }
         },
@@ -131,8 +143,26 @@ fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
             compile_error(literal_type.span(),
                 "mockall_derive does not support this type as a return argument");
         },
-        syn::Type::TraitObject(_) | syn::Type::ImplTrait(_)
-            | syn::Type::Infer(_) | syn::Type::Never(_) =>
+        syn::Type::ImplTrait(_) => {
+            panic!("deimplify should've already been run on this output type");
+        },
+        syn::Type::TraitObject(tto) => {
+            // Change types like `dyn Self` into `MockXXX`.  For now,
+            // don't worry about multiple trait bounds, because they aren't very
+            // useful in combination with Self.
+            if tto.bounds.len() == 1 {
+                if let syn::TypeParamBound::Trait(t)
+                    = tto.bounds.first().unwrap().value()
+                {
+                    let path = &t.path;
+                    let mut new_type: syn::Type
+                        = syn::parse2(quote!(#path)).unwrap();
+                    deselfify(&mut new_type, actual);
+                    *literal_type = new_type;
+                }
+            }
+        },
+        syn::Type::Infer(_) | syn::Type::Never(_) =>
         {
             /* Nothing to do */
         }
@@ -210,10 +240,10 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
             }
         }
     };
+    deimplify(&mut output_type);
     if mock_ident.is_some() {
         deselfify(&mut output_type, &mock_ident.as_ref().unwrap());
     }
-    deimplify(&mut output_type);
 
     let call_turbofish = if is_generic {
         let mut args = syn::punctuated::Punctuated::new();
