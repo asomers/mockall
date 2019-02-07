@@ -492,9 +492,9 @@
 //!
 //! cfg_if! {
 //!     if #[cfg(test)] {
-//!         use thing::MockThing as Thing;
+//!         use self::thing::MockThing as Thing;
 //!     } else {
-//!         use thing::Thing;
+//!         use self::thing::Thing;
 //!     }
 //! }
 //!
@@ -513,6 +513,7 @@
 //!         do_stuff(&mock);
 //!     }
 //! }
+//! # fn main() {}
 //! ```
 //! For structs with more than one `impl` block, see [`mock!`] instead.
 //!
@@ -712,9 +713,9 @@
 //!
 //! cfg_if! {
 //!     if #[cfg(test)] {
-//!         use ffi::mock::foo;
+//!         use self::ffi::mock::foo;
 //!     } else {
-//!         use ffi::foo;
+//!         use self::ffi::foo;
 //!     }
 //! }
 //!
@@ -733,6 +734,7 @@
 //!         do_stuff();
 //!     }
 //! }
+//! # fn main() {}
 //! ```
 //!
 //! ## Modules
