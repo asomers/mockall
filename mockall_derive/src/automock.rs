@@ -740,10 +740,10 @@ mod t {
             }
         }
         impl< 'a, T, V> MockGenericStruct< 'a, T, V> {
-            pub fn foo(&self, x: u32) -> i64 {
+            fn foo(&self, x: u32) -> i64 {
                 self.foo.call((x))
             }
-            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+            fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
             {
                 self.foo.expect()
             }
@@ -782,10 +782,10 @@ mod t {
             }
         }
         impl< 'a, T: Copy, V: Clone> MockGenericStruct< 'a, T, V> {
-            pub fn foo(&self, x: u32) -> i64 {
+            fn foo(&self, x: u32) -> i64 {
                 self.foo.call((x))
             }
-            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
+            fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(u32), i64>
             {
                 self.foo.expect()
             }
@@ -937,10 +937,10 @@ mod t {
             }
         }
         impl MockFoo {
-            pub fn foo(&self) -> impl Debug + Send {
+            fn foo(&self) -> impl Debug + Send {
                 self.foo.call(())
             }
-            pub fn expect_foo(&mut self)
+            fn expect_foo(&mut self)
                 -> &mut ::mockall::Expectation<(), Box<dyn Debug + Send> >
             {
                 self.foo.expect()
@@ -1095,10 +1095,10 @@ mod t {
             }
         }
         impl MockMethodByValue {
-            pub fn foo(self, x: u32) -> i64 {
+            fn foo(self, x: u32) -> i64 {
                 self.foo.call((x))
             }
-            pub fn expect_foo(&mut self)
+            fn expect_foo(&mut self)
                 -> &mut ::mockall::Expectation<(u32), i64>
             {
                 self.foo.expect()
@@ -1219,10 +1219,10 @@ mod t {
             }
         }
         impl MockSimpleStruct {
-            pub fn foo(&self, x: u32) -> i64 {
+            fn foo(&self, x: u32) -> i64 {
                 self.foo.call((x))
             }
-            pub fn expect_foo(&mut self)
+            fn expect_foo(&mut self)
                 -> &mut ::mockall::Expectation<(u32), i64>
             {
                 self.foo.expect()
@@ -1609,10 +1609,10 @@ mod t {
             }
         }
         impl MockTwoArgs {
-            pub fn foo(&self, x: u32, y: u32) -> i64 {
+            fn foo(&self, x: u32, y: u32) -> i64 {
                 self.foo.call((x, y))
             }
-            pub fn expect_foo(&mut self)
+            fn expect_foo(&mut self)
                 -> &mut ::mockall::Expectation<(u32, u32), i64>
             {
                 self.foo.expect()
@@ -1632,6 +1632,77 @@ mod t {
     }
 
     #[test]
+    fn visibility() {
+        check("",
+        r#"
+        pub struct MockFoo {
+            foo: ::mockall::Expectations<(), ()> ,
+            bar: ::mockall::Expectations<(), ()> ,
+            baz: ::mockall::Expectations<(), ()> ,
+            bang: ::mockall::Expectations<(), ()> ,
+        }
+        impl ::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    bar: ::mockall::Expectations::default(),
+                    baz: ::mockall::Expectations::default(),
+                    bang: ::mockall::Expectations::default(),
+                }
+            }
+        }
+        impl MockFoo {
+            fn foo(&self) {
+                self.foo.call(())
+            }
+            fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(), ()>
+            {
+                self.foo.expect()
+            }
+            pub fn bar(&self) {
+                self.bar.call(())
+            }
+            pub fn expect_bar(&mut self)
+                -> &mut ::mockall::Expectation<(), ()>
+            {
+                self.bar.expect()
+            }
+            pub(super) fn baz(&self) {
+                self.baz.call(())
+            }
+            pub(super) fn expect_baz(&mut self)
+                -> &mut ::mockall::Expectation<(), ()>
+            {
+                self.baz.expect()
+            }
+            pub(crate) fn bang(&self) {
+                self.bang.call(())
+            }
+            pub(crate) fn expect_bang(&mut self)
+                -> &mut ::mockall::Expectation<(), ()>
+            {
+                self.bang.expect()
+            }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+                self.bar.checkpoint();
+                self.baz.checkpoint();
+                self.bang.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }"#, r#"
+        impl Foo {
+            fn foo(&self) {}
+            pub fn bar(&self) {}
+            pub(super) fn baz(&self) {}
+            pub(crate) fn bang(&self) {}
+        }"#);
+    }
+
+    #[test]
     fn where_clause_on_struct() {
         let desired = r#"
             pub struct MockFoo<T> {
@@ -1647,10 +1718,10 @@ mod t {
                 }
             }
             impl<T> MockFoo<T> where T: Clone {
-                pub fn foo(&self, x: T) -> T {
+                fn foo(&self, x: T) -> T {
                     self.foo.call((x))
                 }
-                pub fn expect_foo(&mut self)
+                fn expect_foo(&mut self)
                     -> &mut ::mockall::Expectation<(T), T>
                 {
                     self.foo.expect()

@@ -55,7 +55,7 @@ impl Mock {
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
                 let (_, _, cp) = gen_mock_method(Some(&mock_struct_name),
-                                                 &mock_sub_name, None, &vis,
+                                                 &mock_sub_name, None,
                                                  &meth.borrow().sig, None);
                 cp.to_tokens(&mut sub_cp_body);
             }
@@ -69,14 +69,15 @@ impl Mock {
         }
         // generate methods on the mock structure itself
         for meth in self.methods.iter() {
-            // All mocked methods are public
             has_new |= meth.sig.ident == &"new";
-            let pub_token = syn::token::Pub{span: Span::call_site()};
-            let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
             let (mm, em, cp) = gen_mock_method(Some(&mock_struct_name),
-                                               &mock_struct_name, None, &vis,
+                                               &mock_struct_name, None,
                                                &meth.sig, None);
+            // For inherent methods, use the same visibility for the mock and
+            // expectation method as for the original.
+            meth.vis.to_tokens(&mut mock_body);
             mm.to_tokens(&mut mock_body);
+            meth.vis.to_tokens(&mut mock_body);
             em.to_tokens(&mut mock_body);
             cp.to_tokens(&mut cp_body);
         }
@@ -144,7 +145,6 @@ impl Parse for Mock {
 fn gen_mock_method(self_ident: Option<&syn::Ident>,
                    mock_ident: &syn::Ident,
                    defaultness: Option<&syn::token::Default>,
-                   vis: &syn::Visibility,
                    sig: &syn::MethodSig,
                    sub: Option<&syn::Ident>)
     -> (TokenStream, TokenStream, TokenStream)
@@ -166,7 +166,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     let output = &sig.decl.output;
 
     // First the mock method
-    quote!(#defaultness #vis #constness #unsafety #asyncness #abi
+    quote!(#defaultness #constness #unsafety #asyncness #abi
            #fn_token #ident #generics (#inputs) #output #where_clause)
         .to_tokens(&mut mock_output);
 
@@ -233,14 +233,14 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
         } else {
             syn::Ident::new("GenericExpectationGuard", Span::call_site())
         };
-        quote!(pub fn #expect_ident #g()
+        quote!(fn #expect_ident #g()
                -> ::mockall::#guard_name<#ltd, #input_type, #output_type>
             {
                 ::mockall::#guard_name::new(#name.lock().unwrap())
             }
         )
     } else {
-        quote!(pub fn #expect_ident #generics(&mut self)
+        quote!(fn #expect_ident #generics(&mut self)
                -> &mut #expectation<#input_type, #output_type>
                #where_clause
         {
@@ -369,6 +369,9 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
     let mut mock_body = TokenStream::new();
     let mut expect_body = TokenStream::new();
 
+    let pub_token = syn::token::Pub{span: Span::call_site()};
+    let pub_vis = syn::Visibility::Public(syn::VisPublic{pub_token});
+
     for trait_item in item.items.iter() {
         match trait_item {
             syn::TraitItem::Const(_) => {
@@ -379,11 +382,13 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                     Some(mock_ident),
                     mock_ident,
                     None,
-                    &syn::Visibility::Inherited,
                     &meth.sig,
                     Some(&item.ident)
                 );
+                // trait methods must have inherited visibility.  Expectation
+                // methods should have public, for lack of any clearer option.
                 mock_meth.to_tokens(&mut mock_body);
+                pub_vis.to_tokens(&mut expect_body);
                 expect_meth.to_tokens(&mut expect_body);
             },
             syn::TraitItem::Type(ty) => {
