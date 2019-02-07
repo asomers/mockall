@@ -12,7 +12,8 @@ pub(crate) struct Mock {
     pub(crate) vis: syn::Visibility,
     pub(crate) name: syn::Ident,
     pub(crate) generics: syn::Generics,
-    pub(crate) methods: Vec<syn::TraitItemMethod>,
+    // The Mock struct's inherent methods.  The blocks will all be empty.
+    pub(crate) methods: Vec<syn::ImplItemMethod>,
     pub(crate) traits: Vec<syn::ItemTrait>
 }
 
@@ -42,7 +43,7 @@ impl Mock {
                 span);
             let methods = trait_.items.iter().filter_map(|item| {
                 if let syn::TraitItem::Method(m) = item {
-                    Some(m)
+                    Some(tim2iim(m))
                 } else {
                     None
                 }
@@ -119,8 +120,10 @@ impl Parse for Mock {
         let mut methods = Vec::new();
         while !impl_content.is_empty() {
             let method: syn::TraitItem = impl_content.parse()?;
-            match method {
-                syn::TraitItem::Method(meth) => methods.push(meth.clone()),
+            match &method {
+                syn::TraitItem::Method(meth) => {
+                    methods.push(tim2iim(meth))
+                },
                 _ => {
                     return Err(input.error("Unsupported in this context"));
                 }
@@ -261,7 +264,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
                  generics: &syn::Generics,
                  subs: &[(String, syn::Generics)],
                  methods: &[T]) -> TokenStream
-    where T: Borrow<syn::TraitItemMethod>
+    where T: Borrow<syn::ImplItemMethod>
 {
     let mut output = TokenStream::new();
     let ident = gen_mock_ident(&ident);
@@ -434,6 +437,16 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
     }).to_tokens(&mut output);
 
     output
+}
+
+fn tim2iim(m: &syn::TraitItemMethod) -> syn::ImplItemMethod {
+    syn::ImplItemMethod{
+        attrs: m.attrs.clone(),
+        vis: syn::parse2(quote!(pub)).unwrap(),
+        defaultness: None,
+        sig: m.sig.clone(),
+        block: syn::parse2(quote!({})).unwrap(),
+    }
 }
 
 pub(crate) fn do_mock(input: TokenStream) -> TokenStream {

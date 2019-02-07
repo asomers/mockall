@@ -396,12 +396,7 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
                 None
             },
             syn::ImplItem::Method(meth) => {
-                Some(syn::TraitItemMethod {
-                    attrs: Vec::new(),
-                    default: None,
-                    sig: meth.sig.clone(),
-                    semi_token: Some(Token![;](Span::call_site()))
-                })
+                Some(meth.clone())
             },
             _ => {
                 compile_error(item.span(),
@@ -415,7 +410,13 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
     let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
     let (methods, traits) = if let Some((_, path, _)) = item_impl.trait_ {
         let items = methods.into_iter().map(|meth| {
-            syn::TraitItem::Method(meth)
+            let tim = syn::TraitItemMethod {
+                attrs: Vec::new(),
+                default: None,
+                sig: meth.sig.clone(),
+                semi_token: Some(Token![;](Span::call_site()))
+            };
+            syn::TraitItem::Method(tim)
         }).collect::<Vec<_>>();
         let path_args = &path.segments.last().unwrap().value().arguments;
         let trait_ = syn::ItemTrait {
