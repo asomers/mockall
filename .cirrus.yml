@@ -1,0 +1,26 @@
+test_task:
+  name: cargo test 
+  matrix:
+    - container:
+       image: rust:1.31.0
+    - container:
+       image: rust:latest
+    - container:
+       image: rustlang/rust:nightly
+  cargo_cache:
+    folder: $CARGO_HOME/registry
+  build_script:
+    - if rustc --version | grep -q nightly; then
+    -   cargo build --all-features --all
+    - else
+    -   cargo build --all
+    - fi
+  test_script:
+    - if rustc --version | grep -q nightly; then
+    -   cargo test --all-features --all
+    - else
+    -   cargo test --all
+    - fi
+  doc_script:
+    - cargo doc --no-deps
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
