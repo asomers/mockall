@@ -976,6 +976,47 @@ impl<I> Default for Matcher<I> {
     }
 }
 
+/// Check separate [`Predicate`](trait.Predicate.html)s for each argument of a
+/// function.  Used with [`with`](struct.Expectation.html#method.with).
+///
+/// # Examples
+/// ```
+/// # use mockall::*;
+/// # use mockall::predicate::*;
+/// #[automock]
+/// trait Foo {
+///     fn foo(&self, x: u32, y: u32);
+/// }
+///
+/// let mut mock = MockFoo::new();
+/// mock.expect_foo()
+///     .with(params!(eq(42), eq(43)))
+///     .return_const(());
+///
+/// mock.foo(42, 43);
+/// ```
+// TODO: consider rewriting as a proc macro so it can support any number of
+// arguments.
+// TODO: Instead of using predicate::function, create a custom Predicate
+// implementation that will yield better error messages.
+#[macro_export]
+macro_rules! params{
+    ($p0:expr) => {
+        predicate::function(|x0| $p0.eval(x0))
+    };
+    ($p0:expr, $p1:expr) => {
+        predicate::function(|(x0, x1)| $p0.eval(x0) && $p1.eval(x1))
+    };
+    ($p0:expr, $p1:expr, $p2: expr) => {
+        predicate::function(|(x0, x1, x2)|
+            $p0.eval(x0) && $p1.eval(x1) && $p2.eval(x2))
+    };
+    ($p0:expr, $p1:expr, $p2: expr, $p3: expr) => {
+        predicate::function(|(x0, x1, x2, x3)|
+            $p0.eval(x0) && $p1.eval(x1) && $p2.eval(x2) && $p3.eval)
+    };
+}
+
 #[derive(Debug)]
 struct Times{
     /// How many times has the expectation already been called?

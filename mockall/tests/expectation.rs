@@ -48,6 +48,23 @@ fn match_pointer_args() {
     e.call(&x as *const u32);
 }
 
+#[test]
+fn params_ok() {
+    let mut e = Expectation::<(u32, u32), ()>::default();
+    e.returning(|_| ());
+    e.with(params!(predicate::eq(5), predicate::eq(6)));
+    e.call((5, 6));
+}
+
+#[test]
+#[should_panic(expected = "Expectation didn't match arguments")]
+fn params_fail() {
+    let mut e = Expectation::<(u32, u32), ()>::default();
+    e.returning(|_| ());
+    e.with(params!(predicate::eq(5), predicate::eq(6)));
+    e.call((5, 5));
+}
+
 /// A MockObject with a method that takes &mut self like:
 /// fn foo(&mut self, x: i32) -> u32
 #[test]
