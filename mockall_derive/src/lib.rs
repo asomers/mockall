@@ -63,6 +63,45 @@ fn deimplify(ty: &mut syn::Type) {
     }
 }
 
+/// Remove any mutability qualifiers from a method's argument list
+fn demutify(args: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>)
+    -> syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>
+{
+    let mut output = args.clone();
+    for arg in output.iter_mut() {
+        match arg {
+            syn::FnArg::SelfValue(arg_self) => arg_self.mutability = None,
+            syn::FnArg::Captured(arg_captured) => demutify_arg(arg_captured),
+            _ => (),    // Nothing to do
+        }
+    }
+    output
+}
+
+/// Remove any "mut" from a method argument's binding.
+fn demutify_arg(arg: &mut syn::ArgCaptured) {
+    match arg.pat {
+        syn::Pat::Wild(_) => {
+            compile_error(arg.span(),
+                "Mocked methods must have named arguments");
+        },
+        syn::Pat::Ident(ref mut pat_ident) => {
+            if let Some(r) = &pat_ident.by_ref {
+                compile_error(r.span(),
+                    "Mockall does not support by-reference argument bindings");
+            }
+            if let Some((_at, subpat)) = &pat_ident.subpat {
+                compile_error(subpat.span(),
+                    "Mockall does not support subpattern bindings");
+            }
+            pat_ident.mutability = None;
+        },
+        _ => {
+            compile_error(arg.span(), "Unsupported argument type");
+        }
+    };
+}
+
 /// Turn a non-'static reference argument into a pointer argument.  This is
 /// sadly necessary because Fn(I) -> O objects aren't 'static unless I is.  And
 /// we don't want to restrict our users to use bare fn pointers.

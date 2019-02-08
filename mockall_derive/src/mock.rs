@@ -182,7 +182,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     let ident = &sig.ident;
     let generics = &sig.decl.generics;
     let where_clause = &sig.decl.generics.where_clause;
-    let inputs = &sig.decl.inputs;
+    let inputs = demutify(&sig.decl.inputs);
     let output = &sig.decl.output;
     let attrs = format_attrs(meth_attrs);
 
@@ -215,7 +215,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     } else {
         quote!(self.#ident)
     };
-    for p in sig.decl.inputs.iter() {
+    for p in inputs.iter() {
         match p {
             syn::FnArg::SelfRef(_) | syn::FnArg::SelfValue(_) => {
                 // Don't output the "self" argument

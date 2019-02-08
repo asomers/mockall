@@ -1202,6 +1202,56 @@ mod t {
         check(&"", &desired, &code);
     }
 
+    /// In a struct impl block, a method signature can have a mutable argument.
+    /// Mockall should ignore the mutability qualifier.
+    #[test]
+    fn mutable_argument() {
+        let desired = r#"
+        pub struct MockFoo {
+            foo: ::mockall::Expectations<(u32), ()> ,
+            bar: ::mockall::Expectations<(), ()> ,
+        }
+        impl ::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::Expectations::default(),
+                    bar: ::mockall::Expectations::default(),
+                }
+            }
+        }
+        impl MockFoo {
+            fn foo(&self, x: u32) {
+                self.foo.call((x))
+            }
+            fn expect_foo(&mut self)
+                -> &mut ::mockall::Expectation<(u32), ()>
+            {
+                self.foo.expect()
+            }
+            fn bar(self) {
+                self.bar.call(())
+            }
+            fn expect_bar(&mut self)
+                -> &mut ::mockall::Expectation<(), ()>
+            {
+                self.bar.expect()
+            }
+            pub fn checkpoint(&mut self) {
+                { self.foo.checkpoint(); }
+                { self.bar.checkpoint(); }
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }"#;
+        let code = r#"
+        impl Foo {
+            fn foo(&self, mut x: u32) {}
+            fn bar(mut self) {}
+        }"#;
+        check("", &desired, &code);
+    }
+
     #[test]
     fn pub_trait() {
         check("",
