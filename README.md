@@ -64,9 +64,9 @@ See LICENSE-APACHE, and LICENSE-MIT for details
 
 Mockall was not built in a day.  JMock was probably the first popular mock
 object library.  Many ports and imitations have been made, including GoogleMock
-for C++.  Mockers, inspired by based on GoogleMock, was the first attempt to
-bring the concept to Rust.  The now-defunct Mock_derive was the first library
-to generate mock objects with procedural macros, greatly reducing the user's
-workload.  Mockall also uses proc macros, and copies many of Mockers' features
-and conventions.  Mockall also takes inspiration from Simulacrum's internal
-design, and its method of mocking generic methods.
+for C++.  Mockers, inspired by GoogleMock, was the first attempt to bring the
+concept to Rust.  The now-defunct Mock_derive was the first library to generate
+mock objects with procedural macros, greatly reducing the user's workload.
+Mockall also uses proc macros, and copies many of Mockers' features and
+conventions.  Mockall also takes inspiration from Simulacrum's internal design,
+and its technique for mocking generic methods.
