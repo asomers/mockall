@@ -979,15 +979,19 @@ unsafe impl<F, T> Send for UnsafeFnPredicate<F, T>
     where F: Fn(&T) -> bool, T: ?Sized
 {}
 
-struct Matcher<I>(Box<dyn Predicate<I> + Send>);
+struct Matcher<I>(Mutex<Box<dyn Predicate<I> + Send>>);
 
 impl<I> Matcher<I> {
     fn matches(&self, i: &I) -> bool {
-        self.0.eval(&i)
+        self.0.lock().unwrap().eval(&i)
+    }
+
+    fn new<P: Predicate<I> + Send + 'static>(p: P) -> Self {
+        Matcher(Mutex::new(Box::new(p)))
     }
 
     fn verify(&self, i: &I) {
-        if let Some(case) = self.0.find_case(false, &i) {
+        if let Some(case) = self.0.lock().unwrap().find_case(false, &i) {
             let c = &case as &predicates_tree::CaseTreeExt;
             panic!("Expectation didn't match arguments:\n{}", c.tree());
         }
@@ -996,7 +1000,7 @@ impl<I> Matcher<I> {
 
 impl<I> Default for Matcher<I> {
     fn default() -> Self {
-        Matcher(Box::new(predicates::constant::always()))
+        Matcher::new(predicates::constant::always())
     }
 }
 
@@ -1191,14 +1195,14 @@ impl<I> ExpectationCommon<I> {
     fn with<P>(&mut self, p: P)
         where P: Predicate<I> + Send + 'static
     {
-        self.matcher = Matcher(Box::new(p));
+        self.matcher = Matcher::new(p);
     }
 
     fn withf<F>(&mut self, f: F)
         where F: Fn(&I) -> bool + Send + 'static, I: Send + 'static
     {
         let p = predicate::function(f);
-        self.matcher = Matcher(Box::new(p));
+        self.matcher = Matcher::new(p);
     }
 }
 
