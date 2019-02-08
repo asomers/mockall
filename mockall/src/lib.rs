@@ -400,6 +400,23 @@
 //! assert_eq!(43, mock.get_mut(0).0);
 //! ```
 //!
+//! Unsized types that are common targets for [`Deref`] are special.  Mockall
+//! will automatically use the type's owned form for the Expectation.
+//! Currently, the [`str`], [`CStr`], [`OsStr`], and [`Path`] types are
+//! supported.  Using this feature is automatic:
+//!
+//! ```
+//! # use mockall::*;
+//! #[automock]
+//! trait Foo {
+//!     fn name(&self) -> &str;
+//! }
+//!
+//! let mut mock = MockFoo::new();
+//! mock.expect_name().return_const("abcd".to_owned());
+//! assert_eq!("abcd", mock.name());
+//! ```
+//!
 //! ## Impl Trait
 //!
 //! Rust 1.26.0 introduced the `impl Trait` feature.  It allows functions to
@@ -810,8 +827,12 @@
 //! ```
 //!
 //! [`#[automock]`]: ../mockall_derive/attr.automock.html
+//! [`CStr`]: https://doc.rust-lang.org/stable/std/ffi/struct.CStr.html
+//! [`Deref`]: https://doc.rust-lang.org/stable/std/ops/trait.Deref.html
 //! [`Expectation`]: struct.Expectation.html
 //! [`Expectations`]: struct.Expectations.html
+//! [`OsStr`]: https://doc.rust-lang.org/stable/std/ffi/struct.OsStr.html
+//! [`Path`]: https://doc.rust-lang.org/stable/std/path/struct.Path.html
 //! [`Predicate`]: trait.Predicate.html
 //! [`RefExpectation`]: struct.RefExpectation.html
 //! [`Sequence`]: struct.Sequence.html
@@ -821,6 +842,7 @@
 //! [`never`]: struct.Expectation.html#method.never
 //! [`predicates`]: predicate/index.html
 //! [`return_once`]: struct.Expectation.html#method.return_once
+//! [`str`]: https://doc.rust-lang.org/stable/std/primitive.str.html
 //! [`times_any`]: struct.Expectation.html#method.times_any
 //! [`times_range`]: struct.Expectation.html#method.times_range
 //! [`times`]: struct.Expectation.html#method.times

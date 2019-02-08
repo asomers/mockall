@@ -78,6 +78,14 @@ fn return_reference() {
 }
 
 #[test]
+fn return_str() {
+    // This Expectation can be used for a method that returns &str
+    let mut e = RefExpectation::<(), String>::default();
+    e.return_const("abcd".to_owned());
+    assert_eq!("abcd", e.call(()));
+}
+
+#[test]
 fn times_any() {
     let mut e = RefExpectation::<(), ()>::default();
     e.return_const(());

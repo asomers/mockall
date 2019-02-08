@@ -218,15 +218,16 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
                             compile_error(r.span(), "Non-'static non-'self lifetimes are not yet supported");
                         }
                     }
+                    let output_type = ref_to_owned(r);
                     if r.mutability.is_some() {
                         (
-                            (*r.elem).clone(),
+                            output_type,
                             syn::Ident::new("RefMutExpectation", span),
                             syn::Ident::new("call_mut", span)
                         )
                     } else {
                         (
-                            (*r.elem).clone(),
+                            output_type,
                             syn::Ident::new("RefExpectation", span),
                             syn::Ident::new("call", span)
                         )
@@ -279,6 +280,34 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
 
     MethodTypes{is_static, input_type, output_type, expectation, expectations,
                 call, expect_obj, call_turbofish}
+}
+
+/// Convert a reference type into its owned type.  Usually this is a simple
+/// matter of removing the "&", but there are some special cases.
+fn ref_to_owned(ty: &syn::TypeReference) -> syn::Type {
+    let path_ty: syn::TypePath = syn::parse2(quote!(Path)).unwrap();
+    let pathbuf_ty: syn::Type = syn::parse2(quote!(::std::path::PathBuf))
+        .unwrap();
+
+    let str_ty: syn::TypePath = syn::parse2(quote!(str)).unwrap();
+    let string_ty: syn::Type = syn::parse2(quote!(::std::string::String))
+        .unwrap();
+
+    let cstr_ty: syn::TypePath = syn::parse2(quote!(CStr)).unwrap();
+    let cstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::CString))
+        .unwrap();
+
+    let osstr_ty: syn::TypePath = syn::parse2(quote!(OsStr)).unwrap();
+    let osstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::OsString))
+        .unwrap();
+
+    match *ty.elem {
+        syn::Type::Path(ref path) if *path == cstr_ty => cstring_ty,
+        syn::Type::Path(ref path) if *path == osstr_ty => osstring_ty,
+        syn::Type::Path(ref path) if *path == path_ty => pathbuf_ty,
+        syn::Type::Path(ref path) if *path == str_ty => string_ty,
+        _ => (*ty.elem).clone()
+    }
 }
 
 /// Manually mock a structure.

@@ -7,7 +7,11 @@
 
 use cfg_if::cfg_if;
 use mockall_derive::*;
-use std::fmt::Debug;
+use std::{
+    ffi::{CStr, CString, OsStr, OsString},
+    fmt::Debug,
+    path::{Path, PathBuf}
+};
 
 // automatic-style mocking with associated types
 #[test]
@@ -360,6 +364,60 @@ fn reference_return() {
     let mut mock = MockA::new();
     mock.expect_foo().return_const(5);
     assert_eq!(5, *mock.foo());
+}
+
+#[test]
+fn ref_cstr_return() {
+    #[automock]
+    trait Foo {
+        fn name(&self) -> &CStr;
+    }
+
+    let mut mock = MockFoo::new();
+    let name = CString::new("abcd").unwrap();
+    mock.expect_name().return_const(name.clone());
+    assert_eq!(name.as_c_str(), mock.name());
+}
+
+#[test]
+fn ref_osstr_return() {
+    #[automock]
+    trait Foo {
+        fn name(&self) -> &OsStr;
+    }
+
+    let mut mock = MockFoo::new();
+    let name = OsString::from("abcd");
+    mock.expect_name().return_const(name.clone());
+    assert_eq!(name.as_os_str(), mock.name());
+}
+
+#[test]
+fn ref_path_return() {
+    #[automock]
+    trait Foo {
+        fn path(&self) -> &Path;
+    }
+
+    let mut mock = MockFoo::new();
+    let mut pb = PathBuf::new();
+    pb.push("foo");
+    pb.push("bar");
+    pb.push("baz");
+    mock.expect_path().return_const(pb.clone());
+    assert_eq!(pb.as_path(), mock.path());
+}
+
+#[test]
+fn ref_str_return() {
+    #[automock]
+    trait Foo {
+        fn name(&self) -> &str;
+    }
+
+    let mut mock = MockFoo::new();
+    mock.expect_name().return_const("abcd".to_owned());
+    assert_eq!("abcd", mock.name());
 }
 
 #[test]

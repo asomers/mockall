@@ -1218,6 +1218,44 @@ mod t {
     }
 
     #[test]
+    fn ref_str_return() {
+        let desired = r#"
+        struct MockFoo {
+            foo: ::mockall::RefExpectations<(), ::std::string::String> ,
+        }
+        impl ::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    foo: ::mockall::RefExpectations::default(),
+                }
+            }
+        }
+        impl MockFoo {
+            pub fn foo(&self) -> &str {
+                self.foo.call(())
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut ::mockall::RefExpectation<(), ::std::string::String>
+            {
+                self.foo.expect()
+            }
+            pub fn checkpoint(&mut self) {
+                self.foo.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }"#;
+
+        let code = r#"
+            Foo {
+                fn foo(&self) -> &str;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
     fn static_method() {
         let desired = r#"
             struct MockFoo {
