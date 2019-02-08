@@ -1004,17 +1004,18 @@ impl<I> Default for Matcher<I> {
 #[macro_export]
 macro_rules! params{
     ($p0:expr) => {
-        predicate::function(|x0| $p0.eval(x0))
+        ::mockall::predicate::function(move |x0| $p0.eval(x0))
     };
     ($p0:expr, $p1:expr) => {
-        predicate::function(|(x0, x1)| $p0.eval(x0) && $p1.eval(x1))
+        ::mockall::predicate::function(move |(x0, x1)|
+            $p0.eval(x0) && $p1.eval(x1))
     };
     ($p0:expr, $p1:expr, $p2: expr) => {
-        predicate::function(|(x0, x1, x2)|
+        ::mockall::predicate::function(move |(x0, x1, x2)|
             $p0.eval(x0) && $p1.eval(x1) && $p2.eval(x2))
     };
     ($p0:expr, $p1:expr, $p2: expr, $p3: expr) => {
-        predicate::function(|(x0, x1, x2, x3)|
+        ::mockall::predicate::function(move |(x0, x1, x2, x3)|
             $p0.eval(x0) && $p1.eval(x1) && $p2.eval(x2) && $p3.eval)
     };
 }
