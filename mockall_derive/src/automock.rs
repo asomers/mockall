@@ -420,7 +420,7 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
         }).collect::<Vec<_>>();
         let path_args = &path.segments.last().unwrap().value().arguments;
         let trait_ = syn::ItemTrait {
-            attrs: Vec::new(),
+            attrs: item_impl.attrs.clone(),
             vis: vis.clone(),
             unsafety: item_impl.unsafety,
             auto_token: None,
@@ -601,7 +601,7 @@ mod t {
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl MockA {
@@ -629,6 +629,58 @@ mod t {
             type T: Clone + 'static;
             fn foo(&self, x: Self::T) -> Self::T;
         }"#);
+    }
+
+    // Attributes should be copied to the output
+    #[test]
+    fn attrs() {
+        let desired = r#"
+        pub struct MockA {
+            #[bar] foo: ::mockall::Expectations<(), ()> ,
+        }
+        #[baz]
+        ::mockall::lazy_static! {
+            static ref MockA_stat_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), ()> >
+            = ::std::sync::Mutex::new(::mockall::Expectations::new());
+        }
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self {
+                    #[bar] foo: ::mockall::Expectations::default(),
+                }
+            }
+        }
+        impl MockA {
+            #[bar]
+            pub fn foo(&self) {
+                self.foo.call(())
+            }
+            #[bar]
+            pub fn expect_foo(&mut self) -> &mut::mockall::Expectation<(),()> {
+                self.foo.expect()
+            }
+            #[baz]
+            pub fn stat() {
+                MockA_stat_expectation.lock().unwrap().call(())
+            }
+            #[baz]
+            pub fn expect_stat< 'guard>() -> ::mockall::ExpectationGuard< 'guard, (), ()> {
+                ::mockall::ExpectationGuard::new(
+                    MockA_stat_expectation.lock().unwrap())
+            }
+            pub fn checkpoint(&mut self) {
+                #[bar] {self.foo.checkpoint();}
+                #[baz] {MockA_stat_expectation.lock().unwrap().checkpoint();}
+            }
+            pub fn new() -> Self { Self::default() }
+        }"#;
+        let code = r#"
+        #[foo]
+        impl A {
+            #[bar] pub fn foo(&self) {}
+            #[baz] pub fn stat() {}
+        }"#;
+        check("", desired, code);
     }
 
     #[test]
@@ -690,7 +742,7 @@ mod t {
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl MockA {
@@ -748,7 +800,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -790,7 +842,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -833,7 +885,7 @@ mod t {
         }
         impl<T> MockGenericTrait_GenericTrait<T> {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl<T> MockGenericTrait<T> {
@@ -893,7 +945,7 @@ mod t {
 
         impl<T: Copy> MockGenericTrait_GenericTrait<T> {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl<T: Copy> MockGenericTrait<T> {
@@ -946,7 +998,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -989,7 +1041,7 @@ mod t {
         }
         impl MockSomeStruct_Foo {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl MockSomeStruct {
@@ -1050,7 +1102,7 @@ mod t {
         }
         impl MockSomeStruct_Foo {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl<T> MockSomeStruct<T> {
@@ -1104,7 +1156,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1176,7 +1228,7 @@ mod t {
         }
         impl MockSimpleTrait_SimpleTrait {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl MockSimpleTrait {
@@ -1228,7 +1280,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1267,7 +1319,7 @@ mod t {
         }
         impl MockSimpleTrait_SimpleTrait {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl MockSimpleTrait {
@@ -1324,8 +1376,8 @@ mod t {
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
-                MockA_A_bar_expectation.lock().unwrap().checkpoint();
+                { self.foo.checkpoint(); }
+                { MockA_A_bar_expectation.lock().unwrap().checkpoint(); }
             }
         }
         impl MockA {
@@ -1389,7 +1441,7 @@ mod t {
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
-                MockA_A_new_expectation.lock().unwrap().checkpoint();
+                { MockA_A_new_expectation.lock().unwrap().checkpoint(); }
             }
         }
         impl MockA {
@@ -1446,7 +1498,7 @@ mod t {
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
-                MockA_A_new_expectation.lock().unwrap().checkpoint();
+                { MockA_A_new_expectation.lock().unwrap().checkpoint(); }
             }
         }
         impl MockA {
@@ -1503,7 +1555,7 @@ mod t {
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
-                MockA_A_new_expectation.lock().unwrap().checkpoint();
+                { MockA_A_new_expectation.lock().unwrap().checkpoint(); }
             }
         }
         impl MockA {
@@ -1558,7 +1610,7 @@ mod t {
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
-                MockA_A_new_expectation.lock().unwrap().checkpoint();
+                { MockA_A_new_expectation.lock().unwrap().checkpoint(); }
             }
         }
         impl MockA {
@@ -1618,7 +1670,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1685,10 +1737,10 @@ mod t {
                 self.bang.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
-                self.bar.checkpoint();
-                self.baz.checkpoint();
-                self.bang.checkpoint();
+                { self.foo.checkpoint(); }
+                { self.bar.checkpoint(); }
+                { self.baz.checkpoint(); }
+                { self.bang.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1727,7 +1779,7 @@ mod t {
                     self.foo.expect()
                 }
                 pub fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
@@ -1774,7 +1826,7 @@ mod t {
         }
         impl<T> MockFoo_Foo<T> where T: Clone {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl<T> MockFoo<T> where T: Clone {

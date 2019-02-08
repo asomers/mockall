@@ -55,7 +55,9 @@ impl Mock {
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
                 let (_, _, cp) = gen_mock_method(Some(&mock_struct_name),
-                                                 &mock_sub_name, None,
+                                                 &mock_sub_name,
+                                                 &meth.borrow().attrs[..], None,
+                                                 &meth.vis, &meth.vis,
                                                  &meth.borrow().sig, None);
                 cp.to_tokens(&mut sub_cp_body);
             }
@@ -71,13 +73,13 @@ impl Mock {
         for meth in self.methods.iter() {
             has_new |= meth.sig.ident == &"new";
             let (mm, em, cp) = gen_mock_method(Some(&mock_struct_name),
-                                               &mock_struct_name, None,
+                                               &mock_struct_name,
+                                               &meth.borrow().attrs[..], None,
+                                               &meth.vis, &meth.vis,
                                                &meth.sig, None);
             // For inherent methods, use the same visibility for the mock and
             // expectation method as for the original.
-            meth.vis.to_tokens(&mut mock_body);
             mm.to_tokens(&mut mock_body);
-            meth.vis.to_tokens(&mut mock_body);
             em.to_tokens(&mut mock_body);
             cp.to_tokens(&mut cp_body);
         }
@@ -141,10 +143,28 @@ impl Parse for Mock {
     }
 }
 
+fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
+    let mut out = TokenStream::new();
+    for attr in attrs {
+        if attr.path.segments.len() == 1 &&
+           attr.path.segments.first().unwrap().value().ident == "doc"
+        {
+            // Discard doc attributes from the mock object.  They cause a bunch
+            // of warnings.
+            continue;
+        }
+        attr.to_tokens(&mut out);
+    }
+    out
+}
+
 /// Generate a mock method and its expectation method
 fn gen_mock_method(self_ident: Option<&syn::Ident>,
                    mock_ident: &syn::Ident,
+                   meth_attrs: &[syn::Attribute],
                    defaultness: Option<&syn::token::Default>,
+                   meth_vis: &syn::Visibility,
+                   expect_vis: &syn::Visibility,
                    sig: &syn::MethodSig,
                    sub: Option<&syn::Ident>)
     -> (TokenStream, TokenStream, TokenStream)
@@ -164,9 +184,10 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     let where_clause = &sig.decl.generics.where_clause;
     let inputs = &sig.decl.inputs;
     let output = &sig.decl.output;
+    let attrs = format_attrs(meth_attrs);
 
     // First the mock method
-    quote!(#defaultness #constness #unsafety #asyncness #abi
+    quote!(#attrs #meth_vis #defaultness #constness #unsafety #asyncness #abi
            #fn_token #ident #generics (#inputs) #output #where_clause)
         .to_tokens(&mut mock_output);
 
@@ -233,14 +254,14 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
         } else {
             syn::Ident::new("GenericExpectationGuard", Span::call_site())
         };
-        quote!(fn #expect_ident #g()
+        quote!(#attrs #expect_vis fn #expect_ident #g()
                -> ::mockall::#guard_name<#ltd, #input_type, #output_type>
             {
                 ::mockall::#guard_name::new(#name.lock().unwrap())
             }
         )
     } else {
-        quote!(fn #expect_ident #generics(&mut self)
+        quote!(#attrs #expect_vis fn #expect_ident #generics(&mut self)
                -> &mut #expectation<#input_type, #output_type>
                #where_clause
         {
@@ -250,9 +271,9 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
 
     // Finally this method's contribution to the checkpoint method
     if meth_types.is_static {
-        quote!(#expect_obj_name.lock().unwrap().checkpoint();)
+        quote!(#attrs { #expect_obj_name.lock().unwrap().checkpoint(); })
     } else {
-        quote!(#expect_obj_name.checkpoint();)
+        quote!(#attrs { #expect_obj_name.checkpoint(); })
     }.to_tokens(&mut cp_output);
 
     (mock_output, expect_output, cp_output)
@@ -283,6 +304,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             .to_tokens(&mut default_body)
     }
     for meth in methods.iter() {
+        let attrs = format_attrs(&meth.borrow().attrs);
         let method_ident = &meth.borrow().sig.ident;
         let meth_types = method_types(Some(&mock_ident), &meth.borrow().sig);
         let expect_obj = &meth_types.expect_obj;
@@ -291,12 +313,13 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             let name = syn::Ident::new(
                 &format!("{}_{}_expectation", ident, method_ident),
                 Span::call_site());
-            quote!(static ref #name: ::std::sync::Mutex<#expect_obj> =
+            quote!(#attrs ::mockall::lazy_static! {
+                static ref #name: ::std::sync::Mutex<#expect_obj> =
                    ::std::sync::Mutex::new(#expectations::new());
-                ).to_tokens(&mut statics);
+            }).to_tokens(&mut statics);
         } else {
-            quote!(#method_ident: #expect_obj,).to_tokens(&mut body);
-            quote!(#method_ident: #expectations::default(),)
+            quote!(#attrs #method_ident: #expect_obj,).to_tokens(&mut body);
+            quote!(#attrs #method_ident: #expectations::default(),)
                 .to_tokens(&mut default_body)
         }
     }
@@ -335,11 +358,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             #body
         }
     ).to_tokens(&mut output);
-    if ! statics.is_empty() {
-        quote!(::mockall::lazy_static! {
-            #statics
-        }).to_tokens(&mut output);
-    }
+    statics.to_tokens(&mut output);
     let (ig, tg, wc) = generics.split_for_impl();
     quote!(impl #ig ::std::default::Default for #ident #tg #wc {
         fn default() -> Self {
@@ -381,14 +400,16 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                 let (mock_meth, expect_meth, _cp) = gen_mock_method(
                     Some(mock_ident),
                     mock_ident,
+                    &meth.attrs[..],
                     None,
+                    &syn::Visibility::Inherited,
+                    &pub_vis,
                     &meth.sig,
                     Some(&item.ident)
                 );
                 // trait methods must have inherited visibility.  Expectation
                 // methods should have public, for lack of any clearer option.
                 mock_meth.to_tokens(&mut mock_body);
-                pub_vis.to_tokens(&mut expect_body);
                 expect_meth.to_tokens(&mut expect_body);
             },
             syn::TraitItem::Type(ty) => {
@@ -506,7 +527,7 @@ mod t {
         }
         impl MockA_Clone {
             fn checkpoint(&mut self) {
-                self.clone.checkpoint();
+                { self.clone.checkpoint(); }
             }
         }
         impl MockA {
@@ -561,7 +582,7 @@ mod t {
                     self.foo.expect:: <(T), ()>()
                 }
                 pub fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
@@ -601,7 +622,7 @@ mod t {
                     )
                 }
                 pub fn checkpoint(&mut self) {
-                    MockFoo_bar_expectation.lock().unwrap().checkpoint();
+                    { MockFoo_bar_expectation.lock().unwrap().checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
@@ -642,7 +663,7 @@ mod t {
                     self.foo.expect()
                 }
                 pub fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
@@ -687,7 +708,7 @@ mod t {
             }
             impl MockExternalStruct_Foo {
                 fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
             }
             impl<T: Copy + 'static> MockExternalStruct<T> {
@@ -754,7 +775,7 @@ mod t {
             }
             impl<T: 'static> MockExternalStruct_Foo<T> {
                 fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
             }
             impl<T: 'static, Z: 'static> MockExternalStruct<T, Z> {
@@ -816,7 +837,7 @@ mod t {
         }
         impl<T> MockExternalStruct_GenericTrait<T> {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl<T> MockExternalStruct<T> {
@@ -870,7 +891,7 @@ mod t {
                     self.foo.expect()
                 }
                 pub fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
@@ -918,7 +939,7 @@ mod t {
         }
         impl MockExternalStruct_A {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         struct MockExternalStruct_B {
@@ -933,7 +954,7 @@ mod t {
         }
         impl MockExternalStruct_B {
             fn checkpoint(&mut self) {
-                self.bar.checkpoint();
+                { self.bar.checkpoint(); }
             }
         }
         impl MockExternalStruct {
@@ -1019,8 +1040,8 @@ mod t {
                     )
                 }
                 pub fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
-                    MockFoo_new_expectation.lock().unwrap().checkpoint();
+                    { self.foo.checkpoint(); }
+                    { MockFoo_new_expectation.lock().unwrap().checkpoint(); }
                 }
             }
         "#;
@@ -1066,8 +1087,8 @@ mod t {
                 self.bar.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
-                self.bar.checkpoint();
+                { self.foo.checkpoint(); }
+                { self.bar.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1106,7 +1127,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1146,7 +1167,7 @@ mod t {
         }
         impl MockX_Foo {
             fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
         }
         impl MockX {
@@ -1202,7 +1223,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1240,7 +1261,7 @@ mod t {
                 self.foo.expect()
             }
             pub fn checkpoint(&mut self) {
-                self.foo.checkpoint();
+                { self.foo.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -1281,7 +1302,7 @@ mod t {
                     )
                 }
                 pub fn checkpoint(&mut self) {
-                    MockFoo_bar_expectation.lock().unwrap().checkpoint();
+                    { MockFoo_bar_expectation.lock().unwrap().checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
@@ -1321,7 +1342,7 @@ mod t {
             }
             impl MockFoo_Bar {
                 fn checkpoint(&mut self) {
-                    MockFoo_Bar_baz_expectation.lock().unwrap().checkpoint();
+                    { MockFoo_Bar_baz_expectation.lock().unwrap().checkpoint(); }
                 }
             }
             impl MockFoo {
@@ -1390,8 +1411,8 @@ mod t {
                     self.bar.expect()
                 }
                 pub fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
-                    self.bar.checkpoint();
+                    { self.foo.checkpoint(); }
+                    { self.bar.checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
@@ -1434,7 +1455,7 @@ mod t {
             }
             impl MockExternalStruct_Foo  {
                 fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
             }
             impl MockExternalStruct {
@@ -1494,7 +1515,7 @@ mod t {
             }
             impl MockMyIter_Iterator {
                 fn checkpoint(&mut self) {
-                    self.next.checkpoint();
+                    { self.next.checkpoint(); }
                 }
             }
             impl MockMyIter {
@@ -1556,7 +1577,7 @@ mod t {
                     self.foo.expect:: <(T), ()>()
                 }
                 pub fn checkpoint(&mut self) {
-                    self.foo.checkpoint();
+                    { self.foo.checkpoint(); }
                 }
                 pub fn new() -> Self {
                     Self::default()
