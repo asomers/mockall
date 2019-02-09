@@ -877,7 +877,7 @@ pub use predicates::prelude::{Predicate, predicate};
 #[doc(hidden)]
 pub use lazy_static::lazy_static;
 
-trait AnyExpectations : Any + Send {}
+trait AnyExpectations : Any + Send + Sync {}
 downcast!(AnyExpectations);
 
 trait ReturnDefault<O> {
@@ -1543,7 +1543,7 @@ impl<I, O> Default for RefExpectations<I, O> {
 }
 
 impl<I, O> AnyExpectations for RefExpectations<I, O>
-    where I: 'static, O: Send + 'static
+    where I: 'static, O: Send + Sync + 'static
 {}
 
 /// Expectation type for methods that take a `&mut self` argument and return a
@@ -1551,7 +1551,7 @@ impl<I, O> AnyExpectations for RefExpectations<I, O>
 pub struct RefMutExpectation<I, O> {
     common: ExpectationCommon<I>,
     result: Option<O>,
-    rfunc: Option<Box<dyn FnMut(I) -> O + Send>>,
+    rfunc: Option<Box<dyn FnMut(I) -> O + Send + Sync>>,
 }
 
 impl<I, O> RefMutExpectation<I, O> {
@@ -1580,7 +1580,7 @@ impl<I, O> RefMutExpectation<I, O> {
     /// Supply a closure that the `RefMutExpectation` will use to create its
     /// return value.  The return value will be returned by mutable reference.
     pub fn returning<F>(&mut self, f: F) -> &mut Self
-        where F: FnMut(I) -> O + Send + 'static
+        where F: FnMut(I) -> O + Send + Sync + 'static
     {
         mem::replace(&mut self.rfunc, Some(Box::new(f)));
         self
@@ -1624,7 +1624,7 @@ impl<I, O> Default for RefMutExpectations<I, O> {
 }
 
 impl<I, O> AnyExpectations for RefMutExpectations<I, O>
-    where I: 'static, O: Send + 'static
+    where I: 'static, O: Send + Sync + 'static
 {}
 
 /// Non-generic keys to `GenericExpectation` internal storage
@@ -1694,7 +1694,8 @@ impl GenericExpectations {
 /// [`RefExpectations`](struct.RefExpectations.html) object for each unique set
 /// of generic parameters.
 ///
-/// Currently requires `'static` input arguments.
+/// Currently requires `'static` input types and `Send + Sync` output types, but
+/// those restrictions may be reduced in the future.
 #[derive(Default)]
 pub struct GenericRefExpectations {
     store: HashMap<Key, Box<dyn AnyExpectations>>,
@@ -1719,7 +1720,7 @@ impl GenericRefExpectations {
 
     /// Create a new [`RefExpectation`](struct.RefExpectation.html).
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefExpectation<I, O>
-        where I: 'static, O: Send + 'static
+        where I: 'static, O: Send + Sync + 'static
     {
         let key = Key::new::<I, O>();
         if ! self.store.contains_key(&key) {
@@ -1740,7 +1741,8 @@ impl GenericRefExpectations {
 /// [`RefMutExpectations`](struct.RefMutExpectations.html) object for each
 /// unique set of generic parameters.
 ///
-/// Currently requires `'static` input arguments.
+/// Currently requires `'static` input types and `Send + Sync` output types, but
+/// those restrictions may be reduced in the future.
 #[derive(Default)]
 pub struct GenericRefMutExpectations {
     store: HashMap<Key, Box<dyn AnyExpectations>>,
@@ -1765,7 +1767,7 @@ impl GenericRefMutExpectations {
 
     /// Create a new [`RefMutExpectation`](struct.RefMutExpectation.html).
     pub fn expect<'e, I, O>(&'e mut self) -> &'e mut RefMutExpectation<I, O>
-        where I: 'static, O: Send + 'static
+        where I: 'static, O: Send + Sync + 'static
     {
         let key = Key::new::<I, O>();
         if ! self.store.contains_key(&key) {
