@@ -705,6 +705,41 @@
 //! let foo = MockFoo::from_i32(42);
 //! assert_eq!(42, foo.foo());
 //! ```
+//!
+//! Mocking static methods of generic structs is a little bit tricky.  If the
+//! static method uses any generic parameters, then those generic parameters
+//! must be duplicated as generic parameters of the static method itself.
+//! Here's an example:
+//!
+//! ```
+//! # use mockall::*;
+//! // A struct like this:
+//! struct Foo<T> {
+//!     // ...
+//!     # _t0: std::marker::PhantomData<T>
+//! }
+//! impl<T> Foo<T> {
+//!     fn new(t: T) -> Self {
+//!         // ...
+//!         # unimplemented!()
+//!     }
+//! }
+//!
+//! // Can be mocked like this:
+//! mock! {
+//!     Foo<T> {
+//!         fn new<T2: 'static>(t: T2) -> MockFoo<T2>;
+//!     }
+//! }
+//!
+//! // And used like this:
+//! # fn main() {
+//! MockFoo::<u32>::expect_new::<u32>()
+//!     .returning(|_| MockFoo::default());
+//! let mock = MockFoo::<u32>::new(42u32);
+//! # }
+//! ```
+//!
 //! One more thing: Mockall normally creates a zero-argument `new` method for
 //! every mock struct.  But it *won't* do that when mocking a struct that
 //! already has a method named `new`.
