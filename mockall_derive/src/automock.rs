@@ -1079,7 +1079,7 @@ mod t {
         check("",
         r#"
         pub struct MockSomeStruct<T> {
-            Foo_expectations: MockSomeStruct_Foo,
+            Foo_expectations: MockSomeStruct_Foo<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
         impl<T> ::std::default::Default for MockSomeStruct<T> {
@@ -1090,17 +1090,19 @@ mod t {
                 }
             }
         }
-        struct MockSomeStruct_Foo {
+        struct MockSomeStruct_Foo<T> {
             foo: ::mockall::Expectations<(u32), i64> ,
+            _t0: ::std::marker::PhantomData<T> ,
         }
-        impl ::std::default::Default for MockSomeStruct_Foo {
+        impl<T> ::std::default::Default for MockSomeStruct_Foo<T> {
             fn default() -> Self {
                 Self {
                     foo: ::mockall::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
                 }
             }
         }
-        impl MockSomeStruct_Foo {
+        impl<T> MockSomeStruct_Foo<T> {
             fn checkpoint(&mut self) {
                 { self.foo.checkpoint(); }
             }

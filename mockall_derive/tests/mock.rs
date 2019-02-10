@@ -298,6 +298,26 @@ mod generic_struct_with_generic_trait {
     }
 }
 
+mod generic_struct_with_trait_with_associated_types {
+    use super::*;
+
+    mock! {
+        Foo<T> {}
+        trait Iterator {
+            type Item=T;
+            fn next(&mut self) -> Option<T>;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::<u32>::new();
+        mock.expect_next()
+            .return_const(None);
+        assert!(mock.next().is_none());
+    }
+}
+
 mod impl_trait {
     use std::fmt::Debug;
     use super::*;
