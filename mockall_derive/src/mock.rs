@@ -100,12 +100,11 @@ impl Mock {
             ).to_tokens(&mut mock_body);
         }
         // generate methods on traits
-        let generics = &self.generics;
-        let (ig, tg, wc) = generics.split_for_impl();
+        let (ig, tg, wc) = self.generics.split_for_impl();
         quote!(impl #ig #mock_struct_name #tg #wc {#mock_body})
             .to_tokens(&mut output);
         for trait_ in self.traits.iter() {
-            mock_trait_methods(&mock_struct_name, Some(&generics), &trait_)
+            mock_trait_methods(&mock_struct_name, Some(&self.generics), &trait_)
                 .to_tokens(&mut output);
         }
         output
@@ -444,23 +443,19 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
     // Put all mock methods in one impl block
     item.unsafety.to_tokens(&mut output);
     let ident = &item.ident;
-    let trait_generics = &item.generics;
-    let wc = &item.generics.where_clause;
-    let (merged_g, reduced_struct_g) = match struct_generics {
-        None => (trait_generics.clone(), trait_generics.split_for_impl().1),
-        Some(g) => {
-            (g.clone(), g.split_for_impl().1)
-        }
+    let (s_ig, s_sg, s_wc) = match struct_generics {
+        Some(g) => g.split_for_impl(),
+        None => item.generics.split_for_impl()
     };
-    let reduced_trait_g = trait_generics.split_for_impl().1;
-    quote!(impl #merged_g #ident #reduced_trait_g
-           for #mock_ident #reduced_struct_g #wc {
+    let (_t_ig, t_tg, _t_wc) = item.generics.split_for_impl();
+    quote!(impl #s_ig #ident #t_tg
+           for #mock_ident #s_sg #s_wc {
         #mock_body
     }).to_tokens(&mut output);
 
     // Put all expect methods in a separate impl block.  This is necessary when
     // mocking a trait impl, where we can't add any new methods
-    quote!(impl #merged_g #mock_ident #reduced_struct_g #wc {
+    quote!(impl #s_ig #mock_ident #s_sg #s_wc {
         #expect_body
     }).to_tokens(&mut output);
 
@@ -1665,6 +1660,88 @@ mod t {
                 where T: Clone
             {
                 fn foo(&self);
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn where_clause_on_struct_with_trait() {
+        let desired = r#"
+            struct MockFoo<T>
+                where T: Clone
+            {
+                Bar_expectations: MockFoo_Bar<T> ,
+                foo: ::mockall::Expectations<(), ()> ,
+                _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T> ::std::default::Default for MockFoo<T>
+                where T: Clone
+            {
+                fn default() -> Self {
+                    Self {
+                        Bar_expectations: MockFoo_Bar::default(),
+                        foo: ::mockall::Expectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
+            struct MockFoo_Bar<T> where T: Clone {
+                bar: ::mockall::Expectations<(), ()> ,
+                _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T> ::std::default::Default for MockFoo_Bar<T> where T: Clone {
+                fn default() -> Self {
+                    Self {
+                        bar: ::mockall::Expectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
+            impl<T> MockFoo_Bar<T> where T: Clone {
+                fn checkpoint(&mut self) {
+                    { self.bar.checkpoint(); }
+                }
+            }
+            impl<T> MockFoo<T>
+                where T: Clone
+            {
+                pub fn foo(&self) {
+                    self.foo.call(())
+                }
+                pub fn expect_foo(&mut self)
+                    -> &mut ::mockall::Expectation<(), ()>
+                {
+                    self.foo.expect()
+                }
+                pub fn checkpoint(&mut self) {
+                    self.Bar_expectations.checkpoint();
+                    { self.foo.checkpoint(); }
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+            impl<T> Bar for MockFoo<T> where T: Clone {
+                fn bar (&self) {
+                    self.Bar_expectations.bar.call(())
+                }
+            }
+            impl<T> MockFoo<T> where T: Clone {
+                pub fn expect_bar(&mut self)
+                    -> &mut::mockall::Expectation<(), ()>
+                {
+                    self. Bar_expectations.bar.expect()
+                }
+            }"#;
+        let code = r#"
+            Foo<T>
+                where T: Clone
+            {
+                fn foo(&self);
+            }
+            trait Bar {
+                fn bar(&self);
             }
         "#;
         check(desired, code);
