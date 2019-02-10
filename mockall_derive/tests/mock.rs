@@ -470,3 +470,21 @@ mod static_method {
         assert_eq!(42, MockFoo::bar(41));
     }
 }
+
+mod where_clause {
+    use super::*;
+
+    mock! {
+        Foo<T> where T:Clone {
+            fn foo(&self, t: T) -> T;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .returning(|t: u32| t.clone());
+        assert_eq!(5u32, mock.foo(5u32));
+    }
+}

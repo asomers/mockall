@@ -116,7 +116,9 @@ impl Parse for Mock {
     fn parse(input: ParseStream) -> syn::parse::Result<Self> {
         let vis: syn::Visibility = input.parse()?;
         let name: syn::Ident = input.parse()?;
-        let generics: syn::Generics = input.parse()?;
+        let mut generics: syn::Generics = input.parse()?;
+        let wc: Option<syn::WhereClause> = input.parse()?;
+        generics.where_clause = wc;
 
         let impl_content;
         let _brace_token = braced!(impl_content in input);
@@ -353,13 +355,13 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             .to_tokens(&mut default_body);
         count += 1;
     }
+    let (ig, tg, wc) = generics.split_for_impl();
     quote!(
-        #vis struct #ident #generics {
+        #vis struct #ident #tg #wc {
             #body
         }
     ).to_tokens(&mut output);
     statics.to_tokens(&mut output);
-    let (ig, tg, wc) = generics.split_for_impl();
     quote!(impl #ig ::std::default::Default for #ident #tg #wc {
         fn default() -> Self {
             Self {
@@ -641,7 +643,7 @@ mod t {
     #[test]
     fn generic_struct() {
         let desired = r#"
-            struct MockExternalStruct<T: Clone> {
+            struct MockExternalStruct<T> {
                 foo: ::mockall::Expectations<(u32), i64> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -683,7 +685,7 @@ mod t {
     #[test]
     fn generic_struct_with_trait() {
         let desired = r#"
-            struct MockExternalStruct<T: Copy + 'static> {
+            struct MockExternalStruct<T> {
                 Foo_expectations: MockExternalStruct_Foo,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -745,7 +747,7 @@ mod t {
     #[test]
     fn generic_struct_with_generic_trait() {
         let desired = r#"
-            struct MockExternalStruct<T: 'static, Z: 'static> {
+            struct MockExternalStruct<T, Z> {
                 Foo_expectations: MockExternalStruct_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
@@ -760,7 +762,7 @@ mod t {
                     }
                 }
             }
-            struct MockExternalStruct_Foo<T: 'static> {
+            struct MockExternalStruct_Foo<T> {
                 foo: ::mockall::Expectations<(T), T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -1546,6 +1548,54 @@ mod t {
                 type Item=u32;
 
                 fn next(&mut self) -> Option<u32>;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn where_clause_on_struct() {
+        let desired = r#"
+            struct MockFoo<T>
+                where T: Clone
+            {
+                foo: ::mockall::Expectations<(), ()> ,
+                _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T> ::std::default::Default for MockFoo<T>
+                where T: Clone
+            {
+                fn default() -> Self {
+                    Self {
+                        foo: ::mockall::Expectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
+            impl<T> MockFoo<T>
+                where T: Clone
+            {
+                pub fn foo(&self) {
+                    self.foo.call(())
+                }
+                pub fn expect_foo(&mut self)
+                    -> &mut ::mockall::Expectation<(), ()>
+                {
+                    self.foo.expect()
+                }
+                pub fn checkpoint(&mut self) {
+                    { self.foo.checkpoint(); }
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+        "#;
+        let code = r#"
+            Foo<T>
+                where T: Clone
+            {
+                fn foo(&self);
             }
         "#;
         check(desired, code);

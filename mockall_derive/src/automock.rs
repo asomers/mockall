@@ -816,7 +816,7 @@ mod t {
     #[test]
     fn generic_struct_with_bounds() {
         check("", r#"
-        pub struct MockGenericStruct< 'a, T: Copy, V: Clone> {
+        pub struct MockGenericStruct< 'a, T, V> {
             foo: ::mockall::Expectations<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
@@ -916,7 +916,7 @@ mod t {
     fn generic_trait_with_bound() {
         check("",
         r#"
-        struct MockGenericTrait<T: Copy> {
+        struct MockGenericTrait<T> {
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -929,7 +929,7 @@ mod t {
                 }
             }
         }
-        struct MockGenericTrait_GenericTrait<T: Copy> {
+        struct MockGenericTrait_GenericTrait<T> {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -1807,7 +1807,7 @@ mod t {
     #[test]
     fn where_clause_on_struct() {
         let desired = r#"
-            pub struct MockFoo<T> {
+            pub struct MockFoo<T> where T: Clone {
                 foo: ::mockall::Expectations<(T), T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -1849,7 +1849,7 @@ mod t {
     #[test]
     fn where_clause_on_trait() {
         let desired = r#"
-        struct MockFoo<T> {
+        struct MockFoo<T> where T: Clone {
             Foo_expectations: MockFoo_Foo<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -1862,7 +1862,7 @@ mod t {
                 }
             }
         }
-        struct MockFoo_Foo<T> {
+        struct MockFoo_Foo<T> where T: Clone {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
