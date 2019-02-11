@@ -256,6 +256,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
         };
         quote!(#attrs #expect_vis fn #expect_ident #g()
                -> ::mockall::#guard_name<#ltd, #input_type, #output_type>
+               #where_clause
             {
                 ::mockall::#guard_name::new(#name.lock().unwrap())
             }
@@ -1781,6 +1782,48 @@ mod t {
                 fn foo<T>(&self, t: T)
                     where T: 'static;
             }"#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn where_clause_on_static_method() {
+        let desired = r#"
+        struct MockFoo<T: Clone> {
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        ::mockall::lazy_static!{
+            static ref MockFoo_new_expectation:
+                ::std::sync::Mutex< ::mockall::GenericExpectations>
+                = ::std::sync::Mutex::new(::mockall::GenericExpectations::new());
+        }
+        impl<T: Clone> ::std::default::Default for MockFoo<T> {
+            fn default() -> Self {
+                Self {
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
+        impl<T: Clone> MockFoo<T> {
+            pub fn new<T2>(t: T2) -> MockFoo<T2> where T2: Clone {
+                MockFoo_new_expectation.lock().unwrap()
+                .call:: <(T2), MockFoo<T2> >((t))
+            }
+            pub fn expect_new< 'guard, T2, >()
+                -> ::mockall::GenericExpectationGuard< 'guard, (T2), MockFoo<T2> >
+                where T2: Clone
+            {
+                ::mockall::GenericExpectationGuard::new(
+                    MockFoo_new_expectation.lock().unwrap()
+                )
+            }
+            pub fn checkpoint(&mut self) {
+                { MockFoo_new_expectation.lock().unwrap().checkpoint(); }
+            }
+        }"#;
+        let code = r#"
+        Foo<T: Clone> {
+            fn new<T2>(t: T2) -> MockFoo<T2> where T2: Clone;
+        }"#;
         check(desired, code);
     }
 }

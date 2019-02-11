@@ -519,6 +519,23 @@ mod static_method {
     }
 }
 
+mod where_clause_on_static_method {
+    use super::*;
+
+    mock! {
+        Foo<T: Clone> {
+            fn new<T2>(t: T2) -> MockFoo<T2> where T2: Clone + 'static;
+        }
+    }
+
+    #[test]
+    fn t() {
+        MockFoo::<u32>::expect_new::<u32>()
+            .returning(|_| MockFoo::default());
+        MockFoo::<u32>::new(42u32);
+    }
+}
+
 // An explicit clone is required so as not to return by move
 #[allow(clippy::clone_on_copy)]
 mod where_clause_on_struct {
