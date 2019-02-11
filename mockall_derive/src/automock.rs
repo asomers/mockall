@@ -564,7 +564,6 @@ fn mock_native_function(f: &syn::ItemFn) -> TokenStream {
 
 /// Generate a mock struct that implements a trait
 fn mock_trait(attrs: Attrs, item: syn::ItemTrait) -> TokenStream {
-    //let generics = item.generics.clone();
     let trait_ = attrs.substitute_trait(&item);
     let mock = Mock {
         vis: item.vis.clone(),
