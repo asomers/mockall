@@ -6,7 +6,7 @@ edition = "2018"
 
 [features]
 # Extra features for the nightly compiler only
-nightly = []
+nightly = ["mockall_derive/nightly"]
 
 [dependencies]
 cfg-if = "0.1"
