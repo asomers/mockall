@@ -353,7 +353,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
     }
     let (ig, tg, wc) = generics.split_for_impl();
     quote!(
-        #vis struct #ident #tg #wc {
+        #vis struct #ident #ig #wc {
             #body
         }
     ).to_tokens(&mut output);
@@ -634,7 +634,7 @@ mod t {
     #[test]
     fn generic_struct() {
         let desired = r#"
-            struct MockExternalStruct<T> {
+            struct MockExternalStruct<T: Clone> {
                 foo: ::mockall::Expectations<(u32), i64> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -676,7 +676,7 @@ mod t {
     #[test]
     fn generic_struct_with_trait() {
         let desired = r#"
-            struct MockExternalStruct<T> {
+            struct MockExternalStruct<T: Copy + 'static> {
                 Foo_expectations: MockExternalStruct_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -689,7 +689,7 @@ mod t {
                     }
                 }
             }
-            struct MockExternalStruct_Foo<T> {
+            struct MockExternalStruct_Foo<T: Copy + 'static> {
                 foo: ::mockall::Expectations<(u32), u32> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -740,7 +740,7 @@ mod t {
     #[test]
     fn generic_struct_with_generic_trait() {
         let desired = r#"
-            struct MockExternalStruct<T, Z> {
+            struct MockExternalStruct<T: 'static, Z: 'static> {
                 Foo_expectations: MockExternalStruct_Foo<T, Z> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
@@ -755,7 +755,7 @@ mod t {
                     }
                 }
             }
-            struct MockExternalStruct_Foo<T, Z> {
+            struct MockExternalStruct_Foo<T: 'static, Z: 'static> {
                 foo: ::mockall::Expectations<(T), T> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,

@@ -862,7 +862,7 @@ mod t {
     #[test]
     fn generic_struct_with_bounds() {
         check("", r#"
-        pub struct MockGenericStruct< 'a, T, V> {
+        pub struct MockGenericStruct< 'a, T: Copy, V: Clone> {
             foo: ::mockall::Expectations<(u32), i64> ,
             _t0: ::std::marker::PhantomData< & 'a ()> ,
             _t1: ::std::marker::PhantomData<T> ,
@@ -962,7 +962,7 @@ mod t {
     fn generic_trait_with_bound() {
         check("",
         r#"
-        struct MockGenericTrait<T> {
+        struct MockGenericTrait<T: Copy> {
             GenericTrait_expectations: MockGenericTrait_GenericTrait<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -975,7 +975,7 @@ mod t {
                 }
             }
         }
-        struct MockGenericTrait_GenericTrait<T> {
+        struct MockGenericTrait_GenericTrait<T: Copy> {
             foo: ::mockall::Expectations<(), ()> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
