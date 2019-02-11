@@ -56,7 +56,7 @@ impl Mock {
             for meth in methods {
                 let (_, _, cp) = gen_mock_method(Some(&mock_struct_name),
                                                  &mock_sub_name,
-                                                 &meth.borrow().attrs[..], None,
+                                                 &meth.borrow().attrs[..],
                                                  &meth.vis, &meth.vis,
                                                  &meth.borrow().sig, None);
                 cp.to_tokens(&mut sub_cp_body);
@@ -74,7 +74,7 @@ impl Mock {
             has_new |= meth.sig.ident == "new";
             let (mm, em, cp) = gen_mock_method(Some(&mock_struct_name),
                                                &mock_struct_name,
-                                               &meth.borrow().attrs[..], None,
+                                               &meth.borrow().attrs[..],
                                                &meth.vis, &meth.vis,
                                                &meth.sig, None);
             // For inherent methods, use the same visibility for the mock and
@@ -163,7 +163,6 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
 fn gen_mock_method(self_ident: Option<&syn::Ident>,
                    mock_ident: &syn::Ident,
                    meth_attrs: &[syn::Attribute],
-                   defaultness: Option<&syn::token::Default>,
                    meth_vis: &syn::Visibility,
                    expect_vis: &syn::Visibility,
                    sig: &syn::MethodSig,
@@ -188,7 +187,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     let attrs = format_attrs(meth_attrs);
 
     // First the mock method
-    quote!(#attrs #meth_vis #defaultness #constness #unsafety #asyncness #abi
+    quote!(#attrs #meth_vis #constness #unsafety #asyncness #abi
            #fn_token #ident #generics (#inputs) #output #where_clause)
         .to_tokens(&mut mock_output);
 
@@ -400,7 +399,6 @@ fn mock_trait_methods(mock_ident: &syn::Ident,
                     Some(mock_ident),
                     mock_ident,
                     &meth.attrs[..],
-                    None,
                     &syn::Visibility::Inherited,
                     &pub_vis,
                     &meth.sig,

@@ -156,6 +156,8 @@ mod external_struct {
 }
 
 /// Use mock! to mock a generic struct
+// An explicit clone is required so as not to return by move
+#[allow(clippy::clone_on_copy)]
 mod external_generic_struct {
     use super::*;
 
@@ -517,6 +519,8 @@ mod static_method {
     }
 }
 
+// An explicit clone is required so as not to return by move
+#[allow(clippy::clone_on_copy)]
 mod where_clause_on_struct {
     use super::*;
 
@@ -535,6 +539,8 @@ mod where_clause_on_struct {
     }
 }
 
+// An explicit clone is required so as not to return by move
+#[allow(clippy::clone_on_copy)]
 mod where_clause_on_struct_with_trait {
     use super::*;
 
@@ -556,7 +562,7 @@ mod where_clause_on_struct_with_trait {
         mock.expect_foo()
             .returning(|t: u32| t.clone());
         mock.expect_bar()
-            .returning(|t| t.clone());
+            .returning(|_| ());
         assert_eq!(5u32, mock.foo(5u32));
         mock.bar();
     }

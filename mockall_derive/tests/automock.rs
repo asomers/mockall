@@ -50,7 +50,7 @@ fn foreign_c() {
         pub fn foo(x: u32) -> i64;
     }
 
-    mock_ffi::expect_foo().returning(|x| i64::from(x));
+    mock_ffi::expect_foo().returning(i64::from);
     assert_eq!(42, unsafe{mock_ffi::foo(42)});
 }
 
@@ -62,7 +62,7 @@ fn foreign_rust() {
         pub fn foo(x: u32) -> i64;
     }
 
-    mock_ffi::expect_foo().returning(|x| i64::from(x));
+    mock_ffi::expect_foo().returning(i64::from);
     assert_eq!(42, unsafe{mock_ffi::foo(42)});
 }
 
@@ -298,6 +298,8 @@ fn impl_trait_with_associated_types() {
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]
 #[allow(unused)]
+#[allow(clippy::too_many_arguments)]    // Good job, Clippy!
+#[allow(clippy::type_complexity)]
 fn many_args() {
     #[automock]
     trait ManyArgs {
@@ -489,6 +491,7 @@ fn return_owned() {
     //assert_eq!(42, x);
 //}
 
+#[allow(clippy::unnecessary_operation)] // The cast is the whole point
 #[test]
 fn send() {
     #[automock]

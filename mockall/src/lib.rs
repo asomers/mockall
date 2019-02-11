@@ -1954,12 +1954,8 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
         -> Self
     {
         let key = Key::new::<I, O>();
-        if ! guard.store.contains_key(&key) {
-            let expectations = Box::new(Expectations::<I, O>::new());
-            guard.store.insert(key, expectations);
-        }
-
-        let ee: &mut Expectations<I, O> = guard.store.get_mut(&key).unwrap()
+        let ee: &mut Expectations<I, O> = guard.store.entry(key)
+            .or_insert_with(|| Box::new(Expectations::<I, O>::new()))
             .downcast_mut()
             .unwrap();
         ee.expect();    // Drop the &Expectation

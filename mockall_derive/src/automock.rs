@@ -330,13 +330,13 @@ fn mock_foreign_function(f: syn::ForeignItemFn) -> TokenStream {
     // Foreign functions are always unsafe.  Mock foreign functions should be
     // unsafe too, to prevent "warning: unused unsafe" messages.
     let unsafety = Some(syn::Token![unsafe](f.span()));
-    mock_function(&f.vis, &None, &unsafety, &None, &f.ident, &f.decl)
+    mock_function(&f.vis, None, unsafety, None, &f.ident, &f.decl)
 }
 
 fn mock_function(vis: &syn::Visibility,
-                 constness: &Option<syn::token::Const>,
-                 unsafety: &Option<syn::token::Unsafe>,
-                 asyncness: &Option<syn::token::Async>,
+                 constness: Option<syn::token::Const>,
+                 unsafety: Option<syn::token::Unsafe>,
+                 asyncness: Option<syn::token::Async>,
                  ident: &syn::Ident,
                  decl: &syn::FnDecl) -> TokenStream
 {
@@ -363,9 +363,9 @@ fn mock_function(vis: &syn::Visibility,
     }
 
     let sig = syn::MethodSig {
-        constness: *constness,
-        unsafety: *unsafety,
-        asyncness: *asyncness,
+        constness,
+        unsafety,
+        asyncness,
         abi: None,
         ident: ident.clone(),
         decl: (*decl).clone()
@@ -559,7 +559,7 @@ fn mock_module(mod_: syn::ItemMod) -> TokenStream {
 /// Mock a function the same way we mock static trait methods: with a
 /// global Expectations object
 fn mock_native_function(f: &syn::ItemFn) -> TokenStream {
-    mock_function(&f.vis, &f.constness, &f.unsafety, &f.asyncness, &f.ident,
+    mock_function(&f.vis, f.constness, f.unsafety, f.asyncness, &f.ident,
                   &f.decl)
 }
 
