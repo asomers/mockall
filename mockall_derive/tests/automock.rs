@@ -277,6 +277,24 @@ fn impl_trait_on_generic() {
     assert_eq!(5, mock.foo(4));
 }
 
+#[test]
+fn impl_trait_with_associated_types() {
+    #[allow(unused)]
+    struct Foo {}
+    #[automock]
+    impl Iterator for Foo {
+        type Item = u32;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            unimplemented!()
+        }
+    }
+
+    let mut mock = MockFoo::new();
+    mock.expect_next().returning(|_| None);
+    assert!(mock.next().is_none());
+}
+
 /// mockall should be able to mock methods with at least 16 arguments
 #[test]
 #[allow(unused)]

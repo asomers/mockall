@@ -28,6 +28,7 @@ impl Parse for Attr {
 }
 
 /// automock attributes
+#[derive(Debug, Default)]
 struct Attrs {
     attrs: HashMap<syn::Ident, syn::Type>,
     modname: Option<syn::Ident>
@@ -44,6 +45,26 @@ impl Attrs {
             }
         } else {
             None
+        }
+    }
+
+    fn substitute_path_segment(&self, seg: &mut syn::PathSegment) {
+        match &mut seg.arguments {
+            syn::PathArguments::None => /* nothing to do */(),
+            syn::PathArguments::Parenthesized(p) => {
+                compile_error(p.span(),
+                    "Mockall does not support mocking Fn objects");
+            },
+            syn::PathArguments::AngleBracketed(abga) => {
+                for arg in abga.args.iter_mut() {
+                    if let syn::GenericArgument::Type(ty) = arg {
+                        self.substitute_type(ty)
+                    } else {
+                        compile_error(arg.span(),
+                            "Mockall does not yet support this argument type in this position");
+                    }
+                }
+            },
         }
     }
 
@@ -81,6 +102,10 @@ impl Attrs {
                 }
                 if let Some(newty) = self.get_path(&path.path) {
                     *ty = newty;
+                } else {
+                    for seg in path.path.segments.iter_mut() {
+                        self.substitute_path_segment(seg);
+                    }
                 }
             },
             syn::Type::TraitObject(to) => {
@@ -124,7 +149,7 @@ impl Attrs {
         }
     }
 
-    fn substitute_types(&self, item: &syn::ItemTrait) -> syn::ItemTrait {
+    fn substitute_trait(&self, item: &syn::ItemTrait) -> syn::ItemTrait {
         let mut output = item.clone();
         for trait_item in output.items.iter_mut() {
             match trait_item {
@@ -388,36 +413,55 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
             return TokenStream::new();
         }
     };
-    let methods = item_impl.items.iter().filter_map(|item| {
+    let mut methods = Vec::new();
+    let mut titys = Vec::new();
+    let mut attrs = Attrs::default();
+    for item in item_impl.items.iter() {
         match item {
             syn::ImplItem::Const(_) => {
                 // const items can easily be added by the user in a separate
                 // impl block
-                None
             },
             syn::ImplItem::Method(meth) => {
-                Some(meth.clone())
+                methods.push(meth.clone());
+            },
+            syn::ImplItem::Type(ty) => {
+                let tity = syn::TraitItemType {
+                    attrs: ty.attrs.clone(),
+                    type_token: ty.type_token.clone(),
+                    ident: ty.ident.clone(),
+                    generics: ty.generics.clone(),
+                    colon_token: None,
+                    bounds: syn::punctuated::Punctuated::new(),
+                    default: Some((ty.eq_token.clone(), ty.ty.clone())),
+                    semi_token: ty.semi_token.clone()
+                };
+                attrs.attrs.insert(ty.ident.clone(), ty.ty.clone());
+                titys.push(tity);
             },
             _ => {
                 compile_error(item.span(),
                 "This impl item is not yet supported by MockAll");
-                None
             }
         }
-    }).collect::<Vec<_>>();
+    };
     // automock makes everything public
     let pub_token = syn::Token![pub](Span::call_site());
     let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
     let (methods, traits) = if let Some((_, path, _)) = item_impl.trait_ {
-        let items = methods.into_iter().map(|meth| {
+        let mut items = Vec::new();
+        for ty in titys.into_iter() {
+            items.push(syn::TraitItem::Type(ty));
+        }
+        for meth in methods.into_iter() {
             let tim = syn::TraitItemMethod {
                 attrs: Vec::new(),
                 default: None,
                 sig: meth.sig.clone(),
                 semi_token: Some(Token![;](Span::call_site()))
             };
-            syn::TraitItem::Method(tim)
-        }).collect::<Vec<_>>();
+            items.push(syn::TraitItem::Method(tim));
+        }
         let path_args = &path.segments.last().unwrap().value().arguments;
         let trait_ = syn::ItemTrait {
             attrs: item_impl.attrs.clone(),
@@ -432,8 +476,10 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
             brace_token: syn::token::Brace::default(),
             items
         };
-        (Vec::new(), vec![trait_])
+        let concretized_trait = attrs.substitute_trait(&trait_);
+        (Vec::new(), vec![concretized_trait])
     } else {
+        assert!(titys.is_empty());
         (methods, Vec::new())
     };
     let mock = Mock {
@@ -518,12 +564,12 @@ fn mock_native_function(f: &syn::ItemFn) -> TokenStream {
 
 /// Generate a mock struct that implements a trait
 fn mock_trait(attrs: Attrs, item: syn::ItemTrait) -> TokenStream {
-    let generics = item.generics.clone();
-    let trait_ = attrs.substitute_types(&item);
+    //let generics = item.generics.clone();
+    let trait_ = attrs.substitute_trait(&item);
     let mock = Mock {
         vis: item.vis.clone(),
         name: item.ident.clone(),
-        generics: generics,
+        generics: item.generics.clone(),
         methods: Vec::new(),
         traits: vec![trait_]
     };
@@ -1132,6 +1178,69 @@ mod t {
                 42
             }
         }"#);
+    }
+
+    /// Mock implementing a trait with associated types on a struct
+    #[test]
+    fn impl_trait_with_associated_types() {
+        let desired = r#"
+        pub struct MockFoo {
+            Iterator_expectations: MockFoo_Iterator ,
+        }
+        impl ::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    Iterator_expectations: MockFoo_Iterator::default(),
+                }
+            }
+        }
+        struct MockFoo_Iterator {
+            next: ::mockall::Expectations<(), Option<u32> > ,
+        }
+        impl ::std::default::Default for MockFoo_Iterator {
+            fn default() -> Self {
+                Self {
+                    next: ::mockall::Expectations::default(),
+                }
+            }
+        }
+        impl MockFoo_Iterator {
+            fn checkpoint(&mut self) {
+                {
+                    self.next.checkpoint();
+                }
+            }
+        }
+        impl MockFoo {
+            pub fn checkpoint(&mut self) {
+                self.Iterator_expectations.checkpoint();
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl Iterator for MockFoo {
+            type Item = u32;
+            fn next(&mut self) -> Option<u32> {
+                self.Iterator_expectations.next.call(())
+            }
+        }
+        impl MockFoo {
+            pub fn expect_next(&mut self)
+                -> &mut ::mockall::Expectation<(), Option<u32> >
+            {
+                self.Iterator_expectations.next.expect()
+            }
+        }"#;
+        let code = r#"
+        impl Iterator for Foo {
+            type Item = u32;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                unimplemented!()
+            }
+        }"#;
+        check("", desired, code);
     }
 
     #[test]
