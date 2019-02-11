@@ -109,7 +109,7 @@ fn derefify(arg: &syn::ArgCaptured) -> (TokenStream, syn::Type) {
     let pat = &arg.pat;
     if let syn::Type::Reference(r) = &arg.ty {
         if let Some(lt) = &r.lifetime {
-            if lt.ident == &"static" {
+            if lt.ident == "static" {
                 return (quote!(#pat), arg.ty.clone());
             }
         }
@@ -253,7 +253,7 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
             match ty.as_ref() {
                 syn::Type::Reference(r) => {
                     if let Some(ref lt) = r.lifetime {
-                        if lt.ident != &"static" {
+                        if lt.ident != "static" {
                             compile_error(r.span(), "Non-'static non-'self lifetimes are not yet supported");
                         }
                     }

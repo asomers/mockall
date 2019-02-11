@@ -71,7 +71,7 @@ impl Mock {
         }
         // generate methods on the mock structure itself
         for meth in self.methods.iter() {
-            has_new |= meth.sig.ident == &"new";
+            has_new |= meth.sig.ident == "new";
             let (mm, em, cp) = gen_mock_method(Some(&mock_struct_name),
                                                &mock_struct_name,
                                                &meth.borrow().attrs[..], None,
@@ -326,8 +326,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
     }
 
     // Make PhantomData fields, if necessary
-    let mut count = 0;
-    for param in generics.params.iter() {
+    for (count, param) in generics.params.iter().enumerate() {
         let phname = format!("_t{}", count);
         let phident = syn::Ident::new(&phname, Span::call_site());
         match param {
@@ -352,7 +351,6 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         }
         quote!(#phident: ::std::marker::PhantomData,)
             .to_tokens(&mut default_body);
-        count += 1;
     }
     let (ig, tg, wc) = generics.split_for_impl();
     quote!(

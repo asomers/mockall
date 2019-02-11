@@ -1123,6 +1123,8 @@ impl Times {
         self.count.load(Ordering::Relaxed) >= self.range.start
     }
 
+    // https://github.com/rust-lang/rust-clippy/issues/3307
+    #[allow(clippy::range_plus_one)]
     fn n(&mut self, n: usize) {
         self.range = n..(n+1);
     }
@@ -1707,11 +1709,8 @@ impl GenericExpectations {
         where I: 'static, O: 'static
     {
         let key = Key::new::<I, O>();
-        if ! self.store.contains_key(&key) {
-            let expectations = Box::new(Expectations::<I, O>::new());
-            self.store.insert(key.clone(), expectations);
-        }
-        let ee: &mut Expectations<I, O> = self.store.get_mut(&key).unwrap()
+        let ee: &mut Expectations<I, O> = self.store.entry(key)
+            .or_insert_with(|| Box::new(Expectations::<I, O>::new()))
             .downcast_mut()
             .unwrap();
         ee.expect()
@@ -1758,11 +1757,8 @@ impl GenericRefExpectations {
         where I: 'static, O: Send + Sync + 'static
     {
         let key = Key::new::<I, O>();
-        if ! self.store.contains_key(&key) {
-            let expectations = Box::new(RefExpectations::<I, O>::new());
-            self.store.insert(key.clone(), expectations);
-        }
-        let ee: &mut RefExpectations<I, O> = self.store.get_mut(&key).unwrap()
+        let ee: &mut RefExpectations<I, O> = self.store.entry(key)
+            .or_insert_with(|| Box::new(RefExpectations::<I, O>::new()))
             .downcast_mut()
             .unwrap();
         ee.expect()
@@ -1805,12 +1801,8 @@ impl GenericRefMutExpectations {
         where I: 'static, O: Send + Sync + 'static
     {
         let key = Key::new::<I, O>();
-        if ! self.store.contains_key(&key) {
-            let expectations = Box::new(RefMutExpectations::<I, O>::new());
-            self.store.insert(key.clone(), expectations);
-        }
-        let ee: &mut RefMutExpectations<I, O> = self.store.get_mut(&key)
-            .unwrap()
+        let ee: &mut RefMutExpectations<I, O> = self.store.entry(key)
+            .or_insert_with(|| Box::new(RefMutExpectations::<I, O>::new()))
             .downcast_mut()
             .unwrap();
         ee.expect()
@@ -1964,7 +1956,7 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
         let key = Key::new::<I, O>();
         if ! guard.store.contains_key(&key) {
             let expectations = Box::new(Expectations::<I, O>::new());
-            guard.store.insert(key.clone(), expectations);
+            guard.store.insert(key, expectations);
         }
 
         let ee: &mut Expectations<I, O> = guard.store.get_mut(&key).unwrap()

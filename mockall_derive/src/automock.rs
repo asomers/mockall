@@ -9,6 +9,8 @@ use syn::{
 };
 
 /// A single automock attribute
+// This enum is very short-lived, so it's fine not to box it.
+#[allow(clippy::large_enum_variant)]
 enum Attr {
     Mod(syn::ItemMod),
     Type(syn::TraitItemType),
@@ -178,7 +180,6 @@ impl Attrs {
                 },
                 _ => {
                     // Nothing to do
-                    ()
                 }
             }
         }
@@ -237,7 +238,7 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
             for param in g.params.iter() {
                 match param {
                     syn::GenericParam::Type(tp) => {
-                        if args.iter().filter(|ga: &&syn::GenericArgument| {
+                        let matches = |ga: &syn::GenericArgument| {
                             if let syn::GenericArgument::Type(
                                 syn::Type::Path(type_path)) = ga
                             {
@@ -245,20 +246,20 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
                             } else {
                                 false
                             }
-                        }).nth(0)
-                        .is_some() {
+                        };
+                        if args.iter().any(matches) {
                             params.push(param.clone())
                         }
                     },
                     syn::GenericParam::Lifetime(ld) => {
-                        if args.iter().filter(|ga: &&syn::GenericArgument| {
+                        let matches = |ga: &syn::GenericArgument| {
                             if let syn::GenericArgument::Lifetime(lt) = ga {
                                 *lt == ld.lifetime
                             } else {
                                 false
                             }
-                        }).nth(0)
-                        .is_some() {
+                        };
+                        if args.iter().any(matches) {
                             params.push(param.clone())
                         }
                     },
@@ -362,9 +363,9 @@ fn mock_function(vis: &syn::Visibility,
     }
 
     let sig = syn::MethodSig {
-        constness: constness.clone(),
-        unsafety: unsafety.clone(),
-        asyncness: asyncness.clone(),
+        constness: *constness,
+        unsafety: *unsafety,
+        asyncness: *asyncness,
         abi: None,
         ident: ident.clone(),
         decl: (*decl).clone()
@@ -428,13 +429,13 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
             syn::ImplItem::Type(ty) => {
                 let tity = syn::TraitItemType {
                     attrs: ty.attrs.clone(),
-                    type_token: ty.type_token.clone(),
+                    type_token: ty.type_token,
                     ident: ty.ident.clone(),
                     generics: ty.generics.clone(),
                     colon_token: None,
                     bounds: syn::punctuated::Punctuated::new(),
-                    default: Some((ty.eq_token.clone(), ty.ty.clone())),
-                    semi_token: ty.semi_token.clone()
+                    default: Some((ty.eq_token, ty.ty.clone())),
+                    semi_token: ty.semi_token
                 };
                 attrs.attrs.insert(ty.ident.clone(), ty.ty.clone());
                 titys.push(tity);
