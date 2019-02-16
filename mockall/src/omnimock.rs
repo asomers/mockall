@@ -1,17 +1,18 @@
 // vim: tw=80
 /// # Arguments
 ///
-/// * `i`:              Method's input type, usually a tuple like (u32, &i16)
 /// * `o`:              Output type.  Must be static
-/// * `ivar`:           Name of the call method's argument.  Ideally this
-///                     wouldn't need to be specified, but it's required due to
-///                     Rust macro hygiene rules.  Usually use "i".
-/// * `imatchcall`:     Expression that produces a comma-delimited sequence of
-///                     references from $ivar.
-/// * `iargs`:          comma-delimited sequence of argument names for each
-///                     argument
+/// * `methty`:         Comma-delimited sequence of arguments types for the
+///                     method being mocked.
+/// * `matchcall`:      Comma-delimited sequence of expressions that produce
+///                     values of type `matchty` from values of type `methty`.
+/// * `args`:           comma-delimited sequence of argument names for each
+///                     argument.  Ideally this wouldn't need to be specified,
+///                     but it is due to Rust's macro hygiene rules.
+/// * `predargs`:       Comma-delimited sequence of identifiers of the same
+///                     length as `args`, but distinct.
 /// * `matchty`:        comma-delimited sequence of types for each match
-///                     argument.  Must all be 'static
+///                     argument.  Must all be `'static`.
 ///
 /// # Examples
 ///
@@ -20,24 +21,25 @@
 /// omnimock!{(u32, &i16), u32, i, [&i.0, i.1], [i0, i1], [u32, i16]}
 #[macro_export]
 macro_rules! omnimock {
-    ($i:ty, $o:ty, $ivar:ident,
+        ($o:ty,
+        [ $( $methty:ty ),* ],
         [ $( $matchcall:expr ),* ],
-        [ $( $matcharg:ident ),* ],
-        [ $( $predarg:ident ),* ],
+        [ $( $args:ident ),* ],
+        [ $( $predargs:ident ),* ],
         [ $( $matchty:ty ),* ]) =>
     {
         enum Rfunc {
             Default,
             // Indicates that a `return_once` expectation has already returned
             Expired,
-            Mut(Box<dyn FnMut($i) -> $o + Send>),
+            Mut(Box<dyn FnMut($( $methty, )*) -> $o + Send>),
             // Should be Box<dyn FnOnce> once that feature is stabilized
             // https://github.com/rust-lang/rust/issues/28796
-            Once(Box<dyn FnMut($i) -> $o + Send>),
+            Once(Box<dyn FnMut($( $methty, )*) -> $o + Send>),
         }
 
         impl  Rfunc {
-            fn call_mut(&mut self, args: $i) -> $o {
+            fn call_mut(&mut self, $( $args: $methty, )* ) -> $o {
                 match self {
                     Rfunc::Default => {
                         unimplemented!()
@@ -47,12 +49,12 @@ macro_rules! omnimock {
                         panic!("Called a method twice that was expected only once")
                     },
                     Rfunc::Mut(f) => {
-                        f(args)
+                        f( $( $args, )* )
                     },
                     Rfunc::Once(_) => {
                         let fo = ::std::mem::replace(self, Rfunc::Expired);
                         if let Rfunc::Once(mut f) = fo {
-                            f(args)
+                            f( $( $args, )* )
                         } else {
                             unreachable!()
                         }
@@ -73,26 +75,26 @@ macro_rules! omnimock {
         }
 
         impl Matcher {
-            fn eval(&self, $( $matcharg: &$matchty, )*) {
+            fn eval(&self, $( $args: &$matchty, )*) {
                 let passed = match self {
-                    Matcher::Func(f) => f($( $matcharg, )*),
-                    Matcher::Pred($( $predarg, )*) =>
-                        [$( $predarg.eval($matcharg), )*]
+                    Matcher::Func(f) => f($( $args, )*),
+                    Matcher::Pred($( $predargs, )*) =>
+                        [$( $predargs.eval($args), )*]
                         .into_iter()
                         .all(|x| *x),
                 };
                 assert!(passed);
             }
 
-            fn verify(&self, $( $matcharg: &$matchty, )* ) {
-                self.eval( $( $matcharg, )* );
+            fn verify(&self, $( $args: &$matchty, )* ) {
+                self.eval( $( $args, )* );
             }
         }
 
         impl Default for Matcher {
             #[allow(unused_variables)]
             fn default() -> Self {
-                Matcher::Func(Box::new(|$( $matcharg, )*| true))
+                Matcher::Func(Box::new(|$( $args, )*| true))
             }
         }
 
@@ -104,8 +106,8 @@ macro_rules! omnimock {
         }
 
         impl Common {
-            fn call(&self, $( $matcharg: &$matchty, )* ) {
-                self.matcher.lock().unwrap().verify($( $matcharg, )*);
+            fn call(&self, $( $args: &$matchty, )* ) {
+                self.matcher.lock().unwrap().verify($( $args, )*);
                 self.times.call();
                 self.verify_sequence();
                 if self.times.is_satisfied() {
@@ -125,13 +127,13 @@ macro_rules! omnimock {
                 }
             }
 
-            #[allow(non_camel_case_types)]  // Repurpose $predarg for generics
-            pub fn with<$( $predarg: ::mockall::Predicate<$matchty> + 'static,)*>
-                (&mut self, $( $matcharg: $predarg,)*)
+            #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
+            pub fn with<$( $predargs: ::mockall::Predicate<$matchty> + 'static,)*>
+                (&mut self, $( $args: $predargs,)*)
             {
                 use ::std::ops::DerefMut;
                 let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Pred($( Box::new($matcharg), )*);
+                let m = Matcher::Pred($( Box::new($args), )*);
                 ::std::mem::replace(guard.deref_mut(), m);
             }
 
@@ -152,13 +154,13 @@ macro_rules! omnimock {
         }
 
         impl Expectation {
-            fn call(&self, $ivar: $i) -> $o {
+            fn call(&self, $( $args: $methty, )* ) -> $o {
                 self.common.call($( $matchcall, )*);
-                self.rfunc.lock().unwrap().call_mut($ivar)
+                self.rfunc.lock().unwrap().call_mut($( $args, )*)
             }
 
             pub fn returning<F>(&mut self, f: F) -> &mut Self
-                where F: FnMut($i) -> $o + Send + 'static
+                where F: FnMut($( $methty, )*) -> $o + Send + 'static
             {
                 {
                     use ::std::ops::DerefMut;
@@ -168,11 +170,11 @@ macro_rules! omnimock {
                 self
             }
 
-            #[allow(non_camel_case_types)]  // Repurpose $predarg for generics
-            pub fn with<$( $predarg: ::mockall::Predicate<$matchty> + 'static,)*>
-                (&mut self, $( $matcharg: $predarg,)*) -> &mut Self
+            #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
+            pub fn with<$( $predargs: ::mockall::Predicate<$matchty> + 'static,)*>
+                (&mut self, $( $args: $predargs,)*) -> &mut Self
             {
-                self.common.with($( $matcharg, )*);
+                self.common.with($( $args, )*);
                 self
             }
 
