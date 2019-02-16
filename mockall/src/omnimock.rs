@@ -1,6 +1,8 @@
 // vim: tw=80
 /// # Arguments
 ///
+/// * `expectation`:    Name of the generated Expectation type
+/// * `module`:         Name of the private module to create
 /// * `o`:              Output type.  Must be static
 /// * `methty`:         Comma-delimited sequence of arguments types for the
 ///                     method being mocked.
@@ -20,14 +22,18 @@
 /// // Mock a method like foo(&self, x: u32, y: &i16) -> u32
 /// omnimock!{(u32, &i16), u32, i, [&i.0, i.1], [i0, i1], [u32, i16]}
 #[macro_export]
-macro_rules! omnimock {
-        ($o:ty,
+macro_rules! omnimock {(
+        $expectation:ident,
+        $module:ident,
+        $o:ty,
         [ $( $methty:ty ),* ],
         [ $( $matchcall:expr ),* ],
         [ $( $args:ident ),* ],
         [ $( $predargs:ident ),* ],
         [ $( $matchty:ty ),* ]) =>
     {
+        mod $module {
+
         enum Rfunc {
             Default,
             // Indicates that a `return_once` expectation has already returned
@@ -128,7 +134,7 @@ macro_rules! omnimock {
             }
 
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
-            pub fn with<$( $predargs: ::mockall::Predicate<$matchty> + 'static,)*>
+            fn with<$( $predargs: ::mockall::Predicate<$matchty> + 'static,)*>
                 (&mut self, $( $args: $predargs,)*)
             {
                 use ::std::ops::DerefMut;
@@ -148,13 +154,13 @@ macro_rules! omnimock {
         }
 
         #[derive(Default)]
-        struct Expectation {
+        pub struct Expectation {
             common: Common,
             rfunc: ::std::sync::Mutex<Rfunc>,
         }
 
         impl Expectation {
-            fn call(&self, $( $args: $methty, )* ) -> $o {
+            pub fn call(&self, $( $args: $methty, )* ) -> $o {
                 self.common.call($( $matchcall, )*);
                 self.rfunc.lock().unwrap().call_mut($( $args, )*)
             }
@@ -178,12 +184,15 @@ macro_rules! omnimock {
                 self
             }
 
-            fn withf<F>(&mut self, f: F) -> &mut Self
+            pub fn withf<F>(&mut self, f: F) -> &mut Self
                 where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
             {
                 self.common.withf(f);
                 self
             }
         }
+
+        }
+        use $module::Expectation as $expectation;
     }
 }
