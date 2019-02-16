@@ -905,6 +905,8 @@ use std::{
     thread
 };
 
+pub mod omnimock;
+
 pub use mockall_derive::{mock, automock};
 pub use predicates::prelude::{Predicate, predicate};
 
@@ -1082,14 +1084,14 @@ macro_rules! params{
 }
 
 #[derive(Debug)]
-struct Times{
+pub struct Times{
     /// How many times has the expectation already been called?
     count: AtomicUsize,
     range: Range<usize>
 }
 
 impl Times {
-    fn call(&self) {
+    pub fn call(&self) {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
         if count >= self.range.end {
             if self.range.end == 0 {
@@ -1119,7 +1121,7 @@ impl Times {
 
     /// Has this expectation already been called the minimum required number of
     /// times?
-    fn is_satisfied(&self) -> bool {
+    pub fn is_satisfied(&self) -> bool {
         self.count.load(Ordering::Relaxed) >= self.range.start
     }
 
@@ -2078,19 +2080,19 @@ impl<'guard, I: 'static, O: 'static> GenericExpectationGuard<'guard, I, O> {
 }
 
 
-struct SeqHandle {
+pub struct SeqHandle {
     inner: Arc<SeqInner>,
     seq: usize
 }
 
 impl SeqHandle {
     /// Tell the Sequence that this expectation has been fully satisfied
-    fn satisfy(&self) {
+    pub fn satisfy(&self) {
         self.inner.satisfy(self.seq);
     }
 
     /// Verify that this handle was called in the correct order
-    fn verify(&self) {
+    pub fn verify(&self) {
         self.inner.verify(self.seq);
     }
 }
