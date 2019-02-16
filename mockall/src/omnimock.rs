@@ -1,4 +1,6 @@
 // vim: tw=80
+/// Generate Expectation and Expectations types with specific signatures
+///
 /// # Arguments
 ///
 /// * `expectation`:    Name of the generated Expectation type
@@ -81,19 +83,28 @@ macro_rules! omnimock {(
         }
 
         impl Matcher {
-            fn eval(&self, $( $args: &$matchty, )*) {
-                let passed = match self {
+            fn eval(&self, $( $args: &$matchty, )*) -> bool {
+                match self {
                     Matcher::Func(f) => f($( $args, )*),
                     Matcher::Pred($( $predargs, )*) =>
                         [$( $predargs.eval($args), )*]
                         .into_iter()
                         .all(|x| *x),
-                };
-                assert!(passed);
+                }
             }
 
             fn verify(&self, $( $args: &$matchty, )* ) {
-                self.eval( $( $args, )* );
+                use predicates_tree::CaseTreeExt;
+                match self {
+                    Matcher::Func(f) => assert!(f($( $args, )*),
+                        "Expectation didn't match arguments"),
+                    Matcher::Pred($( $predargs, )*) => {
+                        $(if let Some(c) = $predargs.find_case(false, $args) {
+                            panic!("Expectation didn't match arguments:\n{}",
+                                   c.tree());
+                        })*
+                    }
+                }
             }
         }
 
