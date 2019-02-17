@@ -3,7 +3,7 @@
 use mockall::predicate::*;
 
 mod no_argument {
-    mockall::omnimock!{FooExpectation, __foo_priv, u32, [], [], [], [], []}
+    mockall::expectation!{FooExpectation, __foo_priv, u32, [], [], [], [], []}
 
     #[test]
     fn t() {
@@ -16,7 +16,7 @@ mod no_argument {
 mod reference_argument {
     use super::*;
 
-    mockall::omnimock!{FooExpectation, __foo_priv, u32,
+    mockall::expectation!{FooExpectation, __foo_priv, u32,
         [&u32], [&i0], [i0], [p0], [u32]}
 
     #[test]
@@ -41,7 +41,7 @@ mod reference_argument {
 mod ref_and_nonref_arguments {
     use super::*;
 
-    mockall::omnimock!{FooExpectation, __foo_priv, i32,
+    mockall::expectation!{FooExpectation, __foo_priv, i32,
         [i32, &u16],
         [&i0, i1],
         [i0, i1],
@@ -73,7 +73,7 @@ mod ref_and_nonref_arguments {
 mod two_reference_arguments {
     use super::*;
 
-    mockall::omnimock!{FooExpectation, __foo_priv, u32,
+    mockall::expectation!{FooExpectation, __foo_priv, u32,
         [&u32, &u16],
         [i0, i1],
         [i0, i1],
