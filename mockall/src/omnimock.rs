@@ -22,9 +22,9 @@
 ///
 /// ```
 /// // Mock a method like foo(&self, x: u32, y: &i16) -> u32
-/// omnimock!{(u32, &i16), u32, i, [&i.0, i.1], [i0, i1], [u32, i16]}
+/// expectation!{(u32, &i16), u32, i, [&i.0, i.1], [i0, i1], [u32, i16]}
 #[macro_export]
-macro_rules! omnimock {(
+macro_rules! expectation {(
         $expectation:ident,
         $module:ident,
         $o:ty,
