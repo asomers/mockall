@@ -35,7 +35,9 @@ macro_rules! omnimock {(
         [ $( $matchty:ty ),* ]) =>
     {
         mod $module {
-            use super::*;
+        use ::predicates_tree::CaseTreeExt;
+        use ::std::ops::DerefMut;
+        use super::*;
 
         enum Rfunc {
             Default,
@@ -95,7 +97,6 @@ macro_rules! omnimock {(
             }
 
             fn verify(&self, $( $args: &$matchty, )* ) {
-                use predicates_tree::CaseTreeExt;
                 match self {
                     Matcher::Func(f) => assert!(f($( $args, )*),
                         "Expectation didn't match arguments"),
@@ -179,7 +180,6 @@ macro_rules! omnimock {(
             fn with<$( $predargs: ::mockall::Predicate<$matchty> + 'static,)*>
                 (&mut self, $( $args: $predargs,)*)
             {
-                use ::std::ops::DerefMut;
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Pred($( Box::new($args), )*);
                 ::std::mem::replace(guard.deref_mut(), m);
@@ -188,7 +188,6 @@ macro_rules! omnimock {(
             fn withf<F>(&mut self, f: F)
                 where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
             {
-                use ::std::ops::DerefMut;
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Func(Box::new(f));
                 ::std::mem::replace(guard.deref_mut(), m);
@@ -227,7 +226,6 @@ macro_rules! omnimock {(
             pub fn return_once<F>(&mut self, f: F) -> &mut Self
                 where F: FnOnce($( $methty, )*) -> $o + Send + 'static
             {
-                use ::std::ops::DerefMut;
                 let mut fopt = Some(f);
                 let fmut = move |$( $args: $methty, )*| {
                     if let Some(f) = fopt.take() {
@@ -254,7 +252,6 @@ macro_rules! omnimock {(
             pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnOnce($( $methty, )*) -> $o + 'static
             {
-                use ::std::ops::DerefMut;
                 let mut fragile = Some(::fragile::Fragile::new(f));
                 let fmut = Box::new(move |$( $args: $methty, )*| {
                     match fragile.take() {
@@ -274,7 +271,6 @@ macro_rules! omnimock {(
                 where F: FnMut($( $methty, )*) -> $o + Send + 'static
             {
                 {
-                    use ::std::ops::DerefMut;
                     let mut guard = self.rfunc.lock().unwrap();
                     ::std::mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
                 }
@@ -289,7 +285,6 @@ macro_rules! omnimock {(
             pub fn returning_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $methty, )*) -> $o + 'static
             {
-                use ::std::ops::DerefMut;
                 let mut fragile = ::fragile::Fragile::new(f);
                 let fmut = move |$( $args: $methty, )*| {
                     (fragile.get_mut())($( $args, )*)
