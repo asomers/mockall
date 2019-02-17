@@ -132,10 +132,40 @@ macro_rules! omnimock {(
                 }
             }
 
+            fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+                -> &mut Self
+            {
+                assert!(self.times.is_exact(),
+                    "Only Expectations with an exact call count have sequences");
+                self.seq_handle = Some(seq.next());
+                self
+            }
+
+            /// Forbid this expectation from ever being called
+            fn never(&mut self) {
+                self.times.never();
+            }
+
             fn satisfy_sequence(&self) {
                 if let Some(handle) = &self.seq_handle {
                     handle.satisfy()
                 }
+            }
+
+            /// Require this expectation to be called exactly `n` times.
+            fn times(&mut self, n: usize) {
+                self.times.n(n);
+            }
+
+            /// Allow this expectation to be called any number of times
+            fn times_any(&mut self) {
+                self.times.any();
+            }
+
+            /// Allow this expectation to be called any number of times within a given
+            /// range
+            fn times_range(&mut self, range: ::std::ops::Range<usize>) {
+                self.times.range(range);
             }
 
             fn verify_sequence(&self) {
@@ -176,6 +206,19 @@ macro_rules! omnimock {(
                 self.rfunc.lock().unwrap().call_mut($( $args, )*)
             }
 
+            pub fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+                -> &mut Self
+            {
+                self.common.in_sequence(seq);
+                self
+            }
+
+            /// Forbid this expectation from ever being called
+            pub fn never(&mut self) -> &mut Self {
+                self.common.never();
+                self
+            }
+
             pub fn returning<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $methty, )*) -> $o + Send + 'static
             {
@@ -184,6 +227,30 @@ macro_rules! omnimock {(
                     let mut guard = self.rfunc.lock().unwrap();
                     ::std::mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
                 }
+                self
+            }
+
+            /// Require this expectation to be called exactly `n` times.
+            pub fn times(&mut self, n: usize) -> &mut Self {
+                self.common.times(n);
+                self
+            }
+
+            /// Allow this expectation to be called any number of times
+            ///
+            /// This behavior is the default, but the method is provided in case the
+            /// default behavior changes.
+            pub fn times_any(&mut self) -> &mut Self {
+                self.common.times_any();
+                self
+            }
+
+            /// Allow this expectation to be called any number of times within a
+            /// given range
+            pub fn times_range(&mut self, range: ::std::ops::Range<usize>)
+                -> &mut Self
+            {
+                self.common.times_range(range);
                 self
             }
 

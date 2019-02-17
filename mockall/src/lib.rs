@@ -1084,6 +1084,7 @@ macro_rules! params{
 }
 
 #[derive(Debug)]
+#[doc(hidden)]
 pub struct Times{
     /// How many times has the expectation already been called?
     count: AtomicUsize,
@@ -1103,7 +1104,7 @@ impl Times {
         }
     }
 
-    fn any(&mut self) {
+    pub fn any(&mut self) {
         self.range = 0..usize::max_value();
     }
 
@@ -1115,7 +1116,7 @@ impl Times {
 
     /// Is it required that this expectation be called an exact number of times,
     /// or may it be satisfied by a range of call counts?
-    fn is_exact(&self) -> bool {
+    pub fn is_exact(&self) -> bool {
         (self.range.end - self.range.start) == 1
     }
 
@@ -1127,15 +1128,15 @@ impl Times {
 
     // https://github.com/rust-lang/rust-clippy/issues/3307
     #[allow(clippy::range_plus_one)]
-    fn n(&mut self, n: usize) {
+    pub fn n(&mut self, n: usize) {
         self.range = n..(n+1);
     }
 
-    fn never(&mut self) {
+    pub fn never(&mut self) {
         self.range = 0..0;
     }
 
-    fn range(&mut self, range: Range<usize>) {
+    pub fn range(&mut self, range: Range<usize>) {
         self.range = range;
     }
 }
@@ -2161,7 +2162,7 @@ impl Sequence {
         Self::default()
     }
 
-    fn next(&mut self) -> SeqHandle {
+    pub fn next(&mut self) -> SeqHandle {
         let handle = SeqHandle{inner: self.inner.clone(), seq: self.next_seq};
         self.next_seq += 1;
         handle
