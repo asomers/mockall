@@ -35,6 +35,7 @@ macro_rules! omnimock {(
         [ $( $matchty:ty ),* ]) =>
     {
         mod $module {
+            use super::*;
 
         enum Rfunc {
             Default,
@@ -216,6 +217,30 @@ macro_rules! omnimock {(
             /// Forbid this expectation from ever being called
             pub fn never(&mut self) -> &mut Self {
                 self.common.never();
+                self
+            }
+
+            /// Supply an `FnOnce` closure that will provide the return value
+            /// for this Expectation.  This is useful for return types that
+            /// aren't `Clone`.  It will be an error to call this Expectation
+            /// multiple times.
+            pub fn return_once<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce($( $methty, )*) -> $o + Send + 'static
+            {
+                use ::std::ops::DerefMut;
+                let mut fopt = Some(f);
+                let fmut = move |$( $args, )*| {
+                    if let Some(f) = fopt.take() {
+                        f($( $args, )*)
+                    } else {
+                        panic!("Called a method twice that was expected only once")
+                    }
+                };
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    ::std::mem::replace(guard.deref_mut(),
+                                        Rfunc::Once(Box::new(fmut)));
+                }
                 self
             }
 
