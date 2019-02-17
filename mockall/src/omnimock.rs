@@ -82,7 +82,7 @@ macro_rules! expectation {(
 
         enum Matcher {
             Func(Box<Fn($( &$matchty, )* ) -> bool>),
-            Pred( $( Box<::mockall::Predicate<$matchty>>, )* )
+            Pred( $( Box<$crate::Predicate<$matchty>>, )* )
         }
 
         impl Matcher {
@@ -120,8 +120,8 @@ macro_rules! expectation {(
         #[derive(Default)]
         struct Common {
             matcher: ::std::sync::Mutex<Matcher>,
-            seq_handle: Option<::mockall::SeqHandle>,
-            times: ::mockall::Times
+            seq_handle: Option<$crate::SeqHandle>,
+            times: $crate::Times
         }
 
         impl Common {
@@ -134,7 +134,7 @@ macro_rules! expectation {(
                 }
             }
 
-            fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+            fn in_sequence(&mut self, seq: &mut $crate::Sequence)
                 -> &mut Self
             {
                 assert!(self.times.is_exact(),
@@ -177,7 +177,7 @@ macro_rules! expectation {(
             }
 
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
-            fn with<$( $predargs: ::mockall::Predicate<$matchty> + 'static,)*>
+            fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
                 (&mut self, $( $args: $predargs,)*)
             {
                 let mut guard = self.matcher.lock().unwrap();
@@ -206,7 +206,7 @@ macro_rules! expectation {(
                 self.rfunc.lock().unwrap().call_mut($( $args, )*)
             }
 
-            pub fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+            pub fn in_sequence(&mut self, seq: &mut $crate::Sequence)
                 -> &mut Self
             {
                 self.common.in_sequence(seq);
@@ -322,7 +322,7 @@ macro_rules! expectation {(
             }
 
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
-            pub fn with<$( $predargs: ::mockall::Predicate<$matchty> + 'static,)*>
+            pub fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
                 (&mut self, $( $args: $predargs,)*) -> &mut Self
             {
                 self.common.with($( $args, )*);
