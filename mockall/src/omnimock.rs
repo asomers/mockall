@@ -229,7 +229,7 @@ macro_rules! omnimock {(
             {
                 use ::std::ops::DerefMut;
                 let mut fopt = Some(f);
-                let fmut = move |$( $args, )*| {
+                let fmut = move |$( $args: $methty, )*| {
                     if let Some(f) = fopt.take() {
                         f($( $args, )*)
                     } else {
@@ -244,6 +244,32 @@ macro_rules! omnimock {(
                 self
             }
 
+            /// Single-threaded version of [`return_once`](#method.return_once).
+            /// This is useful for return types that are neither `Send` nor
+            /// `Clone`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.  It is
+            /// also a runtime error to call the method more than once.
+            pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce($( $methty, )*) -> $o + 'static
+            {
+                use ::std::ops::DerefMut;
+                let mut fragile = Some(::fragile::Fragile::new(f));
+                let fmut = Box::new(move |$( $args: $methty, )*| {
+                    match fragile.take() {
+                        Some(frag) => (frag.into_inner())($( $args, )*),
+                        None => panic!(
+                            "Called a method twice that was expected only once")
+                    }
+                });
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    ::std::mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
+                }
+                self
+            }
+
             pub fn returning<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $methty, )*) -> $o + Send + 'static
             {
@@ -251,6 +277,27 @@ macro_rules! omnimock {(
                     use ::std::ops::DerefMut;
                     let mut guard = self.rfunc.lock().unwrap();
                     ::std::mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+                }
+                self
+            }
+
+            /// Single-threaded version of [`returning`](#method.returning).
+            /// Can be used when the argument or return type isn't `Send`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.
+            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut($( $methty, )*) -> $o + 'static
+            {
+                use ::std::ops::DerefMut;
+                let mut fragile = ::fragile::Fragile::new(f);
+                let fmut = move |$( $args: $methty, )*| {
+                    (fragile.get_mut())($( $args, )*)
+                };
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    ::std::mem::replace(guard.deref_mut(),
+                                        Rfunc::Mut(Box::new(fmut)));
                 }
                 self
             }
