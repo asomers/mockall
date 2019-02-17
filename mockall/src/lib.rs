@@ -1110,7 +1110,7 @@ impl Times {
 
     /// Has this expectation already been called the maximum allowed number of
     /// times?
-    fn is_done(&self) -> bool {
+    pub fn is_done(&self) -> bool {
         self.count.load(Ordering::Relaxed) >= self.range.end - 1
     }
 

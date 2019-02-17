@@ -1,4 +1,118 @@
 // vim: tw=80
+
+/// Common methods of the Common struct
+// Ideally methods like with and withf that are identical for all
+// Expectation types would be defined here, too.  But that's not possible for
+// methods that need any of the variable-length argument fields due to this Rust
+// bug:
+// https://github.com/rust-lang/rust/issues/35853
+#[macro_export]
+#[doc(hidden)]
+macro_rules! common_methods {
+    () => {
+        fn in_sequence(&mut self, seq: &mut $crate::Sequence)
+            -> &mut Self
+        {
+            assert!(self.times.is_exact(),
+                "Only Expectations with an exact call count have sequences");
+            self.seq_handle = Some(seq.next());
+            self
+        }
+
+        fn is_done(&self) -> bool {
+            self.times.is_done()
+        }
+
+        /// Forbid this expectation from ever being called
+        fn never(&mut self) {
+            self.times.never();
+        }
+
+        fn satisfy_sequence(&self) {
+            if let Some(handle) = &self.seq_handle {
+                handle.satisfy()
+            }
+        }
+
+        /// Require this expectation to be called exactly `n` times.
+        fn times(&mut self, n: usize) {
+            self.times.n(n);
+        }
+
+        /// Allow this expectation to be called any number of times
+        fn times_any(&mut self) {
+            self.times.any();
+        }
+
+        /// Allow this expectation to be called any number of times within a
+        /// given range
+        fn times_range(&mut self, range: ::std::ops::Range<usize>) {
+            self.times.range(range);
+        }
+
+        fn verify_sequence(&self) {
+            if let Some(handle) = &self.seq_handle {
+                handle.verify()
+            }
+        }
+    }
+}
+
+/// Common methods of the Expectation, RefExpectation, and RefMutExpectation
+/// structs
+// Rust bug 35853 applies here, too.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! expectation_methods {
+    () => {
+        /// Add this expectation to a [`Sequence`](struct.Sequence.html).
+        pub fn in_sequence(&mut self, seq: &mut $crate::Sequence) -> &mut Self {
+            self.common.in_sequence(seq);
+            self
+        }
+
+        pub fn is_done(&self) -> bool {
+            self.common.is_done()
+        }
+
+        /// Forbid this expectation from ever being called
+        pub fn never(&mut self) -> &mut Self {
+            self.common.never();
+            self
+        }
+
+        /// Expect this expectation to be called exactly once.  Shortcut for
+        /// [`times(1)`](#method.times).
+        pub fn once(&mut self) -> &mut Self {
+            self.times(1)
+        }
+
+        /// Require this expectation to be called exactly `n` times.
+        pub fn times(&mut self, n: usize) -> &mut Self {
+            self.common.times(n);
+            self
+        }
+
+        /// Allow this expectation to be called any number of times
+        ///
+        /// This behavior is the default, but the method is provided in case the
+        /// default behavior changes.
+        pub fn times_any(&mut self) -> &mut Self {
+            self.common.times_any();
+            self
+        }
+
+        /// Allow this expectation to be called any number of times within a
+        /// given range
+        pub fn times_range(&mut self, range: ::std::ops::Range<usize>)
+            -> &mut Self
+        {
+            self.common.times_range(range);
+            self
+        }
+    }
+}
+
 /// Generate Expectation and Expectations types with specific signatures
 ///
 /// # Arguments
@@ -117,6 +231,7 @@ macro_rules! expectation {(
             }
         }
 
+        /// Holds the stuff that is independent of the output type
         #[derive(Default)]
         struct Common {
             matcher: ::std::sync::Mutex<Matcher>,
@@ -131,48 +246,6 @@ macro_rules! expectation {(
                 self.verify_sequence();
                 if self.times.is_satisfied() {
                     self.satisfy_sequence()
-                }
-            }
-
-            fn in_sequence(&mut self, seq: &mut $crate::Sequence)
-                -> &mut Self
-            {
-                assert!(self.times.is_exact(),
-                    "Only Expectations with an exact call count have sequences");
-                self.seq_handle = Some(seq.next());
-                self
-            }
-
-            /// Forbid this expectation from ever being called
-            fn never(&mut self) {
-                self.times.never();
-            }
-
-            fn satisfy_sequence(&self) {
-                if let Some(handle) = &self.seq_handle {
-                    handle.satisfy()
-                }
-            }
-
-            /// Require this expectation to be called exactly `n` times.
-            fn times(&mut self, n: usize) {
-                self.times.n(n);
-            }
-
-            /// Allow this expectation to be called any number of times
-            fn times_any(&mut self) {
-                self.times.any();
-            }
-
-            /// Allow this expectation to be called any number of times within a given
-            /// range
-            fn times_range(&mut self, range: ::std::ops::Range<usize>) {
-                self.times.range(range);
-            }
-
-            fn verify_sequence(&self) {
-                if let Some(handle) = &self.seq_handle {
-                    handle.verify()
                 }
             }
 
@@ -192,6 +265,8 @@ macro_rules! expectation {(
                 let m = Matcher::Func(Box::new(f));
                 ::std::mem::replace(guard.deref_mut(), m);
             }
+
+            $crate::common_methods!{}
         }
 
         #[derive(Default)]
@@ -204,19 +279,6 @@ macro_rules! expectation {(
             pub fn call(&self, $( $args: $methty, )* ) -> $o {
                 self.common.call($( $matchcall, )*);
                 self.rfunc.lock().unwrap().call_mut($( $args, )*)
-            }
-
-            pub fn in_sequence(&mut self, seq: &mut $crate::Sequence)
-                -> &mut Self
-            {
-                self.common.in_sequence(seq);
-                self
-            }
-
-            /// Forbid this expectation from ever being called
-            pub fn never(&mut self) -> &mut Self {
-                self.common.never();
-                self
             }
 
             /// Supply an `FnOnce` closure that will provide the return value
@@ -297,30 +359,6 @@ macro_rules! expectation {(
                 self
             }
 
-            /// Require this expectation to be called exactly `n` times.
-            pub fn times(&mut self, n: usize) -> &mut Self {
-                self.common.times(n);
-                self
-            }
-
-            /// Allow this expectation to be called any number of times
-            ///
-            /// This behavior is the default, but the method is provided in case the
-            /// default behavior changes.
-            pub fn times_any(&mut self) -> &mut Self {
-                self.common.times_any();
-                self
-            }
-
-            /// Allow this expectation to be called any number of times within a
-            /// given range
-            pub fn times_range(&mut self, range: ::std::ops::Range<usize>)
-                -> &mut Self
-            {
-                self.common.times_range(range);
-                self
-            }
-
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
             pub fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
                 (&mut self, $( $args: $predargs,)*) -> &mut Self
@@ -335,6 +373,8 @@ macro_rules! expectation {(
                 self.common.withf(f);
                 self
             }
+
+            $crate::expectation_methods!{}
         }
 
         }
