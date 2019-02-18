@@ -135,12 +135,14 @@ macro_rules! expectation_methods {
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
+/// # use mockall::*;
 /// // Mock a method like foo(&self, x: u32, y: &i16) -> u32
-/// expectation!{
-///     FooExpectation, __foo__priv, u32, (u32, &i16),
-///     [&i.0, i.1], [i0, i1], [p0, p1], [u32, i16]
+/// expectation! {
+///     FooExpectation, __foo__priv, u32, [u32, &i16],
+///     [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
 /// }
+/// ```
 #[macro_export]
 macro_rules! expectation {(
         $expectation:ident,
@@ -410,12 +412,14 @@ macro_rules! expectation {(
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
+/// # use mockall::*;
 /// // Mock a method like foo(&self, x: u32, y: &i16) -> &u32
 /// ref_expectation!{
-///     FooExpectation, __foo__priv, u32, (u32, &i16),
-///     [&i.0, i.1], [i0, i1], [p0, p1], [u32, i16]
+///     FooExpectation, __foo__priv, u32, [u32, &i16],
+///     [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
 /// }
+/// ```
 #[macro_export]
 macro_rules! ref_expectation {(
         $expectation:ident,
@@ -577,12 +581,14 @@ macro_rules! ref_expectation {(
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
+/// # use mockall::*;
 /// // Mock a method like foo(&mut self, x: u32, y: &i16) -> &mut u32
 /// ref_mut_expectation!{
-///     FooExpectation, __foo__priv, u32, (u32, &i16),
-///     [&i.0, i.1], [i0, i1], [p0, p1], [u32, i16]
+///     FooExpectation, __foo__priv, u32, [u32, &i16],
+///     [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
 /// }
+/// ```
 #[macro_export]
 macro_rules! ref_mut_expectation {(
         $expectation:ident,
