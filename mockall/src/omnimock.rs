@@ -387,7 +387,8 @@ macro_rules! expectation {(
 }
 
 /// Generate Expectation and Expectations types with specific signatures, for
-/// methods that return references.
+/// methods that take `&self` arguments and return references with the same
+/// lifetime as `self`.
 ///
 /// # Arguments
 ///
@@ -526,6 +527,204 @@ macro_rules! ref_expectation {(
             /// Return a reference to a constant value from the `Expectation`
             pub fn return_const(&mut self, o: $o) -> &mut Self {
                 self.result = Some(o);
+                self
+            }
+
+            #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
+            pub fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
+                (&mut self, $( $args: $predargs,)*) -> &mut Self
+            {
+                self.common.with($( $args, )*);
+                self
+            }
+
+            pub fn withf<F>(&mut self, f: F) -> &mut Self
+                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
+            {
+                self.common.withf(f);
+                self
+            }
+
+            $crate::expectation_methods!{}
+        }
+
+        }
+        use $module::Expectation as $expectation;
+    }
+}
+
+/// Generate Expectation and Expectations types with specific signatures, for
+/// methods that take `&mut self` arguments and return references with the same
+/// lifetime as `self`.
+///
+/// # Arguments
+///
+/// * `expectation`:    Name of the generated Expectation type
+/// * `module`:         Name of the private module to create
+/// * `o`:              Owned version of the output type.  Must be a `'static`.
+///                     The real output type will be a reference to this one.
+/// * `methty`:         Comma-delimited sequence of arguments types for the
+///                     method being mocked.
+/// * `matchcall`:      Comma-delimited sequence of expressions that produce
+///                     values of type `matchty` from values of type `methty`.
+/// * `args`:           comma-delimited sequence of argument names for each
+///                     argument.  Ideally this wouldn't need to be specified,
+///                     but it is due to Rust's macro hygiene rules.
+/// * `predargs`:       Comma-delimited sequence of identifiers of the same
+///                     length as `args`, but distinct.
+/// * `matchty`:        comma-delimited sequence of types for each match
+///                     argument.  Must all be `'static`.
+///
+/// # Examples
+///
+/// ```
+/// // Mock a method like foo(&mut self, x: u32, y: &i16) -> &mut u32
+/// ref_mut_expectation!{
+///     FooExpectation, __foo__priv, u32, (u32, &i16),
+///     [&i.0, i.1], [i0, i1], [p0, p1], [u32, i16]
+/// }
+#[macro_export]
+macro_rules! ref_mut_expectation {(
+        $expectation:ident,
+        $module:ident,
+        $o:ty,
+        [ $( $methty:ty ),* ],
+        [ $( $matchcall:expr ),* ],
+        [ $( $args:ident ),* ],
+        [ $( $predargs:ident ),* ],
+        [ $( $matchty:ty ),* ]) =>
+    {
+        mod $module {
+        use ::predicates_tree::CaseTreeExt;
+        use ::std::ops::DerefMut;
+        use super::*;
+
+        enum Matcher {
+            Func(Box<Fn($( &$matchty, )* ) -> bool>),
+            Pred( $( Box<$crate::Predicate<$matchty>>, )* )
+        }
+
+        impl Matcher {
+            fn eval(&self, $( $args: &$matchty, )*) -> bool {
+                match self {
+                    Matcher::Func(f) => f($( $args, )*),
+                    Matcher::Pred($( $predargs, )*) =>
+                        [$( $predargs.eval($args), )*]
+                        .into_iter()
+                        .all(|x| *x),
+                }
+            }
+
+            fn verify(&self, $( $args: &$matchty, )* ) {
+                match self {
+                    Matcher::Func(f) => assert!(f($( $args, )*),
+                        "Expectation didn't match arguments"),
+                    Matcher::Pred($( $predargs, )*) => {
+                        $(if let Some(c) = $predargs.find_case(false, $args) {
+                            panic!("Expectation didn't match arguments:\n{}",
+                                   c.tree());
+                        })*
+                    }
+                }
+            }
+        }
+
+        impl Default for Matcher {
+            #[allow(unused_variables)]
+            fn default() -> Self {
+                Matcher::Func(Box::new(|$( $args, )*| true))
+            }
+        }
+
+        /// Holds the stuff that is independent of the output type
+        #[derive(Default)]
+        struct Common {
+            matcher: ::std::sync::Mutex<Matcher>,
+            seq_handle: Option<$crate::SeqHandle>,
+            times: $crate::Times
+        }
+
+        impl Common {
+            fn call(&self, $( $args: &$matchty, )* ) {
+                self.matcher.lock().unwrap().verify($( $args, )*);
+                self.times.call();
+                self.verify_sequence();
+                if self.times.is_satisfied() {
+                    self.satisfy_sequence()
+                }
+            }
+
+            #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
+            fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
+                (&mut self, $( $args: $predargs,)*)
+            {
+                let mut guard = self.matcher.lock().unwrap();
+                let m = Matcher::Pred($( Box::new($args), )*);
+                ::std::mem::replace(guard.deref_mut(), m);
+            }
+
+            fn withf<F>(&mut self, f: F)
+                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
+            {
+                let mut guard = self.matcher.lock().unwrap();
+                let m = Matcher::Func(Box::new(f));
+                ::std::mem::replace(guard.deref_mut(), m);
+            }
+
+            $crate::common_methods!{}
+        }
+
+        #[derive(Default)]
+        pub struct Expectation {
+            common: Common,
+            result: Option<$o>,
+            rfunc: Option<Box<dyn FnMut($( $methty, )*) -> $o + Send + Sync>>,
+        }
+
+        impl Expectation {
+            /// Simulating calling the real method for this expectation
+            pub fn call_mut(&mut self, $( $args: $methty, )*) -> &mut $o {
+                self.common.call($( $matchcall, )*);
+                if let Some(ref mut f) = self.rfunc {
+                    self.result = Some(f($( $args, )*));
+                }
+                self.result.as_mut()
+                    .expect("Must first set return function with returning or return_var")
+            }
+
+            pub fn new() -> Self {
+                Self::default()
+            }
+
+            /// Convenience method that can be used to supply a return value for
+            /// a `Expectation`.  The value will be returned by mutable
+            /// reference.
+            pub fn return_var(&mut self, o: $o) -> &mut Self
+            {
+                self.result = Some(o);
+                self
+            }
+
+            /// Supply a closure that the `Expectation` will use to create its
+            /// return value.  The return value will be returned by mutable
+            /// reference.
+            pub fn returning<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut($( $methty, )*) -> $o + Send + Sync + 'static
+            {
+                ::std::mem::replace(&mut self.rfunc, Some(Box::new(f)));
+                self
+            }
+
+            /// Single-threaded version of [`returning`](#method.returning).
+            /// Can be used when the argument or return type isn't `Send`.
+            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut($( $methty, )*) -> $o + 'static
+            {
+                let mut fragile = ::fragile::Fragile::new(f);
+                let fmut = move |$( $args, )*| {
+                    (fragile.get_mut())($( $args, )*)
+                };
+                ::std::mem::replace(&mut self.rfunc, Some(Box::new(fmut)));
                 self
             }
 
