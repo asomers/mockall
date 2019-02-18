@@ -922,6 +922,33 @@ pub trait ReturnDefault<O> {
     fn return_default() -> O;
 }
 
+#[derive(Default)]
+#[doc(hidden)]
+pub struct DefaultReturner<O: 'static>(PhantomData<O>);
+
+::cfg_if::cfg_if! {
+    if #[cfg(feature = "nightly")] {
+        impl<O> ReturnDefault<O> for DefaultReturner<O> {
+            default fn return_default() -> O {
+                panic!("Can only return default values for types that impl std::Default");
+            }
+        }
+
+        impl<O: Default> ReturnDefault<O> for DefaultReturner<O> {
+            fn return_default() -> O {
+                O::default()
+            }
+        }
+    } else {
+        impl<O> ReturnDefault<O> for DefaultReturner<O> {
+            fn return_default() -> O {
+                panic!("Returning default values requires the \"nightly\" feature");
+            }
+        }
+    }
+}
+
+
 /// Return functions for expectations
 enum Rfunc<I, O> {
     Default,

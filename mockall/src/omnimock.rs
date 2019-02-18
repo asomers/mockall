@@ -174,7 +174,7 @@ macro_rules! expectation {(
                 match self {
                     Rfunc::Default => {
                         use $crate::ReturnDefault;
-                        Self::return_default()
+                        $crate::DefaultReturner::<O>::return_default()
                     },
                     Rfunc::Expired => {
                         panic!("Called a method twice that was expected only once")
@@ -197,28 +197,6 @@ macro_rules! expectation {(
         impl<O> std::default::Default for Rfunc<O> {
             fn default() -> Self {
                 Rfunc::Default
-            }
-        }
-
-        ::cfg_if::cfg_if! {
-            if #[cfg(feature = "nightly")] {
-                impl<O> $crate::ReturnDefault<O> for Rfunc<O> {
-                    default fn return_default() -> O {
-                        panic!("Can only return default values for types that impl std::Default");
-                    }
-                }
-
-                impl<O: Default> $crate::ReturnDefault<O> for Rfunc<O> {
-                    fn return_default() -> O {
-                        O::default()
-                    }
-                }
-            } else {
-                impl<O> $crate::ReturnDefault<O> for Rfunc<O> {
-                    fn return_default() -> O {
-                        panic!("Returning default values requires the \"nightly\" feature");
-                    }
-                }
             }
         }
 

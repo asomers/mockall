@@ -1,6 +1,5 @@
 // vim: tw=80
 
-#![cfg_attr(feature = "nightly", feature(specialization))]
 use mockall::*;
 use mockall::expectation;
 use std::rc::Rc;
