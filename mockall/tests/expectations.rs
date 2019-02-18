@@ -15,7 +15,8 @@ fn checkpoint_ok() {
 
 #[test]
 fn checkpoint_and_expect_again() {
-    let mut e = Expectations::<i32, i32>::new();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
         .times_range(1..3);
@@ -30,7 +31,8 @@ fn checkpoint_and_expect_again() {
 #[test]
 #[should_panic(expected = "Expectation called fewer than 1 times")]
 fn checkpoint_not_yet_satisfied() {
-    let mut e = Expectations::<i32, i32>::new();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
         .times(1);
@@ -41,7 +43,8 @@ fn checkpoint_not_yet_satisfied() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn checkpoint_removes_old_expectations() {
-    let mut e = Expectations::<i32, i32>::new();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
         .times_range(1..3);
@@ -54,7 +57,8 @@ fn checkpoint_removes_old_expectations() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn no_expectations() {
-    let e = Expectations::<i32, i32>::new();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let e = foo::Expectations::new();
     e.call(5);
 }
 
@@ -63,7 +67,8 @@ fn no_expectations() {
 /// multiple expectations match
 #[test]
 fn fifo_order() {
-    let mut e = Expectations::<i32, i32>::new();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
         .returning(|_| 99);
@@ -75,9 +80,22 @@ fn fifo_order() {
 }
 
 #[test]
+fn match_reference() {
+    expectation!{foo, u32, [&i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
+    e.expect()
+        .with(predicate::eq(5))
+        .returning(|_| 99);
+
+    let x = 5i32;
+    assert_eq!(99, e.call(&x));
+}
+
+#[test]
 #[should_panic(expected = "No matching expectation found")]
 fn nothing_matches() {
-    let mut e = Expectations::<i32, i32>::new();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
         .returning(|_| 99);
@@ -87,7 +105,8 @@ fn nothing_matches() {
 
 #[test]
 fn one_match() {
-    let mut e = Expectations::<i32, i32>::new();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(4))
         .returning(|_| 42);
@@ -127,8 +146,9 @@ fn ref_mut_expectations() {
 #[test]
 #[should_panic(expected = "Method sequence violation")]
 fn sequence_fail() {
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
-    let mut e = Expectations::<i32, i32>::new();
     e.expect()
         .times(1)
         .in_sequence(&mut seq)
@@ -158,8 +178,9 @@ fn sequence_fail() {
 
 #[test]
 fn sequence_ok() {
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
-    let mut e = Expectations::<i32, i32>::new();
     e.expect()
         .times(1)
         .in_sequence(&mut seq)
@@ -192,36 +213,38 @@ fn sequence_ok() {
 /// more expectations to follow.
 #[test]
 fn sequence_of_single_method() {
+    expectation!{foo, i32, [], [], [], [], []}
+    let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
-    let mut e = Expectations::<(), i32>::new();
     e.expect()
         .times(1)
         .in_sequence(&mut seq)
-        .returning(|_| 1);
+        .returning(|| 1);
     e.expect()
         .times(1)
         .in_sequence(&mut seq)
-        .returning(|_| 2);
+        .returning(|| 2);
     e.expect()
         .times(1)
         .in_sequence(&mut seq)
-        .returning(|_| 3);
+        .returning(|| 3);
 
-    assert_eq!(1, e.call(()));
-    assert_eq!(2, e.call(()));
-    assert_eq!(3, e.call(()));
+    assert_eq!(1, e.call());
+    assert_eq!(2, e.call());
+    assert_eq!(3, e.call());
 }
 
 #[test]
 #[should_panic(expected = "Expectation called more than 2 times")]
 fn times_too_many() {
-    let mut e = Expectations::<(), ()>::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectations::new();
     e.expect()
         .times(2)
-        .returning(|_| ());
-    e.call(());
-    e.call(());
-    e.call(());
+        .returning(|| ());
+    e.call();
+    e.call();
+    e.call();
     // Verify that we panic quickly and don't reach code below this point.
     panic!("Shouldn't get here!");
 }
