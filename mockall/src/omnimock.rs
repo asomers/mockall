@@ -727,7 +727,7 @@ macro_rules! ref_mut_expectation {(
                 where F: FnMut($( $methty, )*) -> $o + 'static
             {
                 let mut fragile = ::fragile::Fragile::new(f);
-                let fmut = move |$( $args, )*| {
+                let fmut = move |$( $args: $methty, )*| {
                     (fragile.get_mut())($( $args, )*)
                 };
                 ::std::mem::replace(&mut self.rfunc, Some(Box::new(fmut)));

@@ -51,6 +51,85 @@ fn never_fail() {
     e.call();
 }
 
+mod reference_argument {
+    use super::*;
+
+    ref_expectation!{FooExpectation, __foo_priv, (),
+        [&u32], [&i0], [i0], [p0], [u32]}
+
+    #[test]
+    fn t() {
+        let mut e = FooExpectation::default();
+        e.with(predicate::eq(42u32))
+            .return_const(());
+        let x = 42u32;
+        e.call(&x);
+    }
+
+    #[test]
+    fn match_fn() {
+        let mut e = FooExpectation::default();
+        e.withf(|x| *x == 42)
+            .return_const(());
+        let x = 42u32;
+        e.call(&x);
+    }
+}
+
+mod ref_and_nonref_arguments {
+    use super::*;
+
+    ref_expectation!{FooExpectation, __foo_priv, (),
+        [i32, &u16],
+        [&i0, i1],
+        [i0, i1],
+        [p0, p1],
+        [i32, u16]
+    }
+
+    #[test]
+    fn t() {
+        let mut e = FooExpectation::default();
+        e.with(predicate::eq(42), predicate::eq(1))
+            .return_const(());
+        let x = 42i32;
+        let y = 1u16;
+        e.call(x, &y);
+    }
+
+    #[test]
+    fn match_fn() {
+        let mut e = FooExpectation::default();
+        e.withf(|x, y| *x == i32::from(*y))
+            .return_const(());
+        let x = 42i32;
+        let y = 42u16;
+        e.call(x, &y);
+    }
+}
+
+mod reference_arguments {
+    use super::*;
+
+    ref_expectation!{FooExpectation, __foo_priv, (),
+        [&u32, &u16],
+        [i0, i1],
+        [i0, i1],
+        [p0, p1],
+        [u32, u16]
+    }
+
+    #[test]
+    fn t() {
+        let mut e = FooExpectation::default();
+        e.with(predicate::eq(42), predicate::eq(1))
+            .return_const(());
+        let x = 42u32;
+        let y = 1u16;
+        e.call(&x, &y);
+    }
+}
+
 #[test]
 #[should_panic(expected = "Method sequence violation")]
 fn sequence_fail() {
