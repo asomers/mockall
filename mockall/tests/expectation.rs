@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 #[test]
 fn match_eq_ok() {
-    expectation!{FooExpectation, __foo_priv, (), [i32], [&x], [x], [p], [i32]}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectation::default();
     e.returning(|_| ());
     e.with(predicate::eq(5));
     e.call(5);
@@ -16,8 +16,8 @@ fn match_eq_ok() {
 #[test]
 #[should_panic]
 fn match_eq_fail() {
-    expectation!{FooExpectation, __foo_priv, (), [i32], [&x], [x], [p], [i32]}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectation::default();
     e.returning(|_| ());
     e.with(predicate::eq(4));
     e.call(5);
@@ -25,8 +25,8 @@ fn match_eq_fail() {
 
 #[test]
 fn match_fn_ok() {
-    expectation!{FooExpectation, __foo_priv, (), [i32], [&x], [x], [p], [i32]}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectation::default();
     e.returning(|_| ());
     e.withf(|x: &i32| *x == 5);
     e.call(5);
@@ -35,8 +35,8 @@ fn match_fn_ok() {
 #[test]
 #[should_panic]
 fn match_fn_fail() {
-    expectation!{FooExpectation, __foo_priv, (), [i32], [&x], [x], [p], [i32]}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectation::default();
     e.returning(|_| ());
     e.withf(|x: &i32| *x == 6);
     e.call(5);
@@ -45,12 +45,12 @@ fn match_fn_fail() {
 mod reference_argument {
     use super::*;
 
-    mockall::expectation!{FooExpectation, __foo_priv, u32,
+    mockall::expectation!{foo, u32,
         [&u32], [&i0], [i0], [p0], [u32]}
 
     #[test]
     fn t() {
-        let mut e = FooExpectation::default();
+        let mut e = foo::Expectation::default();
         e.with(predicate::eq(42u32))
             .returning(|x| *x);
         let x = 42u32;
@@ -59,7 +59,7 @@ mod reference_argument {
 
     #[test]
     fn match_fn() {
-        let mut e = FooExpectation::default();
+        let mut e = foo::Expectation::default();
         e.withf(|x| *x == 42)
             .returning(|x| *x);
         let x = 42u32;
@@ -70,7 +70,7 @@ mod reference_argument {
 mod ref_and_nonref_arguments {
     use super::*;
 
-    mockall::expectation!{FooExpectation, __foo_priv, i32,
+    mockall::expectation!{foo, i32,
         [i32, &u16],
         [&i0, i1],
         [i0, i1],
@@ -80,7 +80,7 @@ mod ref_and_nonref_arguments {
 
     #[test]
     fn t() {
-        let mut e = FooExpectation::default();
+        let mut e = foo::Expectation::default();
         e.with(predicate::eq(42), predicate::eq(1))
             .returning(|x, y| x + i32::from(*y));
         let x = 42i32;
@@ -90,7 +90,7 @@ mod ref_and_nonref_arguments {
 
     #[test]
     fn match_fn() {
-        let mut e = FooExpectation::default();
+        let mut e = foo::Expectation::default();
         e.withf(|x, y| *x == i32::from(*y))
             .returning(|x, y| x + i32::from(*y));
         let x = 42i32;
@@ -102,7 +102,7 @@ mod ref_and_nonref_arguments {
 mod reference_arguments {
     use super::*;
 
-    mockall::expectation!{FooExpectation, __foo_priv, u32,
+    mockall::expectation!{foo, u32,
         [&u32, &u16],
         [i0, i1],
         [i0, i1],
@@ -112,7 +112,7 @@ mod reference_arguments {
 
     #[test]
     fn t() {
-        let mut e = FooExpectation::default();
+        let mut e = foo::Expectation::default();
         e.with(predicate::eq(42), predicate::eq(1))
             .returning(|x, y| *x + u32::from(*y));
         let x = 42u32;
@@ -125,8 +125,8 @@ mod reference_arguments {
 /// fn foo(&mut self, x: i32) -> u32
 #[test]
 fn mutable_self() {
-    expectation!{FooExpectation, __foo_priv, i32, [i32], [&x], [x], [p], [i32]}
-    let mut e = FooExpectation::default();
+    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectation::default();
     let mut count = 0;
     e.returning(move |x| {
             count += x;
@@ -191,8 +191,8 @@ fn mutable_self() {
 
 #[test]
 fn never_ok() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.never();
 }
@@ -200,8 +200,8 @@ fn never_ok() {
 #[test]
 #[should_panic(expected = "Expectation should not have been called")]
 fn never_fail() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.never();
     e.call();
@@ -211,8 +211,8 @@ fn never_fail() {
 /// fn foo(&self)
 #[test]
 fn no_args_or_returns() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.call();
 }
@@ -220,10 +220,10 @@ fn no_args_or_returns() {
 #[test]
 fn non_send() {
     expectation!{
-        FooExpectation, __foo_priv, Rc<u32>,
+        foo, Rc<u32>,
         [Rc<u32>], [&x], [x], [p], [Rc<u32>]
     }
-    let mut e = FooExpectation::default();
+    let mut e = foo::Expectation::default();
     let y = Rc::new(43u32);
     e.returning_st(move |_| y.clone());
     let x = Rc::new(42u32);
@@ -234,10 +234,10 @@ pub struct MyType(Rc<u32>);
 #[test]
 fn non_send_nor_clone() {
     expectation!{
-        FooExpectation, __foo_priv, MyType,
+        foo, MyType,
         [MyType], [&x], [x], [p], [MyType]
     }
-    let mut e = FooExpectation::default();
+    let mut e = foo::Expectation::default();
     let y = MyType(Rc::new(43u32));
     e.return_once_st(move |_| y);
     let x = MyType(Rc::new(42u32));
@@ -246,8 +246,8 @@ fn non_send_nor_clone() {
 
 #[test]
 fn return_const() {
-    expectation!{ FooExpectation, __foo_priv, u32, [], [], [], [], [] }
-    let mut e = FooExpectation::default();
+    expectation!{ foo, u32, [], [], [], [], [] }
+    let mut e = foo::Expectation::default();
     e.return_const(42u32);
     assert_eq!(42, e.call());
 }
@@ -256,8 +256,8 @@ fn return_const() {
 #[test]
 #[cfg_attr(not(feature = "nightly"), ignore)]
 fn return_default() {
-    expectation!{ FooExpectation, __foo_priv, u32, [], [], [], [], []}
-    let e = FooExpectation::default();
+    expectation!{ foo, u32, [], [], [], [], []}
+    let e = foo::Expectation::default();
     let r = e.call();
     assert_eq!(u32::default(), r);
 }
@@ -267,8 +267,8 @@ pub struct NonDefault{}
 #[test]
 #[should_panic]
 fn return_default_panics_for_non_default_types() {
-    expectation!{ FooExpectation, __foo_priv, NonDefault, [], [], [], [], [] }
-    let e = FooExpectation::default();
+    expectation!{ foo, NonDefault, [], [], [], [], [] }
+    let e = foo::Expectation::default();
     let _: NonDefault = e.call();
 }
 
@@ -276,8 +276,8 @@ pub struct NonCopy{}
 
 #[test]
 fn return_owned() {
-    expectation!{FooExpectation, __foo_priv, NonCopy, [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, NonCopy, [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     let r = NonCopy{};
     e.return_once(|| r);
     e.call();
@@ -286,8 +286,8 @@ fn return_owned() {
 #[test]
 #[should_panic(expected = "expected only once")]
 fn return_owned_too_many_times() {
-    expectation!{FooExpectation, __foo_priv, NonCopy, [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, NonCopy, [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     let r = NonCopy{};
     e.return_once(|| r);
     e.call();
@@ -297,9 +297,9 @@ fn return_owned_too_many_times() {
 #[test]
 #[should_panic(expected = "exact call count")]
 fn sequence_ambiguous() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
+    expectation!{foo, (), [], [], [], [], []}
     let mut seq = Sequence::new();
-    let mut e0 = FooExpectation::default();
+    let mut e0 = foo::Expectation::default();
     e0.times_range(1..3);
     e0.in_sequence(&mut seq);
     e0.call();
@@ -308,14 +308,14 @@ fn sequence_ambiguous() {
 #[test]
 #[should_panic(expected = "Method sequence violation")]
 fn sequence_fail() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
+    expectation!{foo, (), [], [], [], [], []}
     let mut seq = Sequence::new();
-    let mut e0 = FooExpectation::default();
+    let mut e0 = foo::Expectation::default();
     e0.times(1);
     e0.returning(|| ());
     e0.in_sequence(&mut seq);
 
-    let mut e1 = FooExpectation::default();
+    let mut e1 = foo::Expectation::default();
     e1.times(1);
     e1.returning(|| ());
     e1.in_sequence(&mut seq);
@@ -326,14 +326,14 @@ fn sequence_fail() {
 
 #[test]
 fn sequence_ok() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
+    expectation!{foo, (), [], [], [], [], []}
     let mut seq = Sequence::new();
-    let mut e0 = FooExpectation::default();
+    let mut e0 = foo::Expectation::default();
     e0.times(1);
     e0.returning(|| ());
     e0.in_sequence(&mut seq);
 
-    let mut e1 = FooExpectation::default();
+    let mut e1 = foo::Expectation::default();
     e1.times(1);
     e1.returning(|| ());
     e1.in_sequence(&mut seq);
@@ -346,8 +346,8 @@ fn sequence_ok() {
 /// fn foo(&self, x: i32) -> u32
 #[test]
 fn simple_method() {
-    expectation!{FooExpectation, __foo_priv, u32, [i32], [&x], [x], [p], [i32]}
-    let mut e = FooExpectation::default();
+    expectation!{foo, u32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectation::default();
     e.returning(|_| 42);
     let r = e.call(5);
     assert_eq!(42, r);
@@ -380,8 +380,8 @@ fn simple_method() {
 
 #[test]
 fn times_any() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(1);
     e.times_any();
@@ -391,8 +391,8 @@ fn times_any() {
 
 #[test]
 fn times_ok() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(2);
     e.call();
@@ -402,8 +402,8 @@ fn times_ok() {
 #[test]
 #[should_panic(expected = "Expectation called fewer than 2 times")]
 fn times_too_few() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(2);
     e.call();
@@ -412,8 +412,8 @@ fn times_too_few() {
 #[test]
 #[should_panic(expected = "Expectation called more than 2 times")]
 fn times_too_many() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(2);
     e.call();
@@ -425,14 +425,14 @@ fn times_too_many() {
 
 #[test]
 fn times_range_ok() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e0 = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e0 = foo::Expectation::default();
     e0.returning(|| ());
     e0.times_range(2..4);
     e0.call();
     e0.call();
 
-    let mut e1 = FooExpectation::default();
+    let mut e1 = foo::Expectation::default();
     e1.returning(|| ());
     e1.times_range(2..4);
     e1.call();
@@ -443,8 +443,8 @@ fn times_range_ok() {
 #[test]
 #[should_panic(expected = "Expectation called fewer than 2 times")]
 fn times_range_too_few() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times_range(2..4);
     e.call();
@@ -453,8 +453,8 @@ fn times_range_too_few() {
 #[test]
 #[should_panic(expected = "Expectation called more than 3 times")]
 fn times_range_too_many() {
-    expectation!{FooExpectation, __foo_priv, (), [], [], [], [], []}
-    let mut e = FooExpectation::default();
+    expectation!{foo, (), [], [], [], [], []}
+    let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times_range(2..4);
     e.call();

@@ -143,7 +143,6 @@ macro_rules! expectations_methods {
 ///
 /// # Arguments
 ///
-/// * `expectation`:    Name of the generated Expectation type
 /// * `module`:         Name of the private module to create
 /// * `o`:              Output type.  Must be static
 /// * `methty`:         Comma-delimited sequence of arguments types for the
@@ -164,13 +163,11 @@ macro_rules! expectations_methods {
 /// # use mockall::*;
 /// // Mock a method like foo(&self, x: u32, y: &i16) -> u32
 /// expectation! {
-///     FooExpectation, __foo__priv, u32, [u32, &i16],
-///     [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
+///     foo, u32, [u32, &i16], [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
 /// }
 /// ```
 #[macro_export]
 macro_rules! expectation {(
-        $expectation:ident,
         $module:ident,
         $o:ty,
         [ $( $methty:ty ),* ],
@@ -454,7 +451,6 @@ macro_rules! expectation {(
             $crate::expectations_methods!{Expectation}
         }
         }
-        use $module::Expectation as $expectation;
     }
 }
 
@@ -464,8 +460,7 @@ macro_rules! expectation {(
 ///
 /// # Arguments
 ///
-/// * `expectation`:    Name of the generated Expectation type
-/// * `module`:         Name of the private module to create
+/// * `module`:         Name of the module to create
 /// * `o`:              Owned version of the output type.  Must be a `'static`.
 ///                     The real output type will be a reference to this one.
 /// * `methty`:         Comma-delimited sequence of arguments types for the
@@ -486,13 +481,11 @@ macro_rules! expectation {(
 /// # use mockall::*;
 /// // Mock a method like foo(&self, x: u32, y: &i16) -> &u32
 /// ref_expectation!{
-///     FooExpectation, __foo__priv, u32, [u32, &i16],
-///     [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
+///     foo, u32, [u32, &i16], [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
 /// }
 /// ```
 #[macro_export]
 macro_rules! ref_expectation {(
-        $expectation:ident,
         $module:ident,
         $o:ty,
         [ $( $methty:ty ),* ],
@@ -623,7 +616,6 @@ macro_rules! ref_expectation {(
         }
 
         }
-        use $module::Expectation as $expectation;
     }
 }
 
@@ -633,7 +625,6 @@ macro_rules! ref_expectation {(
 ///
 /// # Arguments
 ///
-/// * `expectation`:    Name of the generated Expectation type
 /// * `module`:         Name of the private module to create
 /// * `o`:              Owned version of the output type.  Must be a `'static`.
 ///                     The real output type will be a reference to this one.
@@ -655,13 +646,11 @@ macro_rules! ref_expectation {(
 /// # use mockall::*;
 /// // Mock a method like foo(&mut self, x: u32, y: &i16) -> &mut u32
 /// ref_mut_expectation!{
-///     FooExpectation, __foo__priv, u32, [u32, &i16],
-///     [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
+///     foo, u32, [u32, &i16], [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
 /// }
 /// ```
 #[macro_export]
 macro_rules! ref_mut_expectation {(
-        $expectation:ident,
         $module:ident,
         $o:ty,
         [ $( $methty:ty ),* ],
@@ -823,6 +812,5 @@ macro_rules! ref_mut_expectation {(
         }
 
         }
-        use $module::Expectation as $expectation;
     }
 }
