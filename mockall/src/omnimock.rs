@@ -287,6 +287,23 @@ macro_rules! expectation {(
                 self.rfunc.lock().unwrap().call_mut($( $args, )*)
             }
 
+            /// Return a constant value from the `Expectation`
+            ///
+            /// The output type must be `Clone`.  The compiler can't always
+            /// infer the proper type to use with this method; you will usually
+            /// need to specify it explicitly.  i.e. `return_const(42u32)`
+            /// instead of `return_const(42)`.
+            // We must use Into<$o> instead of $o because where clauses don't
+            // accept equality constraints.
+            // https://github.com/rust-lang/rust/issues/20041
+            #[allow(unused_variables)]
+            pub fn return_const<O>(&mut self, c: O) -> &mut Self
+                where O: Clone + Into<$o> + Send + 'static
+            {
+                let f = move |$( $args: $methty, )*| c.clone().into();
+                self.returning(f)
+            }
+
             /// Supply an `FnOnce` closure that will provide the return value
             /// for this Expectation.  This is useful for return types that
             /// aren't `Clone`.  It will be an error to call this Expectation

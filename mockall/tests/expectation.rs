@@ -244,13 +244,13 @@ fn non_send_nor_clone() {
     assert_eq!(43, *e.call(x).0.as_ref());
 }
 
-//#[test]
-//fn return_const() {
-    //expectation!{ FooExpectation, __foo_priv, u32, [], [], [], [], [] }
-    //let mut e = FooExpectation::default();
-    //e.return_const(42);
-    //assert_eq!(42, e.call());
-//}
+#[test]
+fn return_const() {
+    expectation!{ FooExpectation, __foo_priv, u32, [], [], [], [], [] }
+    let mut e = FooExpectation::default();
+    e.return_const(42u32);
+    assert_eq!(42, e.call());
+}
 
 ///// Expectations return O::default() unless otherwise specified
 //#[test]
