@@ -917,7 +917,8 @@ pub use lazy_static::lazy_static;
 trait AnyExpectations : Any + Send + Sync {}
 downcast!(AnyExpectations);
 
-trait ReturnDefault<O> {
+#[doc(hidden)]
+pub trait ReturnDefault<O> {
     fn return_default() -> O;
 }
 

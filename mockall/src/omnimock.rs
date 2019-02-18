@@ -159,22 +159,22 @@ macro_rules! expectation {(
         use ::std::ops::DerefMut;
         use super::*;
 
-        enum Rfunc {
+        enum Rfunc<O: 'static> {
             Default,
             // Indicates that a `return_once` expectation has already returned
             Expired,
-            Mut(Box<dyn FnMut($( $methty, )*) -> $o + Send>),
+            Mut(Box<dyn FnMut($( $methty, )*) -> O + Send>),
             // Should be Box<dyn FnOnce> once that feature is stabilized
             // https://github.com/rust-lang/rust/issues/28796
-            Once(Box<dyn FnMut($( $methty, )*) -> $o + Send>),
+            Once(Box<dyn FnMut($( $methty, )*) -> O + Send>),
         }
 
-        impl  Rfunc {
-            fn call_mut(&mut self, $( $args: $methty, )* ) -> $o {
+        impl<O>  Rfunc<O> {
+            fn call_mut(&mut self, $( $args: $methty, )* ) -> O {
                 match self {
                     Rfunc::Default => {
-                        unimplemented!()
-                        //Self::return_default()
+                        use $crate::ReturnDefault;
+                        Self::return_default()
                     },
                     Rfunc::Expired => {
                         panic!("Called a method twice that was expected only once")
@@ -194,9 +194,31 @@ macro_rules! expectation {(
             }
         }
 
-        impl std::default::Default for Rfunc {
+        impl<O> std::default::Default for Rfunc<O> {
             fn default() -> Self {
                 Rfunc::Default
+            }
+        }
+
+        ::cfg_if::cfg_if! {
+            if #[cfg(feature = "nightly")] {
+                impl<O> $crate::ReturnDefault<O> for Rfunc<O> {
+                    default fn return_default() -> O {
+                        panic!("Can only return default values for types that impl std::Default");
+                    }
+                }
+
+                impl<O: Default> $crate::ReturnDefault<O> for Rfunc<O> {
+                    fn return_default() -> O {
+                        O::default()
+                    }
+                }
+            } else {
+                impl<O> $crate::ReturnDefault<O> for Rfunc<O> {
+                    fn return_default() -> O {
+                        panic!("Returning default values requires the \"nightly\" feature");
+                    }
+                }
             }
         }
 
@@ -278,7 +300,7 @@ macro_rules! expectation {(
         #[derive(Default)]
         pub struct Expectation {
             common: Common,
-            rfunc: ::std::sync::Mutex<Rfunc>,
+            rfunc: ::std::sync::Mutex<Rfunc<$o>>,
         }
 
         impl Expectation {

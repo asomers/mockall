@@ -1,5 +1,6 @@
 // vim: tw=80
 
+#![cfg_attr(feature = "nightly", feature(specialization))]
 use mockall::*;
 use mockall::expectation;
 use std::rc::Rc;
@@ -252,23 +253,25 @@ fn return_const() {
     assert_eq!(42, e.call());
 }
 
-///// Expectations return O::default() unless otherwise specified
-//#[test]
-//#[cfg_attr(not(feature = "nightly"), ignore)]
-//fn return_default() {
-    //let e = Expectation::<(), u32>::default();
-    //let r = e.call(());
-    //assert_eq!(u32::default(), r);
-//}
+/// Expectations return O::default() unless otherwise specified
+#[test]
+#[cfg_attr(not(feature = "nightly"), ignore)]
+fn return_default() {
+    expectation!{ FooExpectation, __foo_priv, u32, [], [], [], [], []}
+    let e = FooExpectation::default();
+    let r = e.call();
+    assert_eq!(u32::default(), r);
+}
 
-///// Can't return default for types that aren't Default
-//#[test]
-//#[should_panic]
-//fn return_default_panics_for_non_default_types() {
-    //struct NonDefault{}
-    //let e = Expectation::<(), NonDefault>::default();
-    //e.call(());
-//}
+pub struct NonDefault{}
+/// Can't return default for types that aren't Default
+#[test]
+#[should_panic]
+fn return_default_panics_for_non_default_types() {
+    expectation!{ FooExpectation, __foo_priv, NonDefault, [], [], [], [], [] }
+    let e = FooExpectation::default();
+    let _: NonDefault = e.call();
+}
 
 pub struct NonCopy{}
 
@@ -461,7 +464,4 @@ fn times_range_too_many() {
     e.call();
     // Verify that we panic quickly and don't reach code below this point.
     panic!("Shouldn't get here!");
-}
-
-mod xxx {
 }
