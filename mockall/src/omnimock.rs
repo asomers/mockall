@@ -505,7 +505,7 @@ macro_rules! ref_expectation {(
         }
 
         impl Matcher {
-            fn eval(&self, $( $args: &$matchty, )*) -> bool {
+            fn matches(&self, $( $args: &$matchty, )*) -> bool {
                 match self {
                     Matcher::Func(f) => f($( $args, )*),
                     Matcher::Pred($( $predargs, )*) =>
@@ -554,6 +554,10 @@ macro_rules! ref_expectation {(
                 }
             }
 
+            fn matches(&self, $( $args: &$matchty, )*) -> bool {
+                self.matcher.lock().unwrap().matches($( $args, )*)
+            }
+
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
             fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
                 (&mut self, $( $args: $predargs,)*)
@@ -587,6 +591,11 @@ macro_rules! ref_expectation {(
                     .expect("Must set return value with return_const")
             }
 
+            /// Validate this expectation's matcher.
+            pub fn matches(&self, $( $args: &$matchty, )*) -> bool {
+                self.common.matches($( $args, )*)
+            }
+
             pub fn new() -> Self {
                 Self::default()
             }
@@ -615,6 +624,25 @@ macro_rules! ref_expectation {(
             $crate::expectation_methods!{}
         }
 
+        #[derive(Default)]
+        pub struct Expectations(Vec<Expectation>);
+        impl Expectations {
+            /// Simulating calling the real method.  Every current expectation
+            /// will be checked in FIFO order and the first one with matching
+            /// arguments will be used.
+            pub fn call(&self, $( $args: $methty, )* ) -> &$o {
+                let n = self.0.len();
+                match self.0.iter()
+                    .find(|e| e.matches($( $matchcall, )*) &&
+                          (!e.is_done() || n == 1))
+                {
+                    None => panic!("No matching expectation found"),
+                    Some(e) => e.call($( $args, )*)
+                }
+            }
+
+            $crate::expectations_methods!{Expectation}
+        }
         }
     }
 }
@@ -670,7 +698,7 @@ macro_rules! ref_mut_expectation {(
         }
 
         impl Matcher {
-            fn eval(&self, $( $args: &$matchty, )*) -> bool {
+            fn matches(&self, $( $args: &$matchty, )*) -> bool {
                 match self {
                     Matcher::Func(f) => f($( $args, )*),
                     Matcher::Pred($( $predargs, )*) =>
@@ -719,6 +747,10 @@ macro_rules! ref_mut_expectation {(
                 }
             }
 
+            fn matches(&self, $( $args: &$matchty, )*) -> bool {
+                self.matcher.lock().unwrap().matches($( $args, )*)
+            }
+
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
             fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
                 (&mut self, $( $args: $predargs,)*)
@@ -755,6 +787,11 @@ macro_rules! ref_mut_expectation {(
                 }
                 self.result.as_mut()
                     .expect("Must first set return function with returning or return_var")
+            }
+
+            /// Validate this expectation's matcher.
+            pub fn matches(&self, $( $args: &$matchty, )*) -> bool {
+                self.common.matches($( $args, )*)
             }
 
             pub fn new() -> Self {
@@ -810,7 +847,25 @@ macro_rules! ref_mut_expectation {(
 
             $crate::expectation_methods!{}
         }
+        #[derive(Default)]
+        pub struct Expectations(Vec<Expectation>);
+        impl Expectations {
+            /// Simulating calling the real method.  Every current expectation
+            /// will be checked in FIFO order and the first one with matching
+            /// arguments will be used.
+            pub fn call_mut(&mut self, $( $args: $methty, )* ) -> &mut $o {
+                let n = self.0.len();
+                match self.0.iter_mut()
+                    .find(|e| e.matches($( $matchcall, )*) &&
+                          (!e.is_done() || n == 1))
+                {
+                    None => panic!("No matching expectation found"),
+                    Some(e) => e.call_mut($( $args, )*)
+                }
+            }
 
+            $crate::expectations_methods!{Expectation}
+        }
         }
     }
 }

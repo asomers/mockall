@@ -119,7 +119,8 @@ fn one_match() {
 
 #[test]
 fn ref_expectations() {
-    let mut e = RefExpectations::<i32, i32>::new();
+    ref_expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(4))
         .return_const(42);
@@ -132,7 +133,8 @@ fn ref_expectations() {
 
 #[test]
 fn ref_mut_expectations() {
-    let mut e = RefMutExpectations::<i32, i32>::new();
+    ref_mut_expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(4))
         .return_var(42);
