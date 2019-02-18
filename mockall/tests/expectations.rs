@@ -4,7 +4,8 @@ use mockall::*;
 
 #[test]
 fn checkpoint_ok() {
-    let mut e = Expectations::<i32, i32>::new();
+    expectation!{FooExpectation, __foo_priv, i32, [i32], [&x], [x], [p], [i32]}
+    let mut e = __foo_priv::Expectations::new();
     e.expect()
         .returning(|_| 42)
         .times_range(1..3);
