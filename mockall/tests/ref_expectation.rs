@@ -2,10 +2,34 @@
 
 use mockall::*;
 
+mod generic {
+    use super::*;
+
+    #[test]
+    fn generic_argument_and_return() {
+        ref_expectation!{foo<I, O>, O, [I], [&x], [x], [p], [I]}
+        let mut e = foo::Expectation::<i16, i32>::default();
+        e.with(predicate::eq(4))
+            .return_const(4);
+
+        assert_eq!(4i32, *e.call(4i16));
+    }
+
+    #[test]
+    fn generic_return() {
+        ref_expectation!{foo<O>, O, [u32], [&x], [x], [p], [u32]}
+        let mut e = foo::Expectation::<i32>::default();
+        e.with(predicate::eq(4))
+            .return_const(-42);
+
+        assert_eq!(-42, *e.call(4));
+    }
+}
+
 #[test]
 fn match_eq_ok() {
     ref_expectation!{
-        foo, i32,
+        foo<>, i32,
         [i32], [&i], [i], [p], [i32]
     }
     let mut e = foo::Expectation::default();
@@ -18,7 +42,7 @@ fn match_eq_ok() {
 #[should_panic]
 fn match_eq_fail() {
     ref_expectation!{
-        foo, i32,
+        foo<>, i32,
         [i32], [&i], [i], [p], [i32]
     }
     let mut e = foo::Expectation::default();
@@ -30,7 +54,7 @@ fn match_eq_fail() {
 #[test]
 fn never_ok() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -42,7 +66,7 @@ fn never_ok() {
 #[should_panic(expected = "Expectation should not have been called")]
 fn never_fail() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -54,7 +78,7 @@ fn never_fail() {
 mod reference_argument {
     use super::*;
 
-    ref_expectation!{foo, (),
+    ref_expectation!{foo<>, (),
         [&u32], [&i0], [i0], [p0], [u32]}
 
     #[test]
@@ -79,7 +103,7 @@ mod reference_argument {
 mod ref_and_nonref_arguments {
     use super::*;
 
-    ref_expectation!{foo, (),
+    ref_expectation!{foo<>, (),
         [i32, &u16],
         [&i0, i1],
         [i0, i1],
@@ -111,7 +135,7 @@ mod ref_and_nonref_arguments {
 mod reference_arguments {
     use super::*;
 
-    ref_expectation!{foo, (),
+    ref_expectation!{foo<>, (),
         [&u32, &u16],
         [i0, i1],
         [i0, i1],
@@ -134,7 +158,7 @@ mod reference_arguments {
 #[should_panic(expected = "Method sequence violation")]
 fn sequence_fail() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e0 = foo::Expectation::default();
@@ -155,7 +179,7 @@ fn sequence_fail() {
 #[test]
 fn sequence_ok() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e0 = foo::Expectation::default();
@@ -176,7 +200,7 @@ fn sequence_ok() {
 #[test]
 fn return_reference() {
     ref_expectation!{
-        foo, i32,
+        foo<>, i32,
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -188,7 +212,7 @@ fn return_reference() {
 fn return_str() {
     // This Expectation can be used for a method that returns &str
     ref_expectation!{
-        foo, String,
+        foo<>, String,
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -199,7 +223,7 @@ fn return_str() {
 #[test]
 fn times_any() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -213,7 +237,7 @@ fn times_any() {
 #[test]
 fn times_ok() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -227,7 +251,7 @@ fn times_ok() {
 #[should_panic(expected = "Expectation called fewer than 2 times")]
 fn times_too_few() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -240,7 +264,7 @@ fn times_too_few() {
 #[should_panic(expected = "Expectation called more than 2 times")]
 fn times_too_many() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -256,7 +280,7 @@ fn times_too_many() {
 #[test]
 fn times_range_ok() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e0 = foo::Expectation::default();
@@ -277,7 +301,7 @@ fn times_range_ok() {
 #[should_panic(expected = "Expectation called fewer than 2 times")]
 fn times_range_too_few() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();
@@ -290,7 +314,7 @@ fn times_range_too_few() {
 #[should_panic(expected = "Expectation called more than 3 times")]
 fn times_range_too_many() {
     ref_expectation!{
-        foo, (),
+        foo<>, (),
         [], [], [], [], []
     }
     let mut e = foo::Expectation::default();

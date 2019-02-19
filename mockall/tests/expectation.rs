@@ -4,6 +4,30 @@ use mockall::*;
 use mockall::expectation;
 use std::rc::Rc;
 
+mod generic {
+    use super::*;
+
+    #[test]
+    fn generic_argument_and_return() {
+        expectation!{foo<I, O>, O, [I], [&x], [x], [p], [I]}
+        let mut e = foo::Expectation::<i16, i32>::default();
+        e.with(predicate::eq(4))
+            .returning(|i| i32::from(i));
+
+        assert_eq!(4i32, e.call(4i16));
+    }
+
+    #[test]
+    fn generic_return() {
+        expectation!{foo<O>, O, [u32], [&x], [x], [p], [u32]}
+        let mut e = foo::Expectation::<i32>::default();
+        e.with(predicate::eq(4))
+            .returning(|_| -42);
+
+        assert_eq!(-42, e.call(4));
+    }
+}
+
 #[test]
 fn match_eq_ok() {
     expectation!{foo<>, (), [i32], [&x], [x], [p], [i32]}
