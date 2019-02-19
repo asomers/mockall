@@ -181,22 +181,22 @@ macro_rules! expectation {(
         use ::std::ops::DerefMut;
         use super::*;
 
-        enum Rfunc<O: 'static> {
+        enum Rfunc<MockallOutput: 'static> {
             Default,
             // Indicates that a `return_once` expectation has already returned
             Expired,
-            Mut(Box<dyn FnMut($( $methty, )*) -> O + Send>),
+            Mut(Box<dyn FnMut($( $methty, )*) -> MockallOutput + Send>),
             // Should be Box<dyn FnOnce> once that feature is stabilized
             // https://github.com/rust-lang/rust/issues/28796
-            Once(Box<dyn FnMut($( $methty, )*) -> O + Send>),
+            Once(Box<dyn FnMut($( $methty, )*) -> MockallOutput + Send>),
         }
 
-        impl<O>  Rfunc<O> {
-            fn call_mut(&mut self, $( $args: $methty, )* ) -> O {
+        impl<MockallOutput>  Rfunc<MockallOutput> {
+            fn call_mut(&mut self, $( $args: $methty, )* ) -> MockallOutput {
                 match self {
                     Rfunc::Default => {
                         use $crate::ReturnDefault;
-                        $crate::DefaultReturner::<O>::return_default()
+                        $crate::DefaultReturner::<MockallOutput>::return_default()
                     },
                     Rfunc::Expired => {
                         panic!("Called a method twice that was expected only once")
@@ -216,7 +216,7 @@ macro_rules! expectation {(
             }
         }
 
-        impl<O> std::default::Default for Rfunc<O> {
+        impl<MockallOutput> std::default::Default for Rfunc<MockallOutput> {
             fn default() -> Self {
                 Rfunc::Default
             }
@@ -328,8 +328,8 @@ macro_rules! expectation {(
             // accept equality constraints.
             // https://github.com/rust-lang/rust/issues/20041
             #[allow(unused_variables)]
-            pub fn return_const<O>(&mut self, c: O) -> &mut Self
-                where O: Clone + Into<$o> + Send + 'static
+            pub fn return_const<MockallOutput>(&mut self, c: MockallOutput) -> &mut Self
+                where MockallOutput: Clone + Into<$o> + Send + 'static
             {
                 let f = move |$( $args: $methty, )*| c.clone().into();
                 self.returning(f)
