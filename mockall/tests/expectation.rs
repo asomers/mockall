@@ -42,6 +42,27 @@ fn match_fn_fail() {
     e.call(5);
 }
 
+#[test]
+fn match_slice_ok() {
+    expectation!{foo, (), [&[u8]], [x], [x], [p], [[u8]]}
+    let mut e = foo::Expectation::default();
+    e.withf(|sl| sl == &[1, 2, 3])
+        .returning(|_| ());
+    let x = vec![1, 2, 3];
+    e.call(&x);
+}
+
+#[test]
+#[should_panic]
+fn match_slice_fail() {
+    expectation!{foo, (), [&[u8]], [x], [x], [p], [[u8]]}
+    let mut e = foo::Expectation::default();
+    e.withf(|sl| sl == &[1, 2, 3])
+        .returning(|_| ());
+    let x = vec![1, 2, 3, 4];
+    e.call(&x);
+}
+
 mod reference_argument {
     use super::*;
 
