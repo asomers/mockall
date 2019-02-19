@@ -124,14 +124,6 @@ macro_rules! expectations_methods {
             self.0.drain(..);
         }
 
-        /// Create a new expectation for this method.
-        pub fn expect(&mut self) -> &mut $expectation {
-            let e = <$expectation>::default();
-            self.0.push(e);
-            let l = self.0.len();
-            &mut self.0[l - 1]
-        }
-
         pub fn new() -> Self {
             Self::default()
         }
@@ -168,7 +160,10 @@ macro_rules! expectations_methods {
 /// ```
 #[macro_export]
 macro_rules! expectation {(
-        $module:ident,
+        $module:ident
+        // No Bounds!  Because the mock method can always be less strict than
+        // the real method.
+        < $( $genericty:ident ),* >,
         $o:ty,
         [ $( $methty:ty ),* ],
         [ $( $matchcall:expr ),* ],
@@ -181,22 +176,22 @@ macro_rules! expectation {(
         use ::std::ops::DerefMut;
         use super::*;
 
-        enum Rfunc<MockallOutput: 'static> {
+        enum Rfunc<$($genericty: 'static,)*> {
             Default,
             // Indicates that a `return_once` expectation has already returned
             Expired,
-            Mut(Box<dyn FnMut($( $methty, )*) -> MockallOutput + Send>),
+            Mut(Box<dyn FnMut($( $methty, )*) -> $o + Send>),
             // Should be Box<dyn FnOnce> once that feature is stabilized
             // https://github.com/rust-lang/rust/issues/28796
-            Once(Box<dyn FnMut($( $methty, )*) -> MockallOutput + Send>),
+            Once(Box<dyn FnMut($( $methty, )*) -> $o + Send>),
         }
 
-        impl<MockallOutput>  Rfunc<MockallOutput> {
-            fn call_mut(&mut self, $( $args: $methty, )* ) -> MockallOutput {
+        impl<$($genericty: 'static,)*>  Rfunc<$($genericty,)*> {
+            fn call_mut(&mut self, $( $args: $methty, )* ) -> $o {
                 match self {
                     Rfunc::Default => {
                         use $crate::ReturnDefault;
-                        $crate::DefaultReturner::<MockallOutput>::return_default()
+                        $crate::DefaultReturner::<$o>::return_default()
                     },
                     Rfunc::Expired => {
                         panic!("Called a method twice that was expected only once")
@@ -216,18 +211,22 @@ macro_rules! expectation {(
             }
         }
 
-        impl<MockallOutput> std::default::Default for Rfunc<MockallOutput> {
+        impl<$($genericty: 'static,)*>
+            std::default::Default for Rfunc<$($genericty,)*>
+        {
             fn default() -> Self {
                 Rfunc::Default
             }
         }
 
-        enum Matcher {
+        enum Matcher<$($genericty: 'static,)*> {
             Func(Box<Fn($( &$matchty, )* ) -> bool>),
-            Pred( $( Box<$crate::Predicate<$matchty>>, )* )
+            Pred( $( Box<$crate::Predicate<$matchty>>, )* ),
+            // Prevent "unused type parameter" errors
+            _Phantom(::std::marker::PhantomData<($($genericty,)*)>)
         }
 
-        impl Matcher {
+        impl<$($genericty: 'static,)*> Matcher<$($genericty,)*> {
             fn matches(&self, $( $args: &$matchty, )*) -> bool {
                 match self {
                     Matcher::Func(f) => f($( $args, )*),
@@ -235,6 +234,7 @@ macro_rules! expectation {(
                         [$( $predargs.eval($args), )*]
                         .into_iter()
                         .all(|x| *x),
+                    _ => unreachable!()
                 }
             }
 
@@ -247,12 +247,13 @@ macro_rules! expectation {(
                             panic!("Expectation didn't match arguments:\n{}",
                                    c.tree());
                         })*
-                    }
+                    },
+                    _ => unreachable!()
                 }
             }
         }
 
-        impl Default for Matcher {
+        impl<$($genericty: 'static,)*> Default for Matcher<$($genericty,)*> {
             #[allow(unused_variables)]
             fn default() -> Self {
                 Matcher::Func(Box::new(|$( $args, )*| true))
@@ -260,14 +261,13 @@ macro_rules! expectation {(
         }
 
         /// Holds the stuff that is independent of the output type
-        #[derive(Default)]
-        struct Common {
-            matcher: ::std::sync::Mutex<Matcher>,
+        struct Common<$($genericty: 'static,)*> {
+            matcher: ::std::sync::Mutex<Matcher<$($genericty,)*>>,
             seq_handle: Option<$crate::SeqHandle>,
             times: $crate::Times
         }
 
-        impl Common {
+        impl<$($genericty: 'static,)*> Common<$($genericty,)*> {
             fn call(&self, $( $args: &$matchty, )* ) {
                 self.matcher.lock().unwrap().verify($( $args, )*);
                 self.times.call();
@@ -301,14 +301,25 @@ macro_rules! expectation {(
             $crate::common_methods!{}
         }
 
-        #[derive(Default)]
-        pub struct Expectation {
-            common: Common,
-            rfunc: ::std::sync::Mutex<Rfunc<$o>>,
+        impl<$($genericty: 'static,)*> std::default::Default for Common<$($genericty,)*>
+        {
+            fn default() -> Self {
+                Common {
+                    matcher: ::std::sync::Mutex::new(Matcher::default()),
+                    seq_handle: None,
+                    times: $crate::Times::default()
+                }
+            }
         }
 
-        impl Expectation {
-            pub fn call(&self, $( $args: $methty, )* ) -> $o {
+        pub struct Expectation<$($genericty: 'static,)*> {
+            common: Common<$($genericty,)*>,
+            rfunc: ::std::sync::Mutex<Rfunc<$($genericty,)*>>,
+        }
+
+        impl<$($genericty: 'static,)*> Expectation<$($genericty,)*> {
+            pub fn call(&self, $( $args: $methty, )* ) -> $o
+            {
                 self.common.call($( $matchcall, )*);
                 self.rfunc.lock().unwrap().call_mut($( $args, )*)
             }
@@ -430,14 +441,26 @@ macro_rules! expectation {(
 
             $crate::expectation_methods!{}
         }
+        impl<$($genericty: 'static,)*> Default for Expectation<$($genericty,)*>
+        {
+            fn default() -> Self {
+                Expectation {
+                    common: Common::default(),
+                    rfunc: ::std::sync::Mutex::new(Rfunc::default())
+                }
+            }
+        }
 
-        #[derive(Default)]
-        pub struct Expectations(Vec<Expectation>);
-        impl Expectations {
+        pub struct Expectations<$($genericty: 'static,)*>(
+            Vec<Expectation<$($genericty,)*>>
+        );
+        impl<$($genericty: 'static,)*> Expectations<$($genericty,)*> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
             /// arguments will be used.
-            pub fn call(&self, $( $args: $methty, )* ) -> $o {
+            pub fn call(&self, $( $args: $methty, )* )
+                -> $o
+            {
                 let n = self.0.len();
                 match self.0.iter()
                     .find(|e| e.matches($( $matchcall, )*) &&
@@ -448,8 +471,24 @@ macro_rules! expectation {(
                 }
             }
 
+            /// Create a new expectation for this method.
+            pub fn expect(&mut self) -> &mut Expectation<$($genericty,)*>
+            {
+                let e = Expectation::<$($genericty,)*>::default();
+                self.0.push(e);
+                let l = self.0.len();
+                &mut self.0[l - 1]
+            }
+
             $crate::expectations_methods!{Expectation}
         }
+        impl<$($genericty: 'static,)*> Default for Expectations<$($genericty,)*>
+        {
+            fn default() -> Self {
+                Expectations(Vec::new())
+            }
+        }
+
         }
     }
 }
@@ -639,6 +678,15 @@ macro_rules! ref_expectation {(
                     None => panic!("No matching expectation found"),
                     Some(e) => e.call($( $args, )*)
                 }
+            }
+
+            /// Create a new expectation for this method.
+            pub fn expect(&mut self) -> &mut Expectation
+            {
+                let e = Expectation::default();
+                self.0.push(e);
+                let l = self.0.len();
+                &mut self.0[l - 1]
             }
 
             $crate::expectations_methods!{Expectation}
@@ -862,6 +910,15 @@ macro_rules! ref_mut_expectation {(
                     None => panic!("No matching expectation found"),
                     Some(e) => e.call_mut($( $args, )*)
                 }
+            }
+
+            /// Create a new expectation for this method.
+            pub fn expect(&mut self) -> &mut Expectation
+            {
+                let e = Expectation::default();
+                self.0.push(e);
+                let l = self.0.len();
+                &mut self.0[l - 1]
             }
 
             $crate::expectations_methods!{Expectation}

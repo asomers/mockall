@@ -4,7 +4,7 @@ use mockall::*;
 
 #[test]
 fn checkpoint_ok() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -15,7 +15,7 @@ fn checkpoint_ok() {
 
 #[test]
 fn checkpoint_and_expect_again() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -31,7 +31,7 @@ fn checkpoint_and_expect_again() {
 #[test]
 #[should_panic(expected = "Expectation called fewer than 1 times")]
 fn checkpoint_not_yet_satisfied() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -43,7 +43,7 @@ fn checkpoint_not_yet_satisfied() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn checkpoint_removes_old_expectations() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -57,7 +57,7 @@ fn checkpoint_removes_old_expectations() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn no_expectations() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let e = foo::Expectations::new();
     e.call(5);
 }
@@ -67,7 +67,7 @@ fn no_expectations() {
 /// multiple expectations match
 #[test]
 fn fifo_order() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
@@ -81,7 +81,7 @@ fn fifo_order() {
 
 #[test]
 fn match_reference() {
-    expectation!{foo, u32, [&i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, u32, [&i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
@@ -94,7 +94,7 @@ fn match_reference() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn nothing_matches() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
@@ -105,7 +105,7 @@ fn nothing_matches() {
 
 #[test]
 fn one_match() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(4))
@@ -148,7 +148,7 @@ fn ref_mut_expectations() {
 #[test]
 #[should_panic(expected = "Method sequence violation")]
 fn sequence_fail() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
     e.expect()
@@ -180,7 +180,7 @@ fn sequence_fail() {
 
 #[test]
 fn sequence_ok() {
-    expectation!{foo, i32, [i32], [&x], [x], [p], [i32]}
+    expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
     let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
     e.expect()
@@ -215,7 +215,7 @@ fn sequence_ok() {
 /// more expectations to follow.
 #[test]
 fn sequence_of_single_method() {
-    expectation!{foo, i32, [], [], [], [], []}
+    expectation!{foo<>, i32, [], [], [], [], []}
     let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
     e.expect()
@@ -239,7 +239,7 @@ fn sequence_of_single_method() {
 #[test]
 #[should_panic(expected = "Expectation called more than 2 times")]
 fn times_too_many() {
-    expectation!{foo, (), [], [], [], [], []}
+    expectation!{foo<>, (), [], [], [], [], []}
     let mut e = foo::Expectations::new();
     e.expect()
         .times(2)
