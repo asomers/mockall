@@ -133,7 +133,11 @@ fn ref_expectations() {
 
 #[test]
 fn ref_mut_expectations() {
-    ref_mut_expectation!{foo<>, i32, [i32], [&x], [x], [p], [i32]}
+    ref_mut_expectation!{
+        fn foo<>(x: i32) -> &mut i32 {
+            let (p: &i32) = (&x);
+        }
+    }
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(4))

@@ -885,7 +885,9 @@ macro_rules! ref_expectation {(
 /// ```no_run
 /// # use mockall::*;
 /// ref_mut_expectation!{
-///     foo<>, u32, [u32, &i16], [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
+///     fn foo<>(i0: u32, i1: &i16) -> &mut u32 {
+///         let (p0: &u32, p1: &i16) = (&i0, i1);
+///     }
 /// }
 /// ```
 /// Mocking generic methods requires the generic parameters to be `'static` and
@@ -894,21 +896,25 @@ macro_rules! ref_expectation {(
 /// `foo<D: Clone>(&mut self, d: D, x: &u32) -> &mut i16`, do
 /// ```no_run
 /// # use mockall::*;
-/// ref_mut_expectation! {
-///     foo<D>, i16, [D, &u32], [&d, x], [d, x], [p0, p1], [D, u32]
+/// ref_mut_expectation!{
+///     fn foo<D>(d: D, x: &u32) -> &mut i16 {
+///         let (pd: &D, px: &u32) = (&d, x);
+///     }
 /// }
 /// ```
 #[macro_export]
-macro_rules! ref_mut_expectation {(
-        $module:ident
-        < $( $generics:ident ),* >,
-        $o:ty,
-        [ $( $argty:ty ),* ],
-        [ $( $matchcall:expr ),* ],
-        [ $( $args:ident ),* ],
-        [ $( $altargs:ident ),* ],
-        [ $( $matchty:ty ),* ]) =>
-    {
+macro_rules! ref_mut_expectation {
+    (
+        fn $module:ident
+        // No Bounds!  Because the mock method can always be less strict than
+        // the real method.
+        < $( $generics:ident ),* > ( $( $args:ident : $argty:ty ),* )
+            -> & $(mut)? $o:ty
+        {
+            let ( $( $altargs:ident : &$matchty:ty ),* ) =
+                ( $( $matchcall:expr ),* );
+        }
+    ) => {
         mod $module {
         use ::downcast::*;
         use ::predicates_tree::CaseTreeExt;
