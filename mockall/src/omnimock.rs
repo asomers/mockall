@@ -46,7 +46,7 @@ macro_rules! common_methods {
 
         /// Allow this expectation to be called any number of times within a
         /// given range
-        fn times_range(&mut self, range: ::std::ops::Range<usize>) {
+        fn times_range(&mut self, range: Range<usize>) {
             self.times.range(range);
         }
 
@@ -104,7 +104,7 @@ macro_rules! expectation_methods {
 
         /// Allow this expectation to be called any number of times within a
         /// given range
-        pub fn times_range(&mut self, range: ::std::ops::Range<usize>)
+        pub fn times_range(&mut self, range: Range<usize>)
             -> &mut Self
         {
             self.common.times_range(range);
@@ -185,9 +185,15 @@ macro_rules! expectation {(
     {
         mod $module {
         use ::downcast::*;
+        use ::fragile::Fragile;
         use ::predicates_tree::CaseTreeExt;
-        use ::std::ops::DerefMut;
-        use super::*;
+        use ::std::{
+            collections::hash_map::HashMap,
+            mem,
+            ops::{DerefMut, Range},
+            sync::Mutex
+        };
+        use super::*;   // Import types from the calling environment
 
         trait AnyExpectations : Any + Send + Sync {}
         downcast!(AnyExpectations);
@@ -216,7 +222,7 @@ macro_rules! expectation {(
                         f( $( $args, )* )
                     },
                     Rfunc::Once(_) => {
-                        let fo = ::std::mem::replace(self, Rfunc::Expired);
+                        let fo = mem::replace(self, Rfunc::Expired);
                         if let Rfunc::Once(mut f) = fo {
                             f( $( $args, )* )
                         } else {
@@ -278,7 +284,7 @@ macro_rules! expectation {(
 
         /// Holds the stuff that is independent of the output type
         struct Common<$($genericty: 'static,)*> {
-            matcher: ::std::sync::Mutex<Matcher<$($genericty,)*>>,
+            matcher: Mutex<Matcher<$($genericty,)*>>,
             seq_handle: Option<$crate::SeqHandle>,
             times: $crate::Times
         }
@@ -303,7 +309,7 @@ macro_rules! expectation {(
             {
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Pred($( Box::new($args), )*);
-                ::std::mem::replace(guard.deref_mut(), m);
+                mem::replace(guard.deref_mut(), m);
             }
 
             fn withf<F>(&mut self, f: F)
@@ -311,7 +317,7 @@ macro_rules! expectation {(
             {
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Func(Box::new(f));
-                ::std::mem::replace(guard.deref_mut(), m);
+                mem::replace(guard.deref_mut(), m);
             }
 
             $crate::common_methods!{}
@@ -321,7 +327,7 @@ macro_rules! expectation {(
         {
             fn default() -> Self {
                 Common {
-                    matcher: ::std::sync::Mutex::new(Matcher::default()),
+                    matcher: Mutex::new(Matcher::default()),
                     seq_handle: None,
                     times: $crate::Times::default()
                 }
@@ -330,7 +336,7 @@ macro_rules! expectation {(
 
         pub struct Expectation<$($genericty: 'static,)*> {
             common: Common<$($genericty,)*>,
-            rfunc: ::std::sync::Mutex<Rfunc<$($genericty,)*>>,
+            rfunc: Mutex<Rfunc<$($genericty,)*>>,
         }
 
         impl<$($genericty: 'static,)*> Expectation<$($genericty,)*> {
@@ -379,8 +385,8 @@ macro_rules! expectation {(
                 };
                 {
                     let mut guard = self.rfunc.lock().unwrap();
-                    ::std::mem::replace(guard.deref_mut(),
-                                        Rfunc::Once(Box::new(fmut)));
+                    mem::replace(guard.deref_mut(),
+                                 Rfunc::Once(Box::new(fmut)));
                 }
                 self
             }
@@ -405,7 +411,7 @@ macro_rules! expectation {(
                 });
                 {
                     let mut guard = self.rfunc.lock().unwrap();
-                    ::std::mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
+                    mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
                 }
                 self
             }
@@ -415,7 +421,7 @@ macro_rules! expectation {(
             {
                 {
                     let mut guard = self.rfunc.lock().unwrap();
-                    ::std::mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
                 }
                 self
             }
@@ -428,14 +434,13 @@ macro_rules! expectation {(
             pub fn returning_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $methty, )*) -> $o + 'static
             {
-                let mut fragile = ::fragile::Fragile::new(f);
+                let mut fragile = Fragile::new(f);
                 let fmut = move |$( $args: $methty, )*| {
                     (fragile.get_mut())($( $args, )*)
                 };
                 {
                     let mut guard = self.rfunc.lock().unwrap();
-                    ::std::mem::replace(guard.deref_mut(),
-                                        Rfunc::Mut(Box::new(fmut)));
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
                 }
                 self
             }
@@ -462,7 +467,7 @@ macro_rules! expectation {(
             fn default() -> Self {
                 Expectation {
                     common: Common::default(),
-                    rfunc: ::std::sync::Mutex::new(Rfunc::default())
+                    rfunc: Mutex::new(Rfunc::default())
                 }
             }
         }
@@ -509,8 +514,7 @@ macro_rules! expectation {(
 
         #[derive(Default)]
         pub struct GenericExpectations{
-            store: ::std::collections::hash_map::HashMap<$crate::Key,
-                Box<dyn AnyExpectations>>
+            store: HashMap<$crate::Key, Box<dyn AnyExpectations>>
         }
         impl GenericExpectations {
             /// Simulating calling the real method.
@@ -610,8 +614,14 @@ macro_rules! ref_expectation {(
         [ $( $matchty:ty ),* ]) =>
     {
         mod $module {
+        use ::fragile::Fragile;
         use ::predicates_tree::CaseTreeExt;
-        use ::std::ops::DerefMut;
+        use ::std::{
+            collections::hash_map::HashMap,
+            mem,
+            ops::{DerefMut, Range},
+            sync::Mutex
+        };
         use super::*;
 
         enum Matcher<$($genericty: 'static,)*> {
@@ -657,7 +667,7 @@ macro_rules! ref_expectation {(
 
         /// Holds the stuff that is independent of the output type
         struct Common<$($genericty: 'static,)*> {
-            matcher: ::std::sync::Mutex<Matcher<$($genericty,)*>>,
+            matcher: Mutex<Matcher<$($genericty,)*>>,
             seq_handle: Option<$crate::SeqHandle>,
             times: $crate::Times
         }
@@ -666,7 +676,7 @@ macro_rules! ref_expectation {(
         {
             fn default() -> Self {
                 Common {
-                    matcher: ::std::sync::Mutex::new(Matcher::default()),
+                    matcher: Mutex::new(Matcher::default()),
                     seq_handle: None,
                     times: $crate::Times::default()
                 }
@@ -693,7 +703,7 @@ macro_rules! ref_expectation {(
             {
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Pred($( Box::new($args), )*);
-                ::std::mem::replace(guard.deref_mut(), m);
+                mem::replace(guard.deref_mut(), m);
             }
 
             fn withf<F>(&mut self, f: F)
@@ -701,7 +711,7 @@ macro_rules! ref_expectation {(
             {
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Func(Box::new(f));
-                ::std::mem::replace(guard.deref_mut(), m);
+                mem::replace(guard.deref_mut(), m);
             }
 
             $crate::common_methods!{}
@@ -856,7 +866,13 @@ macro_rules! ref_mut_expectation {(
     {
         mod $module {
         use ::predicates_tree::CaseTreeExt;
-        use ::std::ops::DerefMut;
+        use ::fragile::Fragile;
+        use ::std::{
+            collections::hash_map::HashMap,
+            mem,
+            ops::{DerefMut, Range},
+            sync::Mutex
+        };
         use super::*;
 
         enum Matcher<$($genericty: 'static,)*> {
@@ -902,7 +918,7 @@ macro_rules! ref_mut_expectation {(
 
         /// Holds the stuff that is independent of the output type
         struct Common<$($genericty: 'static,)*> {
-            matcher: ::std::sync::Mutex<Matcher<$($genericty,)*>>,
+            matcher: Mutex<Matcher<$($genericty,)*>>,
             seq_handle: Option<$crate::SeqHandle>,
             times: $crate::Times
         }
@@ -927,7 +943,7 @@ macro_rules! ref_mut_expectation {(
             {
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Pred($( Box::new($args), )*);
-                ::std::mem::replace(guard.deref_mut(), m);
+                mem::replace(guard.deref_mut(), m);
             }
 
             fn withf<F>(&mut self, f: F)
@@ -935,7 +951,7 @@ macro_rules! ref_mut_expectation {(
             {
                 let mut guard = self.matcher.lock().unwrap();
                 let m = Matcher::Func(Box::new(f));
-                ::std::mem::replace(guard.deref_mut(), m);
+                mem::replace(guard.deref_mut(), m);
             }
 
             $crate::common_methods!{}
@@ -944,7 +960,7 @@ macro_rules! ref_mut_expectation {(
         {
             fn default() -> Self {
                 Common {
-                    matcher: ::std::sync::Mutex::new(Matcher::default()),
+                    matcher: Mutex::new(Matcher::default()),
                     seq_handle: None,
                     times: $crate::Times::default()
                 }
@@ -992,7 +1008,7 @@ macro_rules! ref_mut_expectation {(
             pub fn returning<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $methty, )*) -> $o + Send + Sync + 'static
             {
-                ::std::mem::replace(&mut self.rfunc, Some(Box::new(f)));
+                mem::replace(&mut self.rfunc, Some(Box::new(f)));
                 self
             }
 
@@ -1001,11 +1017,11 @@ macro_rules! ref_mut_expectation {(
             pub fn returning_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $methty, )*) -> $o + 'static
             {
-                let mut fragile = ::fragile::Fragile::new(f);
+                let mut fragile = Fragile::new(f);
                 let fmut = move |$( $args: $methty, )*| {
                     (fragile.get_mut())($( $args, )*)
                 };
-                ::std::mem::replace(&mut self.rfunc, Some(Box::new(fmut)));
+                mem::replace(&mut self.rfunc, Some(Box::new(fmut)));
                 self
             }
 
