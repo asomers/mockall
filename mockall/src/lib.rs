@@ -1696,11 +1696,12 @@ impl<I, O> AnyExpectations for RefMutExpectations<I, O>
 {}
 
 /// Non-generic keys to `GenericExpectation` internal storage
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-struct Key(any::TypeId);
+pub struct Key(any::TypeId);
 
 impl Key {
-    fn new<I: 'static, O: 'static>() -> Self {
+    pub fn new<I: 'static, O: 'static>() -> Self {
         Key(any::TypeId::of::<(I, O)>())
     }
 }

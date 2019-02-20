@@ -7,33 +7,36 @@ mod generic_expectation {
 
     #[test]
     fn checkpoint_ok() {
-        let mut e = GenericExpectations::default();
-        e.expect::<i32, u32>()
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
+        e.expect::<i32>()
             .returning(|_| 42)
             .times_range(1..3);
-        e.call::<i32, u32>(0);
+        e.call::<i32>(0);
         e.checkpoint();
     }
 
     #[test]
     fn checkpoint_and_expect_again() {
-        let mut e = GenericExpectations::default();
-        e.expect::<i32, u32>()
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
+        e.expect::<i32>()
             .returning(|_| 42)
             .times_range(1..3);
-        e.call::<i32, u32>(0);
+        e.call::<i32>(0);
         e.checkpoint();
 
-        e.expect::<i32, u32>()
+        e.expect::<i32>()
             .returning(|_| 25);
-        assert_eq!(25, e.call::<i32, u32>(0));
+        assert_eq!(25, e.call::<i32>(0));
     }
 
     #[test]
     #[should_panic(expected = "Expectation called fewer than 1 times")]
     fn checkpoint_not_yet_satisfied() {
-        let mut e = GenericExpectations::default();
-        e.expect::<i32, u32>()
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
+        e.expect::<i32>()
             .returning(|_| 42)
             .times(1);
         e.checkpoint();
@@ -43,57 +46,115 @@ mod generic_expectation {
     #[test]
     #[should_panic(expected = "No matching expectation found")]
     fn checkpoint_removes_old_expectations() {
-        let mut e = GenericExpectations::default();
-        e.expect::<i32, u32>()
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
+        e.expect::<i32>()
             .returning(|_| 42)
             .times_range(1..3);
-        e.call::<i32, u32>(0);
+        e.call::<i32>(0);
         e.checkpoint();
-        e.call::<i32, u32>(0);
+        e.call::<i32>(0);
         panic!("Shouldn't get here!");
+    }
+
+    #[test]
+    fn generic_argument() {
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
+
+        e.expect::<i32>()
+            .with(predicate::eq(4))
+            .returning(|_| 42u32);
+
+        assert_eq!(42, e.call::<i32>(4));
+    }
+
+    #[test]
+    fn generic_return() {
+        expectation!{foo<T>, T, [i32], [&x], [x], [p], [i32]}
+        let mut e = foo::GenericExpectations::default();
+
+        e.expect::<u32>()
+            .with(predicate::eq(4i32))
+            .returning(|_| 42);
+
+        assert_eq!(42, e.call::<u32>(4));
+    }
+
+    /// A generic method can have reference arguments, as long as they aren't
+    /// generic
+    #[test]
+    fn reference_arguments() {
+        expectation!{foo<T>, u32, [T, &i16], [&t, x], [t, x], [p, q], [T, i16]}
+        let mut e = foo::GenericExpectations::default();
+
+        e.expect::<i32>()
+            .with(predicate::eq(4), predicate::eq(-4))
+            .returning(|_, _| 42u32);
+
+        let x = -4i16;
+        assert_eq!(42, e.call::<i32>(4, &x));
     }
 
     #[test]
     #[should_panic(expected = "No matching expectation found")]
     fn missing_expectation() {
-        let e = GenericExpectations::default();
-        e.call::<i32, u32>(5);
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let e = foo::GenericExpectations::default();
+        e.call::<i32>(5);
+    }
+
+    /// An expectation is set, but the mock is called with the wrong generic
+    /// parameters
+    #[test]
+    #[should_panic(expected = "No matching expectation found")]
+    fn missing_expectation_for_these_parameters() {
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
+        e.expect::<u32>()
+            .returning(|_| 42);
+        e.call::<i32>(5);
     }
 
     /// Unlike Mockers, calls should use the oldest matching expectation, if
     /// multiple expectations match
     #[test]
     fn fifo_order() {
-        let mut e = GenericExpectations::new();
-        e.expect::<i32, i32>()
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
+        e.expect::<i32>()
             .with(predicate::eq(5))
             .returning(|_| 99);
-        e.expect::<i32, i32>()
+        e.expect::<i32>()
             .with(predicate::always())
             .returning(|_| 42);
 
-        assert_eq!(99, e.call::<i32, i32>(5));
+        assert_eq!(99, e.call::<i32>(5));
     }
 
+    /// Two expectations are set.  Mockall should choose the right one
     #[test]
     fn one_match() {
-        let mut e = GenericExpectations::new();
-        e.expect::<i32, i32>()
+        expectation!{foo<T>, T, [T], [&t], [t], [p], [T]}
+
+        let mut e0 = foo::GenericExpectations::default();
+        e0.expect::<i32>()
             .with(predicate::eq(4))
             .returning(|_| 42);
-        e.expect::<i32, i32>()
+        e0.expect::<i32>()
             .with(predicate::eq(5))
             .returning(|_| 99);
+        assert_eq!(42, e0.call::<i32>(4));
 
-        assert_eq!(42, e.call::<i32, i32>(4));
-    }
-
-    #[test]
-    fn no_args_or_returns() {
-        let mut e = GenericExpectations::default();
-        e.expect::<(), ()>()
-            .returning(|_| ());
-        e.call::<(), ()>(());
+        // And in reverse order:
+        let mut e1 = foo::GenericExpectations::default();
+        e1.expect::<i32>()
+            .with(predicate::eq(5))
+            .returning(|_| 99);
+        e1.expect::<i32>()
+            .with(predicate::eq(4))
+            .returning(|_| 42);
+        assert_eq!(42, e1.call::<i32>(4));
     }
 }
 

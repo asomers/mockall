@@ -184,9 +184,13 @@ macro_rules! expectation {(
         [ $( $matchty:ty ),* ]) =>
     {
         mod $module {
+        use ::downcast::*;
         use ::predicates_tree::CaseTreeExt;
         use ::std::ops::DerefMut;
         use super::*;
+
+        trait AnyExpectations : Any + Send + Sync {}
+        downcast!(AnyExpectations);
 
         enum Rfunc<$($genericty: 'static,)*> {
             Default,
@@ -232,8 +236,8 @@ macro_rules! expectation {(
         }
 
         enum Matcher<$($genericty: 'static,)*> {
-            Func(Box<Fn($( &$matchty, )* ) -> bool>),
-            Pred( $( Box<$crate::Predicate<$matchty>>, )* ),
+            Func(Box<Fn($( &$matchty, )* ) -> bool + Send>),
+            Pred( $( Box<$crate::Predicate<$matchty> + Send>, )* ),
             // Prevent "unused type parameter" errors
             _Phantom(::std::marker::PhantomData<($($genericty,)*)>)
         }
@@ -294,7 +298,7 @@ macro_rules! expectation {(
             }
 
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
-            fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
+            fn with<$( $predargs: $crate::Predicate<$matchty> + Send + 'static,)*>
                 (&mut self, $( $args: $predargs,)*)
             {
                 let mut guard = self.matcher.lock().unwrap();
@@ -437,7 +441,7 @@ macro_rules! expectation {(
             }
 
             #[allow(non_camel_case_types)]  // Repurpose $predargs for generics
-            pub fn with<$( $predargs: $crate::Predicate<$matchty> + 'static,)*>
+            pub fn with<$( $predargs: $crate::Predicate<$matchty> + Send + 'static,)*>
                 (&mut self, $( $args: $predargs,)*) -> &mut Self
             {
                 self.common.with($( $args, )*);
@@ -499,7 +503,55 @@ macro_rules! expectation {(
                 Expectations(Vec::new())
             }
         }
+        impl<$($genericty: Send + Sync + 'static,)*>
+            AnyExpectations for Expectations<$($genericty,)*>
+        {}
 
+        #[derive(Default)]
+        pub struct GenericExpectations{
+            store: ::std::collections::hash_map::HashMap<$crate::Key,
+                Box<dyn AnyExpectations>>
+        }
+        impl GenericExpectations {
+            /// Simulating calling the real method.
+            pub fn call<$($genericty: Send + Sync + 'static,)*>
+                (&self, $( $args: $methty, )* ) -> $o
+            {
+                // TODO: remove the 2nd type argument from Key after the old API
+                // is fully replaced.
+                let key = $crate::Key::new::<($($methty,)*), ()>();
+                let e: &Expectations<$($genericty,)*> = self.store.get(&key)
+                    .expect("No matching expectation found")
+                    .downcast_ref()
+                    .unwrap();
+                e.call($( $args, )*)
+            }
+
+            /// Verify that all current expectations are satisfied and clear
+            /// them.  This applies to all sets of generic parameters!
+            pub fn checkpoint(&mut self) {
+                self.store.clear();
+            }
+
+            /// Create a new Expectation.
+            pub fn expect<'e, $($genericty: Send + Sync + 'static,)*>
+                (&'e mut self)
+                -> &'e mut Expectation<$($genericty,)*>
+            {
+                let key = $crate::Key::new::<($($methty,)*), ()>();
+                let ee: &mut Expectations<$($genericty,)*> =
+                    self.store.entry(key)
+                    .or_insert_with(||
+                        Box::new(Expectations::<$($genericty,)*>::new())
+                    ).downcast_mut()
+                    .unwrap();
+                ee.expect()
+            }
+
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
         }
     }
 }
