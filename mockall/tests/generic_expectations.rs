@@ -116,6 +116,26 @@ mod generic_expectation {
         e.call::<i32>(5);
     }
 
+    /// Multiple generic methods with the same set of generic parameters are in
+    /// scope at the same time.  Their expectations should not get scrambled.
+    #[test]
+    fn multiple_methods() {
+        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{bar<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e0 = foo::GenericExpectations::default();
+        let mut e1 = bar::GenericExpectations::default();
+
+        e0.expect::<i32>()
+            .with(predicate::eq(4))
+            .returning(|_| 42u32);
+        e1.expect::<i32>()
+            .with(predicate::eq(4))
+            .returning(|_| 99u32);
+
+        assert_eq!(42, e0.call(4i32));
+        assert_eq!(99, e1.call(4i32));
+    }
+
     /// Unlike Mockers, calls should use the oldest matching expectation, if
     /// multiple expectations match
     #[test]

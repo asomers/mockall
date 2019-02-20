@@ -914,7 +914,8 @@ pub use predicates::prelude::{Predicate, predicate};
 #[doc(hidden)]
 pub use lazy_static::lazy_static;
 
-trait AnyExpectations : Any + Send + Sync {}
+#[doc(hidden)]
+pub trait AnyExpectations : Any + Send + Sync {}
 downcast!(AnyExpectations);
 
 #[doc(hidden)]

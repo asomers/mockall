@@ -195,9 +195,6 @@ macro_rules! expectation {(
         };
         use super::*;   // Import types from the calling environment
 
-        trait AnyExpectations : Any + Send + Sync {}
-        downcast!(AnyExpectations);
-
         enum Rfunc<$($genericty: 'static,)*> {
             Default,
             // Indicates that a `return_once` expectation has already returned
@@ -509,12 +506,12 @@ macro_rules! expectation {(
             }
         }
         impl<$($genericty: Send + Sync + 'static,)*>
-            AnyExpectations for Expectations<$($genericty,)*>
+            $crate::AnyExpectations for Expectations<$($genericty,)*>
         {}
 
         #[derive(Default)]
         pub struct GenericExpectations{
-            store: HashMap<$crate::Key, Box<dyn AnyExpectations>>
+            store: HashMap<$crate::Key, Box<dyn $crate::AnyExpectations>>
         }
         impl GenericExpectations {
             /// Simulating calling the real method.
