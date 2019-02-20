@@ -182,15 +182,42 @@ mod generic_ref_expectation {
     use super::*;
 
     #[test]
-    fn no_args() {
-        let mut e = GenericRefExpectations::default();
-        e.expect::<(), u32>()
-            .return_const(5u32);
-        e.expect::<(), u64>()
-            .return_const(6u64);
+    fn generic_argument() {
+        ref_expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
 
-        assert_eq!(5u32, *e.call::<(), u32>(()));
-        assert_eq!(6u64, *e.call::<(), u64>(()));
+        e.expect::<i32>()
+            .with(predicate::eq(4))
+            .return_const(42u32);
+
+        assert_eq!(42, *e.call::<i32>(4));
+    }
+
+    #[test]
+    fn generic_return() {
+        ref_expectation!{foo<T>, T, [i32], [&x], [x], [p], [i32]}
+        let mut e = foo::GenericExpectations::default();
+
+        e.expect::<u32>()
+            .with(predicate::eq(4i32))
+            .return_const(42);
+
+        assert_eq!(42, *e.call::<u32>(4));
+    }
+
+    /// A generic method can have reference arguments, as long as they aren't
+    /// generic
+    #[test]
+    fn reference_arguments() {
+        ref_expectation!{foo<T>, u32, [T, &i16], [&t, x], [t, x], [p, q], [T, i16]}
+        let mut e = foo::GenericExpectations::default();
+
+        e.expect::<i32>()
+            .with(predicate::eq(4), predicate::eq(-4))
+            .return_const(42u32);
+
+        let x = -4i16;
+        assert_eq!(42, *e.call::<i32>(4, &x));
     }
 }
 
@@ -198,15 +225,42 @@ mod generic_ref_mut_expectation {
     use super::*;
 
     #[test]
-    fn no_args() {
-        let mut e = GenericRefMutExpectations::default();
-        e.expect::<(), u32>()
-            .returning(|_| 5u32);
-        e.expect::<(), u64>()
-            .returning(|_| 6u64);
+    fn generic_argument() {
+        ref_mut_expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        let mut e = foo::GenericExpectations::default();
 
-        assert_eq!(5u32, *e.call_mut::<(), u32>(()));
-        assert_eq!(6u64, *e.call_mut::<(), u64>(()));
+        e.expect::<i32>()
+            .with(predicate::eq(4))
+            .return_var(42u32);
+
+        assert_eq!(42, *e.call_mut::<i32>(4));
+    }
+
+    #[test]
+    fn generic_return() {
+        ref_mut_expectation!{foo<T>, T, [i32], [&x], [x], [p], [i32]}
+        let mut e = foo::GenericExpectations::default();
+
+        e.expect::<u32>()
+            .with(predicate::eq(4i32))
+            .return_var(42);
+
+        assert_eq!(42, *e.call_mut::<u32>(4));
+    }
+
+    /// A generic method can have reference arguments, as long as they aren't
+    /// generic
+    #[test]
+    fn reference_arguments() {
+        ref_mut_expectation!{foo<T>, u32, [T, &i16], [&t, x], [t, x], [p, q], [T, i16]}
+        let mut e = foo::GenericExpectations::default();
+
+        e.expect::<i32>()
+            .with(predicate::eq(4), predicate::eq(-4))
+            .return_var(42u32);
+
+        let x = -4i16;
+        assert_eq!(42, *e.call_mut::<i32>(4, &x));
     }
 }
 
