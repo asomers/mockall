@@ -4,7 +4,7 @@ use mockall::*;
 
 #[test]
 fn checkpoint_ok() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -15,7 +15,7 @@ fn checkpoint_ok() {
 
 #[test]
 fn checkpoint_and_expect_again() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -31,7 +31,7 @@ fn checkpoint_and_expect_again() {
 #[test]
 #[should_panic(expected = "Expectation called fewer than 1 times")]
 fn checkpoint_not_yet_satisfied() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -43,7 +43,7 @@ fn checkpoint_not_yet_satisfied() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn checkpoint_removes_old_expectations() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .returning(|_| 42)
@@ -57,7 +57,7 @@ fn checkpoint_removes_old_expectations() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn no_expectations() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let e = foo::Expectations::new();
     e.call(5);
 }
@@ -67,7 +67,7 @@ fn no_expectations() {
 /// multiple expectations match
 #[test]
 fn fifo_order() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
@@ -81,7 +81,7 @@ fn fifo_order() {
 
 #[test]
 fn match_reference() {
-    expectation!{ fn foo<>(x: &i32) -> u32 { let (p: &i32) = (x); } }
+    expectation!{ fn foo<>(&self, x: &i32) -> u32 { let (p: &i32) = (x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
@@ -94,7 +94,7 @@ fn match_reference() {
 #[test]
 #[should_panic(expected = "No matching expectation found")]
 fn nothing_matches() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(5))
@@ -105,7 +105,7 @@ fn nothing_matches() {
 
 #[test]
 fn one_match() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(4))
@@ -119,7 +119,7 @@ fn one_match() {
 
 #[test]
 fn ref_expectations() {
-    ref_expectation!{ fn foo<>(x: i32) -> &i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> &i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .with(predicate::eq(4))
@@ -133,8 +133,8 @@ fn ref_expectations() {
 
 #[test]
 fn ref_mut_expectations() {
-    ref_mut_expectation!{
-        fn foo<>(x: i32) -> &mut i32 {
+    expectation!{
+        fn foo<>(&mut self, x: i32) -> &mut i32 {
             let (p: &i32) = (&x);
         }
     }
@@ -152,7 +152,7 @@ fn ref_mut_expectations() {
 #[test]
 #[should_panic(expected = "Method sequence violation")]
 fn sequence_fail() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
     e.expect()
@@ -184,7 +184,7 @@ fn sequence_fail() {
 
 #[test]
 fn sequence_ok() {
-    expectation!{ fn foo<>(x: i32) -> i32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(&self, x: i32) -> i32 { let (p: &i32) = (&x); } }
     let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
     e.expect()
@@ -219,7 +219,7 @@ fn sequence_ok() {
 /// more expectations to follow.
 #[test]
 fn sequence_of_single_method() {
-    expectation!{ fn foo<>() -> i32 { let () = (); } }
+    expectation!{ fn foo<>(&self, ) -> i32 { let () = (); } }
     let mut e = foo::Expectations::new();
     let mut seq = Sequence::new();
     e.expect()
@@ -243,7 +243,7 @@ fn sequence_of_single_method() {
 #[test]
 #[should_panic(expected = "Expectation called more than 2 times")]
 fn times_too_many() {
-    expectation!{ fn foo<>() -> () { let () = (); } }
+    expectation!{ fn foo<>(&self, ) -> () { let () = (); } }
     let mut e = foo::Expectations::new();
     e.expect()
         .times(2)

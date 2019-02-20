@@ -130,9 +130,21 @@ macro_rules! expectations_methods {
     }
 }
 
-/// Generate Expectation and Expectations types with specific signatures, for
-/// methods that take `&self` arguments and return references with the same
-/// lifetime as `self`.
+/// Generate Expectation and Expectations types.
+///
+/// This macro can mock most method types, whether they take `self`, `&self`, or
+/// `&mut self` references, `'static` arguments or reference arguments, and
+/// `'static` or reference return types.
+///
+/// Reference arguments will be given independent anonymous lifetimes.  This is
+/// the usual behavior for methods that don't specify explicit lifetimes.
+///
+/// Methods that return references will use `self`'s lifetime for the lifetime
+/// of the returned value.
+///
+/// Generic methods are allowed, as long as the generic parameters are `'static`
+/// (but concrete arguments don't need to be).  Don't repeat the generic bounds
+/// in the macro invocation.
 ///
 /// # Arguments
 ///
@@ -141,6 +153,9 @@ macro_rules! expectations_methods {
 ///                     bounds.
 /// * `o`:              Owned version of the output type.  Must be a `'static`.
 ///                     The real output type will be a reference to this one.
+///                     Returning references, both mutable and immutable, is
+///                     allowed, but note that the `&` or `&mut` is technically
+///                     not part of the macro argument.
 /// * `argty`:          Comma-delimited sequence of arguments types for the
 ///                     method being mocked.
 /// * `matchcall`:      Comma-delimited sequence of expressions that produce
@@ -155,35 +170,59 @@ macro_rules! expectations_methods {
 ///
 /// # Examples
 ///
-/// Mock a method like `foo(&self, x: u32, y: &i16) -> &u32`
+/// Mock a method with a `'static` return type like
+/// `foo(&self, x: u32, y: &i16) -> u32`
 /// ```no_run
 /// # use mockall::*;
-/// ref_expectation!{
-///     fn foo<>(i0: u32, i1: &i16) -> &u32 {
+/// expectation! {
+///     fn foo<>(&self, x: u32, y: &i16) -> u32 {
+///         let (px: &u32, py: &i16) = (&x, y);
+///     }
+/// }
+/// ```
+///
+/// Mock a generic method with a `'static` return type like
+/// `foo<D: Clone>(d: D, x: &u32) -> bool`
+/// ```no_run
+/// # use mockall::*;
+/// expectation! {
+///     fn foo<D>(&self, d: D, x: &u32) -> bool {
+///         let (pd: &D, px: &u32) = (&d, x);
+///     }
+/// }
+/// ```
+///
+/// Mock a method returning a reference like
+/// `foo(&self, x: u32, y: &i16) -> &u32`
+/// ```no_run
+/// # use mockall::*;
+/// expectation!{
+///     fn foo<>(&self, i0: u32, i1: &i16) -> &u32 {
 ///         let (p0: &u32, p1: &i16) = (&i0, i1);
 ///     }
 /// }
 /// ```
-/// Mocking generic methods requires the generic parameters to be `'static` and
-/// `Sized`, but other arguments don't need to be.  There is no need to repeat
-/// their bounds.  For example, for mocking a method like
-/// `foo<R: Clone>(&self, x: &u32) -> &R`, do
+///
+/// Mock a method returning a mutable reference like
+/// `foo(&mut self, x: u32, y: &i16) -> &mut u32`
 /// ```no_run
 /// # use mockall::*;
-/// ref_expectation! {
-///     fn foo<R>(x: &u32) -> &R {
-///         let (px: &u32) = (&x);
+/// expectation!{
+///     fn foo<>(&mut self, i0: u32, i1: &i16) -> &mut u32 {
+///         let (p0: &u32, p1: &i16) = (&i0, i1);
 ///     }
 /// }
 /// ```
 #[macro_export]
-macro_rules! ref_expectation {
+macro_rules! expectation {
+    // First pattern, for references taking &self and returning immutable
+    // references.
     (
         fn $module:ident
         // No Bounds!  Because the mock method can always be less strict than
         // the real method.
-        < $( $generics:ident ),* > ( $( $args:ident : $argty:ty ),* )
-            -> & $o:ty
+        < $( $generics:ident ),* >
+        (&self, $( $args:ident : $argty:ty ),* ) -> & $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
                 ( $( $matchcall:expr ),* );
@@ -432,63 +471,16 @@ macro_rules! ref_expectation {
             }
         }
         }
-    }
-}
+    };
 
-/// Generate Expectation and Expectations types with specific signatures, for
-/// methods that take `&mut self` arguments and return references with the same
-/// lifetime as `self`.
-///
-/// # Arguments
-///
-/// * `module`:         Name of the private module to create
-/// * `generics`:       Comma-delimited sequence of generic parameters, sans
-///                     bounds.
-/// * `o`:              Owned version of the output type.  Must be a `'static`.
-///                     The real output type will be a reference to this one.
-/// * `argty`:          Comma-delimited sequence of arguments types for the
-///                     method being mocked.
-/// * `matchcall`:      Comma-delimited sequence of expressions that produce
-///                     values of type `matchty` from values of type `argty`.
-/// * `args`:           comma-delimited sequence of argument names for each
-///                     argument.  Ideally this wouldn't need to be specified,
-///                     but it is due to Rust's macro hygiene rules.
-/// * `altargs`:        Comma-delimited sequence of identifiers of the same
-///                     length as `args`, but distinct.
-/// * `matchty`:        comma-delimited sequence of types for each match
-///                     argument.  Must all be `'static`.
-///
-/// # Examples
-///
-/// Mock a method like `foo(&mut self, x: u32, y: &i16) -> &mut u32`
-/// ```no_run
-/// # use mockall::*;
-/// ref_mut_expectation!{
-///     fn foo<>(i0: u32, i1: &i16) -> &mut u32 {
-///         let (p0: &u32, p1: &i16) = (&i0, i1);
-///     }
-/// }
-/// ```
-/// Mocking generic methods requires the generic parameters to be `'static` and
-/// `Sized`, but other arguments don't need to be.  There is no need to repeat
-/// their bounds.  For example, for mocking a method like
-/// `foo<D: Clone>(&mut self, d: D, x: &u32) -> &mut i16`, do
-/// ```no_run
-/// # use mockall::*;
-/// ref_mut_expectation!{
-///     fn foo<D>(d: D, x: &u32) -> &mut i16 {
-///         let (pd: &D, px: &u32) = (&d, x);
-///     }
-/// }
-/// ```
-#[macro_export]
-macro_rules! ref_mut_expectation {
+    // Second pattern, for methods taking &mut self and returning mutable or
+    // immutable references.
     (
         fn $module:ident
         // No Bounds!  Because the mock method can always be less strict than
         // the real method.
-        < $( $generics:ident ),* > ( $( $args:ident : $argty:ty ),* )
-            -> & $(mut)? $o:ty
+        < $( $generics:ident ),* >
+        (&mut self, $( $args:ident : $argty:ty ),* ) -> & $(mut)? $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
                 ( $( $matchcall:expr ),* );
@@ -767,61 +759,15 @@ macro_rules! ref_mut_expectation {
             }
         }
         }
-    }
-}
+    };
 
-/// Generate Expectation and Expectations types with specific signatures, for
-/// `'static` return types.
-///
-/// # Arguments
-///
-/// * `module`:         Name of the private module to create
-/// * `generics`:       Comma-delimited sequence of generic parameters, sans
-///                     bounds.
-/// * `o`:              Output type.  Must be static
-/// * `argty`:          Comma-delimited sequence of arguments types for the
-///                     method being mocked.
-/// * `matchcall`:      Comma-delimited sequence of expressions that produce
-///                     values of type `matchty` from values of type `argty`.
-/// * `args`:           comma-delimited sequence of argument names for each
-///                     argument.  Ideally this wouldn't need to be specified,
-///                     but it is due to Rust's macro hygiene rules.
-/// * `altargs`:        Comma-delimited sequence of identifiers of the same
-///                     length as `args`, but distinct.
-/// * `matchty`:        comma-delimited sequence of types for each match
-///                     argument.  Must all be `'static`.
-///
-/// # Examples
-///
-/// Mock a method like `foo(&self, x: u32, y: &i16) -> u32`
-/// ```no_run
-/// # use mockall::*;
-/// expectation! {
-///     fn foo<>(x: u32, y: &i16) -> u32 {
-///         let (px: &u32, py: &i16) = (&x, y);
-///     }
-/// }
-/// ```
-/// Mocking generic methods requires the generic parameters to be `'static` and
-/// `Sized`, but other arguments don't need to be.  There is no need to repeat
-/// their bounds.  For example, for mocking a method like
-/// `foo<D: Clone>(d: D, x: &u32) -> bool`, do
-/// ```no_run
-/// # use mockall::*;
-/// expectation! {
-///     fn foo<D>(d: D, x: &u32) -> bool {
-///         let (pd: &D, px: &u32) = (&d, x);
-///     }
-/// }
-/// ```
-#[macro_export]
-macro_rules! expectation {
+    // Third pattern, for methods returning 'static values
     (
         fn $module:ident
         // No Bounds!  Because the mock method can always be less strict than
         // the real method.
-        < $( $generics:ident ),* > ( $( $args:ident : $argty:ty ),* )
-            -> $o:ty
+        < $( $generics:ident ),* >
+        ($(&)?$(mut)?self, $( $args:ident : $argty:ty ),* ) -> $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
                 ( $( $matchcall:expr ),* );
