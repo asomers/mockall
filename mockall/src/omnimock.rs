@@ -130,7 +130,7 @@ macro_rules! expectations_methods {
     }
 }
 
-/// Generate Expectation and Expectations types.
+/// Generate Expectation and Expectations types for a single method.
 ///
 /// This macro can mock most method types, whether they take `self`, `&self`, or
 /// `&mut self` references, `'static` arguments or reference arguments, and
@@ -143,8 +143,8 @@ macro_rules! expectations_methods {
 /// of the returned value.
 ///
 /// Generic methods are allowed, as long as the generic parameters are `'static`
-/// (but concrete arguments don't need to be).  Don't repeat the generic bounds
-/// in the macro invocation.
+/// (but concrete types don't need to be).  Don't repeat the generic bounds in
+/// the macro invocation.
 ///
 /// # Arguments
 ///
@@ -215,12 +215,10 @@ macro_rules! expectations_methods {
 /// ```
 #[macro_export]
 macro_rules! expectation {
-    // First pattern, for references taking &self and returning immutable
-    // references.
     (
+        // First pattern, for references taking &self and returning immutable
+        // references.
         fn $module:ident
-        // No Bounds!  Because the mock method can always be less strict than
-        // the real method.
         < $( $generics:ident ),* >
         (&self, $( $args:ident : $argty:ty ),* ) -> & $o:ty
         {
@@ -473,12 +471,10 @@ macro_rules! expectation {
         }
     };
 
-    // Second pattern, for methods taking &mut self and returning mutable or
-    // immutable references.
     (
+        // Second pattern, for methods taking &mut self and returning mutable or
+        // immutable references.
         fn $module:ident
-        // No Bounds!  Because the mock method can always be less strict than
-        // the real method.
         < $( $generics:ident ),* >
         (&mut self, $( $args:ident : $argty:ty ),* ) -> & $(mut)? $o:ty
         {
@@ -761,11 +757,9 @@ macro_rules! expectation {
         }
     };
 
-    // Third pattern, for methods returning 'static values
     (
+        // Third pattern, for methods returning 'static values
         fn $module:ident
-        // No Bounds!  Because the mock method can always be less strict than
-        // the real method.
         < $( $generics:ident ),* >
         ($(&)?$(mut)?self, $( $args:ident : $argty:ty ),* ) -> $o:ty
         {
