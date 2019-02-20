@@ -1,3 +1,7 @@
 /target
 **/*.rs.bk
+**/*.orig
+**/*.rej
+**/*.diff
+**/.*.swp
 Cargo.lock
