@@ -7,7 +7,7 @@ mod generic_expectation {
 
     #[test]
     fn checkpoint_ok() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
         e.expect::<i32>()
             .returning(|_| 42)
@@ -18,7 +18,7 @@ mod generic_expectation {
 
     #[test]
     fn checkpoint_and_expect_again() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
         e.expect::<i32>()
             .returning(|_| 42)
@@ -34,7 +34,7 @@ mod generic_expectation {
     #[test]
     #[should_panic(expected = "Expectation called fewer than 1 times")]
     fn checkpoint_not_yet_satisfied() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
         e.expect::<i32>()
             .returning(|_| 42)
@@ -46,7 +46,7 @@ mod generic_expectation {
     #[test]
     #[should_panic(expected = "No matching expectation found")]
     fn checkpoint_removes_old_expectations() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
         e.expect::<i32>()
             .returning(|_| 42)
@@ -59,7 +59,7 @@ mod generic_expectation {
 
     #[test]
     fn generic_argument() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
 
         e.expect::<i32>()
@@ -71,7 +71,7 @@ mod generic_expectation {
 
     #[test]
     fn generic_return() {
-        expectation!{foo<T>, T, [i32], [&x], [x], [p], [i32]}
+        expectation!{ fn foo<T>(x: i32) -> T { let (p: &i32) = (&x); } }
         let mut e = foo::GenericExpectations::default();
 
         e.expect::<u32>()
@@ -85,7 +85,11 @@ mod generic_expectation {
     /// generic
     #[test]
     fn reference_arguments() {
-        expectation!{foo<T>, u32, [T, &i16], [&t, x], [t, x], [p, q], [T, i16]}
+        expectation!{
+            fn foo<T>(t: T, x: &i16) -> u32 {
+                let (pt: &T, px: &i16) = (&t, x);
+            }
+        }
         let mut e = foo::GenericExpectations::default();
 
         e.expect::<i32>()
@@ -99,7 +103,7 @@ mod generic_expectation {
     #[test]
     #[should_panic(expected = "No matching expectation found")]
     fn missing_expectation() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let e = foo::GenericExpectations::default();
         e.call::<i32>(5);
     }
@@ -109,7 +113,7 @@ mod generic_expectation {
     #[test]
     #[should_panic(expected = "No matching expectation found")]
     fn missing_expectation_for_these_parameters() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
         e.expect::<u32>()
             .returning(|_| 42);
@@ -120,8 +124,8 @@ mod generic_expectation {
     /// scope at the same time.  Their expectations should not get scrambled.
     #[test]
     fn multiple_methods() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
-        expectation!{bar<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
+        expectation!{ fn bar<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e0 = foo::GenericExpectations::default();
         let mut e1 = bar::GenericExpectations::default();
 
@@ -140,7 +144,7 @@ mod generic_expectation {
     /// multiple expectations match
     #[test]
     fn fifo_order() {
-        expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
         e.expect::<i32>()
             .with(predicate::eq(5))
@@ -155,7 +159,7 @@ mod generic_expectation {
     /// Two expectations are set.  Mockall should choose the right one
     #[test]
     fn one_match() {
-        expectation!{foo<T>, T, [T], [&t], [t], [p], [T]}
+        expectation!{ fn foo<T>(t: T) -> T { let (p: &T) = (&t); } }
 
         let mut e0 = foo::GenericExpectations::default();
         e0.expect::<i32>()

@@ -157,7 +157,9 @@ macro_rules! expectations_methods {
 /// ```no_run
 /// # use mockall::*;
 /// expectation! {
-///     foo<>, u32, [u32, &i16], [&i0, i1], [i0, i1], [p0, p1], [u32, i16]
+///     fn foo<>(x: u32, y: &i16) -> u32 {
+///         let (px: &u32, py: &i16) = (&x, y);
+///     }
 /// }
 /// ```
 /// Mocking generic methods requires the generic parameters to be `'static` and
@@ -167,22 +169,24 @@ macro_rules! expectations_methods {
 /// ```no_run
 /// # use mockall::*;
 /// expectation! {
-///     foo<D>, bool, [D, &u32], [&d, x], [d, x], [p0, p1], [D, u32]
+///     fn foo<D>(d: D, x: &u32) -> bool {
+///         let (pd: &D, px: &u32) = (&d, x);
+///     }
 /// }
 /// ```
 #[macro_export]
-macro_rules! expectation {(
-        $module:ident
+macro_rules! expectation {
+    (
+        fn $module:ident
         // No Bounds!  Because the mock method can always be less strict than
         // the real method.
-        < $( $generics:ident ),* >,
-        $o:ty,
-        [ $( $argty:ty ),* ],
-        [ $( $matchcall:expr ),* ],
-        [ $( $args:ident ),* ],
-        [ $( $altargs:ident ),* ],
-        [ $( $matchty:ty ),* ]) =>
-    {
+        < $( $generics:ident ),* > ( $( $args:ident : $argty:ty ),* )
+            -> $o:ty
+        {
+            let ( $( $altargs:ident : &$matchty:ty ),* ) =
+                ( $( $matchcall:expr ),* );
+        }
+    ) => {
         mod $module {
         use ::downcast::*;
         use ::fragile::Fragile;
