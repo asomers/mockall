@@ -183,7 +183,7 @@ mod generic_ref_expectation {
 
     #[test]
     fn generic_argument() {
-        ref_expectation!{foo<T>, u32, [T], [&t], [t], [p], [T]}
+        ref_expectation!{ fn foo<T>(t: T) -> &u32 { let (p: &T) = (&t); } }
         let mut e = foo::GenericExpectations::default();
 
         e.expect::<i32>()
@@ -195,7 +195,7 @@ mod generic_ref_expectation {
 
     #[test]
     fn generic_return() {
-        ref_expectation!{foo<T>, T, [i32], [&x], [x], [p], [i32]}
+        ref_expectation!{ fn foo<T>(x: i32) -> &T { let (p: &i32) = (&x); } }
         let mut e = foo::GenericExpectations::default();
 
         e.expect::<u32>()
@@ -209,7 +209,11 @@ mod generic_ref_expectation {
     /// generic
     #[test]
     fn reference_arguments() {
-        ref_expectation!{foo<T>, u32, [T, &i16], [&t, x], [t, x], [p, q], [T, i16]}
+        ref_expectation!{
+            fn foo<T>(t: T, x: &i16) -> &u32 {
+                let (pt: &T, px: &i16) = (&t, x);
+            }
+        }
         let mut e = foo::GenericExpectations::default();
 
         e.expect::<i32>()
