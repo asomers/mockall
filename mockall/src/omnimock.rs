@@ -168,6 +168,8 @@ macro_rules! expectations_methods {
 /// * `matchty`:        comma-delimited sequence of types for each match
 ///                     argument.  Must all be `'static`.
 ///
+/// # TODO: document generated methods
+///
 /// # Examples
 ///
 /// Mock a method with a `'static` return type like
@@ -490,7 +492,7 @@ macro_rules! expectation {
             collections::hash_map::HashMap,
             mem,
             ops::{DerefMut, Range},
-            sync::Mutex
+            sync::{Mutex, MutexGuard}
         };
         use super::*;
 
@@ -775,7 +777,7 @@ macro_rules! expectation {
             collections::hash_map::HashMap,
             mem,
             ops::{DerefMut, Range},
-            sync::Mutex
+            sync::{Mutex, MutexGuard}
         };
         use super::*;   // Import types from the calling environment
 
@@ -1137,6 +1139,120 @@ macro_rules! expectation {
                 Self::default()
             }
         }
+
+        /// Like an [`&Expectation`](struct.Expectation.html) but protected by a
+        /// Mutex guard.  Useful for mocking static methods.  Forwards accesses
+        /// to an `Expectation` object.
+        // We must return the MutexGuard to the caller so he can configure the
+        // expectation.  But we can't bundle both the guard and the &Expectation
+        // into the same structure; the borrow checker won't let us.  Instead
+        // we'll record the expectation's position within the Expectations
+        // vector so we can proxy its methods.
+        //
+        // ExpectationGuard is only defined for expectations that return 'static
+        // return types.
+        pub struct ExpectationGuard<'guard, $($generics: 'static,)*>{
+            guard: MutexGuard<'guard, Expectations<$($generics,)*>>,
+            i: usize
+        }
+
+        impl<'guard, $($generics,)*> ExpectationGuard<'guard, $($generics,)*> {
+            /// Just like
+            /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
+            pub fn in_sequence(&mut self, seq: &mut Sequence)
+                -> &mut Expectation<$($generics,)*>
+            {
+                self.guard.0[self.i].in_sequence(seq)
+            }
+
+            /// Just like
+            /// [`Expectation::never`](struct.Expectation.html#method.never)
+            pub fn never(&mut self) -> &mut Expectation<$($generics,)*> {
+                self.guard.0[self.i].never()
+            }
+
+            // Should only be called from the mockall_derive generated code
+            #[doc(hidden)]
+            pub fn new(mut guard: MutexGuard<'guard, Expectations<$($generics,)*>>)
+                -> Self
+            {
+                guard.expect(); // Drop the &Expectation
+                let i = guard.0.len() - 1;
+                ExpectationGuard{guard, i}
+            }
+
+            /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
+            pub fn once(&mut self) -> &mut Expectation<$($generics,)*> {
+                self.guard.0[self.i].once()
+            }
+
+            /// Just like
+            /// [`Expectation::returning`](struct.Expectation.html#method.returning)
+            pub fn returning<F>(&mut self, f: F)
+                -> &mut Expectation<$($generics,)*>
+                where F: FnMut($( $argty, )*) -> $o + Send + 'static
+            {
+                self.guard.0[self.i].returning(f)
+            }
+
+            /// Just like
+            /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
+            pub fn return_once<F>(&mut self, f: F)
+                -> &mut Expectation<$($generics,)*>
+                where F: FnOnce($( $argty, )*) -> $o + Send + 'static
+            {
+                self.guard.0[self.i].return_once(f)
+            }
+
+            /// Just like
+            /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
+            pub fn returning_st<F>(&mut self, f: F)
+                -> &mut Expectation<$($generics,)*>
+                where F: FnMut($( $argty, )*) -> $o + 'static
+            {
+                self.guard.0[self.i].returning_st(f)
+            }
+
+            /// Just like
+            /// [`Expectation::times`](struct.Expectation.html#method.times)
+            pub fn times(&mut self, n: usize)
+                -> &mut Expectation<$($generics,)*> {
+                self.guard.0[self.i].times(n)
+            }
+
+            /// Just like
+            /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
+            pub fn times_any(&mut self) -> &mut Expectation<$($generics,)*> {
+                self.guard.0[self.i].times_any()
+            }
+
+            /// Just like
+            /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
+            pub fn times_range(&mut self, range: Range<usize>)
+                -> &mut Expectation<$($generics,)*>
+            {
+                self.guard.0[self.i].times_range(range)
+            }
+
+            /// Just like
+            /// [`Expectation::with`](struct.Expectation.html#method.with)
+            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
+            pub fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+                (&mut self, $( $args: $altargs,)*)
+                -> &mut Expectation<$($generics,)*>
+            {
+                self.guard.0[self.i].with($($args,)*)
+            }
+
+            /// Just like
+            /// [`Expectation::withf`](struct.Expectation.html#method.withf)
+            pub fn withf<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
+            {
+                self.guard.0[self.i].withf(f)
+            }
+        }
+
         }
     }
 }

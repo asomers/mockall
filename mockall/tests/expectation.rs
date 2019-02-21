@@ -405,30 +405,32 @@ fn simple_method() {
     assert_eq!(42, r);
 }
 
-/////// Mocking static methods requires using globals
-////mod static_method {
-    ////use std::sync::Mutex;
-    ////use super::*;
+/// Mocking static methods requires using globals
+mod static_method {
+    use std::sync::Mutex;
+    use super::*;
 
-    ////mockall::lazy_static! {
-        ////static ref GLOBAL_EXPECTATIONS: Mutex<Expectations<(i32), u32>> = 
-            ////Mutex::new(Expectations::new());
-    ////}
+    expectation!{ fn foo<>(&self, x: i32) -> u32 { let (p: &i32) = (&x); } }
+    mockall::lazy_static! {
+        static ref GLOBAL_EXPECTATIONS: Mutex<foo::Expectations> = 
+            Mutex::new(foo::Expectations::new());
+    }
 
-    /////// The contorted syntax mimics what mockall_derive does.
-    ////#[test]
-    ////fn t() {
-        ////{
-            ////let mut eguard = {
-                ////let guard = GLOBAL_EXPECTATIONS.lock().unwrap();
-                ////ExpectationGuard::new(guard)
-            ////};
-            ////eguard.returning(|_| 42);
-        ////}
+    /// The contorted syntax mimics what mockall_derive does.
+    #[test]
+    fn t() {
+        {
+            let mut eguard = {
+                let guard = GLOBAL_EXPECTATIONS.lock().unwrap();
+                foo::ExpectationGuard::new(guard)
+            };
+            eguard.with(predicate::eq(5))
+                .returning(|_| 42);
+        }
 
-        ////assert_eq!(42, GLOBAL_EXPECTATIONS.lock().unwrap().call(5));
-    ////}
-////}
+        assert_eq!(42, GLOBAL_EXPECTATIONS.lock().unwrap().call(5));
+    }
+}
 
 #[test]
 fn times_any() {
