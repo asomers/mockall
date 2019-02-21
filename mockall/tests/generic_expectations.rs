@@ -284,14 +284,19 @@ mod generic_ref_mut_expectation {
     }
 }
 
-/// Mocking static methods requires using globals
+/// Mocking generic static methods requires using globals
 mod static_method {
     use std::sync::Mutex;
     use super::*;
 
+    expectation!{
+        fn foo<T>(&self, t: T, x: &i16) -> u32 {
+            let (pt: &T, px: &i16) = (&t, x);
+        }
+    }
     mockall::lazy_static! {
-        static ref GLOBAL_EXPECTATIONS: Mutex<GenericExpectations> = 
-            Mutex::new(GenericExpectations::new());
+        static ref GLOBAL_EXPECTATIONS: Mutex<foo::GenericExpectations> =
+            Mutex::new(foo::GenericExpectations::new());
     }
 
     /// The contorted syntax mimics what mockall_derive does.
@@ -300,11 +305,12 @@ mod static_method {
         {
             let mut eguard = {
                 let guard = GLOBAL_EXPECTATIONS.lock().unwrap();
-                GenericExpectationGuard::new(guard)
+                foo::GenericExpectationGuard::new(guard)
             };
-            eguard.returning(|_: i16| 42u32);
+            eguard.returning(|_: i32, _: &i16| 42u32);
         }
 
-        assert_eq!(42, GLOBAL_EXPECTATIONS.lock().unwrap().call::<i16, u32>(5));
+        let x = -6i16;
+        assert_eq!(42, GLOBAL_EXPECTATIONS.lock().unwrap().call::<i32>(5, &x));
     }
 }

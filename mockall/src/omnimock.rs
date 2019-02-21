@@ -234,6 +234,7 @@ macro_rules! expectation {
         use ::predicates_tree::CaseTreeExt;
         use ::std::{
             collections::hash_map::HashMap,
+            marker::PhantomData,
             mem,
             ops::{DerefMut, Range},
             sync::Mutex
@@ -244,7 +245,7 @@ macro_rules! expectation {
             Func(Box<Fn($( &$matchty, )* ) -> bool + Send>),
             Pred( $( Box<$crate::Predicate<$matchty> + Send>, )* ),
             // Prevent "unused type parameter" errors
-            _Phantom(::std::marker::PhantomData<($($generics,)*)>)
+            _Phantom(PhantomData<($($generics,)*)>)
         }
 
         impl<$($generics: 'static,)*> Matcher<$($generics,)*> {
@@ -490,6 +491,7 @@ macro_rules! expectation {
         use ::fragile::Fragile;
         use ::std::{
             collections::hash_map::HashMap,
+            marker::PhantomData,
             mem,
             ops::{DerefMut, Range},
             sync::{Mutex, MutexGuard}
@@ -500,7 +502,7 @@ macro_rules! expectation {
             Func(Box<Fn($( &$matchty, )* ) -> bool + Send>),
             Pred( $( Box<$crate::Predicate<$matchty> + Send>, )* ),
             // Prevent "unused type parameter" errors
-            _Phantom(::std::marker::PhantomData<($($generics,)*)>)
+            _Phantom(PhantomData<($($generics,)*)>)
         }
 
         impl<$($generics: 'static,)*> Matcher<$($generics,)*> {
@@ -775,6 +777,7 @@ macro_rules! expectation {
         use ::predicates_tree::CaseTreeExt;
         use ::std::{
             collections::hash_map::HashMap,
+            marker::PhantomData,
             mem,
             ops::{DerefMut, Range},
             sync::{Mutex, MutexGuard}
@@ -828,7 +831,7 @@ macro_rules! expectation {
             Func(Box<Fn($( &$matchty, )* ) -> bool + Send>),
             Pred( $( Box<$crate::Predicate<$matchty> + Send>, )* ),
             // Prevent "unused type parameter" errors
-            _Phantom(::std::marker::PhantomData<($($generics,)*)>)
+            _Phantom(PhantomData<($($generics,)*)>)
         }
 
         impl<$($generics,)*> Matcher<$($generics,)*> {
@@ -1159,7 +1162,7 @@ macro_rules! expectation {
         impl<'guard, $($generics,)*> ExpectationGuard<'guard, $($generics,)*> {
             /// Just like
             /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
-            pub fn in_sequence(&mut self, seq: &mut Sequence)
+            pub fn in_sequence(&mut self, seq: &mut $crate::Sequence)
                 -> &mut Expectation<$($generics,)*>
             {
                 self.guard.0[self.i].in_sequence(seq)
@@ -1253,6 +1256,157 @@ macro_rules! expectation {
             }
         }
 
+        pub struct GenericExpectationGuard<'guard, $($generics: Sync + 'static,)*> {
+            guard: MutexGuard<'guard, GenericExpectations>,
+            i: usize,
+            _phantom: PhantomData<((), $($generics,)*)>,
+        }
+
+        impl<'guard, $($generics: Send + Sync + 'static,)*>
+            GenericExpectationGuard<'guard, $($generics,)*>
+        {
+            /// Just like
+            /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
+            pub fn in_sequence(&mut self, seq: &mut $crate::Sequence)
+                -> &mut Expectation<$($generics,)*>
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].in_sequence(seq)
+            }
+
+            /// Just like
+            /// [`Expectation::never`](struct.Expectation.html#method.never)
+            pub fn never(&mut self) -> &mut Expectation<$($generics,)*> {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].never()
+            }
+
+            // Should only be called from the mockall_derive generated code
+            #[doc(hidden)]
+            pub fn new(mut guard: MutexGuard<'guard, GenericExpectations>)
+                -> Self
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    guard.store.entry(key)
+                    .or_insert_with(||
+                        Box::new(Expectations::<$($generics,)*>::new()))
+                    .downcast_mut()
+                    .unwrap();
+                ee.expect();    // Drop the &Expectation
+                let i = ee.0.len() - 1;
+                GenericExpectationGuard{guard, i, _phantom: PhantomData}
+            }
+
+            /// Just like
+            /// [`Expectation::once`](struct.Expectation.html#method.once)
+            pub fn once(&mut self) -> &mut Expectation<$($generics,)*> {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].once()
+            }
+
+            /// Just like
+            /// [`Expectation::returning`](struct.Expectation.html#method.returning)
+            pub fn returning<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+                where F: FnMut($( $argty, )*) -> $o + Send + 'static
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].returning(f)
+            }
+
+            /// Just like
+            /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
+            pub fn return_once<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+                where F: FnOnce($( $argty, )*) -> $o + Send + 'static
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].return_once(f)
+            }
+
+            /// Just like
+            /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
+            pub fn returning_st<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+                where F: FnMut($( $argty, )*) -> $o + 'static
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].returning_st(f)
+            }
+
+            /// Just like
+            /// [`Expectation::times`](struct.Expectation.html#method.times)
+            pub fn times(&mut self, n: usize) -> &mut Expectation<$($generics,)*> {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].times(n)
+            }
+
+            /// Just like
+            /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
+            pub fn times_any(&mut self) -> &mut Expectation<$($generics,)*> {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].times_any()
+            }
+
+            /// Just like
+            /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
+            pub fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<$($generics,)*>
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].times_range(range)
+            }
+
+            /// Just like
+            /// [`Expectation::with`](struct.Expectation.html#method.with)
+            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
+            pub fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+                (&mut self, $( $args: $altargs,)*)
+                -> &mut Expectation<$($generics,)*>
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].with($($args,)*)
+            }
+
+            /// Just like
+            /// [`Expectation::withf`](struct.Expectation.html#method.withf)
+            pub fn withf<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.guard.store.get_mut(&key).unwrap()
+                    .downcast_mut().unwrap();
+                ee.0[self.i].withf(f)
+            }
+        }
         }
     }
 }
