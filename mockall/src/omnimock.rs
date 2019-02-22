@@ -640,7 +640,7 @@ macro_rules! expectation {
                 ( $( $matchcall:expr ),* );
         }
     ) => {
-        mod $module {
+        pub mod $module {
         use ::downcast::*;
         use ::fragile::Fragile;
         use ::predicates_tree::CaseTreeExt;
@@ -739,7 +739,7 @@ macro_rules! expectation {
                 ( $( $matchcall:expr ),* );
         }
     ) => {
-        mod $module {
+        pub mod $module {
         use ::downcast::*;
         use ::predicates_tree::CaseTreeExt;
         use ::fragile::Fragile;
@@ -868,7 +868,7 @@ macro_rules! expectation {
                 ( $( $matchcall:expr ),* );
         }
     ) => {
-        mod $module {
+        pub mod $module {
             $crate::static_expectation!{
                 [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
                 [$($matchty)*] [$($matchcall)*] $o
@@ -885,7 +885,7 @@ macro_rules! expectation {
                 ( $( $matchcall:expr ),* );
         }
     ) => {
-        mod $module {
+        pub mod $module {
         $crate::static_expectation!{
             [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
             [$($matchty)*] [$($matchcall)*] $o
