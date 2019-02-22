@@ -523,7 +523,7 @@ macro_rules! static_expectation {
 
         }
 
-        generic_expectation_methods!{[$($generics)*] [$($argty)*]}
+        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
         impl GenericExpectations {
             /// Simulating calling the real method.
             pub fn call<$($generics: Send + Sync + 'static,)*>
@@ -711,7 +711,7 @@ macro_rules! expectation {
             }
         }
 
-        generic_expectation_methods!{[$($generics)*] [$($argty)*]}
+        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
         impl GenericExpectations {
             /// Simulating calling the real method.
             pub fn call<$($generics: Send + Sync + 'static,)*>
@@ -840,7 +840,7 @@ macro_rules! expectation {
             }
         }
 
-        generic_expectation_methods!{[$($generics)*] [$($argty)*]}
+        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
         impl GenericExpectations {
             /// Simulating calling the real method.
             pub fn call_mut<$($generics: Send + Sync + 'static,)*>
