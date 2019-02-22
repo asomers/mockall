@@ -313,6 +313,235 @@ macro_rules! generic_expectation_methods {
     }
 }
 
+/// Common implementation for expectations that return 'static variables
+#[doc(hidden)]
+#[macro_export]
+macro_rules! static_expectation {
+    (
+        [$($generics:ident)*] [$($args:ident)*] [$($argty:ty)*]
+        [$($altargs:ident)*] [$($matchty:ty)*] [$($matchcall:expr)*] $o:ty
+    ) => {
+        use ::downcast::*;
+        use ::fragile::Fragile;
+        use ::predicates_tree::CaseTreeExt;
+        use ::std::{
+            collections::hash_map::HashMap,
+            marker::PhantomData,
+            mem,
+            ops::{DerefMut, Range},
+            sync::{Mutex, MutexGuard}
+        };
+        use super::*;   // Import types from the calling environment
+
+        enum Rfunc<$($generics: 'static,)*> {
+            Default,
+            // Indicates that a `return_once` expectation has already returned
+            Expired,
+            Mut(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
+            // Should be Box<dyn FnOnce> once that feature is stabilized
+            // https://github.com/rust-lang/rust/issues/28796
+            Once(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
+        }
+
+        impl<$($generics,)*>  Rfunc<$($generics,)*> {
+            fn call_mut(&mut self, $( $args: $argty, )* ) -> $o {
+                match self {
+                    Rfunc::Default => {
+                        use $crate::ReturnDefault;
+                        $crate::DefaultReturner::<$o>::return_default()
+                    },
+                    Rfunc::Expired => {
+                        panic!("Called a method twice that was expected only once")
+                    },
+                    Rfunc::Mut(f) => {
+                        f( $( $args, )* )
+                    },
+                    Rfunc::Once(_) => {
+                        let fo = mem::replace(self, Rfunc::Expired);
+                        if let Rfunc::Once(mut f) = fo {
+                            f( $( $args, )* )
+                        } else {
+                            unreachable!()
+                        }
+                    },
+                }
+            }
+        }
+
+        impl<$($generics,)*>
+            std::default::Default for Rfunc<$($generics,)*>
+        {
+            fn default() -> Self {
+                Rfunc::Default
+            }
+        }
+
+        $crate::common_matcher!{
+            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+        }
+
+        $crate::common_methods!{
+            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+        }
+
+        pub struct Expectation<$($generics: 'static,)*> {
+            common: Common<$($generics,)*>,
+            rfunc: Mutex<Rfunc<$($generics,)*>>,
+        }
+
+        impl<$($generics,)*> Expectation<$($generics,)*> {
+            pub fn call(&self, $( $args: $argty, )* ) -> $o
+            {
+                self.common.call($( $matchcall, )*);
+                self.rfunc.lock().unwrap().call_mut($( $args, )*)
+            }
+
+            /// Return a constant value from the `Expectation`
+            ///
+            /// The output type must be `Clone`.  The compiler can't always
+            /// infer the proper type to use with this method; you will usually
+            /// need to specify it explicitly.  i.e. `return_const(42u32)`
+            /// instead of `return_const(42)`.
+            // We must use Into<$o> instead of $o because where clauses don't
+            // accept equality constraints.
+            // https://github.com/rust-lang/rust/issues/20041
+            #[allow(unused_variables)]
+            pub fn return_const<MockallOutput>(&mut self, c: MockallOutput) -> &mut Self
+                where MockallOutput: Clone + Into<$o> + Send + 'static
+            {
+                let f = move |$( $args: $argty, )*| c.clone().into();
+                self.returning(f)
+            }
+
+            /// Supply an `FnOnce` closure that will provide the return value
+            /// for this Expectation.  This is useful for return types that
+            /// aren't `Clone`.  It will be an error to call this Expectation
+            /// multiple times.
+            pub fn return_once<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce($( $argty, )*) -> $o + Send + 'static
+            {
+                let mut fopt = Some(f);
+                let fmut = move |$( $args: $argty, )*| {
+                    if let Some(f) = fopt.take() {
+                        f($( $args, )*)
+                    } else {
+                        panic!("Called a method twice that was expected only once")
+                    }
+                };
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(),
+                                 Rfunc::Once(Box::new(fmut)));
+                }
+                self
+            }
+
+            /// Single-threaded version of [`return_once`](#method.return_once).
+            /// This is useful for return types that are neither `Send` nor
+            /// `Clone`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.  It is
+            /// also a runtime error to call the method more than once.
+            pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce($( $argty, )*) -> $o + 'static
+            {
+                let mut fragile = Some(::fragile::Fragile::new(f));
+                let fmut = Box::new(move |$( $args: $argty, )*| {
+                    match fragile.take() {
+                        Some(frag) => (frag.into_inner())($( $args, )*),
+                        None => panic!(
+                            "Called a method twice that was expected only once")
+                    }
+                });
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
+                }
+                self
+            }
+
+            pub fn returning<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut($( $argty, )*) -> $o + Send + 'static
+            {
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+                }
+                self
+            }
+
+            /// Single-threaded version of [`returning`](#method.returning).
+            /// Can be used when the argument or return type isn't `Send`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.
+            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut($( $argty, )*) -> $o + 'static
+            {
+                let mut fragile = Fragile::new(f);
+                let fmut = move |$( $args: $argty, )*| {
+                    (fragile.get_mut())($( $args, )*)
+                };
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
+                }
+                self
+            }
+
+            $crate::expectation_methods!{
+                [$($args)*] [$($altargs)*] [$($matchty)*]
+            }
+        }
+        impl<$($generics,)*> Default for Expectation<$($generics,)*>
+        {
+            fn default() -> Self {
+                Expectation {
+                    common: Common::default(),
+                    rfunc: Mutex::new(Rfunc::default())
+                }
+            }
+        }
+
+        $crate::expectations_methods!{[$($generics)*]}
+        impl<$($generics,)*> Expectations<$($generics,)*> {
+            /// Simulating calling the real method.  Every current expectation
+            /// will be checked in FIFO order and the first one with matching
+            /// arguments will be used.
+            pub fn call(&self, $( $args: $argty, )* ) -> $o
+            {
+                let n = self.0.len();
+                match self.0.iter()
+                    .find(|e| e.matches($( $matchcall, )*) &&
+                          (!e.is_done() || n == 1))
+                {
+                    None => panic!("No matching expectation found"),
+                    Some(e) => e.call($( $args, )*)
+                }
+            }
+
+        }
+
+        generic_expectation_methods!{[$($generics)*] [$($argty)*]}
+        impl GenericExpectations {
+            /// Simulating calling the real method.
+            pub fn call<$($generics: Send + Sync + 'static,)*>
+                (&self, $( $args: $argty, )* ) -> $o
+            {
+                // TODO: remove the 2nd type argument from Key after the old API
+                // is fully replaced.
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let e: &Expectations<$($generics,)*> = self.store.get(&key)
+                    .expect("No matching expectation found")
+                    .downcast_ref()
+                    .unwrap();
+                e.call($( $args, )*)
+            }
+        }
+    }
+}
+
 /// Generate Expectation and Expectations types for a single method.
 ///
 /// This macro can mock most method types, whether they take `self`, `&self`, or
@@ -640,224 +869,10 @@ macro_rules! expectation {
         }
     ) => {
         mod $module {
-        use ::downcast::*;
-        use ::fragile::Fragile;
-        use ::predicates_tree::CaseTreeExt;
-        use ::std::{
-            collections::hash_map::HashMap,
-            marker::PhantomData,
-            mem,
-            ops::{DerefMut, Range},
-            sync::{Mutex, MutexGuard}
-        };
-        use super::*;   // Import types from the calling environment
-
-        enum Rfunc<$($generics: 'static,)*> {
-            Default,
-            // Indicates that a `return_once` expectation has already returned
-            Expired,
-            Mut(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
-            // Should be Box<dyn FnOnce> once that feature is stabilized
-            // https://github.com/rust-lang/rust/issues/28796
-            Once(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
-        }
-
-        impl<$($generics,)*>  Rfunc<$($generics,)*> {
-            fn call_mut(&mut self, $( $args: $argty, )* ) -> $o {
-                match self {
-                    Rfunc::Default => {
-                        use $crate::ReturnDefault;
-                        $crate::DefaultReturner::<$o>::return_default()
-                    },
-                    Rfunc::Expired => {
-                        panic!("Called a method twice that was expected only once")
-                    },
-                    Rfunc::Mut(f) => {
-                        f( $( $args, )* )
-                    },
-                    Rfunc::Once(_) => {
-                        let fo = mem::replace(self, Rfunc::Expired);
-                        if let Rfunc::Once(mut f) = fo {
-                            f( $( $args, )* )
-                        } else {
-                            unreachable!()
-                        }
-                    },
-                }
+            $crate::static_expectation!{
+                [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
+                [$($matchty)*] [$($matchcall)*] $o
             }
-        }
-
-        impl<$($generics,)*>
-            std::default::Default for Rfunc<$($generics,)*>
-        {
-            fn default() -> Self {
-                Rfunc::Default
-            }
-        }
-
-        $crate::common_matcher!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
-        }
-
-        $crate::common_methods!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
-        }
-
-        pub struct Expectation<$($generics: 'static,)*> {
-            common: Common<$($generics,)*>,
-            rfunc: Mutex<Rfunc<$($generics,)*>>,
-        }
-
-        impl<$($generics,)*> Expectation<$($generics,)*> {
-            pub fn call(&self, $( $args: $argty, )* ) -> $o
-            {
-                self.common.call($( $matchcall, )*);
-                self.rfunc.lock().unwrap().call_mut($( $args, )*)
-            }
-
-            /// Return a constant value from the `Expectation`
-            ///
-            /// The output type must be `Clone`.  The compiler can't always
-            /// infer the proper type to use with this method; you will usually
-            /// need to specify it explicitly.  i.e. `return_const(42u32)`
-            /// instead of `return_const(42)`.
-            // We must use Into<$o> instead of $o because where clauses don't
-            // accept equality constraints.
-            // https://github.com/rust-lang/rust/issues/20041
-            #[allow(unused_variables)]
-            pub fn return_const<MockallOutput>(&mut self, c: MockallOutput) -> &mut Self
-                where MockallOutput: Clone + Into<$o> + Send + 'static
-            {
-                let f = move |$( $args: $argty, )*| c.clone().into();
-                self.returning(f)
-            }
-
-            /// Supply an `FnOnce` closure that will provide the return value
-            /// for this Expectation.  This is useful for return types that
-            /// aren't `Clone`.  It will be an error to call this Expectation
-            /// multiple times.
-            pub fn return_once<F>(&mut self, f: F) -> &mut Self
-                where F: FnOnce($( $argty, )*) -> $o + Send + 'static
-            {
-                let mut fopt = Some(f);
-                let fmut = move |$( $args: $argty, )*| {
-                    if let Some(f) = fopt.take() {
-                        f($( $args, )*)
-                    } else {
-                        panic!("Called a method twice that was expected only once")
-                    }
-                };
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(),
-                                 Rfunc::Once(Box::new(fmut)));
-                }
-                self
-            }
-
-            /// Single-threaded version of [`return_once`](#method.return_once).
-            /// This is useful for return types that are neither `Send` nor
-            /// `Clone`.
-            ///
-            /// It is a runtime error to call the mock method from a different
-            /// thread than the one that originally called this method.  It is
-            /// also a runtime error to call the method more than once.
-            pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
-                where F: FnOnce($( $argty, )*) -> $o + 'static
-            {
-                let mut fragile = Some(::fragile::Fragile::new(f));
-                let fmut = Box::new(move |$( $args: $argty, )*| {
-                    match fragile.take() {
-                        Some(frag) => (frag.into_inner())($( $args, )*),
-                        None => panic!(
-                            "Called a method twice that was expected only once")
-                    }
-                });
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
-                }
-                self
-            }
-
-            pub fn returning<F>(&mut self, f: F) -> &mut Self
-                where F: FnMut($( $argty, )*) -> $o + Send + 'static
-            {
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
-                }
-                self
-            }
-
-            /// Single-threaded version of [`returning`](#method.returning).
-            /// Can be used when the argument or return type isn't `Send`.
-            ///
-            /// It is a runtime error to call the mock method from a different
-            /// thread than the one that originally called this method.
-            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
-                where F: FnMut($( $argty, )*) -> $o + 'static
-            {
-                let mut fragile = Fragile::new(f);
-                let fmut = move |$( $args: $argty, )*| {
-                    (fragile.get_mut())($( $args, )*)
-                };
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
-                }
-                self
-            }
-
-            $crate::expectation_methods!{
-                [$($args)*] [$($altargs)*] [$($matchty)*]
-            }
-        }
-        impl<$($generics,)*> Default for Expectation<$($generics,)*>
-        {
-            fn default() -> Self {
-                Expectation {
-                    common: Common::default(),
-                    rfunc: Mutex::new(Rfunc::default())
-                }
-            }
-        }
-
-        $crate::expectations_methods!{[$($generics)*]}
-        impl<$($generics,)*> Expectations<$($generics,)*> {
-            /// Simulating calling the real method.  Every current expectation
-            /// will be checked in FIFO order and the first one with matching
-            /// arguments will be used.
-            pub fn call(&self, $( $args: $argty, )* ) -> $o
-            {
-                let n = self.0.len();
-                match self.0.iter()
-                    .find(|e| e.matches($( $matchcall, )*) &&
-                          (!e.is_done() || n == 1))
-                {
-                    None => panic!("No matching expectation found"),
-                    Some(e) => e.call($( $args, )*)
-                }
-            }
-
-        }
-
-        generic_expectation_methods!{[$($generics)*] [$($argty)*]}
-        impl GenericExpectations {
-            /// Simulating calling the real method.
-            pub fn call<$($generics: Send + Sync + 'static,)*>
-                (&self, $( $args: $argty, )* ) -> $o
-            {
-                // TODO: remove the 2nd type argument from Key after the old API
-                // is fully replaced.
-                let key = $crate::Key::new::<($($argty,)*), ()>();
-                let e: &Expectations<$($generics,)*> = self.store.get(&key)
-                    .expect("No matching expectation found")
-                    .downcast_ref()
-                    .unwrap();
-                e.call($( $args, )*)
-            }
-        }
         }
     };
     (
@@ -871,223 +886,9 @@ macro_rules! expectation {
         }
     ) => {
         mod $module {
-        use ::downcast::*;
-        use ::fragile::Fragile;
-        use ::predicates_tree::CaseTreeExt;
-        use ::std::{
-            collections::hash_map::HashMap,
-            marker::PhantomData,
-            mem,
-            ops::{DerefMut, Range},
-            sync::{Mutex, MutexGuard}
-        };
-        use super::*;   // Import types from the calling environment
-
-        enum Rfunc<$($generics: 'static,)*> {
-            Default,
-            // Indicates that a `return_once` expectation has already returned
-            Expired,
-            Mut(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
-            // Should be Box<dyn FnOnce> once that feature is stabilized
-            // https://github.com/rust-lang/rust/issues/28796
-            Once(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
-        }
-
-        impl<$($generics,)*>  Rfunc<$($generics,)*> {
-            fn call_mut(&mut self, $( $args: $argty, )* ) -> $o {
-                match self {
-                    Rfunc::Default => {
-                        use $crate::ReturnDefault;
-                        $crate::DefaultReturner::<$o>::return_default()
-                    },
-                    Rfunc::Expired => {
-                        panic!("Called a method twice that was expected only once")
-                    },
-                    Rfunc::Mut(f) => {
-                        f( $( $args, )* )
-                    },
-                    Rfunc::Once(_) => {
-                        let fo = mem::replace(self, Rfunc::Expired);
-                        if let Rfunc::Once(mut f) = fo {
-                            f( $( $args, )* )
-                        } else {
-                            unreachable!()
-                        }
-                    },
-                }
-            }
-        }
-
-        impl<$($generics,)*>
-            std::default::Default for Rfunc<$($generics,)*>
-        {
-            fn default() -> Self {
-                Rfunc::Default
-            }
-        }
-
-        $crate::common_matcher!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
-        }
-
-        $crate::common_methods!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
-        }
-
-        pub struct Expectation<$($generics: 'static,)*> {
-            common: Common<$($generics,)*>,
-            rfunc: Mutex<Rfunc<$($generics,)*>>,
-        }
-
-        impl<$($generics,)*> Expectation<$($generics,)*> {
-            pub fn call(&self, $( $args: $argty, )* ) -> $o
-            {
-                self.common.call($( $matchcall, )*);
-                self.rfunc.lock().unwrap().call_mut($( $args, )*)
-            }
-
-            /// Return a constant value from the `Expectation`
-            ///
-            /// The output type must be `Clone`.  The compiler can't always
-            /// infer the proper type to use with this method; you will usually
-            /// need to specify it explicitly.  i.e. `return_const(42u32)`
-            /// instead of `return_const(42)`.
-            // We must use Into<$o> instead of $o because where clauses don't
-            // accept equality constraints.
-            // https://github.com/rust-lang/rust/issues/20041
-            #[allow(unused_variables)]
-            pub fn return_const<MockallOutput>(&mut self, c: MockallOutput) -> &mut Self
-                where MockallOutput: Clone + Into<$o> + Send + 'static
-            {
-                let f = move |$( $args: $argty, )*| c.clone().into();
-                self.returning(f)
-            }
-
-            /// Supply an `FnOnce` closure that will provide the return value
-            /// for this Expectation.  This is useful for return types that
-            /// aren't `Clone`.  It will be an error to call this Expectation
-            /// multiple times.
-            pub fn return_once<F>(&mut self, f: F) -> &mut Self
-                where F: FnOnce($( $argty, )*) -> $o + Send + 'static
-            {
-                let mut fopt = Some(f);
-                let fmut = move |$( $args: $argty, )*| {
-                    if let Some(f) = fopt.take() {
-                        f($( $args, )*)
-                    } else {
-                        panic!("Called a method twice that was expected only once")
-                    }
-                };
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(),
-                                 Rfunc::Once(Box::new(fmut)));
-                }
-                self
-            }
-
-            /// Single-threaded version of [`return_once`](#method.return_once).
-            /// This is useful for return types that are neither `Send` nor
-            /// `Clone`.
-            ///
-            /// It is a runtime error to call the mock method from a different
-            /// thread than the one that originally called this method.  It is
-            /// also a runtime error to call the method more than once.
-            pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
-                where F: FnOnce($( $argty, )*) -> $o + 'static
-            {
-                let mut fragile = Some(::fragile::Fragile::new(f));
-                let fmut = Box::new(move |$( $args: $argty, )*| {
-                    match fragile.take() {
-                        Some(frag) => (frag.into_inner())($( $args, )*),
-                        None => panic!(
-                            "Called a method twice that was expected only once")
-                    }
-                });
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
-                }
-                self
-            }
-
-            pub fn returning<F>(&mut self, f: F) -> &mut Self
-                where F: FnMut($( $argty, )*) -> $o + Send + 'static
-            {
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
-                }
-                self
-            }
-
-            /// Single-threaded version of [`returning`](#method.returning).
-            /// Can be used when the argument or return type isn't `Send`.
-            ///
-            /// It is a runtime error to call the mock method from a different
-            /// thread than the one that originally called this method.
-            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
-                where F: FnMut($( $argty, )*) -> $o + 'static
-            {
-                let mut fragile = Fragile::new(f);
-                let fmut = move |$( $args: $argty, )*| {
-                    (fragile.get_mut())($( $args, )*)
-                };
-                {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
-                }
-                self
-            }
-
-            $crate::expectation_methods!{
-                [$($args)*] [$($altargs)*] [$($matchty)*]
-            }
-        }
-        impl<$($generics,)*> Default for Expectation<$($generics,)*>
-        {
-            fn default() -> Self {
-                Expectation {
-                    common: Common::default(),
-                    rfunc: Mutex::new(Rfunc::default())
-                }
-            }
-        }
-
-        $crate::expectations_methods!{[$($generics)*]}
-        impl<$($generics,)*> Expectations<$($generics,)*> {
-            /// Simulating calling the real method.  Every current expectation
-            /// will be checked in FIFO order and the first one with matching
-            /// arguments will be used.
-            pub fn call(&self, $( $args: $argty, )* ) -> $o
-            {
-                let n = self.0.len();
-                match self.0.iter()
-                    .find(|e| e.matches($( $matchcall, )*) &&
-                          (!e.is_done() || n == 1))
-                {
-                    None => panic!("No matching expectation found"),
-                    Some(e) => e.call($( $args, )*)
-                }
-            }
-
-        }
-
-        generic_expectation_methods!{[$($generics)*] [$($argty)*]}
-        impl GenericExpectations {
-            /// Simulating calling the real method.
-            pub fn call<$($generics: Send + Sync + 'static,)*>
-                (&self, $( $args: $argty, )* ) -> $o
-            {
-                // TODO: remove the 2nd type argument from Key after the old API
-                // is fully replaced.
-                let key = $crate::Key::new::<($($argty,)*), ()>();
-                let e: &Expectations<$($generics,)*> = self.store.get(&key)
-                    .expect("No matching expectation found")
-                    .downcast_ref()
-                    .unwrap();
-                e.call($( $args, )*)
-            }
+        $crate::static_expectation!{
+            [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
+            [$($matchty)*] [$($matchcall)*] $o
         }
 
         /// Like an [`&Expectation`](struct.Expectation.html) but protected by a
