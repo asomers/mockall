@@ -202,8 +202,6 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
         "".to_string()
     };
     let meth_types = method_types(self_ident, sig);
-    let input_type = &meth_types.input_type;
-    let output_type = &meth_types.output_type;
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
     let mut args = Vec::new();
@@ -259,10 +257,10 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
             syn::Ident::new("GenericExpectationGuard", Span::call_site())
         };
         quote!(#attrs #expect_vis fn #expect_ident #g()
-               -> ::mockall::#guard_name<#ltd, #input_type, #output_type>
+               -> #mod_ident::#ident::#guard_name<#ltd>
                #wc
             {
-                ::mockall::#guard_name::new(#name.lock().unwrap())
+                #mod_ident::#ident::#guard_name::new(#name.lock().unwrap())
             }
         )
     } else {
@@ -351,8 +349,8 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
                 &format!("{}_{}_expectation", ident, method_ident),
                 Span::call_site());
             quote!(#attrs ::mockall::lazy_static! {
-                static ref #name: ::std::sync::Mutex<#expect_obj> =
-                   ::std::sync::Mutex::new(#expectations::new());
+                static ref #name: ::std::sync::Mutex<#mod_ident::#expect_obj> =
+                   ::std::sync::Mutex::new(#mod_ident::#expectations::new());
             }).to_tokens(&mut statics);
         } else {
             quote!(#attrs #method_ident: #mod_ident::#expect_obj,)
@@ -989,22 +987,28 @@ mod t {
     #[test]
     fn impl_trait() {
         let desired = r#"
+            mod __mock_Foo {
+                expectation! {
+                    fn foo< >(&self) -> impl Debug + Send {
+                        let () = ();
+                    }
+            }
             struct MockFoo {
-                foo: ::mockall::Expectations<(), Box<dyn Debug + Send> > ,
+                foo: __mock_Foo::foo::Expectations,
             }
             impl ::std::default::Default for MockFoo {
                 fn default() -> Self {
                     Self {
-                        foo: ::mockall::Expectations::default(),
+                        foo: __mock_Foo::foo::Expectations::default(),
                     }
                 }
             }
             impl MockFoo {
                 pub fn foo(&self) -> impl Debug + Send {
-                    self.foo.call(())
+                    self.foo.call()
                 }
                 pub fn expect_foo(&mut self)
-                    -> &mut ::mockall::Expectation<(), Box<dyn Debug + Send> >
+                    -> &mut __mock_Foo::foo::Expectation
                 {
                     self.foo.expect()
                 }
@@ -1421,10 +1425,18 @@ mod t {
     #[test]
     fn static_method() {
         let desired = r#"
+            mod __mock_Foo {
+                expectation!{
+                    fn bar< >(x: u32) -> u64 {
+                        let (p0: &u32,) = (&x);
+                    }
+                }
+            }
             struct MockFoo {}
             ::mockall::lazy_static!{
-                static ref MockFoo_bar_expectation: ::std::sync::Mutex< ::mockall::Expectations<(u32), u64> >
-                = ::std::sync::Mutex::new(::mockall::Expectations::new());
+                static ref MockFoo_bar_expectation:
+                    ::std::sync::Mutex< __mock_Foo::bar::Expectations >
+                = ::std::sync::Mutex::new(__mock_Foo::bar::Expectations::new());
             }
             impl ::std::default::Default for MockFoo {
                 fn default() -> Self {
@@ -1433,12 +1445,12 @@ mod t {
             }
             impl MockFoo {
                 pub fn bar(x: u32) -> u64 {
-                    MockFoo_bar_expectation.lock().unwrap().call((x))
+                    MockFoo_bar_expectation.lock().unwrap().call(x)
                 }
                 pub fn expect_bar< 'guard>()
-                    -> ::mockall::ExpectationGuard< 'guard, (u32), u64>
+                    -> __mock_Foo::bar::ExpectationGuard< 'guard>
                 {
-                    ::mockall::ExpectationGuard::new(
+                    __mock_Foo::bar::ExpectationGuard::new(
                         MockFoo_bar_expectation.lock().unwrap()
                     )
                 }

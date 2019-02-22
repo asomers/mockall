@@ -2,7 +2,10 @@
 
 use mockall::*;
 use mockall::expectation;
-use std::rc::Rc;
+use std::{
+    fmt::Debug,
+    rc::Rc
+};
 
 /// A MockObject with a method that consumes self like:
 /// fn foo(self, x: i32) -> u32
@@ -36,6 +39,20 @@ mod generic {
 
         assert_eq!(-42, e.call(4));
     }
+}
+
+/// Mock a method like `fn foo(&self) -> impl Debug + Send {...}`
+/// The return type must be deimplified by the user
+#[test]
+fn impl_trait() {
+    expectation!{ fn foo<>(&self,) -> Box<Debug + Send> {
+            let () = ();
+        }
+    }
+
+    let mut e = foo::Expectation::default();
+    e.returning(|| Box::new(42u32));
+    format!("{:?}", e.call());
 }
 
 #[test]
