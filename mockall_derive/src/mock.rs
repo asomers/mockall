@@ -327,10 +327,10 @@ fn gen_struct<T>(vis: &syn::Visibility,
             }
         };
 
-        let generics = &meth.borrow().sig.decl.generics;
-        let (_, tg, _) = generics.split_for_impl();
+        let meth_generics = &meth.borrow().sig.decl.generics;
+        let (_, tg, _) = meth_generics.split_for_impl();
         let mut macro_g = TokenStream::new();
-        if generics.lt_token.is_some() {
+        if meth_generics.lt_token.is_some() {
             tg.to_tokens(&mut macro_g);
         } else {
             // expectation! requires the <> even if it's empty
@@ -733,37 +733,47 @@ mod t {
     #[test]
     fn generic_struct_with_trait() {
         let desired = r#"
-            struct MockExternalStruct<T: Copy + 'static> {
-                Foo_expectations: MockExternalStruct_Foo<T> ,
+            #[allow(non_snake_case)]
+            mod __mock_Bar {}
+            struct MockBar<T: Copy + 'static> {
+                Foo_expectations: MockBar_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
             impl<T: Copy + 'static>
-            ::std::default::Default for MockExternalStruct<T> {
+            ::std::default::Default for MockBar<T> {
                 fn default() -> Self {
                     Self {
-                        Foo_expectations: MockExternalStruct_Foo::default(),
+                        Foo_expectations: MockBar_Foo::default(),
                         _t0: ::std::marker::PhantomData,
                     }
                 }
             }
-            struct MockExternalStruct_Foo<T: Copy + 'static> {
-                foo: ::mockall::Expectations<(u32), u32> ,
+            #[allow(non_snake_case)]
+            mod __mock_Bar_Foo {
+                ::mockall::expectation! {
+                    fn foo< >(&self, x: u32) -> u32 {
+                        let (p1: &u32) = (&x);
+                    }
+                }
+            }
+            struct MockBar_Foo<T: Copy + 'static> {
+                foo: __mock_Bar_Foo::foo::Expectations,
                 _t0: ::std::marker::PhantomData<T> ,
             }
-            impl<T: Copy + 'static> ::std::default::Default for MockExternalStruct_Foo<T> {
+            impl<T: Copy + 'static> ::std::default::Default for MockBar_Foo<T> {
                 fn default() -> Self {
                     Self {
-                        foo: ::mockall::Expectations::default(),
+                        foo: __mock_Bar_Foo::foo::Expectations::default(),
                         _t0: ::std::marker::PhantomData,
                     }
                 }
             }
-            impl<T: Copy + 'static> MockExternalStruct_Foo<T> {
+            impl<T: Copy + 'static> MockBar_Foo<T> {
                 fn checkpoint(&mut self) {
                     { self.foo.checkpoint(); }
                 }
             }
-            impl<T: Copy + 'static> MockExternalStruct<T> {
+            impl<T: Copy + 'static> MockBar<T> {
                 pub fn checkpoint(&mut self) {
                     self.Foo_expectations.checkpoint();
                 }
@@ -771,21 +781,21 @@ mod t {
                     Self::default()
                 }
             }
-            impl<T: Copy + 'static> Foo for MockExternalStruct<T> {
+            impl<T: Copy + 'static> Foo for MockBar<T> {
                 fn foo(&self, x: u32) -> u32 {
-                    self.Foo_expectations.foo.call((x))
+                    self.Foo_expectations.foo.call(x)
                 }
             }
-            impl<T: Copy + 'static> MockExternalStruct<T> {
+            impl<T: Copy + 'static> MockBar<T> {
                 pub fn expect_foo(&mut self)
-                    -> &mut ::mockall::Expectation<(u32), u32>
+                    -> &mut __mock_Bar_Foo::foo::Expectation
                 {
                     self.Foo_expectations.foo.expect()
                 }
             }
         "#;
         let code = r#"
-            ExternalStruct<T: Copy + 'static> {}
+            Bar<T: Copy + 'static> {}
             trait Foo {
                 fn foo(&self, x: u32) -> u32;
             }
@@ -797,42 +807,52 @@ mod t {
     #[test]
     fn generic_struct_with_generic_trait() {
         let desired = r#"
-            struct MockExternalStruct<T: 'static, Z: 'static> {
-                Foo_expectations: MockExternalStruct_Foo<T, Z> ,
+            #[allow(non_snake_case)]
+            mod __mock_Bar {}
+            struct MockBar<T: 'static, Z: 'static> {
+                Foo_expectations: MockBar_Foo<T, Z> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
             }
             impl<T: 'static, Z: 'static>
-            ::std::default::Default for MockExternalStruct<T, Z> {
+            ::std::default::Default for MockBar<T, Z> {
                 fn default() -> Self {
                     Self {
-                        Foo_expectations: MockExternalStruct_Foo::default(),
+                        Foo_expectations: MockBar_Foo::default(),
                         _t0: ::std::marker::PhantomData,
                         _t1: ::std::marker::PhantomData,
                     }
                 }
             }
-            struct MockExternalStruct_Foo<T: 'static, Z: 'static> {
-                foo: ::mockall::Expectations<(T), T> ,
+            #[allow(non_snake_case)]
+            mod __mock_Bar_Foo {
+                ::mockall::expectation!{
+                    fn foo<T>(&self, x: T) -> T {
+                        let (p1: &T) = (&x);
+                    }
+                }
+            }
+            struct MockBar_Foo<T: 'static, Z: 'static> {
+                foo: __mock_Bar_Foo::foo::Expectations<T>,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
             }
             impl<T: 'static, Z: 'static>
-            ::std::default::Default for MockExternalStruct_Foo<T, Z> {
+            ::std::default::Default for MockBar_Foo<T, Z> {
                 fn default() -> Self {
                     Self {
-                        foo: ::mockall::Expectations::default(),
+                        foo: __mock_Bar_Foo::foo::Expectations::default(),
                         _t0: ::std::marker::PhantomData,
                         _t1: ::std::marker::PhantomData,
                     }
                 }
             }
-            impl<T: 'static, Z: 'static> MockExternalStruct_Foo<T, Z> {
+            impl<T: 'static, Z: 'static> MockBar_Foo<T, Z> {
                 fn checkpoint(&mut self) {
                     { self.foo.checkpoint(); }
                 }
             }
-            impl<T: 'static, Z: 'static> MockExternalStruct<T, Z> {
+            impl<T: 'static, Z: 'static> MockBar<T, Z> {
                 pub fn checkpoint(&mut self) {
                     self.Foo_expectations.checkpoint();
                 }
@@ -840,21 +860,21 @@ mod t {
                     Self::default()
                 }
             }
-            impl<T: 'static, Z: 'static> Foo<T> for MockExternalStruct<T, Z> {
+            impl<T: 'static, Z: 'static> Foo<T> for MockBar<T, Z> {
                 fn foo(&self, x: T) -> T {
                     self.Foo_expectations.foo.call((x))
                 }
             }
-            impl<T: 'static, Z: 'static> MockExternalStruct<T, Z> {
+            impl<T: 'static, Z: 'static> MockBar<T, Z> {
                 pub fn expect_foo(&mut self)
-                    -> &mut ::mockall::Expectation<(T), T>
+                    -> &mut __mock_Bar_Foo::foo::Expectation<T>
                 {
                     self.Foo_expectations.foo.expect()
                 }
             }
         "#;
         let code = r#"
-            ExternalStruct<T: 'static, Z: 'static> {}
+            Bar<T: 'static, Z: 'static> {}
             trait Foo<T: 'static> {
                 fn foo(&self, x: T) -> T;
             }
@@ -865,6 +885,8 @@ mod t {
     #[test]
     fn generic_struct_with_trait_with_associated_types() {
         let desired = r#"
+        #[allow(non_snake_case)]
+        mod __mock_Foo {}
         struct MockFoo<T> {
             Iterator_expectations: MockFoo_Iterator<T> ,
             _t0: ::std::marker::PhantomData<T> ,
@@ -877,14 +899,22 @@ mod t {
                 }
             }
         }
+        #[allow(non_snake_case)]
+        mod __mock_Foo_Iterator {
+            ::mockall::expectation!{
+                fn next<T>(&mut self) -> Option<T> {
+                    let () = ();
+                }
+            }
+        }
         struct MockFoo_Iterator<T> {
-            next: ::mockall::Expectations<(), Option<T> > ,
+            next: __mock_Foo_Iterator::next::Expectations,
             _t0: ::std::marker::PhantomData<T> ,
         }
         impl<T> ::std::default::Default for MockFoo_Iterator<T> {
             fn default() -> Self {
                 Self {
-                    next: ::mockall::Expectations::default(),
+                    next: __mock_Foo_Iterator::next::Expectations::default(),
                     _t0: ::std::marker::PhantomData,
                 }
             }
@@ -907,12 +937,12 @@ mod t {
         impl<T> Iterator for MockFoo<T> {
             type Item = T;
             fn next(&mut self) -> Option<T> {
-                self.Iterator_expectations.next.call(())
+                self.Iterator_expectations.next.call()
             }
         }
         impl<T> MockFoo<T> {
             pub fn expect_next(&mut self)
-                -> &mut ::mockall::Expectation<(), Option<T> >
+                -> &mut __mock_Foo_Iterator::next::Expectation
             {
                 self.Iterator_expectations.next.expect()
             }
@@ -930,57 +960,68 @@ mod t {
     #[test]
     fn generic_trait() {
         let desired = r#"
-        struct MockExternalStruct<T> {
-            GenericTrait_expectations: MockExternalStruct_GenericTrait<T> ,
+        #[allow(non_snake_case)]
+        mod __mock_Bar { }
+        struct MockBar<T> {
+            Foo_expectations: MockBar_Foo<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        impl<T> ::std::default::Default for MockExternalStruct<T> {
+        impl<T> ::std::default::Default for MockBar<T> {
             fn default() -> Self {
                 Self {
-                    GenericTrait_expectations: MockExternalStruct_GenericTrait::default(),
+                    Foo_expectations: MockBar_Foo::default(),
                     _t0: ::std::marker::PhantomData,
                 }
             }
         }
-        struct MockExternalStruct_GenericTrait<T> {
-            foo: ::mockall::Expectations<(), ()> ,
+        #[allow(non_snake_case)]
+        mod __mock_Bar_Foo {
+            ::mockall::expectation!{
+                fn foo< >(&self) -> () {
+                    let () = ();
+                }
+            }
+        }
+        struct MockBar_Foo<T> {
+            foo: __mock_Bar_Foo::foo::Expectations,
             _t0: ::std::marker::PhantomData<T> ,
         }
-        impl<T> ::std::default::Default for MockExternalStruct_GenericTrait<T> {
+        impl<T> ::std::default::Default for MockBar_Foo<T> {
             fn default() -> Self {
                 Self {
-                    foo: ::mockall::Expectations::default(),
+                    foo: __mock_Bar_Foo::foo::Expectations::default(),
                     _t0: ::std::marker::PhantomData,
                 }
             }
         }
-        impl<T> MockExternalStruct_GenericTrait<T> {
+        impl<T> MockBar_Foo<T> {
             fn checkpoint(&mut self) {
                 { self.foo.checkpoint(); }
             }
         }
-        impl<T> MockExternalStruct<T> {
+        impl<T> MockBar<T> {
             pub fn checkpoint(&mut self) {
-                self.GenericTrait_expectations.checkpoint();
+                self.Foo_expectations.checkpoint();
             }
             pub fn new() -> Self {
                 Self::default()
             }
         }
-        impl<T> GenericTrait<T> for MockExternalStruct<T> {
+        impl<T> Foo<T> for MockBar<T> {
             fn foo(&self) {
-                self.GenericTrait_expectations.foo.call(())
+                self.Foo_expectations.foo.call()
             }
         }
-        impl<T> MockExternalStruct<T> {
-            pub fn expect_foo(&mut self) -> &mut ::mockall::Expectation<(), ()>
+        impl<T> MockBar<T> {
+            pub fn expect_foo(&mut self)
+                -> &mut __mock_Bar_Foo::foo::Expectation
             {
-                self.GenericTrait_expectations.foo.expect()
+                self.Foo_expectations.foo.expect()
             }
         }"#;
         let code = r#"
-        ExternalStruct<T> {}
-        trait GenericTrait<T> {
+        Bar<T> {}
+        trait Foo<T> {
             fn foo(&self);
         }"#;
         check(desired, code);
@@ -1703,6 +1744,8 @@ mod t {
     #[test]
     fn struct_with_trait_with_associated_types() {
         let desired = r#"
+            #[allow(non_snake_case)]
+            mod __mock_MyIter {}
             struct MockMyIter {
                 Iterator_expectations: MockMyIter_Iterator,
             }
@@ -1713,13 +1756,21 @@ mod t {
                     }
                 }
             }
+            #[allow(non_snake_case)]
+            mod __mock_MyIter_Iterator {
+                ::mockall::expectation!{
+                    fn next< >(&mut self) -> Option<u32> {
+                        let () = ();
+                    }
+                }
+            }
             struct MockMyIter_Iterator {
-                next: ::mockall::Expectations<(), Option<u32> > ,
+                next: __mock_MyIter_Iterator::next::Expectations,
             }
             impl ::std::default::Default for MockMyIter_Iterator {
                 fn default() -> Self {
                     Self {
-                        next: ::mockall::Expectations::default(),
+                        next: __mock_MyIter_Iterator::next::Expectations::default(),
                     }
                 }
             }
@@ -1739,12 +1790,12 @@ mod t {
             impl Iterator for MockMyIter {
                 type Item=u32;
                 fn next(&mut self) -> Option<u32> {
-                    self.Iterator_expectations.next.call(())
+                    self.Iterator_expectations.next.call()
                 }
             }
             impl MockMyIter {
                 pub fn expect_next(&mut self)
-                    -> &mut ::mockall::Expectation<(), Option<u32> >
+                    -> &mut __mock_MyIter_Iterator::next::Expectation
                 {
                     self.Iterator_expectations.next.expect()
                 }
