@@ -9,7 +9,16 @@
 #[macro_export]
 #[doc(hidden)]
 macro_rules! common_methods {
-    () => {
+    ([$($args:ident)*] [$($altargs:ident)*] [$($matchty:ty)*]) => {
+        fn call(&self, $( $args: &$matchty, )* ) {
+            self.matcher.lock().unwrap().verify($( $args, )*);
+            self.times.call();
+            self.verify_sequence();
+            if self.times.is_satisfied() {
+                self.satisfy_sequence()
+            }
+        }
+
         fn in_sequence(&mut self, seq: &mut $crate::Sequence)
             -> &mut Self
         {
@@ -21,6 +30,10 @@ macro_rules! common_methods {
 
         fn is_done(&self) -> bool {
             self.times.is_done()
+        }
+
+        fn matches(&self, $( $args: &$matchty, )*) -> bool {
+            self.matcher.lock().unwrap().matches($( $args, )*)
         }
 
         /// Forbid this expectation from ever being called
@@ -48,6 +61,23 @@ macro_rules! common_methods {
         /// given range
         fn times_range(&mut self, range: Range<usize>) {
             self.times.range(range);
+        }
+
+        #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
+        fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+            (&mut self, $( $args: $altargs,)*)
+        {
+            let mut guard = self.matcher.lock().unwrap();
+            let m = Matcher::Pred($( Box::new($args), )*);
+            mem::replace(guard.deref_mut(), m);
+        }
+
+        fn withf<F>(&mut self, f: F)
+            where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
+        {
+            let mut guard = self.matcher.lock().unwrap();
+            let m = Matcher::Func(Box::new(f));
+            mem::replace(guard.deref_mut(), m);
         }
 
         fn verify_sequence(&self) {
@@ -300,37 +330,7 @@ macro_rules! expectation {
         }
 
         impl<$($generics: 'static,)*> Common<$($generics,)*> {
-            fn call(&self, $( $args: &$matchty, )* ) {
-                self.matcher.lock().unwrap().verify($( $args, )*);
-                self.times.call();
-                self.verify_sequence();
-                if self.times.is_satisfied() {
-                    self.satisfy_sequence()
-                }
-            }
-
-            fn matches(&self, $( $args: &$matchty, )*) -> bool {
-                self.matcher.lock().unwrap().matches($( $args, )*)
-            }
-
-            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
-            fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
-                (&mut self, $( $args: $altargs,)*)
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Pred($( Box::new($args), )*);
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            fn withf<F>(&mut self, f: F)
-                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Func(Box::new(f));
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            $crate::common_methods!{}
+            $crate::common_methods!{[$($args)*] [$($altargs)*] [$($matchty)*]}
         }
 
         pub struct Expectation<$($generics: 'static,)*> {
@@ -546,37 +546,7 @@ macro_rules! expectation {
         }
 
         impl<$($generics: 'static,)*> Common<$($generics,)*> {
-            fn call(&self, $( $args: &$matchty, )* ) {
-                self.matcher.lock().unwrap().verify($( $args, )*);
-                self.times.call();
-                self.verify_sequence();
-                if self.times.is_satisfied() {
-                    self.satisfy_sequence()
-                }
-            }
-
-            fn matches(&self, $( $args: &$matchty, )*) -> bool {
-                self.matcher.lock().unwrap().matches($( $args, )*)
-            }
-
-            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
-            fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
-                (&mut self, $( $args: $altargs,)*)
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Pred($( Box::new($args), )*);
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            fn withf<F>(&mut self, f: F)
-                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Func(Box::new(f));
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            $crate::common_methods!{}
+            $crate::common_methods!{[$($args)*] [$($altargs)*] [$($matchty)*]}
         }
         impl<$($generics: 'static,)*> std::default::Default for Common<$($generics,)*>
         {
@@ -875,37 +845,7 @@ macro_rules! expectation {
         }
 
         impl<$($generics,)*> Common<$($generics,)*> {
-            fn call(&self, $( $args: &$matchty, )* ) {
-                self.matcher.lock().unwrap().verify($( $args, )*);
-                self.times.call();
-                self.verify_sequence();
-                if self.times.is_satisfied() {
-                    self.satisfy_sequence()
-                }
-            }
-
-            fn matches(&self, $( $args: &$matchty, )*) -> bool {
-                self.matcher.lock().unwrap().matches($( $args, )*)
-            }
-
-            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
-            fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
-                (&mut self, $( $args: $altargs,)*)
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Pred($( Box::new($args), )*);
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            fn withf<F>(&mut self, f: F)
-                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Func(Box::new(f));
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            $crate::common_methods!{}
+            $crate::common_methods!{[$($args)*] [$($altargs)*] [$($matchty)*]}
         }
 
         impl<$($generics,)*> std::default::Default for Common<$($generics,)*>
@@ -1258,37 +1198,7 @@ macro_rules! expectation {
         }
 
         impl<$($generics,)*> Common<$($generics,)*> {
-            fn call(&self, $( $args: &$matchty, )* ) {
-                self.matcher.lock().unwrap().verify($( $args, )*);
-                self.times.call();
-                self.verify_sequence();
-                if self.times.is_satisfied() {
-                    self.satisfy_sequence()
-                }
-            }
-
-            fn matches(&self, $( $args: &$matchty, )*) -> bool {
-                self.matcher.lock().unwrap().matches($( $args, )*)
-            }
-
-            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
-            fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
-                (&mut self, $( $args: $altargs,)*)
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Pred($( Box::new($args), )*);
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            fn withf<F>(&mut self, f: F)
-                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
-            {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Func(Box::new(f));
-                mem::replace(guard.deref_mut(), m);
-            }
-
-            $crate::common_methods!{}
+            $crate::common_methods!{[$($args)*] [$($altargs)*] [$($matchty)*]}
         }
 
         impl<$($generics,)*> std::default::Default for Common<$($generics,)*>
