@@ -33,9 +33,9 @@ struct MethodTypes {
     /// Method to call when invoking the expectation
     call: syn::Ident,
     /// Version of the arguments used for the Predicates
-    altargs: Vec<syn::ArgCaptured>,
+    altargs: syn::punctuated::Punctuated<syn::ArgCaptured, Token![,]>,
     /// Expressions producing references from the arguments
-    matchexprs: Vec<syn::Expr>
+    matchexprs: syn::punctuated::Punctuated<syn::Expr, Token![,]>,
 }
 
 cfg_if! {
@@ -122,8 +122,8 @@ fn gen_mod_ident(struct_: &syn::Ident, trait_: Option<&syn::Ident>)
 fn method_types(sig: &syn::MethodSig) -> MethodTypes
 {
     let mut is_static = true;
-    let mut altargs = Vec::new();
-    let mut matchexprs = Vec::new();
+    let mut altargs = syn::punctuated::Punctuated::new();
+    let mut matchexprs = syn::punctuated::Punctuated::new();
     let mut args
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
     let ident = &sig.ident;
