@@ -634,7 +634,7 @@ macro_rules! expectation {
         // references.
         fn $module:ident
         < $( $generics:ident ),* >
-        (&self, $( $args:ident : $argty:ty ),* ) -> & $o:ty
+        (&self $(,)? $( $args:ident : $argty:ty ),* ) -> & $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
                 ( $( $matchcall:expr ),* );
@@ -733,7 +733,7 @@ macro_rules! expectation {
         // immutable references.
         fn $module:ident
         < $( $generics:ident ),* >
-        (&mut self, $( $args:ident : $argty:ty ),* ) -> & $(mut)? $o:ty
+        (&mut self $(,)? $( $args:ident : $argty:ty ),* ) -> & $(mut)? $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
                 ( $( $matchcall:expr ),* );
@@ -862,7 +862,7 @@ macro_rules! expectation {
         // Third pattern, for methods returning 'static values
         fn $module:ident
         < $( $generics:ident ),* >
-        ($(&)?$(mut)?self, $( $args:ident : $argty:ty ),* ) -> $o:ty
+        ($(&)?$(mut)?self $(,)? $( $args:ident : $argty:ty ),* ) -> $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
                 ( $( $matchcall:expr ),* );
