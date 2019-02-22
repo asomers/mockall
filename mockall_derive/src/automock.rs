@@ -355,25 +355,26 @@ fn mock_function(vis: &syn::Visibility,
     for p in decl.inputs.iter() {
         match p {
             syn::FnArg::Captured(arg) => {
-                args.push(derefify(&arg).0);
+                args.push(arg.pat.clone());
             },
             _ => compile_error(p.span(),
                 "Should be unreachable for normal Rust code")
         }
     }
 
+    let mod_ident = syn::Ident::new(&format!("__{}", &ident), ident.span());
     let sig = syn::MethodSig {
         constness,
         unsafety,
         asyncness,
         abi: None,
-        ident: ident.clone(),
+        ident: mod_ident.clone(),
         decl: (*decl).clone()
     };
     let meth_types = method_types(None, &sig);
+    let altargs = &meth_types.altargs;
+    let matchexprs = &meth_types.matchexprs;
     let expect_obj = &meth_types.expect_obj;
-    let input_type = &meth_types.input_type;
-    let output_type = &meth_types.output_type;
     let expect_ident = syn::Ident::new(&format!("expect_{}", &ident),
                                        ident.span());
     let mut g = generics.clone();
@@ -384,19 +385,27 @@ fn mock_function(vis: &syn::Visibility,
     let obj = syn::Ident::new(
         &format!("{}_expectation", ident),
         Span::call_site());
+    // Note, the "&self" is a limitation of the expectation! macro; the function
+    // doesn't really have a receiver
+    // TODO: strip bounds from generics
     quote!(
+        ::mockall::expectation!{
+            fn #mod_ident<#generics>(&self, #inputs) #output {
+                let (#(#altargs),*) = (#(#matchexprs),*);
+            }
+        }
         ::mockall::lazy_static! {
             static ref #obj: ::std::sync::Mutex<#expect_obj> = 
-                ::std::sync::Mutex::new(::mockall::Expectations::new());
+                ::std::sync::Mutex::new(#mod_ident::Expectations::<#generics>::new());
         }
         #vis #constness #unsafety #asyncness
         #fn_token #ident #generics (#inputs) #output {
             #obj.lock().unwrap().call((#(#args),*))
         }
         pub fn #expect_ident #g()
-               -> ::mockall::ExpectationGuard<#ltd, #input_type, #output_type>
+               -> #mod_ident::ExpectationGuard<#ltd, #generics>
         {
-            ::mockall::ExpectationGuard::new(#obj.lock().unwrap())
+            #mod_ident::ExpectationGuard::<#generics>::new(#obj.lock().unwrap())
         }
     )
 }
@@ -734,20 +743,21 @@ mod t {
         let attrs = "mod mock;";
         let desired = r#"
         mod mock {
+            ::mockall::expectation!{
+                fn __foo< >(&self, x: u32) -> i64 { let (p0: &u32) = (&x);}
+            }
             ::mockall::lazy_static!{
                 static ref foo_expectation:
-                    ::std::sync::Mutex< ::mockall::Expectations<(u32), i64> >
-                    = ::std::sync::Mutex::new(::mockall::Expectations::new());
+                    ::std::sync::Mutex< __foo::Expectations>
+                    = ::std::sync::Mutex::new(__foo::Expectations:: < > ::new());
             }
             pub unsafe fn foo(x: u32) -> i64 {
                 foo_expectation.lock().unwrap().call((x))
             }
             pub fn expect_foo< 'guard>()
-                -> ::mockall::ExpectationGuard< 'guard, (u32), i64>
+                -> __foo::ExpectationGuard< 'guard, >
             {
-                ::mockall::ExpectationGuard::new(
-                    foo_expectation.lock().unwrap()
-                )
+                __foo::ExpectationGuard:: < > ::new(foo_expectation.lock().unwrap())
             }
             pub fn checkpoint() {
                 foo_expectation.lock().unwrap().checkpoint();
@@ -1285,20 +1295,22 @@ mod t {
     fn module() {
         let desired = r#"
         mod mock_foo {
+            ::mockall::expectation!{fn __bar< >(&self, x: u32) -> i64 {
+                let (p0: &u32) = (&x);
+            }}
             ::mockall::lazy_static!{
                 static ref bar_expectation:
-                    ::std::sync::Mutex< ::mockall::Expectations<(u32), i64> >
-                    = ::std::sync::Mutex::new(::mockall::Expectations::new());
+                    ::std::sync::Mutex< __bar::Expectations>
+                    = ::std::sync::Mutex::new(
+                        __bar::Expectations:: < > ::new()
+                    );
             }
             pub fn bar(x: u32) -> i64 {
                 bar_expectation.lock().unwrap().call((x))
             }
-            pub fn expect_bar< 'guard>()
-                -> ::mockall::ExpectationGuard< 'guard, (u32), i64>
+            pub fn expect_bar< 'guard>() -> __bar::ExpectationGuard< 'guard, >
             {
-                ::mockall::ExpectationGuard::new(
-                    bar_expectation.lock().unwrap()
-                )
+                __bar::ExpectationGuard:: < > ::new( bar_expectation.lock().unwrap())
             }
             pub fn checkpoint() {
                 bar_expectation.lock().unwrap().checkpoint();
