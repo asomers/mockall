@@ -410,7 +410,7 @@ mod static_method {
     use std::sync::Mutex;
     use super::*;
 
-    expectation!{ fn foo<>(&self, x: i32) -> u32 { let (p: &i32) = (&x); } }
+    expectation!{ fn foo<>(x: i32) -> u32 { let (p: &i32) = (&x); } }
     mockall::lazy_static! {
         static ref GLOBAL_EXPECTATIONS: Mutex<foo::Expectations> = 
             Mutex::new(foo::Expectations::new());

@@ -290,7 +290,7 @@ mod static_method {
     use super::*;
 
     expectation!{
-        fn foo<T>(&self, t: T, x: &i16) -> u32 {
+        fn foo<T>(t: T, x: &i16) -> u32 {
             let (pt: &T, px: &i16) = (&t, x);
         }
     }

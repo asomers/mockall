@@ -58,8 +58,7 @@ macro_rules! common_methods {
     }
 }
 
-/// Common methods of the Expectation, RefExpectation, and RefMutExpectation
-/// structs
+/// Common methods of the Expectation structs
 // Rust bug 35853 applies here, too.
 #[macro_export]
 #[doc(hidden)]
@@ -1142,6 +1141,389 @@ macro_rules! expectation {
                 Self::default()
             }
         }
+        }
+    };
+    (
+        // Fourth pattern, for static methods
+        fn $module:ident
+        < $( $generics:ident ),* >
+        ($( $args:ident : $argty:ty ),* ) -> $o:ty
+        {
+            let ( $( $altargs:ident : &$matchty:ty ),* ) =
+                ( $( $matchcall:expr ),* );
+        }
+    ) => {
+        mod $module {
+        use ::downcast::*;
+        use ::fragile::Fragile;
+        use ::predicates_tree::CaseTreeExt;
+        use ::std::{
+            collections::hash_map::HashMap,
+            marker::PhantomData,
+            mem,
+            ops::{DerefMut, Range},
+            sync::{Mutex, MutexGuard}
+        };
+        use super::*;   // Import types from the calling environment
+
+        enum Rfunc<$($generics: 'static,)*> {
+            Default,
+            // Indicates that a `return_once` expectation has already returned
+            Expired,
+            Mut(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
+            // Should be Box<dyn FnOnce> once that feature is stabilized
+            // https://github.com/rust-lang/rust/issues/28796
+            Once(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
+        }
+
+        impl<$($generics,)*>  Rfunc<$($generics,)*> {
+            fn call_mut(&mut self, $( $args: $argty, )* ) -> $o {
+                match self {
+                    Rfunc::Default => {
+                        use $crate::ReturnDefault;
+                        $crate::DefaultReturner::<$o>::return_default()
+                    },
+                    Rfunc::Expired => {
+                        panic!("Called a method twice that was expected only once")
+                    },
+                    Rfunc::Mut(f) => {
+                        f( $( $args, )* )
+                    },
+                    Rfunc::Once(_) => {
+                        let fo = mem::replace(self, Rfunc::Expired);
+                        if let Rfunc::Once(mut f) = fo {
+                            f( $( $args, )* )
+                        } else {
+                            unreachable!()
+                        }
+                    },
+                }
+            }
+        }
+
+        impl<$($generics,)*>
+            std::default::Default for Rfunc<$($generics,)*>
+        {
+            fn default() -> Self {
+                Rfunc::Default
+            }
+        }
+
+        enum Matcher<$($generics: 'static,)*> {
+            Func(Box<Fn($( &$matchty, )* ) -> bool + Send>),
+            Pred( $( Box<$crate::Predicate<$matchty> + Send>, )* ),
+            // Prevent "unused type parameter" errors
+            _Phantom(PhantomData<($($generics,)*)>)
+        }
+
+        impl<$($generics,)*> Matcher<$($generics,)*> {
+            fn matches(&self, $( $args: &$matchty, )*) -> bool {
+                match self {
+                    Matcher::Func(f) => f($( $args, )*),
+                    Matcher::Pred($( $altargs, )*) =>
+                        [$( $altargs.eval($args), )*]
+                        .into_iter()
+                        .all(|x| *x),
+                    _ => unreachable!()
+                }
+            }
+
+            fn verify(&self, $( $args: &$matchty, )* ) {
+                match self {
+                    Matcher::Func(f) => assert!(f($( $args, )*),
+                        "Expectation didn't match arguments"),
+                    Matcher::Pred($( $altargs, )*) => {
+                        $(if let Some(c) = $altargs.find_case(false, $args) {
+                            panic!("Expectation didn't match arguments:\n{}",
+                                   c.tree());
+                        })*
+                    },
+                    _ => unreachable!()
+                }
+            }
+        }
+
+        impl<$($generics,)*> Default for Matcher<$($generics,)*> {
+            #[allow(unused_variables)]
+            fn default() -> Self {
+                Matcher::Func(Box::new(|$( $args, )*| true))
+            }
+        }
+
+        /// Holds the stuff that is independent of the output type
+        struct Common<$($generics: 'static,)*> {
+            matcher: Mutex<Matcher<$($generics,)*>>,
+            seq_handle: Option<$crate::SeqHandle>,
+            times: $crate::Times
+        }
+
+        impl<$($generics,)*> Common<$($generics,)*> {
+            fn call(&self, $( $args: &$matchty, )* ) {
+                self.matcher.lock().unwrap().verify($( $args, )*);
+                self.times.call();
+                self.verify_sequence();
+                if self.times.is_satisfied() {
+                    self.satisfy_sequence()
+                }
+            }
+
+            fn matches(&self, $( $args: &$matchty, )*) -> bool {
+                self.matcher.lock().unwrap().matches($( $args, )*)
+            }
+
+            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
+            fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+                (&mut self, $( $args: $altargs,)*)
+            {
+                let mut guard = self.matcher.lock().unwrap();
+                let m = Matcher::Pred($( Box::new($args), )*);
+                mem::replace(guard.deref_mut(), m);
+            }
+
+            fn withf<F>(&mut self, f: F)
+                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
+            {
+                let mut guard = self.matcher.lock().unwrap();
+                let m = Matcher::Func(Box::new(f));
+                mem::replace(guard.deref_mut(), m);
+            }
+
+            $crate::common_methods!{}
+        }
+
+        impl<$($generics,)*> std::default::Default for Common<$($generics,)*>
+        {
+            fn default() -> Self {
+                Common {
+                    matcher: Mutex::new(Matcher::default()),
+                    seq_handle: None,
+                    times: $crate::Times::default()
+                }
+            }
+        }
+
+        pub struct Expectation<$($generics: 'static,)*> {
+            common: Common<$($generics,)*>,
+            rfunc: Mutex<Rfunc<$($generics,)*>>,
+        }
+
+        impl<$($generics,)*> Expectation<$($generics,)*> {
+            pub fn call(&self, $( $args: $argty, )* ) -> $o
+            {
+                self.common.call($( $matchcall, )*);
+                self.rfunc.lock().unwrap().call_mut($( $args, )*)
+            }
+
+            /// Validate this expectation's matcher.
+            pub fn matches(&self, $( $args: &$matchty, )*) -> bool {
+                self.common.matches($( $args, )*)
+            }
+
+            /// Return a constant value from the `Expectation`
+            ///
+            /// The output type must be `Clone`.  The compiler can't always
+            /// infer the proper type to use with this method; you will usually
+            /// need to specify it explicitly.  i.e. `return_const(42u32)`
+            /// instead of `return_const(42)`.
+            // We must use Into<$o> instead of $o because where clauses don't
+            // accept equality constraints.
+            // https://github.com/rust-lang/rust/issues/20041
+            #[allow(unused_variables)]
+            pub fn return_const<MockallOutput>(&mut self, c: MockallOutput) -> &mut Self
+                where MockallOutput: Clone + Into<$o> + Send + 'static
+            {
+                let f = move |$( $args: $argty, )*| c.clone().into();
+                self.returning(f)
+            }
+
+            /// Supply an `FnOnce` closure that will provide the return value
+            /// for this Expectation.  This is useful for return types that
+            /// aren't `Clone`.  It will be an error to call this Expectation
+            /// multiple times.
+            pub fn return_once<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce($( $argty, )*) -> $o + Send + 'static
+            {
+                let mut fopt = Some(f);
+                let fmut = move |$( $args: $argty, )*| {
+                    if let Some(f) = fopt.take() {
+                        f($( $args, )*)
+                    } else {
+                        panic!("Called a method twice that was expected only once")
+                    }
+                };
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(),
+                                 Rfunc::Once(Box::new(fmut)));
+                }
+                self
+            }
+
+            /// Single-threaded version of [`return_once`](#method.return_once).
+            /// This is useful for return types that are neither `Send` nor
+            /// `Clone`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.  It is
+            /// also a runtime error to call the method more than once.
+            pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce($( $argty, )*) -> $o + 'static
+            {
+                let mut fragile = Some(::fragile::Fragile::new(f));
+                let fmut = Box::new(move |$( $args: $argty, )*| {
+                    match fragile.take() {
+                        Some(frag) => (frag.into_inner())($( $args, )*),
+                        None => panic!(
+                            "Called a method twice that was expected only once")
+                    }
+                });
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
+                }
+                self
+            }
+
+            pub fn returning<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut($( $argty, )*) -> $o + Send + 'static
+            {
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+                }
+                self
+            }
+
+            /// Single-threaded version of [`returning`](#method.returning).
+            /// Can be used when the argument or return type isn't `Send`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.
+            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut($( $argty, )*) -> $o + 'static
+            {
+                let mut fragile = Fragile::new(f);
+                let fmut = move |$( $args: $argty, )*| {
+                    (fragile.get_mut())($( $args, )*)
+                };
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
+                }
+                self
+            }
+
+            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
+            pub fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+                (&mut self, $( $args: $altargs,)*) -> &mut Self
+            {
+                self.common.with($( $args, )*);
+                self
+            }
+
+            pub fn withf<F>(&mut self, f: F) -> &mut Self
+                where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
+            {
+                self.common.withf(f);
+                self
+            }
+
+            $crate::expectation_methods!{}
+        }
+        impl<$($generics,)*> Default for Expectation<$($generics,)*>
+        {
+            fn default() -> Self {
+                Expectation {
+                    common: Common::default(),
+                    rfunc: Mutex::new(Rfunc::default())
+                }
+            }
+        }
+
+        pub struct Expectations<$($generics: 'static,)*>(
+            Vec<Expectation<$($generics,)*>>
+        );
+        impl<$($generics,)*> Expectations<$($generics,)*> {
+            /// Simulating calling the real method.  Every current expectation
+            /// will be checked in FIFO order and the first one with matching
+            /// arguments will be used.
+            pub fn call(&self, $( $args: $argty, )* ) -> $o
+            {
+                let n = self.0.len();
+                match self.0.iter()
+                    .find(|e| e.matches($( $matchcall, )*) &&
+                          (!e.is_done() || n == 1))
+                {
+                    None => panic!("No matching expectation found"),
+                    Some(e) => e.call($( $args, )*)
+                }
+            }
+
+            /// Create a new expectation for this method.
+            pub fn expect(&mut self) -> &mut Expectation<$($generics,)*>
+            {
+                let e = Expectation::<$($generics,)*>::default();
+                self.0.push(e);
+                let l = self.0.len();
+                &mut self.0[l - 1]
+            }
+
+            $crate::expectations_methods!{Expectation}
+        }
+        impl<$($generics,)*> Default for Expectations<$($generics,)*>
+        {
+            fn default() -> Self {
+                Expectations(Vec::new())
+            }
+        }
+        impl<$($generics: Send + Sync + 'static,)*>
+            $crate::AnyExpectations for Expectations<$($generics,)*>
+        {}
+
+        #[derive(Default)]
+        pub struct GenericExpectations{
+            store: HashMap<$crate::Key, Box<dyn $crate::AnyExpectations>>
+        }
+        impl GenericExpectations {
+            /// Simulating calling the real method.
+            pub fn call<$($generics: Send + Sync + 'static,)*>
+                (&self, $( $args: $argty, )* ) -> $o
+            {
+                // TODO: remove the 2nd type argument from Key after the old API
+                // is fully replaced.
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let e: &Expectations<$($generics,)*> = self.store.get(&key)
+                    .expect("No matching expectation found")
+                    .downcast_ref()
+                    .unwrap();
+                e.call($( $args, )*)
+            }
+
+            /// Verify that all current expectations are satisfied and clear
+            /// them.  This applies to all sets of generic parameters!
+            pub fn checkpoint(&mut self) {
+                self.store.clear();
+            }
+
+            /// Create a new Expectation.
+            pub fn expect<'e, $($generics: Send + Sync + 'static,)*>
+                (&'e mut self)
+                -> &'e mut Expectation<$($generics,)*>
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.store.entry(key)
+                    .or_insert_with(||
+                        Box::new(Expectations::<$($generics,)*>::new())
+                    ).downcast_mut()
+                    .unwrap();
+                ee.expect()
+            }
+
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
 
         /// Like an [`&Expectation`](struct.Expectation.html) but protected by a
         /// Mutex guard.  Useful for mocking static methods.  Forwards accesses
@@ -1408,5 +1790,6 @@ macro_rules! expectation {
             }
         }
         }
-    }
+    };
+
 }
