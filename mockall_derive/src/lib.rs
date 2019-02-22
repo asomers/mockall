@@ -119,7 +119,15 @@ fn gen_mod_ident(struct_: &syn::Ident, trait_: Option<&syn::Ident>)
     }
 }
 
-fn method_types(sig: &syn::MethodSig) -> MethodTypes
+/// Extract useful data about a method
+///
+/// # Arguments
+///
+/// * `sig`:            Signature of the original method
+/// * `generics`:       Generics of the method's parent trait or structure,
+///                     _not_ the method itself.
+fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
+    -> MethodTypes
 {
     let mut is_static = true;
     let mut altargs = syn::punctuated::Punctuated::new();
@@ -128,6 +136,7 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
     let ident = &sig.ident;
     let is_generic = !sig.decl.generics.params.is_empty();
+    let trait_tg = generics.map(|g| g.split_for_impl().1);
     let (_ig, tg, _wc) = sig.decl.generics.split_for_impl();
     for (i, fn_arg) in sig.decl.inputs.iter().enumerate() {
         match fn_arg {
@@ -218,16 +227,11 @@ fn method_types(sig: &syn::MethodSig) -> MethodTypes
         syn::Ident::new("Expectations", span)
     };
     let expectations = syn::parse2(
-        quote!(#ident::#expectations_ident)
+        quote!(#ident::#expectations_ident #trait_tg)
     ).unwrap();
-    let expect_obj = if is_generic {
-        syn::parse2(quote!(#expectations)).unwrap()
-    } else {
-        syn::parse2(
-            quote!(#expectations)
-        ).unwrap()
-    };
-    let expect_ts = quote!(#ident::#expectation_ident #tg);
+    let expect_obj = syn::parse2(quote!(#expectations)).unwrap();
+    // XXX this obviously won't work for generic traits with generic methods
+    let expect_ts = quote!(#ident::#expectation_ident #trait_tg #tg);
     let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
 
     MethodTypes{is_static, expectation, expectations,

@@ -57,7 +57,8 @@ impl Mock {
                                                  &mock_sub_name,
                                                  &meth.borrow().attrs[..],
                                                  &meth.vis, &meth.vis,
-                                                 &meth.borrow().sig, None);
+                                                 &meth.borrow().sig, None,
+                                                 &trait_.generics);
                 cp.to_tokens(&mut sub_cp_body);
             }
             let (ig, tg, wc) = self.generics.split_for_impl();
@@ -75,7 +76,8 @@ impl Mock {
                                                &mock_struct_name,
                                                &meth.borrow().attrs[..],
                                                &meth.vis, &meth.vis,
-                                               &meth.sig, None);
+                                               &meth.sig, None,
+                                               &self.generics);
             // For inherent methods, use the same visibility for the mock and
             // expectation method as for the original.
             mm.to_tokens(&mut mock_body);
@@ -159,13 +161,28 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
 }
 
 /// Generate a mock method and its expectation method
+///
+/// # Arguments
+///
+/// * `mod_ident`:      Name of the module that contains the expectation! macro,
+///                     like __mock_Foo
+/// * `mock_ident`:     Name of the mock structure, like MockFoo
+/// * `meth_attrs`:     Any attributes on the original method, like #[inline]
+/// * `meth_vis`:       Visibility of the original method
+/// * `expect_vis`:     Desired visiblity of the expect_XXX method
+/// * `sig`:            Signature of the original method
+/// * `sub`:            Name of the trait containing the method's expectation
+///                     object, if any.
+/// * `generics`:       Generics of the method's parent trait or structure,
+///                     _not_ the method itself.
 fn gen_mock_method(mod_ident: Option<&syn::Ident>,
                    mock_ident: &syn::Ident,
                    meth_attrs: &[syn::Attribute],
                    meth_vis: &syn::Visibility,
                    expect_vis: &syn::Visibility,
                    sig: &syn::MethodSig,
-                   sub: Option<&syn::Ident>)
+                   sub: Option<&syn::Ident>,
+                   generics: &syn::Generics)
     -> (TokenStream, TokenStream, TokenStream)
 {
     assert!(sig.decl.variadic.is_none(),
@@ -179,7 +196,6 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let abi = &sig.abi;
     let fn_token = &sig.decl.fn_token;
     let ident = &sig.ident;
-    let generics = &sig.decl.generics;
     let (ig, tg, wc) = sig.decl.generics.split_for_impl();
     let call_turbofish = tg.as_turbofish();
     let inputs = demutify(&sig.decl.inputs);
@@ -196,7 +212,7 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     } else {
         "".to_string()
     };
-    let meth_types = method_types(sig);
+    let meth_types = method_types(sig, Some(generics));
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
     let mut args = Vec::new();
@@ -242,11 +258,11 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         let name = syn::Ident::new(
             &format!("{}_{}{}_expectation", mock_ident, sub_name, sig.ident),
             Span::call_site());
-        let mut g = generics.clone();
+        let mut g = sig.decl.generics.clone();
         let lt = syn::Lifetime::new("'guard", Span::call_site());
         let ltd = syn::LifetimeDef::new(lt);
         g.params.push(syn::GenericParam::Lifetime(ltd.clone()));
-        let guard_name = if generics.params.is_empty() {
+        let guard_name = if sig.decl.generics.params.is_empty() {
             syn::Ident::new("ExpectationGuard", Span::call_site())
         } else {
             syn::Ident::new("GenericExpectationGuard", Span::call_site())
@@ -305,7 +321,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     for meth in methods.iter() {
         let attrs = format_attrs(&meth.borrow().attrs);
         let method_ident = &meth.borrow().sig.ident;
-        let meth_types = method_types(&meth.borrow().sig);
+        let meth_types = method_types(&meth.borrow().sig, Some(generics));
         let args = &meth.borrow().sig.decl.inputs;
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
@@ -331,7 +347,11 @@ fn gen_struct<T>(vis: &syn::Visibility,
         let (_, tg, _) = meth_generics.split_for_impl();
         let mut macro_g = TokenStream::new();
         if meth_generics.lt_token.is_some() {
+            assert!(generics.params.is_empty(),
+                "generic methods of generic traits are TODO");
             tg.to_tokens(&mut macro_g);
+        } else if ! generics.params.is_empty() {
+            generics.split_for_impl().1.to_tokens(&mut macro_g);
         } else {
             // expectation! requires the <> even if it's empty
             quote!(<>).to_tokens(&mut macro_g);
@@ -443,7 +463,8 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
                     &syn::Visibility::Inherited,
                     &pub_vis,
                     &meth.sig,
-                    Some(&item.ident)
+                    Some(&item.ident),
+                    &item.generics
                 );
                 // trait methods must have inherited visibility.  Expectation
                 // methods should have public, for lack of any clearer option.
@@ -827,13 +848,13 @@ mod t {
             #[allow(non_snake_case)]
             mod __mock_Bar_Foo {
                 ::mockall::expectation!{
-                    fn foo<T>(&self, x: T) -> T {
+                    fn foo<T, Z>(&self, x: T) -> T {
                         let (p1: &T) = (&x);
                     }
                 }
             }
             struct MockBar_Foo<T: 'static, Z: 'static> {
-                foo: __mock_Bar_Foo::foo::Expectations<T>,
+                foo: __mock_Bar_Foo::foo::Expectations<T, Z>,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
             }
@@ -862,12 +883,12 @@ mod t {
             }
             impl<T: 'static, Z: 'static> Foo<T> for MockBar<T, Z> {
                 fn foo(&self, x: T) -> T {
-                    self.Foo_expectations.foo.call((x))
+                    self.Foo_expectations.foo.call(x)
                 }
             }
             impl<T: 'static, Z: 'static> MockBar<T, Z> {
                 pub fn expect_foo(&mut self)
-                    -> &mut __mock_Bar_Foo::foo::Expectation<T>
+                    -> &mut __mock_Bar_Foo::foo::Expectation<T, Z>
                 {
                     self.Foo_expectations.foo.expect()
                 }
