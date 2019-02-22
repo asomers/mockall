@@ -22,8 +22,6 @@ use crate::mock::{Mock, do_mock};
 
 struct MethodTypes {
     is_static: bool,
-    input_type: syn::TypeTuple,
-    output_type: syn::Type,
     /// Type of Expectation returned by the expect method
     expectation: syn::Type,
     /// Type of Expectations container used by the expect method, without its
@@ -60,7 +58,7 @@ cfg_if! {
 /// Replace any "impl trait" types with "Box<dyn trait>" equivalents
 fn deimplify(ty: &mut syn::Type) {
     if let syn::Type::ImplTrait(tit) = ty {
-        let bounds = &tit.bounds; // Punctuated<TypeParamBound, Add>
+        let bounds = &tit.bounds;
         *ty = syn::parse2(quote!(Box<dyn #bounds>)).unwrap();
     }
 }
@@ -195,8 +193,14 @@ fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
 
 /// Generate an identifier for the mock struct's private module: eg "Foo" =>
 /// "__mock_Foo"
-fn gen_mod_ident(ident: &syn::Ident) -> syn::Ident {
-    syn::Ident::new(&format!("__mock_{}", ident), ident.span())
+fn gen_mod_ident(struct_: &syn::Ident, trait_: Option<&syn::Ident>)
+    -> syn::Ident
+{
+    if let Some(t) = trait_ {
+        syn::Ident::new(&format!("__mock_{}_{}", struct_, t), struct_.span())
+    } else {
+        syn::Ident::new(&format!("__mock_{}", struct_), struct_.span())
+    }
 }
 
 fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
@@ -267,8 +271,6 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
                 "Should be unreachable for normal Rust code")
         }
     }
-    let paren_token = syn::token::Paren::default();
-    let input_type = syn::TypeTuple{paren_token, elems: args};
 
     let span = Span::call_site();
     let (mut output_type, call) = match &sig.decl.output {
@@ -308,10 +310,6 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
             }
         }
     };
-    deimplify(&mut output_type);
-    if mock_ident.is_some() {
-        deselfify(&mut output_type, &mock_ident.as_ref().unwrap());
-    }
 
     let expectation_ident = syn::Ident::new("Expectation", span);
     let expectations_ident = if is_generic {
@@ -332,7 +330,7 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
     let expect_ts = quote!(#ident::#expectation_ident #tg);
     let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
 
-    MethodTypes{is_static, input_type, output_type, expectation, expectations,
+    MethodTypes{is_static, expectation, expectations,
                 call, expect_obj, altargs, matchexprs}
 }
 
