@@ -1605,7 +1605,7 @@ mod t {
             }
         }
         mod __mock_A_A {
-            expectation!{
+            ::mockall::expectation!{
                 fn new< >() -> Self {
                     let () = ();
                 }
@@ -1671,7 +1671,7 @@ mod t {
             }
         }
         mod __mock_A_A {
-            expectation!{
+            ::mockall::expectation!{
                 fn new< >() -> Box<Self> {
                     let () = ();
                 }
@@ -1738,7 +1738,7 @@ mod t {
             }
         }
         mod __mock_A_A {
-            expectation!{
+            ::mockall::expectation!{
                 fn new< >() -> Box<dyn Future<Item=Self, Error=()> > {
                     let () = ();
                 }
@@ -1804,7 +1804,7 @@ mod t {
             }
         }
         mod __mock_A_A {
-            expectation!{
+            ::mockall::expectation!{
                 fn new< >() -> Box<dyn Self> {
                     let () = ();
                 }

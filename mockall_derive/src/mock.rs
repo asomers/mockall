@@ -337,7 +337,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
             quote!(<>).to_tokens(&mut macro_g);
         }
 
-        quote!(expectation! {
+        quote!(::mockall::expectation! {
             fn #meth_ident #macro_g (#args) -> #return_type {
                 let (#(#altargs,)*) = (#(#matchexprs),*);
             }
@@ -596,7 +596,7 @@ mod t {
     fn generic_method() {
         let desired = r#"
             mod __mock_Foo {
-                expectation! {
+                ::mockall::expectation! {
                     fn foo<T>(&self, t:T) -> () {
                         let (p1: &T,) = (&t);
                     }
@@ -682,7 +682,7 @@ mod t {
     fn generic_struct() {
         let desired = r#"
             mod __mock_Foo {
-                expectation!{
+                ::mockall::expectation!{
                     fn foo< >(&self, x: u32) -> i64 {
                         let (p1: &u32,) = (&x);
                     }
@@ -988,7 +988,7 @@ mod t {
     fn impl_trait() {
         let desired = r#"
             mod __mock_Foo {
-                expectation! {
+                ::mockall::expectation! {
                     fn foo< >(&self) -> Box<dyn Debug + Send> {
                         let () = ();
                     }
@@ -1129,8 +1129,10 @@ mod t {
     fn new_method() {
         let desired = r#"
             mod __mock_Foo {
-                expectation!{ fn foo< >(&self) -> u32 { let () = (); } }
-                expectation!{
+                ::mockall::expectation!{
+                    fn foo< >(&self) -> u32 { let () = (); }
+                }
+                ::mockall::expectation!{
                     fn new< >(x: u32) -> Self { let (p0: &u32,) = (&x); }
                 }
             }
@@ -1189,12 +1191,12 @@ mod t {
     fn reference_arguments() {
         let desired = r#"
         mod __mock_Foo {
-            expectation! {
+            ::mockall::expectation! {
                 fn foo< >(&self, x: &u32) -> () {
                     let (p1: &u32,) = (x);
                 }
             }
-            expectation! {
+            ::mockall::expectation! {
                 fn bar< >(&self, y: & 'static u32) -> () {
                     let (p1: & 'static u32,) = (y);
                 }
@@ -1249,7 +1251,7 @@ mod t {
     fn reference_return() {
         let desired = r#"
         mod __mock_Foo {
-            expectation! {
+            ::mockall::expectation! {
                 fn foo< >(&self) -> &u32 {
                     let () =();
                 }
@@ -1293,6 +1295,7 @@ mod t {
     #[test]
     fn reference_return_from_trait() {
         let desired = r#"
+        mod __mock_X {}
         struct MockX {
             Foo_expectations: MockX_Foo ,
         }
@@ -1303,13 +1306,20 @@ mod t {
                 }
             }
         }
+        mod __mock_X_Foo {
+            ::mockall::expectation!{
+                fn foo< >(&self) -> &u32 {
+                    let () = ();
+                }
+            }
+        }
         struct MockX_Foo {
-            foo: ::mockall::RefExpectations<(), u32> ,
+            foo: __mock_X_Foo::foo::Expectations,
         }
         impl ::std::default::Default for MockX_Foo {
             fn default() -> Self {
                 Self {
-                    foo: ::mockall::RefExpectations::default(),
+                    foo: __mock_X_Foo::foo::Expectations::default(),
                 }
             }
         }
@@ -1328,12 +1338,12 @@ mod t {
         }
         impl Foo for MockX {
             fn foo(&self) -> &u32 {
-                self.Foo_expectations.foo.call(())
+                self.Foo_expectations.foo.call()
             }
         }
         impl MockX {
             pub fn expect_foo(&mut self)
-                -> &mut ::mockall::RefExpectation<(), u32>
+                -> &mut __mock_X_Foo::foo::Expectation
             {
                 self.Foo_expectations.foo.expect()
             }
@@ -1352,7 +1362,7 @@ mod t {
     fn ref_mut_return() {
         let desired = r#"
         mod __mock_Foo {
-            expectation!{
+            ::mockall::expectation!{
                 fn foo< >(&mut self) -> &mut u32 {
                     let () = ();
                 }
@@ -1397,7 +1407,7 @@ mod t {
     fn ref_str_return() {
         let desired = r#"
         mod __mock_Foo {
-            expectation!{
+            ::mockall::expectation!{
                 fn foo< >(&self) -> & ::std::string::String {
                     let () = ();
                 }
@@ -1442,7 +1452,7 @@ mod t {
     fn static_method() {
         let desired = r#"
             mod __mock_Foo {
-                expectation!{
+                ::mockall::expectation!{
                     fn bar< >(x: u32) -> u64 {
                         let (p0: &u32,) = (&x);
                     }
@@ -1551,10 +1561,10 @@ mod t {
     fn struct_() {
         let desired = r#"
             mod __mock_Foo {
-                expectation!{
+                ::mockall::expectation!{
                     fn foo< >(&self, x: u32) -> i64 { let (p1: &u32,) = (&x);}
                 }
-                expectation!{
+                ::mockall::expectation!{
                     fn bar< >(&self, y: u64) -> i32 { let (p1: &u64,) = (&y);}
                 }
             }
@@ -1622,7 +1632,7 @@ mod t {
                 }
             }
             mod __mock_Bar_Foo {
-                expectation! {
+                ::mockall::expectation! {
                     fn foo< >(&self, x: u32) -> i64 {
                         let (p1: &u32,) = (&x);
                     }
