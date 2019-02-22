@@ -119,8 +119,7 @@ fn gen_mod_ident(struct_: &syn::Ident, trait_: Option<&syn::Ident>)
     }
 }
 
-fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
-    -> MethodTypes
+fn method_types(sig: &syn::MethodSig) -> MethodTypes
 {
     let mut is_static = true;
     let mut altargs = Vec::new();
@@ -235,31 +234,37 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
                 call, expect_obj, altargs, matchexprs}
 }
 
-/// Convert a reference type into its owned type.  Usually this is a simple
-/// matter of removing the "&", but there are some special cases.
-fn ref_to_owned(ty: &syn::TypeReference) -> syn::Type {
-    let path_ty: syn::TypePath = syn::parse2(quote!(Path)).unwrap();
-    let pathbuf_ty: syn::Type = syn::parse2(quote!(::std::path::PathBuf))
-        .unwrap();
+/// Convert a special reference type like "&str" into a reference to its owned
+/// type like "&String".
+fn destrify(ty: &mut syn::Type) {
+    if let syn::Type::Reference(ref mut tr) = ty {
+        let path_ty: syn::TypePath = syn::parse2(quote!(Path)).unwrap();
+        let pathbuf_ty: syn::Type = syn::parse2(quote!(::std::path::PathBuf))
+            .unwrap();
 
-    let str_ty: syn::TypePath = syn::parse2(quote!(str)).unwrap();
-    let string_ty: syn::Type = syn::parse2(quote!(::std::string::String))
-        .unwrap();
+        let str_ty: syn::TypePath = syn::parse2(quote!(str)).unwrap();
+        let string_ty: syn::Type = syn::parse2(quote!(::std::string::String))
+            .unwrap();
 
-    let cstr_ty: syn::TypePath = syn::parse2(quote!(CStr)).unwrap();
-    let cstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::CString))
-        .unwrap();
+        let cstr_ty: syn::TypePath = syn::parse2(quote!(CStr)).unwrap();
+        let cstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::CString))
+            .unwrap();
 
-    let osstr_ty: syn::TypePath = syn::parse2(quote!(OsStr)).unwrap();
-    let osstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::OsString))
-        .unwrap();
+        let osstr_ty: syn::TypePath = syn::parse2(quote!(OsStr)).unwrap();
+        let osstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::OsString))
+            .unwrap();
 
-    match *ty.elem {
-        syn::Type::Path(ref path) if *path == cstr_ty => cstring_ty,
-        syn::Type::Path(ref path) if *path == osstr_ty => osstring_ty,
-        syn::Type::Path(ref path) if *path == path_ty => pathbuf_ty,
-        syn::Type::Path(ref path) if *path == str_ty => string_ty,
-        _ => (*ty.elem).clone()
+        match tr.elem.as_ref() {
+            syn::Type::Path(ref path) if *path == cstr_ty =>
+                *tr.elem = cstring_ty,
+            syn::Type::Path(ref path) if *path == osstr_ty =>
+                *tr.elem = osstring_ty,
+            syn::Type::Path(ref path) if *path == path_ty =>
+                *tr.elem = pathbuf_ty,
+            syn::Type::Path(ref path) if *path == str_ty =>
+                *tr.elem = string_ty,
+            _ => (), // Nothing to do
+        };
     }
 }
 

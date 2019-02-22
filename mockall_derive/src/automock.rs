@@ -371,7 +371,7 @@ fn mock_function(vis: &syn::Visibility,
         ident: mod_ident.clone(),
         decl: (*decl).clone()
     };
-    let meth_types = method_types(None, &sig);
+    let meth_types = method_types(&sig);
     let altargs = &meth_types.altargs;
     let matchexprs = &meth_types.matchexprs;
     let expect_obj = &meth_types.expect_obj;

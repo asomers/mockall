@@ -29,8 +29,7 @@ impl Mock {
             (trait_.ident.to_string(), self.generics.clone())
         }).collect::<Vec<_>>();
         // generate the mock structure
-        gen_struct(&mock_struct_name, &self.vis, &self.name, &self.generics,
-                   &subs, &self.methods)
+        gen_struct(&self.vis, &self.name, &self.generics, &subs, &self.methods)
             .to_tokens(&mut output);
         // generate sub structures
         for trait_ in self.traits.iter() {
@@ -50,13 +49,11 @@ impl Mock {
                 }
             }).collect::<Vec<_>>();
             let vis = syn::Visibility::Inherited;
-            gen_struct(&mock_struct_name, &vis, &sub_mock,
-                       &self.generics, &[], &methods)
+            gen_struct(&vis, &sub_mock, &self.generics, &[], &methods)
                 .to_tokens(&mut output);
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
-                let (_, _, cp) = gen_mock_method(Some(&mock_struct_name),
-                                                 Some(&mock_mod_ident),
+                let (_, _, cp) = gen_mock_method(Some(&mock_mod_ident),
                                                  &mock_sub_name,
                                                  &meth.borrow().attrs[..],
                                                  &meth.vis, &meth.vis,
@@ -74,8 +71,7 @@ impl Mock {
         // generate methods on the mock structure itself
         for meth in self.methods.iter() {
             has_new |= meth.sig.ident == "new";
-            let (mm, em, cp) = gen_mock_method(Some(&mock_struct_name),
-                                               Some(&mock_mod_ident),
+            let (mm, em, cp) = gen_mock_method(Some(&mock_mod_ident),
                                                &mock_struct_name,
                                                &meth.borrow().attrs[..],
                                                &meth.vis, &meth.vis,
@@ -163,8 +159,7 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
 }
 
 /// Generate a mock method and its expectation method
-fn gen_mock_method(self_ident: Option<&syn::Ident>,
-                   mod_ident: Option<&syn::Ident>,
+fn gen_mock_method(mod_ident: Option<&syn::Ident>,
                    mock_ident: &syn::Ident,
                    meth_attrs: &[syn::Attribute],
                    meth_vis: &syn::Visibility,
@@ -201,7 +196,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     } else {
         "".to_string()
     };
-    let meth_types = method_types(self_ident, sig);
+    let meth_types = method_types(sig);
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
     let mut args = Vec::new();
@@ -282,8 +277,7 @@ fn gen_mock_method(self_ident: Option<&syn::Ident>,
     (mock_output, expect_output, cp_output)
 }
 
-fn gen_struct<T>(mock_ident: &syn::Ident,
-                 vis: &syn::Visibility,
+fn gen_struct<T>(vis: &syn::Visibility,
                  ident: &syn::Ident,
                  generics: &syn::Generics,
                  subs: &[(String, syn::Generics)],
@@ -311,7 +305,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
     for meth in methods.iter() {
         let attrs = format_attrs(&meth.borrow().attrs);
         let method_ident = &meth.borrow().sig.ident;
-        let meth_types = method_types(Some(&mock_ident), &meth.borrow().sig);
+        let meth_types = method_types(&meth.borrow().sig);
         let args = &meth.borrow().sig.decl.inputs;
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
@@ -322,6 +316,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             syn::ReturnType::Type(_, ty) => {
                 let mut rt = (**ty).clone();
                 deimplify(&mut rt);
+                destrify(&mut rt);
                 rt
             },
             syn::ReturnType::Default => {
@@ -441,7 +436,6 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
             syn::TraitItem::Method(meth) => {
                 let mod_ident = gen_mod_ident(&struct_ident, Some(&item.ident));
                 let (mock_meth, expect_meth, _cp) = gen_mock_method(
-                    Some(&mock_ident),
                     Some(&mod_ident),
                     &mock_ident,
                     &meth.attrs[..],
@@ -1402,22 +1396,29 @@ mod t {
     #[test]
     fn ref_str_return() {
         let desired = r#"
+        mod __mock_Foo {
+            expectation!{
+                fn foo< >(&self) -> & ::std::string::String {
+                    let () = ();
+                }
+            }
+        }
         struct MockFoo {
-            foo: ::mockall::RefExpectations<(), ::std::string::String> ,
+            foo: __mock_Foo::foo::Expectations,
         }
         impl ::std::default::Default for MockFoo {
             fn default() -> Self {
                 Self {
-                    foo: ::mockall::RefExpectations::default(),
+                    foo: __mock_Foo::foo::Expectations::default(),
                 }
             }
         }
         impl MockFoo {
             pub fn foo(&self) -> &str {
-                self.foo.call(())
+                self.foo.call()
             }
             pub fn expect_foo(&mut self)
-                -> &mut ::mockall::RefExpectation<(), ::std::string::String>
+                -> &mut __mock_Foo::foo::Expectation
             {
                 self.foo.expect()
             }
