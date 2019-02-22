@@ -388,6 +388,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     }
     let (ig, tg, wc) = generics.split_for_impl();
     quote!(
+        #[allow(non_snake_case)]
         mod #mod_ident {
             #mod_body
         }
@@ -595,6 +596,7 @@ mod t {
     #[test]
     fn generic_method() {
         let desired = r#"
+            #[allow(non_snake_case)]
             mod __mock_Foo {
                 ::mockall::expectation! {
                     fn foo<T>(&self, t:T) -> () {
@@ -681,6 +683,7 @@ mod t {
     #[test]
     fn generic_struct() {
         let desired = r#"
+            #[allow(non_snake_case)]
             mod __mock_Foo {
                 ::mockall::expectation!{
                     fn foo< >(&self, x: u32) -> i64 {
@@ -987,6 +990,7 @@ mod t {
     #[test]
     fn impl_trait() {
         let desired = r#"
+            #[allow(non_snake_case)]
             mod __mock_Foo {
                 ::mockall::expectation! {
                     fn foo< >(&self) -> Box<dyn Debug + Send> {
@@ -1128,6 +1132,7 @@ mod t {
     #[test]
     fn new_method() {
         let desired = r#"
+            #[allow(non_snake_case)]
             mod __mock_Foo {
                 ::mockall::expectation!{
                     fn foo< >(&self) -> u32 { let () = (); }
@@ -1190,6 +1195,7 @@ mod t {
     #[test]
     fn reference_arguments() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_Foo {
             ::mockall::expectation! {
                 fn foo< >(&self, x: &u32) -> () {
@@ -1250,6 +1256,7 @@ mod t {
     #[test]
     fn reference_return() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_Foo {
             ::mockall::expectation! {
                 fn foo< >(&self) -> &u32 {
@@ -1295,6 +1302,7 @@ mod t {
     #[test]
     fn reference_return_from_trait() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_X {}
         struct MockX {
             Foo_expectations: MockX_Foo ,
@@ -1306,6 +1314,7 @@ mod t {
                 }
             }
         }
+        #[allow(non_snake_case)]
         mod __mock_X_Foo {
             ::mockall::expectation!{
                 fn foo< >(&self) -> &u32 {
@@ -1361,6 +1370,7 @@ mod t {
     #[test]
     fn ref_mut_return() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_Foo {
             ::mockall::expectation!{
                 fn foo< >(&mut self) -> &mut u32 {
@@ -1406,6 +1416,7 @@ mod t {
     #[test]
     fn ref_str_return() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_Foo {
             ::mockall::expectation!{
                 fn foo< >(&self) -> & ::std::string::String {
@@ -1451,6 +1462,7 @@ mod t {
     #[test]
     fn static_method() {
         let desired = r#"
+            #[allow(non_snake_case)]
             mod __mock_Foo {
                 ::mockall::expectation!{
                     fn bar< >(x: u32) -> u64 {
@@ -1560,6 +1572,7 @@ mod t {
     #[test]
     fn struct_() {
         let desired = r#"
+            #[allow(non_snake_case)]
             mod __mock_Foo {
                 ::mockall::expectation!{
                     fn foo< >(&self, x: u32) -> i64 { let (p1: &u32) = (&x);}
@@ -1620,6 +1633,7 @@ mod t {
     #[test]
     fn struct_with_trait() {
         let desired = r#"
+            #[allow(non_snake_case)]
             mod __mock_Bar {}
             struct MockBar {
                 Foo_expectations: MockBar_Foo,
@@ -1631,6 +1645,7 @@ mod t {
                     }
                 }
             }
+            #[allow(non_snake_case)]
             mod __mock_Bar_Foo {
                 ::mockall::expectation! {
                     fn foo< >(&self, x: u32) -> i64 {

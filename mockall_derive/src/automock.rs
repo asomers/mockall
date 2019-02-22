@@ -1593,6 +1593,7 @@ mod t {
     #[test]
     fn static_constructor_in_trait() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A ,
@@ -1604,6 +1605,7 @@ mod t {
                 }
             }
         }
+        #[allow(non_snake_case)]
         mod __mock_A_A {
             ::mockall::expectation!{
                 fn new< >() -> Self {
@@ -1659,6 +1661,7 @@ mod t {
     #[test]
     fn static_boxed_constructor() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A,
@@ -1670,6 +1673,7 @@ mod t {
                 }
             }
         }
+        #[allow(non_snake_case)]
         mod __mock_A_A {
             ::mockall::expectation!{
                 fn new< >() -> Box<Self> {
@@ -1726,6 +1730,7 @@ mod t {
     #[test]
     fn static_impl_trait_constructor() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A,
@@ -1737,6 +1742,7 @@ mod t {
                 }
             }
         }
+        #[allow(non_snake_case)]
         mod __mock_A_A {
             ::mockall::expectation!{
                 fn new< >() -> Box<dyn Future<Item=Self, Error=()> > {
@@ -1792,6 +1798,7 @@ mod t {
     #[test]
     fn static_trait_object_constructor() {
         let desired = r#"
+        #[allow(non_snake_case)]
         mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A,
@@ -1803,6 +1810,7 @@ mod t {
                 }
             }
         }
+        #[allow(non_snake_case)]
         mod __mock_A_A {
             ::mockall::expectation!{
                 fn new< >() -> Box<dyn Self> {
