@@ -1593,6 +1593,7 @@ mod t {
     #[test]
     fn static_constructor_in_trait() {
         let desired = r#"
+        mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A ,
         }
@@ -1603,9 +1604,18 @@ mod t {
                 }
             }
         }
+        mod __mock_A_A {
+            expectation!{
+                fn new< >() -> Self {
+                    let () = ();
+                }
+            }
+        }
         struct MockA_A { }
         ::mockall::lazy_static!{
-            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), MockA> > = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            static ref MockA_A_new_expectation:
+                ::std::sync::Mutex< __mock_A_A::new::Expectations >
+                = ::std::sync::Mutex::new(__mock_A_A::new::Expectations::new());
         }
         impl ::std::default::Default for MockA_A {
             fn default() -> Self {
@@ -1627,14 +1637,14 @@ mod t {
         }
         impl A for MockA {
             fn new() -> Self {
-                MockA_A_new_expectation.lock().unwrap().call(())
+                MockA_A_new_expectation.lock().unwrap().call()
             }
         }
         impl MockA {
             pub fn expect_new< 'guard>()
-                -> ::mockall::ExpectationGuard< 'guard, (), MockA>
+                -> __mock_A_A::new::ExpectationGuard< 'guard>
             {
-                ::mockall::ExpectationGuard::new(
+                __mock_A_A::new::ExpectationGuard::new(
                     MockA_A_new_expectation.lock().unwrap()
                 )
             }
@@ -1649,6 +1659,7 @@ mod t {
     #[test]
     fn static_boxed_constructor() {
         let desired = r#"
+        mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A,
         }
@@ -1659,10 +1670,18 @@ mod t {
                 }
             }
         }
+        mod __mock_A_A {
+            expectation!{
+                fn new< >() -> Box<Self> {
+                    let () = ();
+                }
+            }
+        }
         struct MockA_A {}
         ::mockall::lazy_static! {
-            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), Box<MockA> > >
-            = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            static ref MockA_A_new_expectation:
+            ::std::sync::Mutex< __mock_A_A::new::Expectations >
+            = ::std::sync::Mutex::new(__mock_A_A::new::Expectations::new());
         }
         impl ::std::default::Default for MockA_A {
             fn default() -> Self {
@@ -1684,15 +1703,16 @@ mod t {
         }
         impl A for MockA {
             fn new() -> Box<Self> {
-                MockA_A_new_expectation.lock().unwrap().call(())
+                MockA_A_new_expectation.lock().unwrap().call()
             }
         }
         impl MockA {
             pub fn expect_new< 'guard>()
-                -> ::mockall::ExpectationGuard< 'guard, (), Box<MockA> >
+                -> __mock_A_A::new::ExpectationGuard< 'guard >
             {
-                ::mockall::ExpectationGuard::new(MockA_A_new_expectation.lock()
-                .unwrap())
+                __mock_A_A::new::ExpectationGuard::new(
+                    MockA_A_new_expectation.lock().unwrap()
+                )
             }
         }"#;
 
@@ -1706,6 +1726,7 @@ mod t {
     #[test]
     fn static_impl_trait_constructor() {
         let desired = r#"
+        mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A,
         }
@@ -1716,10 +1737,18 @@ mod t {
                 }
             }
         }
+        mod __mock_A_A {
+            expectation!{
+                fn new< >() -> Box<dyn Future<Item=Self, Error=()> > {
+                    let () = ();
+                }
+            }
+        }
         struct MockA_A {}
         ::mockall::lazy_static! {
-            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), Box<Future<Item = MockA, Error = () > > > >
-            = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            static ref MockA_A_new_expectation:
+            ::std::sync::Mutex< __mock_A_A::new::Expectations >
+            = ::std::sync::Mutex::new(__mock_A_A::new::Expectations::new());
         }
         impl ::std::default::Default for MockA_A {
             fn default() -> Self {
@@ -1741,14 +1770,16 @@ mod t {
         }
         impl A for MockA {
             fn new() -> impl Future<Item = Self, Error = ()> {
-                MockA_A_new_expectation.lock().unwrap().call(())
+                MockA_A_new_expectation.lock().unwrap().call()
             }
         }
         impl MockA {
             pub fn expect_new< 'guard>()
-                -> ::mockall::ExpectationGuard< 'guard, (), Box<Future<Item = MockA, Error = ()> > >
+                -> __mock_A_A::new::ExpectationGuard< 'guard >
             {
-                ::mockall::ExpectationGuard::new(MockA_A_new_expectation.lock().unwrap())
+                __mock_A_A::new::ExpectationGuard::new(
+                    MockA_A_new_expectation.lock().unwrap()
+                )
             }
         }"#;
         let code = r#"
@@ -1761,6 +1792,7 @@ mod t {
     #[test]
     fn static_trait_object_constructor() {
         let desired = r#"
+        mod __mock_A {}
         struct MockA {
             A_expectations: MockA_A,
         }
@@ -1771,10 +1803,18 @@ mod t {
                 }
             }
         }
+        mod __mock_A_A {
+            expectation!{
+                fn new< >() -> Box<dyn Self> {
+                    let () = ();
+                }
+            }
+        }
         struct MockA_A {}
         ::mockall::lazy_static! {
-            static ref MockA_A_new_expectation: ::std::sync::Mutex< ::mockall::Expectations<(), Box<MockA> > >
-            = ::std::sync::Mutex::new(::mockall::Expectations::new());
+            static ref MockA_A_new_expectation:
+                ::std::sync::Mutex< __mock_A_A::new::Expectations >
+                = ::std::sync::Mutex::new(__mock_A_A::new::Expectations::new());
         }
         impl ::std::default::Default for MockA_A {
             fn default() -> Self {
@@ -1796,15 +1836,16 @@ mod t {
         }
         impl A for MockA {
             fn new() -> Box<dyn Self> {
-                MockA_A_new_expectation.lock().unwrap().call(())
+                MockA_A_new_expectation.lock().unwrap().call()
             }
         }
         impl MockA {
             pub fn expect_new< 'guard>()
-                -> ::mockall::ExpectationGuard< 'guard, (), Box<MockA> >
+                -> __mock_A_A::new::ExpectationGuard< 'guard>
             {
-                ::mockall::ExpectationGuard::new(MockA_A_new_expectation.lock()
-                .unwrap())
+                __mock_A_A::new::ExpectationGuard::new(
+                    MockA_A_new_expectation.lock().unwrap()
+                )
             }
         }"#;
 
