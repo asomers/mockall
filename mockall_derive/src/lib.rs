@@ -102,6 +102,90 @@ fn demutify_arg(arg: &mut syn::ArgCaptured) {
     };
 }
 
+/// Replace any references to `Self` in `literal_type` with `actual`.  Useful
+/// for constructor methods
+fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
+    match literal_type {
+        syn::Type::Slice(s) => {
+            deselfify(s.elem.as_mut(), actual);
+        },
+        syn::Type::Array(a) => {
+            deselfify(a.elem.as_mut(), actual);
+        },
+        syn::Type::Ptr(p) => {
+            deselfify(p.elem.as_mut(), actual);
+        },
+        syn::Type::Reference(r) => {
+            deselfify(r.elem.as_mut(), actual);
+        },
+        syn::Type::BareFn(_bfn) => {
+            unimplemented!()
+        },
+        syn::Type::Tuple(tuple) => {
+            for elem in tuple.elems.iter_mut() {
+                deselfify(elem, actual);
+            }
+        }
+        syn::Type::Path(type_path) => {
+            if let Some(ref _qself) = type_path.qself {
+                compile_error(type_path.span(), "QSelf is TODO");
+            }
+            let p = &mut type_path.path;
+            for seg in p.segments.iter_mut() {
+                if seg.ident == "Self" {
+                    seg.ident = actual.clone()
+                }
+                if let syn::PathArguments::AngleBracketed(abga) =
+                    &mut seg.arguments
+                {
+                    for arg in abga.args.iter_mut() {
+                        match arg {
+                            syn::GenericArgument::Type(ty) =>
+                                deselfify(ty, actual),
+                            syn::GenericArgument::Binding(b) =>
+                                deselfify(&mut b.ty, actual),
+                            _ => /* Nothing to do */(),
+                        }
+                    }
+                }
+            }
+        },
+        syn::Type::Paren(p) => {
+            deselfify(p.elem.as_mut(), actual);
+        },
+        syn::Type::Group(g) => {
+            deselfify(g.elem.as_mut(), actual);
+        },
+        syn::Type::Macro(_) | syn::Type::Verbatim(_) => {
+            compile_error(literal_type.span(),
+                "mockall_derive does not support this type as a return argument");
+        },
+        syn::Type::ImplTrait(_) => {
+            panic!("deimplify should've already been run on this output type");
+        },
+        syn::Type::TraitObject(tto) => {
+            // Change types like `dyn Self` into `MockXXX`.  For now,
+            // don't worry about multiple trait bounds, because they aren't very
+            // useful in combination with Self.
+            if tto.bounds.len() == 1 {
+                if let syn::TypeParamBound::Trait(t)
+                    = tto.bounds.first().unwrap().value()
+                {
+                    let path = &t.path;
+                    let mut new_type: syn::Type
+                        = syn::parse2(quote!(#path)).unwrap();
+                    deselfify(&mut new_type, actual);
+                    *literal_type = new_type;
+                }
+            }
+        },
+        syn::Type::Infer(_) | syn::Type::Never(_) =>
+        {
+            /* Nothing to do */
+        }
+    }
+}
+
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
 fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
     syn::Ident::new(&format!("Mock{}", ident), ident.span())

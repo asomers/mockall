@@ -1611,7 +1611,7 @@ mod t {
         mod __mock_A_A {
             use super:: * ;
             ::mockall::expectation!{
-                fn new< >() -> Self {
+                fn new< >() -> MockA {
                     let () = ();
                 }
             }
@@ -1682,7 +1682,7 @@ mod t {
         mod __mock_A_A {
             use super:: * ;
             ::mockall::expectation!{
-                fn new< >() -> Box<Self> {
+                fn new< >() -> Box<MockA> {
                     let () = ();
                 }
             }
@@ -1754,7 +1754,7 @@ mod t {
         mod __mock_A_A {
             use super:: * ;
             ::mockall::expectation!{
-                fn new< >() -> Box<dyn Future<Item=Self, Error=()> > {
+                fn new< >() -> Box<Future<Item=MockA, Error=()> > {
                     let () = ();
                 }
             }
@@ -1825,7 +1825,7 @@ mod t {
         mod __mock_A_A {
             use super:: * ;
             ::mockall::expectation!{
-                fn new< >() -> Box<dyn Self> {
+                fn new< >() -> Box<MockA> {
                     let () = ();
                 }
             }

@@ -29,7 +29,8 @@ impl Mock {
             (trait_.ident.to_string(), self.generics.clone())
         }).collect::<Vec<_>>();
         // generate the mock structure
-        gen_struct(&self.vis, &self.name, &self.generics, &subs, &self.methods)
+        gen_struct(&mock_struct_name, &self.vis, &self.name, &self.generics,
+                   &subs, &self.methods)
             .to_tokens(&mut output);
         // generate sub structures
         for trait_ in self.traits.iter() {
@@ -49,7 +50,8 @@ impl Mock {
                 }
             }).collect::<Vec<_>>();
             let vis = syn::Visibility::Inherited;
-            gen_struct(&vis, &sub_mock, &self.generics, &[], &methods)
+            gen_struct(&mock_struct_name, &vis, &sub_mock, &self.generics, &[],
+                       &methods)
                 .to_tokens(&mut output);
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
@@ -293,7 +295,8 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     (mock_output, expect_output, cp_output)
 }
 
-fn gen_struct<T>(vis: &syn::Visibility,
+fn gen_struct<T>(mock_ident: &syn::Ident,
+                 vis: &syn::Visibility,
                  ident: &syn::Ident,
                  generics: &syn::Generics,
                  subs: &[(String, syn::Generics)],
@@ -333,6 +336,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
                 let mut rt = (**ty).clone();
                 deimplify(&mut rt);
                 destrify(&mut rt);
+                deselfify(&mut rt, mock_ident);
                 rt
             },
             syn::ReturnType::Default => {
@@ -1217,7 +1221,7 @@ mod t {
                     fn foo< >(&self) -> u32 { let () = (); }
                 }
                 ::mockall::expectation!{
-                    fn new< >(x: u32) -> Self { let (p0: &u32) = (&x); }
+                    fn new< >(x: u32) -> MockFoo { let (p0: &u32) = (&x); }
                 }
             }
             struct MockFoo {
