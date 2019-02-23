@@ -2005,49 +2005,68 @@ mod t {
     #[test]
     fn where_clause_on_struct_with_trait() {
         let desired = r#"
-            struct MockFoo<T>
-                where T: Clone
+            #[allow(non_snake_case)]
+            mod __mock_Foo {
+                use super:: * ;
+                ::mockall::expectation!{
+                    fn foo<T>(&self) -> () {
+                        let () = ();
+                    }
+                }
+            }
+            struct MockFoo<T: 'static> where T: Clone
             {
                 Bar_expectations: MockFoo_Bar<T> ,
-                foo: ::mockall::Expectations<(), ()> ,
+                foo: __mock_Foo::foo::Expectations<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
-            impl<T> ::std::default::Default for MockFoo<T>
+            impl<T: 'static> ::std::default::Default for MockFoo<T>
                 where T: Clone
             {
                 fn default() -> Self {
                     Self {
                         Bar_expectations: MockFoo_Bar::default(),
-                        foo: ::mockall::Expectations::default(),
+                        foo: __mock_Foo::foo::Expectations::default(),
                         _t0: ::std::marker::PhantomData,
                     }
                 }
             }
-            struct MockFoo_Bar<T> where T: Clone {
-                bar: ::mockall::Expectations<(), ()> ,
+            #[allow(non_snake_case)]
+            mod __mock_Foo_Bar {
+                use super:: * ;
+                ::mockall::expectation!{
+                    fn bar<T>(&self) -> () {
+                        let () = ();
+                    }
+                }
+            }
+            struct MockFoo_Bar<T: 'static> where T: Clone {
+                bar: __mock_Foo_Bar::bar::Expectations<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
-            impl<T> ::std::default::Default for MockFoo_Bar<T> where T: Clone {
+            impl<T: 'static> ::std::default::Default for MockFoo_Bar<T>
+                where T: Clone
+            {
                 fn default() -> Self {
                     Self {
-                        bar: ::mockall::Expectations::default(),
+                        bar: __mock_Foo_Bar::bar::Expectations::default(),
                         _t0: ::std::marker::PhantomData,
                     }
                 }
             }
-            impl<T> MockFoo_Bar<T> where T: Clone {
+            impl<T: 'static> MockFoo_Bar<T> where T: Clone {
                 fn checkpoint(&mut self) {
                     { self.bar.checkpoint(); }
                 }
             }
-            impl<T> MockFoo<T>
+            impl<T: 'static> MockFoo<T>
                 where T: Clone
             {
                 pub fn foo(&self) {
-                    self.foo.call(())
+                    self.foo.call()
                 }
                 pub fn expect_foo(&mut self)
-                    -> &mut ::mockall::Expectation<(), ()>
+                    -> &mut __mock_Foo::foo::Expectation<T>
                 {
                     self.foo.expect()
                 }
@@ -2059,21 +2078,20 @@ mod t {
                     Self::default()
                 }
             }
-            impl<T> Bar for MockFoo<T> where T: Clone {
+            impl<T: 'static> Bar for MockFoo<T> where T: Clone {
                 fn bar (&self) {
-                    self.Bar_expectations.bar.call(())
+                    self.Bar_expectations.bar.call()
                 }
             }
-            impl<T> MockFoo<T> where T: Clone {
+            impl<T: 'static> MockFoo<T> where T: Clone {
                 pub fn expect_bar(&mut self)
-                    -> &mut::mockall::Expectation<(), ()>
+                    -> &mut __mock_Foo_Bar::bar::Expectation<T>
                 {
                     self. Bar_expectations.bar.expect()
                 }
             }"#;
         let code = r#"
-            Foo<T>
-                where T: Clone
+            Foo<T: 'static> where T: Clone
             {
                 fn foo(&self);
             }
