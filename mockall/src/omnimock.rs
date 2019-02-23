@@ -277,7 +277,7 @@ macro_rules! expectations_methods {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generic_expectation_methods {
-    ([$($generics:ident)*] [$($argty:ty)*]) =>
+    ([$($generics:ident)*] [$($argty:ty)*] $o:ty) =>
     {
         #[derive(Default)]
         pub struct GenericExpectations{
@@ -288,22 +288,6 @@ macro_rules! generic_expectation_methods {
             /// them.  This applies to all sets of generic parameters!
             pub fn checkpoint(&mut self) {
                 self.store.clear();
-            }
-
-            /// Create a new Expectation.
-            // The Send + Sync + 'static are required for downcast.
-            pub fn expect<'e, $($generics: Send + Sync + 'static,)*>
-                (&'e mut self)
-                -> &'e mut Expectation<$($generics,)*>
-            {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
-                let ee: &mut Expectations<$($generics,)*> =
-                    self.store.entry(key)
-                    .or_insert_with(||
-                        Box::new(Expectations::<$($generics,)*>::new())
-                    ).downcast_mut()
-                    .unwrap();
-                ee.expect()
             }
 
             pub fn new() -> Self {
@@ -526,10 +510,10 @@ macro_rules! static_expectation {
             $crate::AnyExpectations for Expectations<$($generics,)*>
         {}
 
-        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
+        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
-            pub fn call<$($generics: Send + Sync + 'static,)*>
+            pub fn call<$($generics: 'static,)*>
                 (&self, $( $args: $argty, )* ) -> $o
             {
                 // TODO: remove the 2nd type argument from Key after the old API
@@ -541,6 +525,22 @@ macro_rules! static_expectation {
                     .unwrap();
                 e.call($( $args, )*)
             }
+
+            /// Create a new Expectation.
+            pub fn expect<'e, $($generics: 'static,)*>
+                (&'e mut self)
+                -> &'e mut Expectation<$($generics,)*>
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.store.entry(key)
+                    .or_insert_with(||
+                        Box::new(Expectations::<$($generics,)*>::new())
+                    ).downcast_mut()
+                    .unwrap();
+                ee.expect()
+            }
+
         }
     }
 }
@@ -713,14 +713,17 @@ macro_rules! expectation {
                 }
             }
         }
-        impl<$($generics: Send + Sync + 'static,)*>
+        // The Senc + Sync are required for downcast, since Expectation stores
+        // an Option<$o>
+        impl<$($generics: 'static,)*>
             $crate::AnyExpectations for Expectations<$($generics,)*>
+                where $o: Send + Sync
         {}
 
-        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
+        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
-            pub fn call<$($generics: Send + Sync + 'static,)*>
+            pub fn call<$($generics: 'static,)*>
                 (&self, $( $args: $argty, )* ) -> &$o
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -729,6 +732,21 @@ macro_rules! expectation {
                     .downcast_ref()
                     .unwrap();
                 e.call($( $args, )*)
+            }
+
+            /// Create a new Expectation.
+            pub fn expect<'e, $($generics: 'static,)*>(&'e mut self)
+                -> &'e mut Expectation<$($generics,)*>
+                where $o: Send + Sync
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.store.entry(key)
+                    .or_insert_with(||
+                        Box::new(Expectations::<$($generics,)*>::new())
+                    ).downcast_mut()
+                    .unwrap();
+                ee.expect()
             }
         }
         }
@@ -845,11 +863,14 @@ macro_rules! expectation {
                 }
             }
         }
-        impl<$($generics: Send + Sync + 'static,)*>
+        // The Senc + Sync are required for downcast, since Expectation stores
+        // an Option<$o>
+        impl<$($generics: 'static,)*>
             $crate::AnyExpectations for Expectations<$($generics,)*>
+            where $o: Send + Sync
         {}
 
-        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
+        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
             pub fn call_mut<$($generics: 'static,)*>
@@ -862,6 +883,21 @@ macro_rules! expectation {
                     .downcast_mut()
                     .unwrap();
                 e.call_mut($( $args, )*)
+            }
+
+            /// Create a new Expectation.
+            pub fn expect<'e, $($generics: 'static,)*> (&'e mut self)
+                -> &'e mut Expectation<$($generics,)*>
+                where $o: Send + Sync
+            {
+                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let ee: &mut Expectations<$($generics,)*> =
+                    self.store.entry(key)
+                    .or_insert_with(||
+                        Box::new(Expectations::<$($generics,)*>::new())
+                    ).downcast_mut()
+                    .unwrap();
+                ee.expect()
             }
         }
         }
