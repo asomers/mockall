@@ -11,7 +11,9 @@ macro_rules! common_matcher {
             Func(Box<Fn($( &$matchty, )* ) -> bool + Send>),
             Pred( $( Box<$crate::Predicate<$matchty> + Send>, )* ),
             // Prevent "unused type parameter" errors
-            _Phantom(PhantomData<($($generics,)*)>)
+            // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
+            // are not, unlike PhantomData<generics>
+            _Phantom(Box<Fn($( $generics, )*) -> () + Send>)
         }
 
         impl<$($generics: 'static,)*> Matcher<$($generics,)*> {
@@ -269,9 +271,6 @@ macro_rules! expectations_methods {
                 Expectations(Vec::new())
             }
         }
-        impl<$($generics: Send + Sync + 'static,)*>
-            $crate::AnyExpectations for Expectations<$($generics,)*>
-        {}
     }
 }
 
@@ -292,6 +291,7 @@ macro_rules! generic_expectation_methods {
             }
 
             /// Create a new Expectation.
+            // The Send + Sync + 'static are required for downcast.
             pub fn expect<'e, $($generics: Send + Sync + 'static,)*>
                 (&'e mut self)
                 -> &'e mut Expectation<$($generics,)*>
@@ -522,6 +522,9 @@ macro_rules! static_expectation {
             }
 
         }
+        impl<$($generics: 'static,)*>
+            $crate::AnyExpectations for Expectations<$($generics,)*>
+        {}
 
         $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
         impl GenericExpectations {
@@ -710,6 +713,9 @@ macro_rules! expectation {
                 }
             }
         }
+        impl<$($generics: Send + Sync + 'static,)*>
+            $crate::AnyExpectations for Expectations<$($generics,)*>
+        {}
 
         $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
         impl GenericExpectations {
@@ -839,11 +845,14 @@ macro_rules! expectation {
                 }
             }
         }
+        impl<$($generics: Send + Sync + 'static,)*>
+            $crate::AnyExpectations for Expectations<$($generics,)*>
+        {}
 
         $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*]}
         impl GenericExpectations {
             /// Simulating calling the real method.
-            pub fn call_mut<$($generics: Send + Sync + 'static,)*>
+            pub fn call_mut<$($generics: 'static,)*>
                 (&mut self, $( $args: $argty, )* ) -> &mut $o
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
