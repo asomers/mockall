@@ -255,7 +255,9 @@ fn merge_generics(x: &syn::Generics, y: &syn::Generics) -> syn::Generics {
             }
         }
         // Then merge the where clauses
-        if let Some(wc) = &y.where_clause {
+        if x.where_clause.is_none() {
+            out.where_clause = y.where_clause.clone();
+        } else if let Some(wc) = &y.where_clause {
             if x.where_clause.is_none() {
                 out.where_clause = Some(wc.clone());
             }
@@ -288,8 +290,12 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
     let ident = &sig.ident;
     let is_generic = !sig.decl.generics.params.is_empty();
-    let trait_tg = generics.map(|g| g.split_for_impl().1);
-    let (_ig, tg, _wc) = sig.decl.generics.split_for_impl();
+    let merged_g = if let Some(g) = generics {
+        merge_generics(&g, &sig.decl.generics)
+    } else {
+        sig.decl.generics.clone()
+    };
+    let (_ig, tg, _wc) = merged_g.split_for_impl();
     for (i, fn_arg) in sig.decl.inputs.iter().enumerate() {
         match fn_arg {
             syn::FnArg::Captured(arg) => {
@@ -381,10 +387,12 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
     let expectations = syn::parse2(
         quote!(#ident::#expectations_ident)
     ).unwrap();
-    let expect_obj = syn::parse2(quote!(#expectations #trait_tg)).unwrap();
-    // XXX this obviously won't work for generic traits with generic methods
-    // May have a problem with generic structs that have generic traits?
-    let expect_ts = quote!(#ident::#expectation_ident #trait_tg #tg);
+    let expect_obj = if is_generic {
+        syn::parse2(quote!(#expectations)).unwrap()
+    } else {
+        syn::parse2(quote!(#expectations #tg)).unwrap()
+    };
+    let expect_ts = quote!(#ident::#expectation_ident #tg);
     let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
 
     MethodTypes{is_static, expectation, expectations,
