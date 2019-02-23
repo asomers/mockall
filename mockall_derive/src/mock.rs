@@ -55,12 +55,13 @@ impl Mock {
                 .to_tokens(&mut output);
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
+                let generics = merge_generics(&self.generics, &trait_.generics);
                 let (_, _, cp) = gen_mock_method(Some(&mock_mod_ident),
                                                  &mock_sub_name,
                                                  &meth.borrow().attrs[..],
                                                  &meth.vis, &meth.vis,
                                                  &meth.borrow().sig, None,
-                                                 &trait_.generics);
+                                                 &generics);
                 cp.to_tokens(&mut sub_cp_body);
             }
             let (ig, tg, wc) = self.generics.split_for_impl();
@@ -107,7 +108,7 @@ impl Mock {
         quote!(impl #ig #mock_struct_name #tg #wc {#mock_body})
             .to_tokens(&mut output);
         for trait_ in self.traits.iter() {
-            mock_trait_methods(&self.name, Some(&self.generics), &trait_)
+            mock_trait_methods(&self.name, &self.generics, &trait_)
                 .to_tokens(&mut output);
         }
         output
@@ -443,7 +444,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
 ///                         generics from the Trait
 /// * `item`:               The trait whose methods are being mocked
 fn mock_trait_methods(struct_ident: &syn::Ident,
-                      struct_generics: Option<&syn::Generics>,
+                      struct_generics: &syn::Generics,
                       item: &syn::ItemTrait) -> TokenStream
 {
     let mut output = TokenStream::new();
@@ -461,6 +462,7 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
             },
             syn::TraitItem::Method(meth) => {
                 let mod_ident = gen_mod_ident(&struct_ident, Some(&item.ident));
+                let generics = merge_generics(&struct_generics, &item.generics);
                 let (mock_meth, expect_meth, _cp) = gen_mock_method(
                     Some(&mod_ident),
                     &mock_ident,
@@ -469,7 +471,7 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
                     &pub_vis,
                     &meth.sig,
                     Some(&item.ident),
-                    &item.generics
+                    &generics
                 );
                 // trait methods must have inherited visibility.  Expectation
                 // methods should have public, for lack of any clearer option.
@@ -506,10 +508,7 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
     // Put all mock methods in one impl block
     item.unsafety.to_tokens(&mut output);
     let ident = &item.ident;
-    let (s_ig, s_sg, s_wc) = match struct_generics {
-        Some(g) => g.split_for_impl(),
-        None => item.generics.split_for_impl()
-    };
+    let (s_ig, s_sg, s_wc) = struct_generics.split_for_impl();
     let (_t_ig, t_tg, _t_wc) = item.generics.split_for_impl();
     quote!(impl #s_ig #ident #t_tg
            for #mock_ident #s_sg #s_wc {
@@ -910,6 +909,85 @@ mod t {
         let code = r#"
             Bar<T: 'static, Z: 'static> {}
             trait Foo<T: 'static> {
+                fn foo(&self, x: T) -> T;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    /// Implement a generic trait on a generic struct with mock!.  They have the
+    /// same type arguments, but slightly different bounds.
+    #[test]
+    fn generic_struct_with_generic_trait_with_differnet_bounds() {
+        let desired = r#"
+            #[allow(non_snake_case)]
+            mod __mock_Bar {
+                use super:: * ;
+            }
+            struct MockBar<T: 'static> {
+                Foo_expectations: MockBar_Foo<T> ,
+                _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T: 'static>
+            ::std::default::Default for MockBar<T> {
+                fn default() -> Self {
+                    Self {
+                        Foo_expectations: MockBar_Foo::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
+            #[allow(non_snake_case)]
+            mod __mock_Bar_Foo {
+                use super:: * ;
+                ::mockall::expectation!{
+                    fn foo<T>(&self, x: T) -> T {
+                        let (p1: &T) = (&x);
+                    }
+                }
+            }
+            struct MockBar_Foo<T: 'static> {
+                foo: __mock_Bar_Foo::foo::Expectations<T> ,
+                _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T: 'static>
+            ::std::default::Default for MockBar_Foo<T> {
+                fn default() -> Self {
+                    Self {
+                        foo: __mock_Bar_Foo::foo::Expectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
+            impl<T: 'static> MockBar_Foo<T> {
+                fn checkpoint(&mut self) {
+                    { self.foo.checkpoint(); }
+                }
+            }
+            impl<T: 'static> MockBar<T> {
+                pub fn checkpoint(&mut self) {
+                    self.Foo_expectations.checkpoint();
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+            impl<T: 'static> Foo<T> for MockBar<T> {
+                fn foo(&self, x: T) -> T {
+                    self.Foo_expectations.foo.call(x)
+                }
+            }
+            impl<T: 'static> MockBar<T> {
+                pub fn expect_foo(&mut self)
+                    -> &mut __mock_Bar_Foo::foo::Expectation<T>
+                {
+                    self.Foo_expectations.foo.expect()
+                }
+            }
+        "#;
+        let code = r#"
+            Bar<T: 'static> {}
+            trait Foo<T> {
                 fn foo(&self, x: T) -> T;
             }
         "#;

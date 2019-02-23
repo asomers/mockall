@@ -203,6 +203,74 @@ fn gen_mod_ident(struct_: &syn::Ident, trait_: Option<&syn::Ident>)
     }
 }
 
+/// Combine two Generics structs, producing a new one that has the union of
+/// their parameters.  The output's parameter bounds are not accurate!
+fn merge_generics(x: &syn::Generics, y: &syn::Generics) -> syn::Generics {
+    /// Compare only the identifiers of two GenericParams
+    fn cmp_gp_idents(x: &syn::GenericParam, y: &syn::GenericParam) -> bool {
+        use syn::GenericParam::*;
+
+        match (x, y) {
+            (Type(xtp), Type(ytp)) => {
+                xtp.ident == ytp.ident
+            },
+            (Lifetime(xld), Lifetime(yld)) => {
+                xld.lifetime == yld.lifetime
+            },
+            (Const(xc), Const(yc)) => {
+                xc.ident == yc.ident
+            },
+            _ => false
+        }
+    }
+
+    /// Compare only the identifiers of two WherePredicates
+    fn cmp_wp_idents(x: &syn::WherePredicate, y: &syn::WherePredicate) -> bool {
+        use syn::WherePredicate::*;
+
+        match (x, y) {
+            (Type(xpt), Type(ypt)) => {
+                xpt.bounded_ty == ypt.bounded_ty
+            },
+            (Lifetime(xpl), Lifetime(ypl)) => {
+                xpl.lifetime == ypl.lifetime
+            },
+            (Eq(xeq), Eq(yeq)) => {
+                xeq.lhs_ty == yeq.lhs_ty
+            },
+            _ => false
+        }
+    }
+
+    if x.lt_token.is_none() {
+        y.clone()
+    } else if y.lt_token.is_none() {
+        x.clone()
+    } else {
+        let mut out = x.clone();
+        // First merge the params
+        for param in y.params.iter() {
+            if ! x.params.iter().any(|t| cmp_gp_idents(t, param)) {
+                out.params.push(param.clone());
+            }
+        }
+        // Then merge the where clauses
+        if let Some(wc) = &y.where_clause {
+            if x.where_clause.is_none() {
+                out.where_clause = Some(wc.clone());
+            }
+            for predicate in wc.predicates.iter() {
+                let x_p = &x.where_clause.as_ref().unwrap().predicates;
+                let out_p = &mut out.where_clause.as_mut().unwrap().predicates;
+                if ! x_p.iter().any(|t| cmp_wp_idents(t, predicate)) {
+                    out_p.push(predicate.clone());
+                }
+            }
+        }
+        out
+    }
+}
+
 /// Extract useful data about a method
 ///
 /// # Arguments
