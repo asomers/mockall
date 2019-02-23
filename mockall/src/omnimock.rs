@@ -1054,13 +1054,13 @@ macro_rules! expectation {
             }
         }
 
-        pub struct GenericExpectationGuard<'guard, $($generics: Sync + 'static,)*> {
+        pub struct GenericExpectationGuard<'guard, $($generics: 'static,)*> {
             guard: MutexGuard<'guard, GenericExpectations>,
             i: usize,
             _phantom: PhantomData<((), $($generics,)*)>,
         }
 
-        impl<'guard, $($generics: Send + Sync + 'static,)*>
+        impl<'guard, $($generics: Send + 'static,)*>
             GenericExpectationGuard<'guard, $($generics,)*>
         {
             /// Just like
