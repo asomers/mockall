@@ -325,6 +325,10 @@ macro_rules! static_expectation {
             // Should be Box<dyn FnOnce> once that feature is stabilized
             // https://github.com/rust-lang/rust/issues/28796
             Once(Box<dyn FnMut($( $argty, )*) -> $o + Send>),
+            // Prevent "unused type parameter" errors
+            // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
+            // are not, unlike PhantomData<generics>
+            _Phantom(Box<Fn($($generics,)*) -> () + Send>)
         }
 
         impl<$($generics,)*>  Rfunc<$($generics,)*> {
@@ -348,6 +352,7 @@ macro_rules! static_expectation {
                             unreachable!()
                         }
                     },
+                    Rfunc::_Phantom(_) => unreachable!()
                 }
             }
         }

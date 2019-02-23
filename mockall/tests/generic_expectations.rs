@@ -69,6 +69,18 @@ mod generic_expectation {
         assert_eq!(42, e.call::<i32>(4));
     }
 
+    // expectation! with an unused generic type parameter.  This can happen if
+    // the method belongs to a generic struct.
+    #[test]
+    fn generic_nothing() {
+        expectation!{ fn foo<T>(&self) -> () { let () = (); } }
+
+        let mut e = foo::GenericExpectations::default();
+        e.expect::<u32>()
+            .returning(|| ());
+        e.call::<u32>();
+    }
+
     #[test]
     fn generic_return() {
         expectation!{ fn foo<T>(&self, x: i32) -> T { let (p: &i32) = (&x); } }
