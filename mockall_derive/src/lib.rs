@@ -311,10 +311,11 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
         syn::Ident::new("Expectations", span)
     };
     let expectations = syn::parse2(
-        quote!(#ident::#expectations_ident #trait_tg)
+        quote!(#ident::#expectations_ident)
     ).unwrap();
-    let expect_obj = syn::parse2(quote!(#expectations)).unwrap();
+    let expect_obj = syn::parse2(quote!(#expectations #trait_tg)).unwrap();
     // XXX this obviously won't work for generic traits with generic methods
+    // May have a problem with generic structs that have generic traits?
     let expect_ts = quote!(#ident::#expectation_ident #trait_tg #tg);
     let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
 

@@ -714,13 +714,13 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo< >(&self, x: u32) -> i64 {
+                    fn foo<T>(&self, x: u32) -> i64 {
                         let (p1: &u32) = (&x);
                     }
                 }
             }
             struct MockFoo<T: Clone> {
-                foo: __mock_Foo::foo::Expectations,
+                foo: __mock_Foo::foo::Expectations<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
             impl<T: Clone> ::std::default::Default for MockFoo<T> {
@@ -736,7 +736,7 @@ mod t {
                     self.foo.call(x)
                 }
                 pub fn expect_foo(&mut self)
-                    -> &mut __mock_Foo::foo::Expectation
+                    -> &mut __mock_Foo::foo::Expectation<T>
                 {
                     self.foo.expect()
                 }
@@ -782,13 +782,13 @@ mod t {
             mod __mock_Bar_Foo {
                 use super:: * ;
                 ::mockall::expectation! {
-                    fn foo< >(&self, x: u32) -> u32 {
+                    fn foo<T>(&self, x: u32) -> u32 {
                         let (p1: &u32) = (&x);
                     }
                 }
             }
             struct MockBar_Foo<T: Copy + 'static> {
-                foo: __mock_Bar_Foo::foo::Expectations,
+                foo: __mock_Bar_Foo::foo::Expectations<T>,
                 _t0: ::std::marker::PhantomData<T> ,
             }
             impl<T: Copy + 'static> ::std::default::Default for MockBar_Foo<T> {
@@ -867,7 +867,7 @@ mod t {
                 }
             }
             struct MockBar_Foo<T: 'static, Z: 'static> {
-                foo: __mock_Bar_Foo::foo::Expectations<T, Z>,
+                foo: __mock_Bar_Foo::foo::Expectations<T, Z> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
             }
@@ -945,7 +945,7 @@ mod t {
             }
         }
         struct MockFoo_Iterator<T> {
-            next: __mock_Foo_Iterator::next::Expectations,
+            next: __mock_Foo_Iterator::next::Expectations<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
         impl<T> ::std::default::Default for MockFoo_Iterator<T> {
