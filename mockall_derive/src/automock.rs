@@ -1594,7 +1594,9 @@ mod t {
     fn static_constructor_in_trait() {
         let desired = r#"
         #[allow(non_snake_case)]
-        mod __mock_A {}
+        mod __mock_A {
+            use super:: * ;
+        }
         struct MockA {
             A_expectations: MockA_A ,
         }
@@ -1607,6 +1609,7 @@ mod t {
         }
         #[allow(non_snake_case)]
         mod __mock_A_A {
+            use super:: * ;
             ::mockall::expectation!{
                 fn new< >() -> Self {
                     let () = ();
@@ -1662,7 +1665,9 @@ mod t {
     fn static_boxed_constructor() {
         let desired = r#"
         #[allow(non_snake_case)]
-        mod __mock_A {}
+        mod __mock_A {
+            use super:: * ;
+        }
         struct MockA {
             A_expectations: MockA_A,
         }
@@ -1675,6 +1680,7 @@ mod t {
         }
         #[allow(non_snake_case)]
         mod __mock_A_A {
+            use super:: * ;
             ::mockall::expectation!{
                 fn new< >() -> Box<Self> {
                     let () = ();
@@ -1731,7 +1737,9 @@ mod t {
     fn static_impl_trait_constructor() {
         let desired = r#"
         #[allow(non_snake_case)]
-        mod __mock_A {}
+        mod __mock_A {
+            use super:: * ;
+        }
         struct MockA {
             A_expectations: MockA_A,
         }
@@ -1744,6 +1752,7 @@ mod t {
         }
         #[allow(non_snake_case)]
         mod __mock_A_A {
+            use super:: * ;
             ::mockall::expectation!{
                 fn new< >() -> Box<dyn Future<Item=Self, Error=()> > {
                     let () = ();
@@ -1799,7 +1808,9 @@ mod t {
     fn static_trait_object_constructor() {
         let desired = r#"
         #[allow(non_snake_case)]
-        mod __mock_A {}
+        mod __mock_A {
+            use super:: * ;
+        }
         struct MockA {
             A_expectations: MockA_A,
         }
@@ -1812,6 +1823,7 @@ mod t {
         }
         #[allow(non_snake_case)]
         mod __mock_A_A {
+            use super:: * ;
             ::mockall::expectation!{
                 fn new< >() -> Box<dyn Self> {
                     let () = ();

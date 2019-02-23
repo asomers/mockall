@@ -410,6 +410,7 @@ fn gen_struct<T>(vis: &syn::Visibility,
     quote!(
         #[allow(non_snake_case)]
         mod #mod_ident {
+            use super::*;
             #mod_body
         }
         #vis struct #ident #ig #wc {
@@ -619,6 +620,7 @@ mod t {
         let desired = r#"
             #[allow(non_snake_case)]
             mod __mock_Foo {
+                use super:: * ;
                 ::mockall::expectation! {
                     fn foo<T>(&self, t:T) -> () {
                         let (p1: &T) = (&t);
@@ -706,6 +708,7 @@ mod t {
         let desired = r#"
             #[allow(non_snake_case)]
             mod __mock_Foo {
+                use super:: * ;
                 ::mockall::expectation!{
                     fn foo< >(&self, x: u32) -> i64 {
                         let (p1: &u32) = (&x);
@@ -755,7 +758,9 @@ mod t {
     fn generic_struct_with_trait() {
         let desired = r#"
             #[allow(non_snake_case)]
-            mod __mock_Bar {}
+            mod __mock_Bar {
+                use super:: * ;
+            }
             struct MockBar<T: Copy + 'static> {
                 Foo_expectations: MockBar_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
@@ -771,6 +776,7 @@ mod t {
             }
             #[allow(non_snake_case)]
             mod __mock_Bar_Foo {
+                use super:: * ;
                 ::mockall::expectation! {
                     fn foo< >(&self, x: u32) -> u32 {
                         let (p1: &u32) = (&x);
@@ -829,7 +835,9 @@ mod t {
     fn generic_struct_with_generic_trait() {
         let desired = r#"
             #[allow(non_snake_case)]
-            mod __mock_Bar {}
+            mod __mock_Bar {
+                use super:: * ;
+            }
             struct MockBar<T: 'static, Z: 'static> {
                 Foo_expectations: MockBar_Foo<T, Z> ,
                 _t0: ::std::marker::PhantomData<T> ,
@@ -847,6 +855,7 @@ mod t {
             }
             #[allow(non_snake_case)]
             mod __mock_Bar_Foo {
+                use super:: * ;
                 ::mockall::expectation!{
                     fn foo<T, Z>(&self, x: T) -> T {
                         let (p1: &T) = (&x);
@@ -907,7 +916,9 @@ mod t {
     fn generic_struct_with_trait_with_associated_types() {
         let desired = r#"
         #[allow(non_snake_case)]
-        mod __mock_Foo {}
+        mod __mock_Foo {
+            use super:: * ;
+        }
         struct MockFoo<T> {
             Iterator_expectations: MockFoo_Iterator<T> ,
             _t0: ::std::marker::PhantomData<T> ,
@@ -922,6 +933,7 @@ mod t {
         }
         #[allow(non_snake_case)]
         mod __mock_Foo_Iterator {
+            use super:: * ;
             ::mockall::expectation!{
                 fn next<T>(&mut self) -> Option<T> {
                     let () = ();
@@ -982,7 +994,9 @@ mod t {
     fn generic_trait() {
         let desired = r#"
         #[allow(non_snake_case)]
-        mod __mock_Bar { }
+        mod __mock_Bar {
+            use super:: * ;
+        }
         struct MockBar<T> {
             Foo_expectations: MockBar_Foo<T> ,
             _t0: ::std::marker::PhantomData<T> ,
@@ -997,6 +1011,7 @@ mod t {
         }
         #[allow(non_snake_case)]
         mod __mock_Bar_Foo {
+            use super:: * ;
             ::mockall::expectation!{
                 fn foo< >(&self) -> () {
                     let () = ();
@@ -1054,6 +1069,7 @@ mod t {
         let desired = r#"
             #[allow(non_snake_case)]
             mod __mock_Foo {
+                use super:: * ;
                 ::mockall::expectation! {
                     fn foo< >(&self) -> Box<dyn Debug + Send> {
                         let () = ();
@@ -1196,6 +1212,7 @@ mod t {
         let desired = r#"
             #[allow(non_snake_case)]
             mod __mock_Foo {
+                use super:: * ;
                 ::mockall::expectation!{
                     fn foo< >(&self) -> u32 { let () = (); }
                 }
@@ -1259,6 +1276,7 @@ mod t {
         let desired = r#"
         #[allow(non_snake_case)]
         mod __mock_Foo {
+                use super:: * ;
             ::mockall::expectation! {
                 fn foo< >(&self, x: &u32) -> () {
                     let (p1: &u32) = (x);
@@ -1320,6 +1338,7 @@ mod t {
         let desired = r#"
         #[allow(non_snake_case)]
         mod __mock_Foo {
+            use super:: * ;
             ::mockall::expectation! {
                 fn foo< >(&self) -> &u32 {
                     let () =();
@@ -1365,7 +1384,9 @@ mod t {
     fn reference_return_from_trait() {
         let desired = r#"
         #[allow(non_snake_case)]
-        mod __mock_X {}
+        mod __mock_X {
+            use super:: * ;
+        }
         struct MockX {
             Foo_expectations: MockX_Foo ,
         }
@@ -1378,6 +1399,7 @@ mod t {
         }
         #[allow(non_snake_case)]
         mod __mock_X_Foo {
+            use super:: * ;
             ::mockall::expectation!{
                 fn foo< >(&self) -> &u32 {
                     let () = ();
@@ -1434,6 +1456,7 @@ mod t {
         let desired = r#"
         #[allow(non_snake_case)]
         mod __mock_Foo {
+            use super:: * ;
             ::mockall::expectation!{
                 fn foo< >(&mut self) -> &mut u32 {
                     let () = ();
@@ -1480,6 +1503,7 @@ mod t {
         let desired = r#"
         #[allow(non_snake_case)]
         mod __mock_Foo {
+            use super:: * ;
             ::mockall::expectation!{
                 fn foo< >(&self) -> & ::std::string::String {
                     let () = ();
@@ -1526,6 +1550,7 @@ mod t {
         let desired = r#"
             #[allow(non_snake_case)]
             mod __mock_Foo {
+                use super:: * ;
                 ::mockall::expectation!{
                     fn bar< >(x: u32) -> u64 {
                         let (p0: &u32) = (&x);
@@ -1636,6 +1661,7 @@ mod t {
         let desired = r#"
             #[allow(non_snake_case)]
             mod __mock_Foo {
+                use super:: * ;
                 ::mockall::expectation!{
                     fn foo< >(&self, x: u32) -> i64 { let (p1: &u32) = (&x);}
                 }
@@ -1696,7 +1722,9 @@ mod t {
     fn struct_with_trait() {
         let desired = r#"
             #[allow(non_snake_case)]
-            mod __mock_Bar {}
+            mod __mock_Bar {
+                use super:: * ;
+            }
             struct MockBar {
                 Foo_expectations: MockBar_Foo,
             }
@@ -1709,6 +1737,7 @@ mod t {
             }
             #[allow(non_snake_case)]
             mod __mock_Bar_Foo {
+                use super:: * ;
                 ::mockall::expectation! {
                     fn foo< >(&self, x: u32) -> i64 {
                         let (p1: &u32) = (&x);
@@ -1766,7 +1795,9 @@ mod t {
     fn struct_with_trait_with_associated_types() {
         let desired = r#"
             #[allow(non_snake_case)]
-            mod __mock_MyIter {}
+            mod __mock_MyIter {
+                use super:: * ;
+            }
             struct MockMyIter {
                 Iterator_expectations: MockMyIter_Iterator,
             }
@@ -1779,6 +1810,7 @@ mod t {
             }
             #[allow(non_snake_case)]
             mod __mock_MyIter_Iterator {
+                use super:: * ;
                 ::mockall::expectation!{
                     fn next< >(&mut self) -> Option<u32> {
                         let () = ();
