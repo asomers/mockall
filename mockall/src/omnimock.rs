@@ -1060,7 +1060,7 @@ macro_rules! expectation {
             _phantom: PhantomData<((), $($generics,)*)>,
         }
 
-        impl<'guard, $($generics: Send + 'static,)*>
+        impl<'guard, $($generics: 'static,)*>
             GenericExpectationGuard<'guard, $($generics,)*>
         {
             /// Just like
