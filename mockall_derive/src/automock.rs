@@ -385,12 +385,10 @@ fn mock_function(vis: &syn::Visibility,
     let obj = syn::Ident::new(
         &format!("{}_expectation", ident),
         Span::call_site());
-    // Note, the "&self" is a limitation of the expectation! macro; the function
-    // doesn't really have a receiver
     // TODO: strip bounds from generics
     quote!(
         ::mockall::expectation!{
-            fn #mod_ident<#generics>(&self, #inputs) #output {
+            fn #mod_ident<#generics>(#inputs) #output {
                 let (#(#altargs),*) = (#(#matchexprs),*);
             }
         }
@@ -770,7 +768,7 @@ mod t {
         let desired = r#"
         mod mock {
             ::mockall::expectation!{
-                fn __foo< >(&self, x: u32) -> i64 { let (p0: &u32) = (&x);}
+                fn __foo< >(x: u32) -> i64 { let (p0: &u32) = (&x);}
             }
             ::mockall::lazy_static!{
                 static ref foo_expectation:
@@ -1417,7 +1415,7 @@ mod t {
     fn module() {
         let desired = r#"
         mod mock_foo {
-            ::mockall::expectation!{fn __bar< >(&self, x: u32) -> i64 {
+            ::mockall::expectation!{fn __bar< >(x: u32) -> i64 {
                 let (p0: &u32) = (&x);
             }}
             ::mockall::lazy_static!{
