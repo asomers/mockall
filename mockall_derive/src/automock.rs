@@ -400,7 +400,7 @@ fn mock_function(vis: &syn::Visibility,
         }
         #vis #constness #unsafety #asyncness
         #fn_token #ident #generics (#inputs) #output {
-            #obj.lock().unwrap().call((#(#args),*))
+            #obj.lock().unwrap().call(#(#args),*)
         }
         pub fn #expect_ident #g()
                -> #mod_ident::ExpectationGuard<#ltd, #generics>
