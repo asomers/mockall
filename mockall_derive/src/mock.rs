@@ -44,7 +44,7 @@ impl Mock {
                 span);
             let methods = trait_.items.iter().filter_map(|item| {
                 if let syn::TraitItem::Method(m) = item {
-                    Some(tim2iim(m))
+                    Some(tim2iim(m, &self.vis))
                 } else {
                     None
                 }
@@ -108,7 +108,7 @@ impl Mock {
         quote!(impl #ig #mock_struct_name #tg #wc {#mock_body})
             .to_tokens(&mut output);
         for trait_ in self.traits.iter() {
-            mock_trait_methods(&self.name, &self.generics, &trait_)
+            mock_trait_methods(&self.name, &self.generics, &trait_, &self.vis)
                 .to_tokens(&mut output);
         }
         output
@@ -130,7 +130,7 @@ impl Parse for Mock {
             let method: syn::TraitItem = impl_content.parse()?;
             match &method {
                 syn::TraitItem::Method(meth) => {
-                    methods.push(tim2iim(meth))
+                    methods.push(tim2iim(meth, &vis))
                 },
                 _ => {
                     return Err(input.error("Unsupported in this context"));
@@ -340,6 +340,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         let altargs = &meth_types.altargs;
         let matchexprs = &meth_types.matchexprs;
         let meth_ident = &meth.borrow().sig.ident;
+
         let expect_vis = expectation_visibility(&meth.borrow().vis);
         let return_type = match &meth.borrow().sig.decl.output {
             syn::ReturnType::Type(_, ty) => {
@@ -448,17 +449,16 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
 ///                         Mock struct.  Otherwise, generate the struct's
 ///                         generics from the Trait
 /// * `item`:               The trait whose methods are being mocked
+/// * `vis`:                Visibility of the struct
 fn mock_trait_methods(struct_ident: &syn::Ident,
                       struct_generics: &syn::Generics,
-                      item: &syn::ItemTrait) -> TokenStream
+                      item: &syn::ItemTrait,
+                      vis: &syn::Visibility) -> TokenStream
 {
     let mut output = TokenStream::new();
     let mut mock_body = TokenStream::new();
     let mut expect_body = TokenStream::new();
     let mock_ident = gen_mock_ident(&struct_ident);
-
-    let pub_token = syn::token::Pub{span: Span::call_site()};
-    let pub_vis = syn::Visibility::Public(syn::VisPublic{pub_token});
 
     for trait_item in item.items.iter() {
         match trait_item {
@@ -473,7 +473,7 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
                     &mock_ident,
                     &meth.attrs[..],
                     &syn::Visibility::Inherited,
-                    &pub_vis,
+                    vis,
                     &meth.sig,
                     Some(&item.ident),
                     &generics
@@ -529,10 +529,12 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
     output
 }
 
-fn tim2iim(m: &syn::TraitItemMethod) -> syn::ImplItemMethod {
+fn tim2iim(m: &syn::TraitItemMethod, vis: &syn::Visibility)
+    -> syn::ImplItemMethod
+{
     syn::ImplItemMethod{
         attrs: m.attrs.clone(),
-        vis: syn::parse2(quote!(pub)).unwrap(),
+        vis: vis.clone(),
         defaultness: None,
         sig: m.sig.clone(),
         block: syn::parse2(quote!({})).unwrap(),
@@ -573,7 +575,7 @@ mod t {
         mod __mock_A {
             use super:: * ;
         }
-        struct MockA {
+        pub struct MockA {
             Clone_expectations: MockA_Clone,
         }
         impl ::std::default::Default for MockA {
@@ -587,7 +589,7 @@ mod t {
         mod __mock_A_Clone {
             use super:: * ;
             ::mockall::expectation!{
-                fn clone< >(&self) -> MockA {
+                pub fn clone< >(&self) -> MockA {
                     let () = ();
                 }
             }
@@ -628,7 +630,7 @@ mod t {
             }
         }"#;
         let code = r#"
-        A {}
+        pub A {}
         trait Clone {
             fn clone(&self) -> Self;
         }"#;
@@ -643,12 +645,12 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation! {
-                    fn foo<T>(&self, t:T) -> () {
+                    pub fn foo<T>(&self, t:T) -> () {
                         let (p1: &T) = (&t);
                     }
                 }
             }
-            struct MockFoo {
+            pub struct MockFoo {
                 foo: __mock_Foo::foo::GenericExpectations,
             }
             impl ::std::default::Default for MockFoo {
@@ -676,7 +678,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo<T: 'static>(&self, t: T);
             }"#;
         check(desired, code);
@@ -689,12 +691,12 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn bar<T>(x: T) -> () {
+                    pub fn bar<T>(x: T) -> () {
                         let (p0: &T) = (&x);
                     }
                 }
             }
-            struct MockFoo { }
+            pub struct MockFoo { }
             ::mockall::lazy_static!{
                 static ref MockFoo_bar_expectation:
                 ::std::sync::Mutex< __mock_Foo::bar::GenericExpectations >
@@ -727,7 +729,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo {
+            pub Foo {
                 fn bar<T>(x: T);
             }
         "#;
@@ -742,12 +744,12 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo<T>(&self, x: u32) -> i64 {
+                    pub fn foo<T>(&self, x: u32) -> i64 {
                         let (p1: &u32) = (&x);
                     }
                 }
             }
-            struct MockFoo<T: Clone> {
+            pub struct MockFoo<T: Clone> {
                 foo: __mock_Foo::foo::Expectations<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -777,7 +779,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo<T: Clone> {
+            pub Foo<T: Clone> {
                 fn foo(&self, x: u32) -> i64;
             }
         "#;
@@ -791,10 +793,10 @@ mod t {
         mod __mock_Foo {
             use super:: * ;
             ::mockall::expectation!{
-                fn foo<T, T2>(t: T2) -> () { let (p0: &T2) = (&t); }
+                pub fn foo<T, T2>(t: T2) -> () { let (p0: &T2) = (&t); }
             }
         }
-        struct MockFoo<T> {
+        pub struct MockFoo<T> {
             _t0: ::std::marker::PhantomData<T> ,
         }
         ::mockall::lazy_static!{
@@ -828,7 +830,7 @@ mod t {
             }
         }"#;
         let code = r#"
-        Foo<T> {
+        pub Foo<T> {
             fn foo<T2: 'static>(t: T2);
         }
         "#;
@@ -844,7 +846,7 @@ mod t {
             mod __mock_Bar {
                 use super:: * ;
             }
-            struct MockBar<T: Copy + 'static> {
+            pub struct MockBar<T: Copy + 'static> {
                 Foo_expectations: MockBar_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -861,7 +863,7 @@ mod t {
             mod __mock_Bar_Foo {
                 use super:: * ;
                 ::mockall::expectation! {
-                    fn foo<T>(&self, x: u32) -> u32 {
+                    pub fn foo<T>(&self, x: u32) -> u32 {
                         let (p1: &u32) = (&x);
                     }
                 }
@@ -905,7 +907,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Bar<T: Copy + 'static> {}
+            pub Bar<T: Copy + 'static> {}
             trait Foo {
                 fn foo(&self, x: u32) -> u32;
             }
@@ -921,7 +923,7 @@ mod t {
             mod __mock_Bar {
                 use super:: * ;
             }
-            struct MockBar<T: 'static, Z: 'static> {
+            pub struct MockBar<T: 'static, Z: 'static> {
                 Foo_expectations: MockBar_Foo<T, Z> ,
                 _t0: ::std::marker::PhantomData<T> ,
                 _t1: ::std::marker::PhantomData<Z> ,
@@ -940,7 +942,7 @@ mod t {
             mod __mock_Bar_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo<T, Z>(&self, x: T) -> T {
+                    pub fn foo<T, Z>(&self, x: T) -> T {
                         let (p1: &T) = (&x);
                     }
                 }
@@ -987,7 +989,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Bar<T: 'static, Z: 'static> {}
+            pub Bar<T: 'static, Z: 'static> {}
             trait Foo<T: 'static> {
                 fn foo(&self, x: T) -> T;
             }
@@ -1004,7 +1006,7 @@ mod t {
             mod __mock_Bar {
                 use super:: * ;
             }
-            struct MockBar<T: 'static> {
+            pub struct MockBar<T: 'static> {
                 Foo_expectations: MockBar_Foo<T> ,
                 _t0: ::std::marker::PhantomData<T> ,
             }
@@ -1021,7 +1023,7 @@ mod t {
             mod __mock_Bar_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo<T>(&self, x: T) -> T {
+                    pub fn foo<T>(&self, x: T) -> T {
                         let (p1: &T) = (&x);
                     }
                 }
@@ -1066,7 +1068,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Bar<T: 'static> {}
+            pub Bar<T: 'static> {}
             trait Foo<T> {
                 fn foo(&self, x: T) -> T;
             }
@@ -1081,7 +1083,7 @@ mod t {
         mod __mock_Foo {
             use super:: * ;
         }
-        struct MockFoo<T> {
+        pub struct MockFoo<T> {
             Iterator_expectations: MockFoo_Iterator<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -1097,7 +1099,7 @@ mod t {
         mod __mock_Foo_Iterator {
             use super:: * ;
             ::mockall::expectation!{
-                fn next<T>(&mut self) -> Option<T> {
+                pub fn next<T>(&mut self) -> Option<T> {
                     let () = ();
                 }
             }
@@ -1143,7 +1145,7 @@ mod t {
             }
         }"#;
          let code = r#"
-            Foo<T> {}
+            pub Foo<T> {}
             trait Iterator {
                 type Item=T;
 
@@ -1159,7 +1161,7 @@ mod t {
         mod __mock_Bar {
             use super:: * ;
         }
-        struct MockBar<T> {
+        pub struct MockBar<T> {
             Foo_expectations: MockBar_Foo<T> ,
             _t0: ::std::marker::PhantomData<T> ,
         }
@@ -1175,7 +1177,7 @@ mod t {
         mod __mock_Bar_Foo {
             use super:: * ;
             ::mockall::expectation!{
-                fn foo<T>(&self) -> () {
+                pub fn foo<T>(&self) -> () {
                     let () = ();
                 }
             }
@@ -1218,7 +1220,7 @@ mod t {
             }
         }"#;
         let code = r#"
-        Bar<T> {}
+        pub Bar<T> {}
         trait Foo<T> {
             fn foo(&self);
         }"#;
@@ -1233,12 +1235,12 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation! {
-                    fn foo< >(&self) -> Box<dyn Debug + Send> {
+                    pub fn foo< >(&self) -> Box<dyn Debug + Send> {
                         let () = ();
                     }
                 }
             }
-            struct MockFoo {
+            pub struct MockFoo {
                 foo: __mock_Foo::foo::Expectations,
             }
             impl ::std::default::Default for MockFoo {
@@ -1266,7 +1268,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo(&self) -> impl Debug + Send;
             }
         "#;
@@ -1286,7 +1288,7 @@ mod t {
         mod __mock_X {
             use super:: * ;
         }
-        struct MockX {
+        pub struct MockX {
             A_expectations: MockX_A,
             B_expectations: MockX_B,
         }
@@ -1301,7 +1303,9 @@ mod t {
         #[allow(non_snake_case)]
         mod __mock_X_A {
             use super:: * ;
-            ::mockall::expectation!{ fn foo< >(&self) -> () { let () = (); } }
+            ::mockall::expectation!{
+                pub fn foo< >(&self) -> () { let () = (); }
+            }
         }
         struct MockX_A {
             foo: __mock_X_A::foo::Expectations ,
@@ -1321,7 +1325,9 @@ mod t {
         #[allow(non_snake_case)]
         mod __mock_X_B {
             use super:: * ;
-            ::mockall::expectation!{ fn bar< >(&self) -> () { let () = (); } }
+            ::mockall::expectation!{
+                pub fn bar< >(&self) -> () { let () = (); }
+            }
         }
         struct MockX_B {
             bar: __mock_X_B::bar::Expectations ,
@@ -1370,7 +1376,7 @@ mod t {
             }
         }"#;
         let code = r#"
-            X {}
+            pub X {}
             trait A {
                 fn foo(&self);
             }
@@ -1390,13 +1396,13 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo< >(&self) -> u32 { let () = (); }
+                    pub fn foo< >(&self) -> u32 { let () = (); }
                 }
                 ::mockall::expectation!{
-                    fn new< >(x: u32) -> MockFoo { let (p0: &u32) = (&x); }
+                    pub fn new< >(x: u32) -> MockFoo { let (p0: &u32) = (&x); }
                 }
             }
-            struct MockFoo {
+            pub struct MockFoo {
                 foo: __mock_Foo::foo::Expectations,
             }
             ::mockall::lazy_static!{
@@ -1439,9 +1445,57 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo(&self) -> u32;
                 fn new(x: u32) -> Self;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    /// Mocking a private struct.
+    #[test]
+    fn priv_struct() {
+        let desired = r#"
+            #[allow(non_snake_case)]
+            mod __mock_Foo {
+                use super:: * ;
+                ::mockall::expectation!{
+                    pub(in super::super) fn foo< >(&self, x: u32) -> i64 {
+                        let (p1: &u32) = (&x);
+                    }
+                }
+            }
+            struct MockFoo {
+                foo: __mock_Foo::foo::Expectations,
+            }
+            impl ::std::default::Default for MockFoo {
+                fn default() -> Self {
+                    Self {
+                        foo: __mock_Foo::foo::Expectations::default(),
+                    }
+                }
+            }
+            impl MockFoo {
+                fn foo(&self, x: u32) -> i64 {
+                    self.foo.call(x)
+                }
+                fn expect_foo(&mut self)
+                    -> &mut __mock_Foo::foo::Expectation
+                {
+                    self.foo.expect()
+                }
+                pub fn checkpoint(&mut self) {
+                    { self.foo.checkpoint(); }
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+        "#;
+        let code = r#"
+            Foo {
+                fn foo(&self, x: u32) -> i64;
             }
         "#;
         check(desired, code);
@@ -1454,17 +1508,17 @@ mod t {
         mod __mock_Foo {
                 use super:: * ;
             ::mockall::expectation! {
-                fn foo< >(&self, x: &u32) -> () {
+                pub fn foo< >(&self, x: &u32) -> () {
                     let (p1: &u32) = (x);
                 }
             }
             ::mockall::expectation! {
-                fn bar< >(&self, y: & 'static u32) -> () {
+                pub fn bar< >(&self, y: & 'static u32) -> () {
                     let (p1: & 'static u32) = (y);
                 }
             }
         }
-        struct MockFoo {
+        pub struct MockFoo {
             foo: __mock_Foo::foo::Expectations,
             bar: __mock_Foo::bar::Expectations,
         }
@@ -1501,7 +1555,7 @@ mod t {
         }"#;
 
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo(&self, x: &u32);
                 fn bar(&self, y: &'static u32);
             }
@@ -1516,12 +1570,12 @@ mod t {
         mod __mock_Foo {
             use super:: * ;
             ::mockall::expectation! {
-                fn foo< >(&self) -> &u32 {
+                pub fn foo< >(&self) -> &u32 {
                     let () =();
                 }
             }
         }
-        struct MockFoo {
+        pub struct MockFoo {
             foo: __mock_Foo::foo::Expectations ,
         }
         impl ::std::default::Default for MockFoo {
@@ -1549,7 +1603,7 @@ mod t {
         }"#;
 
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo(&self) -> &u32;
             }
         "#;
@@ -1563,7 +1617,7 @@ mod t {
         mod __mock_X {
             use super:: * ;
         }
-        struct MockX {
+        pub struct MockX {
             Foo_expectations: MockX_Foo ,
         }
         impl ::std::default::Default for MockX {
@@ -1577,7 +1631,7 @@ mod t {
         mod __mock_X_Foo {
             use super:: * ;
             ::mockall::expectation!{
-                fn foo< >(&self) -> &u32 {
+                pub fn foo< >(&self) -> &u32 {
                     let () = ();
                 }
             }
@@ -1619,7 +1673,7 @@ mod t {
         }"#;
 
         let code = r#"
-            X {}
+            pub X {}
             trait Foo {
                 fn foo(&self) -> &u32;
             }
@@ -1634,12 +1688,12 @@ mod t {
         mod __mock_Foo {
             use super:: * ;
             ::mockall::expectation!{
-                fn foo< >(&mut self) -> &mut u32 {
+                pub fn foo< >(&mut self) -> &mut u32 {
                     let () = ();
                 }
             }
         }
-        struct MockFoo {
+        pub struct MockFoo {
             foo: __mock_Foo::foo::Expectations,
         }
         impl ::std::default::Default for MockFoo {
@@ -1667,7 +1721,7 @@ mod t {
         }"#;
 
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo(&mut self) -> &mut u32;
             }
         "#;
@@ -1681,12 +1735,12 @@ mod t {
         mod __mock_Foo {
             use super:: * ;
             ::mockall::expectation!{
-                fn foo< >(&self) -> & ::std::string::String {
+                pub fn foo< >(&self) -> & ::std::string::String {
                     let () = ();
                 }
             }
         }
-        struct MockFoo {
+        pub struct MockFoo {
             foo: __mock_Foo::foo::Expectations,
         }
         impl ::std::default::Default for MockFoo {
@@ -1714,7 +1768,7 @@ mod t {
         }"#;
 
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo(&self) -> &str;
             }
         "#;
@@ -1728,12 +1782,12 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn bar< >(x: u32) -> u64 {
+                    pub fn bar< >(x: u32) -> u64 {
                         let (p0: &u32) = (&x);
                     }
                 }
             }
-            struct MockFoo {}
+            pub struct MockFoo {}
             ::mockall::lazy_static!{
                 static ref MockFoo_bar_expectation:
                     ::std::sync::Mutex< __mock_Foo::bar::Expectations >
@@ -1764,7 +1818,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo {
+            pub Foo {
                 fn bar(x: u32) -> u64;
             }
         "#;
@@ -1778,7 +1832,7 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
             }
-            struct MockFoo {
+            pub struct MockFoo {
                 Bar_expectations: MockFoo_Bar,
             }
             impl ::std::default::Default for MockFoo {
@@ -1792,7 +1846,7 @@ mod t {
             mod __mock_Foo_Bar {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn baz< >(x: u32) -> u64 {
+                    pub fn baz< >(x: u32) -> u64 {
                         let (p0: &u32) = (&x);
                     }
                 }
@@ -1839,7 +1893,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo {}
+            pub Foo {}
             trait Bar {
                 fn baz(x: u32) -> u64;
             }
@@ -1855,13 +1909,17 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo< >(&self, x: u32) -> i64 { let (p1: &u32) = (&x);}
+                    pub fn foo< >(&self, x: u32) -> i64 {
+                        let (p1: &u32) = (&x);
+                    }
                 }
                 ::mockall::expectation!{
-                    fn bar< >(&self, y: u64) -> i32 { let (p1: &u64) = (&y);}
+                    pub fn bar< >(&self, y: u64) -> i32 {
+                        let (p1: &u64) = (&y);
+                    }
                 }
             }
-            struct MockFoo {
+            pub struct MockFoo {
                 foo: __mock_Foo::foo::Expectations,
                 bar: __mock_Foo::bar::Expectations,
             }
@@ -1900,7 +1958,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo {
+            pub Foo {
                 fn foo(&self, x: u32) -> i64;
                 fn bar(&self, y: u64) -> i32;
             }
@@ -1917,7 +1975,7 @@ mod t {
             mod __mock_Bar {
                 use super:: * ;
             }
-            struct MockBar {
+            pub struct MockBar {
                 Foo_expectations: MockBar_Foo,
             }
             impl ::std::default::Default for MockBar {
@@ -1931,7 +1989,7 @@ mod t {
             mod __mock_Bar_Foo {
                 use super:: * ;
                 ::mockall::expectation! {
-                    fn foo< >(&self, x: u32) -> i64 {
+                    pub fn foo< >(&self, x: u32) -> i64 {
                         let (p1: &u32) = (&x);
                     }
                 }
@@ -1973,7 +2031,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Bar {}
+            pub Bar {}
             trait Foo {
                 fn foo(&self, x: u32) -> i64;
             }
@@ -1990,7 +2048,7 @@ mod t {
             mod __mock_MyIter {
                 use super:: * ;
             }
-            struct MockMyIter {
+            pub struct MockMyIter {
                 Iterator_expectations: MockMyIter_Iterator,
             }
             impl ::std::default::Default for MockMyIter {
@@ -2004,7 +2062,7 @@ mod t {
             mod __mock_MyIter_Iterator {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn next< >(&mut self) -> Option<u32> {
+                    pub fn next< >(&mut self) -> Option<u32> {
                         let () = ();
                     }
                 }
@@ -2047,7 +2105,7 @@ mod t {
             }
         "#;
         let code = r#"
-            MyIter {}
+            pub MyIter {}
             trait Iterator {
                 type Item=u32;
 
@@ -2064,12 +2122,12 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo<T>(&self) -> () {
+                    pub fn foo<T>(&self) -> () {
                         let () = ();
                     }
                 }
             }
-            struct MockFoo<T: 'static>
+            pub struct MockFoo<T: 'static>
                 where T: Clone
             {
                 foo: __mock_Foo::foo::Expectations<T> ,
@@ -2105,7 +2163,7 @@ mod t {
             }
         "#;
         let code = r#"
-            Foo<T: 'static> where T: Clone
+            pub Foo<T: 'static> where T: Clone
             {
                 fn foo(&self);
             }
@@ -2120,12 +2178,12 @@ mod t {
             mod __mock_Foo {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn foo<T>(&self) -> () {
+                    pub fn foo<T>(&self) -> () {
                         let () = ();
                     }
                 }
             }
-            struct MockFoo<T: 'static> where T: Clone
+            pub struct MockFoo<T: 'static> where T: Clone
             {
                 Bar_expectations: MockFoo_Bar<T> ,
                 foo: __mock_Foo::foo::Expectations<T> ,
@@ -2146,7 +2204,7 @@ mod t {
             mod __mock_Foo_Bar {
                 use super:: * ;
                 ::mockall::expectation!{
-                    fn bar<T>(&self) -> () {
+                    pub fn bar<T>(&self) -> () {
                         let () = ();
                     }
                 }
@@ -2202,7 +2260,7 @@ mod t {
                 }
             }"#;
         let code = r#"
-            Foo<T: 'static> where T: Clone
+            pub Foo<T: 'static> where T: Clone
             {
                 fn foo(&self);
             }
@@ -2216,7 +2274,7 @@ mod t {
     #[test]
     fn where_clause_on_method() {
         let desired = r#"
-            struct MockSomeStruct {
+            pub struct MockSomeStruct {
                 foo: ::mockall::GenericExpectations,
             }
             impl ::std::default::Default for MockSomeStruct {
@@ -2247,7 +2305,7 @@ mod t {
             }
         "#;
         let code = r#"
-            SomeStruct {
+            pub SomeStruct {
                 fn foo<T>(&self, t: T)
                     where T: 'static;
             }"#;
