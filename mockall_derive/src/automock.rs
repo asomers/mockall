@@ -377,6 +377,7 @@ fn mock_function(vis: &syn::Visibility,
     let expect_obj = &meth_types.expect_obj;
     let expect_ident = syn::Ident::new(&format!("expect_{}", &ident),
                                        ident.span());
+    let expect_vis = expectation_visibility(&vis);
     let mut g = generics.clone();
     let lt = syn::Lifetime::new("'guard", Span::call_site());
     let ltd = syn::LifetimeDef::new(lt);
@@ -388,7 +389,7 @@ fn mock_function(vis: &syn::Visibility,
     // TODO: strip bounds from generics
     quote!(
         ::mockall::expectation!{
-            fn #mod_ident<#generics>(#inputs) #output {
+            #expect_vis fn #mod_ident<#generics>(#inputs) #output {
                 let (#(#altargs),*) = (#(#matchexprs),*);
             }
         }
@@ -1771,7 +1772,7 @@ mod t {
         mod __mock_A {
             use super:: * ;
         }
-        struct MockA {
+        pub struct MockA {
             A_expectations: MockA_A ,
         }
         impl ::std::default::Default for MockA {
@@ -2107,16 +2108,32 @@ mod t {
         #[allow(non_snake_case)]
         mod __mock_Foo {
             use super:: * ;
-            ::mockall::expectation!{ fn foo< >(&self) -> () { let () = (); } }
-            ::mockall::expectation!{ fn bar< >(&self) -> () { let () = (); } }
-            ::mockall::expectation!{ fn baz< >(&self) -> () { let () = (); } }
-            ::mockall::expectation!{ fn bang< >(&self) -> () { let () = (); } }
+            ::mockall::expectation!{
+                pub(in super::super) fn foo< >(&self) -> () { let () = (); }
+            }
+            ::mockall::expectation!{
+                pub fn bar< >(&self) -> () { let () = (); }
+            }
+            ::mockall::expectation!{
+                pub(in super::super::super) fn baz< >(&self) -> () {
+                    let () = ();
+                }
+            }
+            ::mockall::expectation!{
+                pub(crate) fn bang< >(&self) -> () { let () = (); }
+            }
+            ::mockall::expectation!{
+                pub(in super::super::super::x) fn bean< >(&self) -> () {
+                    let () = ();
+                }
+            }
         }
         pub struct MockFoo {
             foo: __mock_Foo::foo::Expectations ,
             bar: __mock_Foo::bar::Expectations ,
             baz: __mock_Foo::baz::Expectations ,
             bang: __mock_Foo::bang::Expectations ,
+            bean: __mock_Foo::bean::Expectations ,
         }
         impl ::std::default::Default for MockFoo {
             fn default() -> Self {
@@ -2125,6 +2142,7 @@ mod t {
                     bar: __mock_Foo::bar::Expectations::default(),
                     baz: __mock_Foo::baz::Expectations::default(),
                     bang: __mock_Foo::bang::Expectations::default(),
+                    bean: __mock_Foo::bean::Expectations::default(),
                 }
             }
         }
@@ -2161,11 +2179,20 @@ mod t {
             {
                 self.bang.expect()
             }
+            pub(in super::x) fn bean(&self) {
+                self.bean.call()
+            }
+            pub(in super::x) fn expect_bean(&mut self)
+                -> &mut __mock_Foo::bean::Expectation
+            {
+                self.bean.expect()
+            }
             pub fn checkpoint(&mut self) {
                 { self.foo.checkpoint(); }
                 { self.bar.checkpoint(); }
                 { self.baz.checkpoint(); }
                 { self.bang.checkpoint(); }
+                { self.bean.checkpoint(); }
             }
             pub fn new() -> Self {
                 Self::default()
@@ -2176,6 +2203,7 @@ mod t {
             pub fn bar(&self) {}
             pub(super) fn baz(&self) {}
             pub(crate) fn bang(&self) {}
+            pub(in super::x) fn bean(&self) {}
         }"#);
     }
 

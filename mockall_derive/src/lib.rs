@@ -273,6 +273,45 @@ fn merge_generics(x: &syn::Generics, y: &syn::Generics) -> syn::Generics {
     }
 }
 
+/// Return the visibility that should be used for expectation!, given the
+/// original method's visibility.
+fn expectation_visibility(vis: &syn::Visibility) -> syn::Visibility {
+    let in_token = Token![in](vis.span());
+    let super_token = Token![super](vis.span());
+    match vis {
+        syn::Visibility::Inherited => {
+            // expectation! defines structs two module levels beneath where they
+            // are declared.  So private methods need pub(in super::super)
+            let mut path = syn::Path::from(super_token);
+            path.segments.push(super_token.into());
+            let supersuper = syn::Visibility::Restricted(syn::VisRestricted{
+                pub_token: Token![pub](vis.span()),
+                paren_token: syn::token::Paren::default(),
+                in_token: Some(in_token),
+                path: Box::new(path)
+            });
+            supersuper.into()
+        },
+        syn::Visibility::Restricted(vr) => {
+            // crate => don't change
+            // in crate::* => don't change
+            // super => in super::super::super
+            // self => in super::super
+            // in anything_else => super::super::anything_else
+            if vr.path.segments.first().unwrap().value().ident == "crate" {
+                vr.clone().into()
+            } else {
+                let mut out = vr.clone();
+                out.in_token = Some(in_token);
+                out.path.segments.insert(0, super_token.into());
+                out.path.segments.insert(0, super_token.into());
+                out.into()
+            }
+        },
+        _ => vis.clone()
+    }
+}
+
 /// Extract useful data about a method
 ///
 /// # Arguments

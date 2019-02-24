@@ -340,6 +340,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         let altargs = &meth_types.altargs;
         let matchexprs = &meth_types.matchexprs;
         let meth_ident = &meth.borrow().sig.ident;
+        let expect_vis = expectation_visibility(&meth.borrow().vis);
         let return_type = match &meth.borrow().sig.decl.output {
             syn::ReturnType::Type(_, ty) => {
                 let mut rt = (**ty).clone();
@@ -367,7 +368,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         }
 
         quote!(::mockall::expectation! {
-            fn #meth_ident #macro_g (#args) -> #return_type {
+            #expect_vis fn #meth_ident #macro_g (#args) -> #return_type {
                 let (#altargs) = (#matchexprs);
             }
         }).to_tokens(&mut mod_body);

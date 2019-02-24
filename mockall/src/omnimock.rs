@@ -162,40 +162,40 @@ macro_rules! common_methods {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! expectation_methods {
-    ([$($args:ident)*] [$($altargs:ident)*] [$($matchty:ty)*]) => {
+    ($v:vis [$($args:ident)*] [$($altargs:ident)*] [$($matchty:ty)*]) => {
         /// Add this expectation to a [`Sequence`](struct.Sequence.html).
-        pub fn in_sequence(&mut self, seq: &mut $crate::Sequence) -> &mut Self {
+        $v fn in_sequence(&mut self, seq: &mut $crate::Sequence) -> &mut Self {
             self.common.in_sequence(seq);
             self
         }
 
-        pub fn is_done(&self) -> bool {
+        $v fn is_done(&self) -> bool {
             self.common.is_done()
         }
 
         /// Validate this expectation's matcher.
-        pub fn matches(&self, $( $args: &$matchty, )*) -> bool {
+        $v fn matches(&self, $( $args: &$matchty, )*) -> bool {
             self.common.matches($( $args, )*)
         }
 
         /// Forbid this expectation from ever being called
-        pub fn never(&mut self) -> &mut Self {
+        $v fn never(&mut self) -> &mut Self {
             self.common.never();
             self
         }
 
-        pub fn new() -> Self {
+        $v fn new() -> Self {
             Self::default()
         }
 
         /// Expect this expectation to be called exactly once.  Shortcut for
         /// [`times(1)`](#method.times).
-        pub fn once(&mut self) -> &mut Self {
+        $v fn once(&mut self) -> &mut Self {
             self.times(1)
         }
 
         /// Require this expectation to be called exactly `n` times.
-        pub fn times(&mut self, n: usize) -> &mut Self {
+        $v fn times(&mut self, n: usize) -> &mut Self {
             self.common.times(n);
             self
         }
@@ -204,14 +204,14 @@ macro_rules! expectation_methods {
         ///
         /// This behavior is the default, but the method is provided in case the
         /// default behavior changes.
-        pub fn times_any(&mut self) -> &mut Self {
+        $v fn times_any(&mut self) -> &mut Self {
             self.common.times_any();
             self
         }
 
         /// Allow this expectation to be called any number of times within a
         /// given range
-        pub fn times_range(&mut self, range: Range<usize>)
+        $v fn times_range(&mut self, range: Range<usize>)
             -> &mut Self
         {
             self.common.times_range(range);
@@ -219,14 +219,14 @@ macro_rules! expectation_methods {
         }
 
         #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
-        pub fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+        $v fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
             (&mut self, $( $args: $altargs,)*) -> &mut Self
         {
             self.common.with($( $args, )*);
             self
         }
 
-        pub fn withf<F>(&mut self, f: F) -> &mut Self
+        $v fn withf<F>(&mut self, f: F) -> &mut Self
             where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
         {
             self.common.withf(f);
@@ -240,20 +240,20 @@ macro_rules! expectation_methods {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! expectations_methods {
-    ([$($generics:ident)*]) => {
-        pub struct Expectations<$($generics: 'static,)*>(
+    ($v:vis [$($generics:ident)*]) => {
+        $v struct Expectations<$($generics: 'static,)*>(
             Vec<Expectation<$($generics,)*>>
         );
 
         impl<$($generics: 'static,)*> Expectations<$($generics,)*> {
             /// Verify that all current expectations are satisfied and clear
             /// them.
-            pub fn checkpoint(&mut self) {
+            $v fn checkpoint(&mut self) {
                 self.0.drain(..);
             }
 
             /// Create a new expectation for this method.
-            pub fn expect(&mut self) -> &mut Expectation<$($generics,)*>
+            $v fn expect(&mut self) -> &mut Expectation<$($generics,)*>
             {
                 let e = Expectation::default();
                 self.0.push(e);
@@ -261,7 +261,7 @@ macro_rules! expectations_methods {
                 &mut self.0[l - 1]
             }
 
-            pub fn new() -> Self {
+            $v fn new() -> Self {
                 Self::default()
             }
         }
@@ -277,20 +277,20 @@ macro_rules! expectations_methods {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generic_expectation_methods {
-    ([$($generics:ident)*] [$($argty:ty)*] $o:ty) =>
+    ($v:vis [$($generics:ident)*] [$($argty:ty)*] $o:ty) =>
     {
         #[derive(Default)]
-        pub struct GenericExpectations{
+        $v struct GenericExpectations{
             store: HashMap<$crate::Key, Box<dyn $crate::AnyExpectations>>
         }
         impl GenericExpectations {
             /// Verify that all current expectations are satisfied and clear
             /// them.  This applies to all sets of generic parameters!
-            pub fn checkpoint(&mut self) {
+            $v fn checkpoint(&mut self) {
                 self.store.clear();
             }
 
-            pub fn new() -> Self {
+            $v fn new() -> Self {
                 Self::default()
             }
         }
@@ -302,7 +302,7 @@ macro_rules! generic_expectation_methods {
 #[macro_export]
 macro_rules! static_expectation {
     (
-        [$($generics:ident)*] [$($args:ident)*] [$($argty:ty)*]
+        $v:vis [$($generics:ident)*] [$($args:ident)*] [$($argty:ty)*]
         [$($altargs:ident)*] [$($matchty:ty)*] [$($matchcall:expr)*] $o:ty
     ) => {
         use ::downcast::*;
@@ -373,13 +373,13 @@ macro_rules! static_expectation {
             [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
-        pub struct Expectation<$($generics: 'static,)*> {
+        $v struct Expectation<$($generics: 'static,)*> {
             common: Common<$($generics,)*>,
             rfunc: Mutex<Rfunc<$($generics,)*>>,
         }
 
         impl<$($generics,)*> Expectation<$($generics,)*> {
-            pub fn call(&self, $( $args: $argty, )* ) -> $o
+            $v fn call(&self, $( $args: $argty, )* ) -> $o
             {
                 self.common.call($( $matchcall, )*);
                 self.rfunc.lock().unwrap().call_mut($( $args, )*)
@@ -395,7 +395,7 @@ macro_rules! static_expectation {
             // accept equality constraints.
             // https://github.com/rust-lang/rust/issues/20041
             #[allow(unused_variables)]
-            pub fn return_const<MockallOutput>(&mut self, c: MockallOutput) -> &mut Self
+            $v fn return_const<MockallOutput>(&mut self, c: MockallOutput) -> &mut Self
                 where MockallOutput: Clone + Into<$o> + Send + 'static
             {
                 let f = move |$( $args: $argty, )*| c.clone().into();
@@ -406,7 +406,7 @@ macro_rules! static_expectation {
             /// for this Expectation.  This is useful for return types that
             /// aren't `Clone`.  It will be an error to call this Expectation
             /// multiple times.
-            pub fn return_once<F>(&mut self, f: F) -> &mut Self
+            $v fn return_once<F>(&mut self, f: F) -> &mut Self
                 where F: FnOnce($( $argty, )*) -> $o + Send + 'static
             {
                 let mut fopt = Some(f);
@@ -432,7 +432,7 @@ macro_rules! static_expectation {
             /// It is a runtime error to call the mock method from a different
             /// thread than the one that originally called this method.  It is
             /// also a runtime error to call the method more than once.
-            pub fn return_once_st<F>(&mut self, f: F) -> &mut Self
+            $v fn return_once_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnOnce($( $argty, )*) -> $o + 'static
             {
                 let mut fragile = Some(::fragile::Fragile::new(f));
@@ -450,7 +450,7 @@ macro_rules! static_expectation {
                 self
             }
 
-            pub fn returning<F>(&mut self, f: F) -> &mut Self
+            $v fn returning<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $argty, )*) -> $o + Send + 'static
             {
                 {
@@ -465,7 +465,7 @@ macro_rules! static_expectation {
             ///
             /// It is a runtime error to call the mock method from a different
             /// thread than the one that originally called this method.
-            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+            $v fn returning_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $argty, )*) -> $o + 'static
             {
                 let mut fragile = Fragile::new(f);
@@ -480,7 +480,7 @@ macro_rules! static_expectation {
             }
 
             $crate::expectation_methods!{
-                [$($args)*] [$($altargs)*] [$($matchty)*]
+                $v [$($args)*] [$($altargs)*] [$($matchty)*]
             }
         }
         impl<$($generics,)*> Default for Expectation<$($generics,)*>
@@ -493,12 +493,12 @@ macro_rules! static_expectation {
             }
         }
 
-        $crate::expectations_methods!{[$($generics)*]}
+        $crate::expectations_methods!{$v [$($generics)*]}
         impl<$($generics,)*> Expectations<$($generics,)*> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
             /// arguments will be used.
-            pub fn call(&self, $( $args: $argty, )* ) -> $o
+            $v fn call(&self, $( $args: $argty, )* ) -> $o
             {
                 let n = self.0.len();
                 match self.0.iter()
@@ -515,10 +515,10 @@ macro_rules! static_expectation {
             $crate::AnyExpectations for Expectations<$($generics,)*>
         {}
 
-        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*] $o}
+        $crate::generic_expectation_methods!{$v [$($generics)*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
-            pub fn call<$($generics: 'static,)*>
+            $v fn call<$($generics: 'static,)*>
                 (&self, $( $args: $argty, )* ) -> $o
             {
                 // TODO: remove the 2nd type argument from Key after the old API
@@ -532,7 +532,7 @@ macro_rules! static_expectation {
             }
 
             /// Create a new Expectation.
-            pub fn expect<'e, $($generics: 'static,)*>
+            $v fn expect<'e, $($generics: 'static,)*>
                 (&'e mut self)
                 -> &'e mut Expectation<$($generics,)*>
             {
@@ -640,7 +640,7 @@ macro_rules! expectation {
     (
         // First pattern, for references taking &self and returning immutable
         // references.
-        fn $module:ident
+        $v:vis fn $module:ident
         < $( $generics:ident ),* >
         (&self $(,)? $( $args:ident : $argty:ty ),* ) -> & $o:ty
         {
@@ -669,26 +669,26 @@ macro_rules! expectation {
             [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
-        pub struct Expectation<$($generics: 'static,)*> {
+        $v struct Expectation<$($generics: 'static,)*> {
             common: Common<$($generics,)*>,
             result: Option<$o>,
         }
 
         impl<$($generics: 'static,)*> Expectation<$($generics,)*> {
-            pub fn call(&self, $( $args: $argty, )* ) -> &$o {
+            $v fn call(&self, $( $args: $argty, )* ) -> &$o {
                 self.common.call($( $matchcall, )*);
                 &self.result.as_ref()
                     .expect("Must set return value with return_const")
             }
 
             /// Return a reference to a constant value from the `Expectation`
-            pub fn return_const(&mut self, o: $o) -> &mut Self {
+            $v fn return_const(&mut self, o: $o) -> &mut Self {
                 self.result = Some(o);
                 self
             }
 
             $crate::expectation_methods!{
-                [$($args)*] [$($altargs)*] [$($matchty)*]
+                $v [$($args)*] [$($altargs)*] [$($matchty)*]
             }
         }
 
@@ -702,12 +702,12 @@ macro_rules! expectation {
             }
         }
 
-        $crate::expectations_methods!{[$($generics)*]}
+        $crate::expectations_methods!{$v [$($generics)*]}
         impl<$($generics: 'static,)*> Expectations<$($generics,)*> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
             /// arguments will be used.
-            pub fn call(&self, $( $args: $argty, )* ) -> &$o {
+            $v fn call(&self, $( $args: $argty, )* ) -> &$o {
                 let n = self.0.len();
                 match self.0.iter()
                     .find(|e| e.matches($( $matchcall, )*) &&
@@ -725,10 +725,10 @@ macro_rules! expectation {
                 where $o: Send + Sync
         {}
 
-        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*] $o}
+        $crate::generic_expectation_methods!{$v [$($generics)*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
-            pub fn call<$($generics: 'static,)*>
+            $v fn call<$($generics: 'static,)*>
                 (&self, $( $args: $argty, )* ) -> &$o
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -740,7 +740,7 @@ macro_rules! expectation {
             }
 
             /// Create a new Expectation.
-            pub fn expect<'e, $($generics: 'static,)*>(&'e mut self)
+            $v fn expect<'e, $($generics: 'static,)*>(&'e mut self)
                 -> &'e mut Expectation<$($generics,)*>
                 where $o: Send + Sync
             {
@@ -760,7 +760,7 @@ macro_rules! expectation {
     (
         // Second pattern, for methods taking &mut self and returning mutable or
         // immutable references.
-        fn $module:ident
+        $v:vis fn $module:ident
         < $( $generics:ident ),* >
         (&mut self $(,)? $( $args:ident : $argty:ty ),* ) -> & $(mut)? $o:ty
         {
@@ -789,7 +789,7 @@ macro_rules! expectation {
             [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
-        pub struct Expectation<$($generics: 'static,)*> {
+        $v struct Expectation<$($generics: 'static,)*> {
             common: Common<$($generics,)*>,
             result: Option<$o>,
             rfunc: Option<Box<dyn FnMut($( $argty, )*) -> $o + Send + Sync>>,
@@ -797,7 +797,7 @@ macro_rules! expectation {
 
         impl<$($generics: 'static,)*> Expectation<$($generics,)*> {
             /// Simulating calling the real method for this expectation
-            pub fn call_mut(&mut self, $( $args: $argty, )*) -> &mut $o {
+            $v fn call_mut(&mut self, $( $args: $argty, )*) -> &mut $o {
                 self.common.call($( $matchcall, )*);
                 if let Some(ref mut f) = self.rfunc {
                     self.result = Some(f($( $args, )*));
@@ -809,7 +809,7 @@ macro_rules! expectation {
             /// Convenience method that can be used to supply a return value for
             /// a `Expectation`.  The value will be returned by mutable
             /// reference.
-            pub fn return_var(&mut self, o: $o) -> &mut Self
+            $v fn return_var(&mut self, o: $o) -> &mut Self
             {
                 self.result = Some(o);
                 self
@@ -818,7 +818,7 @@ macro_rules! expectation {
             /// Supply a closure that the `Expectation` will use to create its
             /// return value.  The return value will be returned by mutable
             /// reference.
-            pub fn returning<F>(&mut self, f: F) -> &mut Self
+            $v fn returning<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $argty, )*) -> $o + Send + Sync + 'static
             {
                 mem::replace(&mut self.rfunc, Some(Box::new(f)));
@@ -827,7 +827,7 @@ macro_rules! expectation {
 
             /// Single-threaded version of [`returning`](#method.returning).
             /// Can be used when the argument or return type isn't `Send`.
-            pub fn returning_st<F>(&mut self, f: F) -> &mut Self
+            $v fn returning_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $argty, )*) -> $o + 'static
             {
                 let mut fragile = Fragile::new(f);
@@ -839,7 +839,7 @@ macro_rules! expectation {
             }
 
             $crate::expectation_methods!{
-                [$($args)*] [$($altargs)*] [$($matchty)*]
+                $v [$($args)*] [$($altargs)*] [$($matchty)*]
             }
         }
         impl<$($generics: 'static,)*> Default for Expectation<$($generics,)*>
@@ -852,12 +852,12 @@ macro_rules! expectation {
                 }
             }
         }
-        $crate::expectations_methods!{[$($generics)*]}
+        $crate::expectations_methods!{$v [$($generics)*]}
         impl<$($generics: 'static,)*> Expectations<$($generics,)*> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
             /// arguments will be used.
-            pub fn call_mut(&mut self, $( $args: $argty, )* ) -> &mut $o {
+            $v fn call_mut(&mut self, $( $args: $argty, )* ) -> &mut $o {
                 let n = self.0.len();
                 match self.0.iter_mut()
                     .find(|e| e.matches($( $matchcall, )*) &&
@@ -875,10 +875,10 @@ macro_rules! expectation {
             where $o: Send + Sync
         {}
 
-        $crate::generic_expectation_methods!{[$($generics)*] [$($argty)*] $o}
+        $crate::generic_expectation_methods!{$v [$($generics)*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
-            pub fn call_mut<$($generics: 'static,)*>
+            $v fn call_mut<$($generics: 'static,)*>
                 (&mut self, $( $args: $argty, )* ) -> &mut $o
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -891,7 +891,7 @@ macro_rules! expectation {
             }
 
             /// Create a new Expectation.
-            pub fn expect<'e, $($generics: 'static,)*> (&'e mut self)
+            $v fn expect<'e, $($generics: 'static,)*> (&'e mut self)
                 -> &'e mut Expectation<$($generics,)*>
                 where $o: Send + Sync
             {
@@ -910,8 +910,7 @@ macro_rules! expectation {
 
     (
         // Third pattern, for methods returning 'static values
-        fn $module:ident
-        < $( $generics:ident ),* >
+        $v:vis fn $module:ident < $( $generics:ident ),* >
         ($(&)?$(mut)?self $(,)? $( $args:ident : $argty:ty ),* ) -> $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
@@ -920,15 +919,14 @@ macro_rules! expectation {
     ) => {
         pub mod $module {
             $crate::static_expectation!{
-                [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
+                $v [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
                 [$($matchty)*] [$($matchcall)*] $o
             }
         }
     };
     (
         // Fourth pattern, for static methods
-        fn $module:ident
-        < $( $generics:ident ),* >
+        $v:vis fn $module:ident < $( $generics:ident ),* >
         ($( $args:ident : $argty:ty ),* ) -> $o:ty
         {
             let ( $( $altargs:ident : &$matchty:ty ),* ) =
@@ -937,7 +935,7 @@ macro_rules! expectation {
     ) => {
         pub mod $module {
         $crate::static_expectation!{
-            [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
+            $v [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
             [$($matchty)*] [$($matchcall)*] $o
         }
 
@@ -952,7 +950,7 @@ macro_rules! expectation {
         //
         // ExpectationGuard is only defined for expectations that return 'static
         // return types.
-        pub struct ExpectationGuard<'guard, $($generics: 'static,)*>{
+        $v struct ExpectationGuard<'guard, $($generics: 'static,)*>{
             guard: MutexGuard<'guard, Expectations<$($generics,)*>>,
             i: usize
         }
@@ -960,7 +958,7 @@ macro_rules! expectation {
         impl<'guard, $($generics,)*> ExpectationGuard<'guard, $($generics,)*> {
             /// Just like
             /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
-            pub fn in_sequence(&mut self, seq: &mut $crate::Sequence)
+            $v fn in_sequence(&mut self, seq: &mut $crate::Sequence)
                 -> &mut Expectation<$($generics,)*>
             {
                 self.guard.0[self.i].in_sequence(seq)
@@ -968,13 +966,13 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::never`](struct.Expectation.html#method.never)
-            pub fn never(&mut self) -> &mut Expectation<$($generics,)*> {
+            $v fn never(&mut self) -> &mut Expectation<$($generics,)*> {
                 self.guard.0[self.i].never()
             }
 
             // Should only be called from the mockall_derive generated code
             #[doc(hidden)]
-            pub fn new(mut guard: MutexGuard<'guard, Expectations<$($generics,)*>>)
+            $v fn new(mut guard: MutexGuard<'guard, Expectations<$($generics,)*>>)
                 -> Self
             {
                 guard.expect(); // Drop the &Expectation
@@ -983,13 +981,13 @@ macro_rules! expectation {
             }
 
             /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
-            pub fn once(&mut self) -> &mut Expectation<$($generics,)*> {
+            $v fn once(&mut self) -> &mut Expectation<$($generics,)*> {
                 self.guard.0[self.i].once()
             }
 
             /// Just like
             /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-            pub fn returning<F>(&mut self, f: F)
+            $v fn returning<F>(&mut self, f: F)
                 -> &mut Expectation<$($generics,)*>
                 where F: FnMut($( $argty, )*) -> $o + Send + 'static
             {
@@ -998,7 +996,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-            pub fn return_once<F>(&mut self, f: F)
+            $v fn return_once<F>(&mut self, f: F)
                 -> &mut Expectation<$($generics,)*>
                 where F: FnOnce($( $argty, )*) -> $o + Send + 'static
             {
@@ -1007,7 +1005,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-            pub fn returning_st<F>(&mut self, f: F)
+            $v fn returning_st<F>(&mut self, f: F)
                 -> &mut Expectation<$($generics,)*>
                 where F: FnMut($( $argty, )*) -> $o + 'static
             {
@@ -1016,20 +1014,20 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::times`](struct.Expectation.html#method.times)
-            pub fn times(&mut self, n: usize)
+            $v fn times(&mut self, n: usize)
                 -> &mut Expectation<$($generics,)*> {
                 self.guard.0[self.i].times(n)
             }
 
             /// Just like
             /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
-            pub fn times_any(&mut self) -> &mut Expectation<$($generics,)*> {
+            $v fn times_any(&mut self) -> &mut Expectation<$($generics,)*> {
                 self.guard.0[self.i].times_any()
             }
 
             /// Just like
             /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
-            pub fn times_range(&mut self, range: Range<usize>)
+            $v fn times_range(&mut self, range: Range<usize>)
                 -> &mut Expectation<$($generics,)*>
             {
                 self.guard.0[self.i].times_range(range)
@@ -1038,7 +1036,7 @@ macro_rules! expectation {
             /// Just like
             /// [`Expectation::with`](struct.Expectation.html#method.with)
             #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
-            pub fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+            $v fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
                 (&mut self, $( $args: $altargs,)*)
                 -> &mut Expectation<$($generics,)*>
             {
@@ -1047,14 +1045,14 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-            pub fn withf<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+            $v fn withf<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
             {
                 self.guard.0[self.i].withf(f)
             }
         }
 
-        pub struct GenericExpectationGuard<'guard, $($generics: 'static,)*> {
+        $v struct GenericExpectationGuard<'guard, $($generics: 'static,)*> {
             guard: MutexGuard<'guard, GenericExpectations>,
             i: usize,
             _phantom: PhantomData<((), $($generics,)*)>,
@@ -1065,7 +1063,7 @@ macro_rules! expectation {
         {
             /// Just like
             /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
-            pub fn in_sequence(&mut self, seq: &mut $crate::Sequence)
+            $v fn in_sequence(&mut self, seq: &mut $crate::Sequence)
                 -> &mut Expectation<$($generics,)*>
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -1077,7 +1075,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::never`](struct.Expectation.html#method.never)
-            pub fn never(&mut self) -> &mut Expectation<$($generics,)*> {
+            $v fn never(&mut self) -> &mut Expectation<$($generics,)*> {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
@@ -1087,7 +1085,7 @@ macro_rules! expectation {
 
             // Should only be called from the mockall_derive generated code
             #[doc(hidden)]
-            pub fn new(mut guard: MutexGuard<'guard, GenericExpectations>)
+            $v fn new(mut guard: MutexGuard<'guard, GenericExpectations>)
                 -> Self
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -1104,7 +1102,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::once`](struct.Expectation.html#method.once)
-            pub fn once(&mut self) -> &mut Expectation<$($generics,)*> {
+            $v fn once(&mut self) -> &mut Expectation<$($generics,)*> {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
@@ -1114,7 +1112,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-            pub fn returning<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+            $v fn returning<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: FnMut($( $argty, )*) -> $o + Send + 'static
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -1126,7 +1124,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-            pub fn return_once<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+            $v fn return_once<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: FnOnce($( $argty, )*) -> $o + Send + 'static
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -1138,7 +1136,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-            pub fn returning_st<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+            $v fn returning_st<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: FnMut($( $argty, )*) -> $o + 'static
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
@@ -1150,7 +1148,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::times`](struct.Expectation.html#method.times)
-            pub fn times(&mut self, n: usize) -> &mut Expectation<$($generics,)*> {
+            $v fn times(&mut self, n: usize) -> &mut Expectation<$($generics,)*> {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
@@ -1160,7 +1158,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
-            pub fn times_any(&mut self) -> &mut Expectation<$($generics,)*> {
+            $v fn times_any(&mut self) -> &mut Expectation<$($generics,)*> {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
@@ -1170,7 +1168,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
-            pub fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<$($generics,)*>
+            $v fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<$($generics,)*>
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
                 let ee: &mut Expectations<$($generics,)*> =
@@ -1182,7 +1180,7 @@ macro_rules! expectation {
             /// Just like
             /// [`Expectation::with`](struct.Expectation.html#method.with)
             #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
-            pub fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
+            $v fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
                 (&mut self, $( $args: $altargs,)*)
                 -> &mut Expectation<$($generics,)*>
             {
@@ -1195,7 +1193,7 @@ macro_rules! expectation {
 
             /// Just like
             /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-            pub fn withf<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
+            $v fn withf<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
             {
                 let key = $crate::Key::new::<($($argty,)*), ()>();
