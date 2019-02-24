@@ -245,6 +245,11 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     }
 
     if meth_types.is_static {
+        // For static methods only, the trait's generic parameters become
+        // generic parameters of the method.
+        let merged_g = merge_generics(&generics, &sig.decl.generics);
+        let (_, tg, _) = merged_g.split_for_impl();
+        let call_turbofish = tg.as_turbofish();
         quote!({
             #expect_obj_name.lock().unwrap().#call#call_turbofish(#(#args),*)
         })
@@ -774,6 +779,57 @@ mod t {
             Foo<T: Clone> {
                 fn foo(&self, x: u32) -> i64;
             }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
+    fn generic_struct_with_static_method() {
+        let desired = r#"
+        #[allow(non_snake_case)]
+        mod __mock_Foo {
+            use super:: * ;
+            ::mockall::expectation!{
+                fn foo<T, T2>(t: T2) -> () { let (p0: &T2) = (&t); }
+            }
+        }
+        struct MockFoo<T> {
+            _t0: ::std::marker::PhantomData<T> ,
+        }
+        ::mockall::lazy_static!{
+            static ref MockFoo_foo_expectation:
+                ::std::sync::Mutex< __mock_Foo::foo::GenericExpectations >
+            = ::std::sync::Mutex::new(
+                __mock_Foo::foo::GenericExpectations::new()
+            );
+        }
+        impl<T> ::std::default::Default for MockFoo<T> {
+            fn default() -> Self {
+                Self { _t0: ::std::marker::PhantomData, }
+            }
+        }
+        impl<T> MockFoo<T> {
+            pub fn foo<T2: 'static>(t: T2) {
+                MockFoo_foo_expectation.lock().unwrap().call:: <T, T2>(t)
+            }
+            pub fn expect_foo< 'guard, T2: 'static, >()
+                ->  __mock_Foo::foo::GenericExpectationGuard< 'guard, T, T2, >
+            {
+                __mock_Foo::foo::GenericExpectationGuard::new(
+                    MockFoo_foo_expectation.lock().unwrap()
+                )
+            }
+            pub fn checkpoint(&mut self) {
+                { MockFoo_foo_expectation.lock().unwrap().checkpoint(); }
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }"#;
+        let code = r#"
+        Foo<T> {
+            fn foo<T2: 'static>(t: T2);
+        }
         "#;
         check(desired, code);
     }
