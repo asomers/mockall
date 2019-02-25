@@ -2274,27 +2274,36 @@ mod t {
     #[test]
     fn where_clause_on_method() {
         let desired = r#"
-            pub struct MockSomeStruct {
-                foo: ::mockall::GenericExpectations,
-            }
-            impl ::std::default::Default for MockSomeStruct {
-                fn default() -> Self {
-                    Self {
-                        foo: ::mockall::GenericExpectations::default(),
+            #[allow(non_snake_case)]
+            mod __mock_Foo {
+                use super:: * ;
+                ::mockall::expectation!{
+                    pub fn foo<T>(&self, t: T) -> () {
+                        let (p1: &T) = (&t);
                     }
                 }
             }
-            impl MockSomeStruct {
+            pub struct MockFoo {
+                foo: __mock_Foo::foo::GenericExpectations,
+            }
+            impl ::std::default::Default for MockFoo {
+                fn default() -> Self {
+                    Self {
+                        foo: __mock_Foo::foo::GenericExpectations::default(),
+                    }
+                }
+            }
+            impl MockFoo {
                 pub fn foo<T>(&self, t: T)
                     where T: 'static
                 {
-                    self.foo.call:: <(T), ()>((t))
+                    self.foo.call:: <T>(t)
                 }
                 pub fn expect_foo<T>(&mut self)
-                    -> &mut ::mockall::Expectation<(T), ()>
+                    -> &mut __mock_Foo::foo::Expectation<T>
                     where T: 'static
                 {
-                    self.foo.expect:: <(T), ()>()
+                    self.foo.expect:: <T>()
                 }
                 pub fn checkpoint(&mut self) {
                     { self.foo.checkpoint(); }
@@ -2305,7 +2314,7 @@ mod t {
             }
         "#;
         let code = r#"
-            pub SomeStruct {
+            pub Foo {
                 fn foo<T>(&self, t: T)
                     where T: 'static;
             }"#;
