@@ -698,18 +698,19 @@ mod t {
         }"#);
     }
 
-    // Attributes should be copied to the output
+    // Attributes should be copied to the output.  This is useful for stuff like
+    // `#[cfg(not(test))]`
     #[test]
     fn attrs() {
         let desired = r#"
         #[allow(non_snake_case)]
         mod __mock_A {
             use super:: * ;
-            ::mockall::expectation!{
-                #[bar] pub fn foo< >(&self) -> () { let () = (); }
+            #[bar] ::mockall::expectation!{
+                pub fn foo< >(&self) -> () { let () = (); }
             }
-            ::mockall::expectation!{
-                #[baz] pub fn stat< >() -> () { let () = (); }
+            #[baz] ::mockall::expectation!{
+                pub fn stat< >() -> () { let () = (); }
             }
         }
         pub struct MockA {

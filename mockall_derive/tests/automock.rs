@@ -30,6 +30,21 @@ fn associated_types_auto() {
     assert_eq!(4, mock.foo(4));
 }
 
+// Attributes are applied to the mock object, too.
+#[test]
+#[allow(unused)]
+fn attrs() {
+    struct A{}
+    #[automock]
+    impl A {
+        // Neither A::foo nor MockA::foo should not be defined
+        #[cfg(target_os = "multics")] pub fn foo(&self, x: DoesNotExist) {}
+    }
+
+    // Sufficient to check that it compiles.
+    let _mock = MockA::new();
+}
+
 #[test]
 fn consume_parameters() {
     #[automock]

@@ -368,7 +368,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             quote!(<>).to_tokens(&mut macro_g);
         }
 
-        quote!(::mockall::expectation! {
+        quote!(#attrs ::mockall::expectation! {
             #expect_vis fn #meth_ident #macro_g (#args) -> #return_type {
                 let (#altargs) = (#matchexprs);
             }
