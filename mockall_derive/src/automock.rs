@@ -1775,6 +1775,53 @@ mod t {
     }
 
     #[test]
+    fn static_constructor_in_struct() {
+        let desired = r#"
+        #[allow(non_snake_case)]
+        mod __mock_A {
+            use super:: * ;
+            ::mockall::expectation!{
+                pub fn new< >(x: u32) -> MockA {
+                    let (p0: &u32) = (&x);
+                }
+            }
+        }
+        pub struct MockA { }
+        ::mockall::lazy_static!{
+            static ref MockA_new_expectation:
+                ::std::sync::Mutex< __mock_A::new::Expectations >
+                = ::std::sync::Mutex::new(__mock_A::new::Expectations::new());
+        }
+        impl ::std::default::Default for MockA {
+            fn default() -> Self {
+                Self { }
+            }
+        }
+        impl MockA {
+            pub fn new(x: u32) -> Self {
+                MockA_new_expectation.lock().unwrap().call(x)
+            }
+            pub fn expect_new< 'guard>()
+                -> __mock_A::new::ExpectationGuard< 'guard>
+            {
+                __mock_A::new::ExpectationGuard::new(
+                    MockA_new_expectation.lock().unwrap()
+                )
+            }
+            pub fn checkpoint(&mut self) {
+                { MockA_new_expectation.lock().unwrap().checkpoint(); }
+            }
+        }"#;
+        let code = r#"
+        impl A {
+            pub fn new(x: u32) -> Self {
+                unimplemented!()
+            }
+        }"#;
+        check("", desired, code);
+    }
+
+    #[test]
     fn static_constructor_in_trait() {
         let desired = r#"
         #[allow(non_snake_case)]
