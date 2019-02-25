@@ -3,7 +3,7 @@
 
 use mockall_derive::*;
 
-mod checkpoint {
+pub mod checkpoint {
     use super::*;
 
     // Each checkpoint test must use a separate Mock class, because of the
@@ -11,7 +11,7 @@ mod checkpoint {
     macro_rules! mock_foo {
         () => {
             mock!{
-                Foo {
+                pub Foo {
                     fn bar(&self) -> u32;
                     fn baz() -> u32;
                 }
@@ -19,7 +19,7 @@ mod checkpoint {
         }
     }
 
-    mod ok {
+    pub mod ok {
         use super::*;
         mock_foo!{}
 
@@ -34,7 +34,7 @@ mod checkpoint {
         }
     }
 
-    mod expect_again {
+    pub mod expect_again {
         use super::*;
         mock_foo!{}
 
@@ -53,7 +53,7 @@ mod checkpoint {
         }
     }
 
-    mod not_yet_satisfied {
+    pub mod not_yet_satisfied {
         use super::*;
         mock_foo!{}
 
@@ -69,7 +69,7 @@ mod checkpoint {
         }
     }
 
-    mod removes_old_expectations {
+    pub mod removes_old_expectations {
         use super::*;
         mock_foo!{}
 
@@ -87,7 +87,7 @@ mod checkpoint {
         }
     }
 
-    mod static_method {
+    pub mod static_method {
         use super::*;
         mock_foo!{}
 
