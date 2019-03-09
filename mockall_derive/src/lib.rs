@@ -475,7 +475,7 @@ fn destrify(ty: &mut syn::Type) {
 /// Manually mock a structure.
 ///
 /// Sometimes `automock` can't be used.  In those cases you can use `mock!`,
-/// which basically involves repeat the struct's or trait's definitions.
+/// which basically involves repeating the struct's or trait's definitions.
 ///
 /// The format is:
 ///
@@ -495,7 +495,7 @@ fn destrify(ty: &mut syn::Type) {
 ///     fn foo(&self, x: u32);
 /// }
 /// mock!{
-///     pub MyStruct<T: Clone> {
+///     pub MyStruct<T: Clone + 'static> {
 ///         fn bar(&self) -> u8;
 ///     }
 ///     trait Foo {
@@ -511,7 +511,7 @@ fn destrify(ty: &mut syn::Type) {
 /// ```
 /// # use mockall_derive::mock;
 /// mock!{
-///     pub Rc<T> {}
+///     pub Rc<T: 'static> {}
 ///     trait AsRef<T> {
 ///         fn as_ref(&self) -> &T;
 ///     }
@@ -522,8 +522,8 @@ fn destrify(ty: &mut syn::Type) {
 /// ```compile_fail
 /// # use mockall_derive::mock;
 /// mock!{
-///     pub Rc<Q> {}
-///     trait AsRef<T> {
+///     pub Rc<Q: 'static> {}
+///     trait AsRef<T: 'static> {
 ///         fn as_ref(&self) -> &T;
 ///     }
 /// }
@@ -532,7 +532,7 @@ fn destrify(ty: &mut syn::Type) {
 /// Associated types can easily be mocked by specifying a concrete type in the
 /// `mock!{}` invocation.  But be careful not to reference the associated type
 /// in the signatures of any of the trait's methods; repeat the concrete type
-/// instead.  For exampe, do:
+/// instead.  For example, do:
 /// ```
 /// # use mockall_derive::mock;
 /// mock!{
@@ -617,7 +617,7 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// # use mockall_derive::*;
 /// #[automock(mod mock_ffi;)]
 /// extern "C" {
-///     fn foo() -> u32;
+///     pub fn foo() -> u32;
 /// }
 /// ```
 ///
