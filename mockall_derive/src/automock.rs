@@ -362,6 +362,7 @@ fn mock_function(vis: &syn::Visibility,
         }
     }
 
+    let meth_vis = expectation_visibility(&vis, 1);
     let mod_ident = syn::Ident::new(&format!("__{}", &ident), ident.span());
     let sig = syn::MethodSig {
         constness,
@@ -377,7 +378,7 @@ fn mock_function(vis: &syn::Visibility,
     let expect_obj = &meth_types.expect_obj;
     let expect_ident = syn::Ident::new(&format!("expect_{}", &ident),
                                        ident.span());
-    let expect_vis = expectation_visibility(&vis);
+    let expect_vis = expectation_visibility(&vis, 2);
     let mut g = generics.clone();
     let lt = syn::Lifetime::new("'guard", Span::call_site());
     let ltd = syn::LifetimeDef::new(lt);
@@ -397,11 +398,11 @@ fn mock_function(vis: &syn::Visibility,
             static ref #obj: ::std::sync::Mutex<#expect_obj> = 
                 ::std::sync::Mutex::new(#mod_ident::Expectations::<#generics>::new());
         }
-        #vis #constness #unsafety #asyncness
+        #meth_vis #constness #unsafety #asyncness
         #fn_token #ident #generics (#inputs) #output {
             #obj.lock().unwrap().call(#(#args),*)
         }
-        pub fn #expect_ident #g()
+        #meth_vis fn #expect_ident #g()
                -> #mod_ident::ExpectationGuard<#ltd, #generics>
         {
             #mod_ident::ExpectationGuard::<#generics>::new(#obj.lock().unwrap())
@@ -766,6 +767,42 @@ mod t {
 
     #[test]
     fn foreign() {
+        let attrs = "mod mock;";
+        let desired = r#"
+        mod mock {
+            ::mockall::expectation!{
+                pub(in super::super) fn __foo< >(x: u32) -> i64 {
+                    let (p0: &u32) = (&x);
+                }
+            }
+            ::mockall::lazy_static!{
+                static ref foo_expectation:
+                    ::std::sync::Mutex< __foo::Expectations>
+                    = ::std::sync::Mutex::new(__foo::Expectations:: < > ::new());
+            }
+            pub(in super) unsafe fn foo(x: u32) -> i64 {
+                foo_expectation.lock().unwrap().call(x)
+            }
+            pub(in super) fn expect_foo< 'guard>()
+                -> __foo::ExpectationGuard< 'guard, >
+            {
+                __foo::ExpectationGuard:: < > ::new(foo_expectation.lock().unwrap())
+            }
+            pub fn checkpoint() {
+                foo_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        "#;
+        let code = r#"
+        extern "C" {
+            fn foo(x: u32) -> i64;
+        }
+        "#;
+        check(&attrs, &desired, &code);
+    }
+
+    #[test]
+    fn foreign_pub() {
         let attrs = "mod mock;";
         let desired = r#"
         mod mock {

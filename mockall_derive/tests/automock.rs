@@ -58,8 +58,24 @@ fn consume_parameters() {
     mock.foo(NonCopy{});
 }
 
+mod foreign_c {
+    use super::*;
+
+    #[automock(mod mock_ffi;)]
+    extern "C" {
+        #[allow(unused)]
+        fn foo(x: u32) -> i64;
+    }
+
+    #[test]
+    fn t() {
+        mock_ffi::expect_foo().returning(i64::from);
+        assert_eq!(42, unsafe{mock_ffi::foo(42)});
+    }
+}
+
 #[test]
-fn foreign_c() {
+fn foreign_c_pub() {
     #[automock(mod mock_ffi;)]
     extern "C" {
         #[allow(unused)]
@@ -72,6 +88,18 @@ fn foreign_c() {
 
 #[test]
 fn foreign_rust() {
+    #[automock(mod mock_ffi;)]
+    extern "Rust" {
+        #[allow(unused)]
+        fn foo(x: u32) -> i64;
+    }
+
+    mock_ffi::expect_foo().returning(i64::from);
+    assert_eq!(42, unsafe{mock_ffi::foo(42)});
+}
+
+#[test]
+fn foreign_rust_pub() {
     #[automock(mod mock_ffi;)]
     extern "Rust" {
         #[allow(unused)]

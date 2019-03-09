@@ -275,15 +275,23 @@ fn merge_generics(x: &syn::Generics, y: &syn::Generics) -> syn::Generics {
 
 /// Return the visibility that should be used for expectation!, given the
 /// original method's visibility.
-fn expectation_visibility(vis: &syn::Visibility) -> syn::Visibility {
+///
+/// # Arguments
+/// - `vis`:    Original visibility of the item
+/// - `levels`: How many modules will the mock item be nested in?
+fn expectation_visibility(vis: &syn::Visibility, levels: u32)
+    -> syn::Visibility
+{
+    debug_assert!(levels > 0);
     let in_token = Token![in](vis.span());
     let super_token = Token![super](vis.span());
     match vis {
         syn::Visibility::Inherited => {
-            // expectation! defines structs two module levels beneath where they
-            // are declared.  So private methods need pub(in super::super)
+            // Private items need pub(in super::[...]) for each level
             let mut path = syn::Path::from(super_token);
-            path.segments.push(super_token.into());
+            for _ in 1..levels {
+                path.segments.push(super_token.into());
+            }
             let supersuper = syn::Visibility::Restricted(syn::VisRestricted{
                 pub_token: Token![pub](vis.span()),
                 paren_token: syn::token::Paren::default(),
@@ -303,8 +311,9 @@ fn expectation_visibility(vis: &syn::Visibility) -> syn::Visibility {
             } else {
                 let mut out = vr.clone();
                 out.in_token = Some(in_token);
-                out.path.segments.insert(0, super_token.into());
-                out.path.segments.insert(0, super_token.into());
+                for _ in 0..levels {
+                    out.path.segments.insert(0, super_token.into());
+                }
                 out.into()
             }
         },
