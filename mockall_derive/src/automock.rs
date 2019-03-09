@@ -919,6 +919,55 @@ mod t {
     }
 
     #[test]
+    fn generic_lifetime() {
+        check("",
+        r#"
+        #[allow(non_snake_case)]
+        mod __mock_Foo {
+            use super:: * ;
+            ::mockall::expectation! {
+                pub fn foo< 'a>(&self, x: u32) -> i64 {
+                    let (p1: &u32) = (&x);
+                }
+            }
+        }
+        pub struct MockFoo< 'a> {
+            foo: __mock_Foo::foo::Expectations< 'a> ,
+            _t0: ::std::marker::PhantomData< & 'a ()> ,
+        }
+        impl< 'a>
+        ::std::default::Default for MockFoo< 'a> {
+            fn default() -> Self {
+                Self {
+                    foo: __mock_Foo::foo::Expectations::default(),
+                    _t0: ::std::marker::PhantomData,
+                }
+            }
+        }
+        impl< 'a> MockFoo< 'a> {
+            pub fn foo(&self, x: u32) -> i64 {
+                self.foo.call(x)
+            }
+            pub fn expect_foo(&mut self)
+                -> &mut __mock_Foo::foo::Expectation< 'a>
+            {
+                self.foo.expect()
+            }
+            pub fn checkpoint(&mut self) {
+                { self.foo.checkpoint(); }
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }"#, r#"
+        impl<'a> Foo<'a> {
+            pub fn foo(&self, x: u32) -> i64 {
+                42
+            }
+        }"#);
+    }
+
+    #[test]
     fn generic_struct_with_bounds() {
         check("", r#"
         #[allow(non_snake_case)]

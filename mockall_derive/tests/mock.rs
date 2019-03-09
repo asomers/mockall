@@ -519,7 +519,8 @@ mod static_method {
     }
 }
 
-// TODO: reenable after figuring out to deal with the where clause
+// TODO: expectation! can't take where clauses.  It would need to be rewritten
+// as a proc macro for that.
 //mod where_clause_on_static_method {
     //use super::*;
 

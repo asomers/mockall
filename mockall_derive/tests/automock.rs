@@ -139,8 +139,31 @@ fn generic_static_method() {
     assert_eq!(42, MockA::bar(-1i16));
 }
 
+#[test]
+fn generic_struct() {
+    #[allow(unused)]
+    struct GenericStruct<T, V> {
+        t: T,
+        v: V
+    }
+    #[automock]
+    impl<T: 'static, V: 'static> GenericStruct<T, V> {
+        #[allow(unused)]
+        fn foo(&self, _x: u32) -> i64 {
+            42
+        }
+    }
+
+    let mut mock = MockGenericStruct::<u8, i8>::new();
+    mock.expect_foo()
+        .returning(|x| i64::from(x) + 1);
+    assert_eq!(5, mock.foo(4));
+}
+
+// XXX Mockall's expectation! macro currently doesn't allow lifetime parameters
+// :( . It could, if it were rewritten as a proc macro.
 //#[test]
-//fn generic_struct() {
+//fn generic_struct_with_lifetime() {
     //#[allow(unused)]
     //struct GenericStruct<'a, T, V> {
         //t: T,
@@ -160,26 +183,26 @@ fn generic_static_method() {
     //assert_eq!(5, mock.foo(4));
 //}
 
-//#[test]
-//fn generic_struct_with_bounds() {
-    //#[allow(unused)]
-    //struct GenericStruct<'a, T: Copy, V: Clone> {
-        //t: T,
-        //v: &'a V
-    //}
-    //#[automock]
-    //impl<'a, T: Copy, V: Clone> GenericStruct<'a, T, V> {
-        //#[allow(unused)]
-        //fn foo(&self, _x: u32) -> i64 {
-            //42
-        //}
-    //}
+#[test]
+fn generic_struct_with_bounds() {
+    #[allow(unused)]
+    struct GenericStruct<T: Copy, V: Clone> {
+        t: T,
+        v: V
+    }
+    #[automock]
+    impl<T: Copy + 'static, V: Clone + 'static> GenericStruct<T, V> {
+        #[allow(unused)]
+        fn foo(&self, _x: u32) -> i64 {
+            42
+        }
+    }
 
-    //let mut mock = MockGenericStruct::<'static, u8, i8>::new();
-    //mock.expect_foo()
-        //.returning(|x| i64::from(x) + 1);
-    //assert_eq!(5, mock.foo(4));
-//}
+    let mut mock = MockGenericStruct::<u8, i8>::new();
+    mock.expect_foo()
+        .returning(|x| i64::from(x) + 1);
+    assert_eq!(5, mock.foo(4));
+}
 
 #[test]
 fn generic_trait() {

@@ -2323,7 +2323,7 @@ mod t {
 
     // TODO: generic constructor methods like this need to propagate the generic
     // bound through expectation!
-    #[ignore = "TODO: propagate the clone requirement to expectation!"]
+    #[ignore = "TODO: allow where clauses in expectation!"]
     #[test]
     fn where_clause_on_static_method() {
         let desired = r#"
@@ -2331,12 +2331,14 @@ mod t {
         mod __mock_Foo {
             use super:: * ;
             ::mockall::expectation!{
-                fn new<T, T2>(t: T2) -> MockFoo<T2> {
+                pub fn new<T, T2>(t: T2) -> MockFoo<T2>
+                    where T2: Clone + 'static
+                {
                     let (p0: &T2) = (&t);
                 }
             }
         }
-        struct MockFoo<T: Clone + 'static> {
+        pub struct MockFoo<T: Clone + 'static> {
             _t0: ::std::marker::PhantomData<T> ,
         }
         ::mockall::lazy_static!{
@@ -2355,10 +2357,10 @@ mod t {
         }
         impl<T: Clone + 'static> MockFoo<T> {
             pub fn new<T2>(t: T2) -> MockFoo<T2> where T2: Clone + 'static {
-                MockFoo_new_expectation.lock().unwrap().call:: <T2>(t)
+                MockFoo_new_expectation.lock().unwrap().call:: <T, T2>(t)
             }
             pub fn expect_new< 'guard, T2, >()
-                -> __mock_Foo::new::GenericExpectationGuard< 'guard, T, T2>
+                -> __mock_Foo::new::GenericExpectationGuard< 'guard, T, T2, >
                 where T2: Clone + 'static
             {
                 __mock_Foo::new::GenericExpectationGuard::new(
@@ -2370,7 +2372,7 @@ mod t {
             }
         }"#;
         let code = r#"
-        Foo<T: Clone + 'static> {
+        pub Foo<T: Clone + 'static> {
             fn new<T2>(t: T2) -> MockFoo<T2> where T2: Clone + 'static;
         }"#;
         check(desired, code);
