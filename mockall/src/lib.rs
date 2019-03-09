@@ -88,9 +88,9 @@
 //!
 //! let mut mock = MockMyTrait::new();
 //! mock.expect_foo()
-//!     .return_const(42);
+//!     .return_const(42u32);
 //! mock.expect_bar()
-//!     .returning(|(x, y)| x + y);
+//!     .returning(|x, y| x + y);
 //! ```
 //!
 //! Additionally, constants that aren't `Clone` can be returned with the
@@ -104,10 +104,12 @@
 //!     fn foo(&self) -> NonClone;
 //! }
 //!
+//! # fn main() {
 //! let mut mock = MockFoo::new();
 //! let r = NonClone{};
 //! mock.expect_foo()
-//!     .return_once(move |_| r);
+//!     .return_once(move || r);
+//! # }
 //! ```
 //!
 //! [`return_once`] can also be used for computing the return value with an
@@ -125,13 +127,15 @@
 //!     fn foo(&self) -> NonClone;
 //! }
 //!
+//! # fn main() {
 //! let mut mock = MockFoo::new();
 //! let r = NonClone{};
 //! mock.expect_foo()
-//!     .return_once(move |_| {
+//!     .return_once(move || {
 //!         do_something();
 //!         r
 //!     });
+//! # }
 //! ```
 //!
 //! ## Matching arguments
@@ -169,12 +173,14 @@
 //!     fn foo(&self, x: u32, y: u32);
 //! }
 //!
+//! # fn main() {
 //! let mut mock = MockFoo::new();
 //! mock.expect_foo()
-//!     .withf(|(x, y): &(u32, u32)| x == y)
+//!     .withf(|x: &u32, y: &u32| x == y)
 //!     .return_const(());
 //!
 //! mock.foo(2 + 2, 5);    // Panics!
+//! # }
 //! ```
 //!
 //! ### Matching multiple calls
@@ -194,13 +200,15 @@
 //!     fn foo(&self, x: u32) -> u32;
 //! }
 //!
+//! # fn main() {
 //! let mut mock = MockFoo::new();
 //! mock.expect_foo()
 //!     .with(eq(5))
-//!     .return_const(50);
+//!     .return_const(50u32);
 //! mock.expect_foo()
 //!     .with(eq(6))
-//!     .return_const(60);
+//!     .return_const(60u32);
+//! # }
 //! ```
 //!
 //! One common pattern is to use multiple expectations in order of decreasing
@@ -261,19 +269,21 @@
 //!     fn foo(&self);
 //! }
 //!
+//! # fn main() {
 //! let mut seq = Sequence::new();
 //!
 //! let mut mock1 = MockFoo::new();
 //! mock1.expect_foo()
 //!     .in_sequence(&mut seq)
-//!     .returning(|_| ());
+//!     .returning(|| ());
 //!
 //! let mut mock2 = MockFoo::new();
 //! mock2.expect_foo()
 //!     .in_sequence(&mut seq)
-//!     .returning(|_| ());
+//!     .returning(|| ());
 //!
 //! mock2.foo();    // Panics!  mock1.foo should've been called first.
+//! # }
 //! ```
 //!
 //! ## Checkpoints
@@ -295,7 +305,7 @@
 //! let mut mock = MockFoo::new();
 //! mock.expect_foo()
 //!     .times(2)
-//!     .returning(|_| ());
+//!     .returning(|| ());
 //!
 //! mock.foo();
 //! mock.checkpoint();  // Panics!  foo hasn't yet been called twice.
@@ -308,14 +318,16 @@
 //!     fn foo(&self);
 //! }
 //!
+//! # fn main() {
 //! let mut mock = MockFoo::new();
 //! mock.expect_foo()
 //!     .times(1)
-//!     .returning(|_| ());
+//!     .returning(|| ());
 //!
 //! mock.foo();
 //! mock.checkpoint();
 //! mock.foo();         // Panics!  The expectation has been cleared.
+//! # }
 //! ```
 //!
 //! ## Reference arguments
@@ -368,12 +380,14 @@
 //!     fn get(&self, i: u32) -> &Thing;
 //! }
 //!
+//! # fn main() {
 //! let thing = Thing(42);
 //! let mut mock = MockContainer::new();
 //! mock.expect_get()
 //!     .return_const(thing);
 //!
 //! assert_eq!(42, mock.get(0).0);
+//! # }
 //! ```
 //!
 //! Methods that take a `&mut self` argument use the [`RefMutExpectation`]
@@ -391,6 +405,7 @@
 //!     fn get_mut(&mut self, i: u32) -> &mut Thing;
 //! }
 //!
+//! # fn main() {
 //! let thing = Thing(42);
 //! let mut mock = MockContainer::new();
 //! mock.expect_get_mut()
@@ -398,6 +413,7 @@
 //!
 //! mock.get_mut(0).0 = 43;
 //! assert_eq!(43, mock.get_mut(0).0);
+//! # }
 //! ```
 //!
 //! Unsized types that are common targets for [`Deref`] are special.  Mockall
@@ -440,10 +456,12 @@
 //!     }
 //! }
 //!
+//! # fn main() {
 //! let mut mock = MockFoo::new();
 //! mock.expect_foo()
-//!     .returning(|_| Box::new(String::from("Hello, World!")));
+//!     .returning(|| Box::new(String::from("Hello, World!")));
 //! println!("{:?}", mock.foo());
+//! # }
 //! ```
 //!
 //! However, `impl Trait` isn't *exactly* equivalent to `Box<dyn Trait>` but
@@ -570,10 +588,12 @@
 //!     fn foo(&self, t: T) -> i32;
 //! }
 //!
+//! # fn main() {
 //! let mut mock = MockFoo::<i16>::new();
 //! mock.expect_foo()
 //!     .returning(|t| i32::from(t));
 //! assert_eq!(5, mock.foo(5i16));
+//! # }
 //! ```
 //!
 //! ## Associated types
@@ -629,8 +649,8 @@
 //! }
 //! # fn main() {
 //! let mut mock = MockC::new();
-//! mock.expect_foo().returning(|_| ());
-//! mock.expect_bar().returning(|_| ());
+//! mock.expect_foo().returning(|| ());
+//! mock.expect_bar().returning(|| ());
 //! mock.foo();
 //! mock.bar();
 //! # }
@@ -655,7 +675,7 @@
 //! let mut mock1 = MockMyStruct::new();
 //! let mock2 = MockMyStruct::new();
 //! mock1.expect_clone()
-//!     .return_once(move |_| mock2);
+//!     .return_once(move || mock2);
 //! let cloned = mock1.clone();
 //! # }
 //! ```
@@ -673,7 +693,7 @@
 //!     fn foo() -> u32;
 //! }
 //!
-//! MockA::expect_foo().returning(|_| 99);
+//! MockA::expect_foo().returning(|| 99);
 //! assert_eq!(99, MockA::foo());
 //! ```
 //!
@@ -695,6 +715,7 @@
 //!     }
 //! }
 //!
+//! # fn main() {
 //! MockFoo::expect_from_i32()
 //!     .returning(|x| {
 //!         let mut mock = MockFoo::default();
@@ -704,6 +725,7 @@
 //!     });
 //! let foo = MockFoo::from_i32(42);
 //! assert_eq!(42, foo.foo());
+//! # }
 //! ```
 //!
 //! Mocking static methods of generic structs is a little bit tricky.  If the
