@@ -8,7 +8,7 @@ mod generic {
     #[test]
     fn generic_argument_and_return() {
         expectation!{
-            fn foo<I, O>(&mut self, x: I) -> &mut O { let (p: &I) = (&x); }
+            pub fn foo<I, O>(&mut self, x: I) -> &mut O { let (p: &I) = (&x); }
         }
         let mut e = foo::Expectation::<i16, i32>::default();
         e.with(predicate::eq(4))
@@ -20,7 +20,7 @@ mod generic {
     #[test]
     fn generic_return() {
         expectation!{
-            fn foo<O>(&mut self, x: u32) -> &mut O { let (p: &u32) = (&x); }
+            pub fn foo<O>(&mut self, x: u32) -> &mut O { let (p: &u32) = (&x); }
         }
         let mut e = foo::Expectation::<i32>::default();
         e.with(predicate::eq(4))
@@ -33,7 +33,7 @@ mod generic {
 #[test]
 fn match_eq_ok() {
     expectation!{
-        fn foo<>(&mut self, i: i32) -> &mut i32 { let (p: &i32) = (&i); }
+        pub fn foo<>(&mut self, i: i32) -> &mut i32 { let (p: &i32) = (&i); }
     }
     let mut e = foo::Expectation::default();
     e.return_var(99i32);
@@ -45,7 +45,7 @@ fn match_eq_ok() {
 #[should_panic]
 fn match_eq_fail() {
     expectation!{
-        fn foo<>(&mut self, i: i32) -> &mut i32 { let (p: &i32) = (&i); }
+        pub fn foo<>(&mut self, i: i32) -> &mut i32 { let (p: &i32) = (&i); }
     }
     let mut e = foo::Expectation::default();
     e.return_var(99i32);
@@ -56,7 +56,7 @@ fn match_eq_fail() {
 #[test]
 fn never_ok() {
     expectation!{
-        fn foo<>(&mut self, ) -> &mut () { let () = (); }
+        pub fn foo<>(&mut self, ) -> &mut () { let () = (); }
     }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
@@ -66,7 +66,7 @@ fn never_ok() {
 #[test]
 #[should_panic(expected = "Expectation should not have been called")]
 fn never_fail() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.never();
@@ -77,7 +77,7 @@ mod reference_argument {
     use super::*;
 
     expectation!{
-        fn foo<>(&mut self, i: &u32) -> &mut () { let (p: &u32) = (i); }
+        pub fn foo<>(&mut self, i: &u32) -> &mut () { let (p: &u32) = (i); }
     }
 
     #[test]
@@ -103,7 +103,7 @@ mod ref_and_nonref_arguments {
     use super::*;
 
     expectation!{
-        fn foo<>(&mut self, i0: i32, i1: &u16) -> &mut () {
+        pub fn foo<>(&mut self, i0: i32, i1: &u16) -> &mut () {
             let (p0: &i32, p1: &u16) = (&i0, i1);
         }
     }
@@ -133,7 +133,7 @@ mod reference_arguments {
     use super::*;
 
     expectation!{
-        fn foo<>(&mut self, i0: &u32, i1: &u16) -> &mut () {
+        pub fn foo<>(&mut self, i0: &u32, i1: &u16) -> &mut () {
             let (p0: &u32, p1: &u16) = (i0, i1);
         }
     }
@@ -151,7 +151,7 @@ mod reference_arguments {
 
 #[test]
 fn return_mutable_reference() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut i32 { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut i32 { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| 5i32);
     assert_eq!(5i32, *e.call_mut());
@@ -159,7 +159,7 @@ fn return_mutable_reference() {
 
 #[test]
 fn return_mutable_reference_return_var() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut i32 { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut i32 { let () = (); } }
     let mut e = foo::Expectation::default();
     e.return_var(5i32);
     assert_eq!(5i32, *e.call_mut());
@@ -168,7 +168,7 @@ fn return_mutable_reference_return_var() {
 #[test]
 #[should_panic(expected = "Method sequence violation")]
 fn sequence_fail() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut seq = Sequence::new();
     let mut e0 = foo::Expectation::default();
     e0.returning(|| ());
@@ -186,7 +186,7 @@ fn sequence_fail() {
 
 #[test]
 fn sequence_ok() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut seq = Sequence::new();
     let mut e0 = foo::Expectation::default();
     e0.returning(|| ());
@@ -204,7 +204,7 @@ fn sequence_ok() {
 
 #[test]
 fn times_any() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(1);
@@ -215,7 +215,7 @@ fn times_any() {
 
 #[test]
 fn times_ok() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(2);
@@ -226,7 +226,7 @@ fn times_ok() {
 #[test]
 #[should_panic(expected = "Expectation called fewer than 2 times")]
 fn times_too_few() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(2);
@@ -236,7 +236,7 @@ fn times_too_few() {
 #[test]
 #[should_panic(expected = "Expectation called more than 2 times")]
 fn times_too_many() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times(2);
@@ -249,7 +249,7 @@ fn times_too_many() {
 
 #[test]
 fn times_range_ok() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e0 = foo::Expectation::default();
     e0.returning(|| ());
     e0.times_range(2..4);
@@ -267,7 +267,7 @@ fn times_range_ok() {
 #[test]
 #[should_panic(expected = "Expectation called fewer than 2 times")]
 fn times_range_too_few() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times_range(2..4);
@@ -277,7 +277,7 @@ fn times_range_too_few() {
 #[test]
 #[should_panic(expected = "Expectation called more than 3 times")]
 fn times_range_too_many() {
-    expectation!{ fn foo<>(&mut self, ) -> &mut () { let () = (); } }
+    expectation!{ pub fn foo<>(&mut self, ) -> &mut () { let () = (); } }
     let mut e = foo::Expectation::default();
     e.returning(|| ());
     e.times_range(2..4);
