@@ -139,6 +139,29 @@
 //! # }
 //! ```
 //!
+//! Mock objects are always `Send`.  If you need to use a return type that
+//! isn't, you can use the [`returning_st`] or [`return_once_st`] methods.
+//! These take a non-`Send` object and add runtime access checks.  The wrapped
+//! object will be `Send`, but accessing it from multiple threads will cause a
+//! runtime panic.
+//!
+//! ```
+//! # use mockall::*;
+//! # use std::rc::Rc;
+//! #[automock]
+//! trait Foo {
+//!     fn foo(&self, x: Rc<u32>) -> Rc<u32>;   // Rc<u32> isn't Send
+//! }
+//!
+//! # fn main() {
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .withf(|x| **x == 5)
+//!     .returning_st(move |_| Rc::new(42u32));
+//! assert_eq!(42, *mock.foo(Rc::new(5)));
+//! # }
+//! ```
+//!
 //! ## Matching arguments
 //!
 //! Optionally, expectations may have argument matchers set.  A matcher will
