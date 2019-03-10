@@ -8,11 +8,11 @@
 //! # Usage
 //!
 //! There are three ways to use Mockall.  The easiest is to use
-//! [`#[automock]`](../mockall_derive/attr.automock.html).  It can mock most
+//! [`#[automock]`].  It can mock most
 //! traits, or structs that only have a single `impl` block.  For things it
 //! can't handle, there is [`mock!`].  Finally, there are rare
-//! cases where one may need to manually construct a mock object from things
-//! like [`Expectations`].
+//! cases where one may need to manually construct a mock object using
+//! [`expectation!`].
 //!
 //! Whichever method is used, the basic idea is the same.
 //! * Create a mock struct.  It's name will be the same as the original, with
@@ -49,6 +49,7 @@
 //! * [`Modules`](#modules)
 //! * [`Crate features`](#crate-features)
 //!
+//! ## Getting Started
 //! ```
 //! use mockall::*;
 //! use mockall::predicate::*;
@@ -332,15 +333,9 @@
 //!
 //! ## Reference arguments
 //!
-//! Mocking methods with non-`'static` arguments is tricky.  Fundamentally, in
-//! Rust an `Fn(I) -> O` object has the same lifetime parameters as `I` and `O`.
-//! So rather than remove the ability to use closures for matchers, Mockall
-//! takes a shortcut: it converts all reference arguments into pointer
-//! arguments.  The user is responsible for ensuring that there lifetimes are
-//! satisfied.  That's not typically a problem since unit tests a short-lived.
-//!
-//! When setting matchers with pointer arguments, you'll normally have to use
-//! [`withf_unsafe`] instead of [`withf`], because pointers aren't `Send`.
+//! Mockall can mock methods with reference arguments, too.  There's one catch:
+//! the matcher [`Predicate`] will take reference arguments by value, not by
+//! reference.
 //!
 //! ```
 //! # use mockall::*;
@@ -351,17 +346,18 @@
 //!
 //! let mut mock = MockFoo::new();
 //! let e = mock.expect_foo()
-//!     .returning(|x: *const u32| unsafe {*x + 1});
-//! unsafe{ e.withf_unsafe(|x: &*const u32| unsafe {**x == 5}); }
+//!     // Note that x is a &u32, not a &&u32
+//!     .withf(|x: &u32| *x == 5)
+//!     .returning(|x: &u32| *x + 1);
 //!
 //! assert_eq!(6, mock.foo(&5));
 //! ```
 //!
 //! ## Reference return values
 //!
-//! Unlike arguments, Mockall can use reference return values directly.  There
-//! is one restriction: the lifetime of the returned reference must be the same
-//! as the lifetime of the mock object.
+//! Mockall can also use reference return values.  There is one restriction: the
+//! lifetime of the returned reference must be the same as the lifetime of the
+//! mock object.
 //!
 //! Mockall creates different expectation types for methods that return
 //! references.  Their API is the same as the usual [`Expectation`], except for
@@ -504,10 +500,10 @@
 //!
 //! ## Mocking structs
 //!
-//! Mockall can also mock structs.  The problem here is a namespace problem:
-//! it's hard to supply the mock object to your code under test, because it has
-//! a different name.  The solution is to alter import paths during test.  The
-//! [`cfg-if`] crate helps.
+//! Mockall mock structs as well as traits.  The problem here is a namespace
+//! problem: it's hard to supply the mock object to your code under test,
+//! because it has a different name.  The solution is to alter import paths
+//! during test.  The [`cfg-if`] crate helps.
 //!
 //! [`#[automock]`] works for structs that have a single `impl` block:
 //! ```no_run
@@ -544,7 +540,7 @@
 //!     #[test]
 //!     fn test_foo() {
 //!         let mut mock = Thing::default();
-//!         mock.expect_foo().returning(|_| 42);
+//!         mock.expect_foo().returning(|| 42);
 //!         do_stuff(&mock);
 //!     }
 //! }
@@ -556,8 +552,10 @@
 //!
 //! Generic methods can be mocked, too.  Effectively each generic method is an
 //! infinite set of regular methods, and each of those works just like any other
-//! regular method.  The expect_ method is generic, too, and usually must be
-//! called with a turbofish.
+//! regular method.  The expect_* method is generic, too, and usually must be
+//! called with a turbofish.  The only restrictions on mocking generic methods
+//! is that each generic parameter must be `'static`, and generic lifetime
+//! parameters are not allowed.
 //!
 //! ```
 //! # use mockall::*;
@@ -579,12 +577,14 @@
 //! ## Generic traits and structs
 //!
 //! Mocking generic structs and generic traits is not a problem.  The mock
-//! struct will be generic, too.
+//! struct will be generic, too.  The same restrictions apply as for mocking
+//! generic methods: each generic parameter must be `'static`, and generic
+//! lifetime parameters are not allowed.
 //!
 //! ```
 //! # use mockall::*;
 //! #[automock]
-//! trait Foo<T> {
+//! trait Foo<T: 'static> {
 //!     fn foo(&self, t: T) -> i32;
 //! }
 //!
@@ -599,7 +599,7 @@
 //! ## Associated types
 //!
 //! Traits with associated types can be mocked too.  Unlike generic traits, the
-//! mock struct will not be generic.  Instead, we must specify the associated
+//! mock struct will not be generic.  Instead, you must specify the associated
 //! types when defining the mock struct.  They're specified as metaitems to the
 //! [`#[automock]`] attribute.
 //!
@@ -626,7 +626,6 @@
 //!
 //! ```
 //! # use mockall::*;
-//!
 //! pub trait A {
 //!     fn foo(&self);
 //! }
@@ -749,7 +748,7 @@
 //!
 //! // Can be mocked like this:
 //! mock! {
-//!     Foo<T> {
+//!     Foo<T: 'static> {
 //!         fn new<T2: 'static>(t: T2) -> MockFoo<T2>;
 //!     }
 //! }
@@ -894,6 +893,7 @@
 //! [`RefExpectation`]: struct.RefExpectation.html
 //! [`Sequence`]: struct.Sequence.html
 //! [`cfg-if`]: https://crates.io/crates/cfg-if
+//! [`expectation!`]: macro.expectation.html
 //! [`function`]: predicate/fn.function.html
 //! [`mock!`]: ../mockall_derive/macro.mock.html
 //! [`never`]: struct.Expectation.html#method.never
