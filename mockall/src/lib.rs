@@ -1052,6 +1052,7 @@ impl Key {
     }
 }
 
+#[doc(hidden)]
 pub struct SeqHandle {
     inner: Arc<SeqInner>,
     seq: usize
