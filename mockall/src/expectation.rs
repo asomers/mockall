@@ -521,9 +521,7 @@ macro_rules! static_expectation {
             $v fn call<$($generics: 'static,)*>
                 (&self, $( $args: $argty, )* ) -> $o
             {
-                // TODO: remove the 2nd type argument from Key after the old API
-                // is fully replaced.
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let e: &Expectations<$($generics,)*> = self.store.get(&key)
                     .expect("No matching expectation found")
                     .downcast_ref()
@@ -536,7 +534,7 @@ macro_rules! static_expectation {
                 (&'e mut self)
                 -> &'e mut Expectation<$($generics,)*>
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.store.entry(key)
                     .or_insert_with(||
@@ -734,7 +732,7 @@ macro_rules! expectation {
             $v fn call<$($generics: 'static,)*>
                 (&self, $( $args: $argty, )* ) -> &$o
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let e: &Expectations<$($generics,)*> = self.store.get(&key)
                     .expect("No matching expectation found")
                     .downcast_ref()
@@ -747,7 +745,7 @@ macro_rules! expectation {
                 -> &'e mut Expectation<$($generics,)*>
                 where $o: Send + Sync
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.store.entry(key)
                     .or_insert_with(||
@@ -884,7 +882,7 @@ macro_rules! expectation {
             $v fn call_mut<$($generics: 'static,)*>
                 (&mut self, $( $args: $argty, )* ) -> &mut $o
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let e: &mut Expectations<$($generics,)*> = self.store
                     .get_mut(&key)
                     .expect("No matching expectation found")
@@ -898,7 +896,7 @@ macro_rules! expectation {
                 -> &'e mut Expectation<$($generics,)*>
                 where $o: Send + Sync
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.store.entry(key)
                     .or_insert_with(||
@@ -1069,7 +1067,7 @@ macro_rules! expectation {
             $v fn in_sequence(&mut self, seq: &mut $crate::Sequence)
                 -> &mut Expectation<$($generics,)*>
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1079,7 +1077,7 @@ macro_rules! expectation {
             /// Just like
             /// [`Expectation::never`](struct.Expectation.html#method.never)
             $v fn never(&mut self) -> &mut Expectation<$($generics,)*> {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1091,7 +1089,7 @@ macro_rules! expectation {
             $v fn new(mut guard: MutexGuard<'guard, GenericExpectations>)
                 -> Self
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     guard.store.entry(key)
                     .or_insert_with(||
@@ -1106,7 +1104,7 @@ macro_rules! expectation {
             /// Just like
             /// [`Expectation::once`](struct.Expectation.html#method.once)
             $v fn once(&mut self) -> &mut Expectation<$($generics,)*> {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1118,7 +1116,7 @@ macro_rules! expectation {
             $v fn returning<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: FnMut($( $argty, )*) -> $o + Send + 'static
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1130,7 +1128,7 @@ macro_rules! expectation {
             $v fn return_once<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: FnOnce($( $argty, )*) -> $o + Send + 'static
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1142,7 +1140,7 @@ macro_rules! expectation {
             $v fn returning_st<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: FnMut($( $argty, )*) -> $o + 'static
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1152,7 +1150,7 @@ macro_rules! expectation {
             /// Just like
             /// [`Expectation::times`](struct.Expectation.html#method.times)
             $v fn times(&mut self, n: usize) -> &mut Expectation<$($generics,)*> {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1162,7 +1160,7 @@ macro_rules! expectation {
             /// Just like
             /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
             $v fn times_any(&mut self) -> &mut Expectation<$($generics,)*> {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1173,7 +1171,7 @@ macro_rules! expectation {
             /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
             $v fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<$($generics,)*>
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1187,7 +1185,7 @@ macro_rules! expectation {
                 (&mut self, $( $args: $altargs,)*)
                 -> &mut Expectation<$($generics,)*>
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();
@@ -1199,7 +1197,7 @@ macro_rules! expectation {
             $v fn withf<F>(&mut self, f: F) -> &mut Expectation<$($generics,)*>
                 where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
             {
-                let key = $crate::Key::new::<($($argty,)*), ()>();
+                let key = $crate::Key::new::<($($argty,)*)>();
                 let ee: &mut Expectations<$($generics,)*> =
                     self.guard.store.get_mut(&key).unwrap()
                     .downcast_mut().unwrap();

@@ -1047,8 +1047,8 @@ impl Drop for Times {
 pub struct Key(any::TypeId);
 
 impl Key {
-    pub fn new<I: 'static, O: 'static>() -> Self {
-        Key(any::TypeId::of::<(I, O)>())
+    pub fn new<T: 'static>() -> Self {
+        Key(any::TypeId::of::<T>())
     }
 }
 
