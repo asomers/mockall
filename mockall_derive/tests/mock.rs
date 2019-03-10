@@ -479,6 +479,25 @@ mod reference_return {
     }
 }
 
+mod ref_static_return {
+    use super::*;
+
+    mock! {
+        Foo {
+            fn foo(&self) -> &'static u32;
+        }
+    }
+
+    #[test]
+    fn t() {
+        const X: u32 = 5;
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .return_const(&X);
+        assert_eq!(5, *mock.foo());
+    }
+}
+
 mod ref_mut_return {
     use super::*;
 

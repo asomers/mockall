@@ -411,6 +411,15 @@ fn return_owned_too_many_times() {
 }
 
 #[test]
+fn return_static_reference() {
+    expectation!{pub fn foo<>(&self, ) -> & 'static i32 { let () = (); }}
+    const X: i32 = 42;
+    let mut e = foo::Expectation::default();
+    e.return_const(&X);
+    assert_eq!(42i32, *e.call());
+}
+
+#[test]
 #[should_panic(expected = "exact call count")]
 fn sequence_ambiguous() {
     expectation!{ pub fn foo<>(&self, ) -> () { let () = (); } }

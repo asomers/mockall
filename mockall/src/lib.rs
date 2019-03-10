@@ -356,12 +356,33 @@
 //! ## Reference return values
 //!
 //! Mockall can also use reference return values.  There is one restriction: the
-//! lifetime of the returned reference must be the same as the lifetime of the
-//! mock object.
+//! lifetime of the returned reference must be either the same as the lifetime
+//! of the mock object, or `'static`.
 //!
 //! Mockall creates different expectation types for methods that return
 //! references.  Their API is the same as the usual [`Expectation`], except for
 //! setting return values.
+//!
+//! Methods that return `'static` references work just like methods that return
+//! any other `'static` value.
+//! ```
+//! # use mockall::*;
+//! struct Thing(u32);
+//!
+//! #[automock]
+//! trait Container {
+//!     fn get(&self, i: u32) -> &'static Thing;
+//! }
+//!
+//! # fn main() {
+//! const THING: Thing = Thing(42);
+//! let mut mock = MockContainer::new();
+//! mock.expect_get()
+//!     .return_const(&THING);
+//!
+//! assert_eq!(42, mock.get(0).0);
+//! # }
+//! ```
 //!
 //! Methods that take a `&self` argument use the [`RefExpectation`] class, which
 //! gets its return value from the

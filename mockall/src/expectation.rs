@@ -639,7 +639,25 @@ macro_rules! static_expectation {
 #[macro_export]
 macro_rules! expectation {
     (
-        // First pattern, for references taking &self and returning immutable
+        // First pattern, for methods returning 'static references
+        //pub fn foo<>(&self, )
+        $v:vis fn $module:ident < $( $generics:ident ),* >
+        ($(&)?$(mut)?self $(,)? $( $args:ident : $argty:ty ),* )
+            -> & 'static $o:ty
+        {
+            let ( $( $altargs:ident : &$matchty:ty ),* ) =
+                ( $( $matchcall:expr ),* );
+        }
+    ) => {
+        pub mod $module {
+            $crate::static_expectation!{
+                $v [$($generics)*] [$($args)*] [$($argty)*] [$($altargs)*]
+                [$($matchty)*] [$($matchcall)*] &'static $o
+            }
+        }
+    };
+    (
+        // Second pattern, for methods taking &self and returning immutable
         // references.
         $v:vis fn $module:ident
         < $( $generics:ident ),* >
@@ -759,7 +777,7 @@ macro_rules! expectation {
     };
 
     (
-        // Second pattern, for methods taking &mut self and returning mutable or
+        // Third pattern, for methods taking &mut self and returning mutable or
         // immutable references.
         $v:vis fn $module:ident
         < $( $generics:ident ),* >
@@ -910,7 +928,7 @@ macro_rules! expectation {
     };
 
     (
-        // Third pattern, for methods returning 'static values
+        // Fourth pattern, for methods returning 'static values
         $v:vis fn $module:ident < $( $generics:ident ),* >
         ($(&)?$(mut)?self $(,)? $( $args:ident : $argty:ty ),* ) -> $o:ty
         {
@@ -926,7 +944,7 @@ macro_rules! expectation {
         }
     };
     (
-        // Fourth pattern, for static methods
+        // Fifth pattern, for static methods
         $v:vis fn $module:ident < $( $generics:ident ),* >
         ($( $args:ident : $argty:ty ),* ) -> $o:ty
         {
