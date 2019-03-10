@@ -920,7 +920,7 @@ use std::{
     thread
 };
 
-pub mod omnimock;
+mod expectation;
 
 pub use mockall_derive::{mock, automock};
 pub use predicates::prelude::{Predicate, predicate};
