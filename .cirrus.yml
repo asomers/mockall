@@ -22,5 +22,9 @@ test_task:
     -   cargo test --all
     - fi
   doc_script:
-    - cargo doc --no-deps
+    - if rustc --version | grep -q nightly; then
+    -   cargo doc --no-deps --all-features --all
+    - else
+    -   cargo doc --no-deps --all
+    - fi
   before_cache_script: rm -rf $CARGO_HOME/registry/index

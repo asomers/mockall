@@ -7,9 +7,14 @@ edition = "2018"
 [lib]
 proc-macro = true
 
+[package.metadata.docs.rs]
+features = ["extra-docs"]
+
 [features]
 # Extra features for the nightly compiler only
 nightly = ["proc-macro2/nightly"]
+# For building documentation only; no functional change to the library.
+extra-docs = []
 
 [dependencies]
 cfg-if = "0.1"

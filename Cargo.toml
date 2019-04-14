@@ -1,5 +1,5 @@
 [workspace]
-members = ["mockall", "mockall_derive"]
+members = ["mockall", "mockall_derive", "mockall_examples"]
 
 [patch.crates-io]
 predicates = { git = "https://github.com/assert-rs/predicates-rs/", rev = "0efce97" }
