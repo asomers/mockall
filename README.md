@@ -29,7 +29,10 @@ your `Cargo.toml`:
 
 ```toml
 [dev-dependencies]
+downcast = "0.9"
+fragile = "0.3"
 mockall = "0.1"
+predicates-tree = "1.0"
 ```
 
 Then use it like this:
