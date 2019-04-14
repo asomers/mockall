@@ -935,6 +935,7 @@
 //! [`Path`]: https://doc.rust-lang.org/stable/std/path/struct.Path.html
 //! [`Predicate`]: trait.Predicate.html
 //! [`RefExpectation`]: struct.RefExpectation.html
+//! [`RefMutExpectation`]: struct.RefMutExpectation.html
 //! [`Sequence`]: struct.Sequence.html
 //! [`cfg-if`]: https://crates.io/crates/cfg-if
 //! [`expectation!`]: macro.expectation.html
@@ -943,6 +944,8 @@
 //! [`never`]: struct.Expectation.html#method.never
 //! [`predicates`]: predicate/index.html
 //! [`return_once`]: struct.Expectation.html#method.return_once
+//! [`return_once_st`]: struct.Expectation.html#method.return_once_st
+//! [`returning_st`]: struct.Expectation.html#method.returning_st
 //! [`str`]: https://doc.rust-lang.org/stable/std/primitive.str.html
 //! [`times_any`]: struct.Expectation.html#method.times_any
 //! [`times_range`]: struct.Expectation.html#method.times_range
