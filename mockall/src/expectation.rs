@@ -163,18 +163,18 @@ macro_rules! common_methods {
 #[doc(hidden)]
 macro_rules! expectation_methods {
     ($v:vis [$($args:ident)*] [$($altargs:ident)*] [$($matchty:ty)*]) => {
-        /// Add this expectation to a [`Sequence`](struct.Sequence.html).
+        /// Add this expectation to a [`Sequence`](../../../mockall/struct.Sequence.html).
         $v fn in_sequence(&mut self, seq: &mut $crate::Sequence) -> &mut Self {
             self.common.in_sequence(seq);
             self
         }
 
-        $v fn is_done(&self) -> bool {
+        fn is_done(&self) -> bool {
             self.common.is_done()
         }
 
         /// Validate this expectation's matcher.
-        $v fn matches(&self, $( $args: &$matchty, )*) -> bool {
+        fn matches(&self, $( $args: &$matchty, )*) -> bool {
             self.common.matches($( $args, )*)
         }
 
@@ -184,6 +184,7 @@ macro_rules! expectation_methods {
             self
         }
 
+        /// Create a new, default, [`Expectation`](struct.Expectation.html)
         $v fn new() -> Self {
             Self::default()
         }
@@ -218,6 +219,11 @@ macro_rules! expectation_methods {
             self
         }
 
+        /// Set matching crieteria for this Expectation.
+        ///
+        /// The matching predicate can be anything implemening the
+        /// [`Predicate`](../../../mockall/trait.Predicate.html) trait.  Only
+        /// one matcher can be set per `Expectation` at a time.
         #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
         $v fn with<$( $altargs: $crate::Predicate<$matchty> + Send + 'static,)*>
             (&mut self, $( $args: $altargs,)*) -> &mut Self
@@ -226,6 +232,10 @@ macro_rules! expectation_methods {
             self
         }
 
+        /// Set a matching function for this Expectation.
+        ///
+        /// This is equivalent to calling [`with`](#method.with) with a function
+        /// argument, like `with(predicate::function(f))`.
         $v fn withf<F>(&mut self, f: F) -> &mut Self
             where F: Fn($( &$matchty, )* ) -> bool + Send + 'static
         {
@@ -241,6 +251,9 @@ macro_rules! expectation_methods {
 #[doc(hidden)]
 macro_rules! expectations_methods {
     ($v:vis [$($generics:ident)*]) => {
+        /// A collection of [`Expectation`](struct.Expectations.html) objects.
+        /// Users will rarely if ever use this struct directly.
+        #[doc(hidden)]
         $v struct Expectations<$($generics: 'static,)*>(
             Vec<Expectation<$($generics,)*>>
         );
@@ -279,6 +292,10 @@ macro_rules! expectations_methods {
 macro_rules! generic_expectation_methods {
     ($v:vis [$($generics:ident)*] [$($argty:ty)*] $o:ty) =>
     {
+        /// A collection of [`Expectation`](struct.Expectations.html) objects
+        /// for a generic method.  Users will rarely if ever use this struct
+        /// directly.
+        #[doc(hidden)]
         #[derive(Default)]
         $v struct GenericExpectations{
             store: HashMap<$crate::Key, Box<dyn $crate::AnyExpectations>>
@@ -373,12 +390,16 @@ macro_rules! static_expectation {
             [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
+        /// Expectation type for methods that take return a `'static` type.
+        /// This is the type returned by the `expect_*` methods.
         $v struct Expectation<$($generics: 'static,)*> {
             common: Common<$($generics,)*>,
             rfunc: Mutex<Rfunc<$($generics,)*>>,
         }
 
         impl<$($generics,)*> Expectation<$($generics,)*> {
+            /// Call this [`Expectation`] as if it were the real method.
+            #[doc(hidden)]
             $v fn call(&self, $( $args: $argty, )* ) -> $o
             {
                 self.common.call($( $matchcall, )*);
@@ -389,7 +410,7 @@ macro_rules! static_expectation {
             ///
             /// The output type must be `Clone`.  The compiler can't always
             /// infer the proper type to use with this method; you will usually
-            /// need to specify it explicitly.  i.e. `return_const(42u32)`
+            /// need to specify it explicitly.  i.e. `return_const(42i32)`
             /// instead of `return_const(42)`.
             // We must use Into<$o> instead of $o because where clauses don't
             // accept equality constraints.
@@ -450,6 +471,9 @@ macro_rules! static_expectation {
                 self
             }
 
+            /// Supply a closure that will provide the return value for this
+            /// `Expectation`.  The method's arguments are passed to the closure
+            /// by value.
             $v fn returning<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut($( $argty, )*) -> $o + Send + 'static
             {
@@ -688,6 +712,9 @@ macro_rules! expectation {
             [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
+        /// Expectation type for methods taking a `&self` argument and returning
+        /// immutable references.  This is the type returned by the `expect_*`
+        /// methods.
         $v struct Expectation<$($generics: 'static,)*> {
             common: Common<$($generics,)*>,
             result: Option<$o>,
@@ -808,6 +835,9 @@ macro_rules! expectation {
             [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
+        /// Expectation type for methods taking a `&mut self` argument and
+        /// returning references.  This is the type returned by the `expect_*`
+        /// methods.
         $v struct Expectation<$($generics: 'static,)*> {
             common: Common<$($generics,)*>,
             result: Option<$o>,
@@ -1071,6 +1101,8 @@ macro_rules! expectation {
             }
         }
 
+        /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html) but for
+        /// generic methods.
         $v struct GenericExpectationGuard<'guard, $($generics: 'static,)*> {
             guard: MutexGuard<'guard, GenericExpectations>,
             i: usize,
