@@ -346,7 +346,13 @@ fn mock_function(vis: &syn::Visibility,
     let fn_token = &decl.fn_token;
     let generics = &decl.generics;
     let inputs = &decl.inputs;
-    let output = &decl.output;
+    let output = match &decl.output{
+        syn::ReturnType::Default => quote!(-> ()),
+        _ => {
+            let decl_output = &decl.output;
+            quote!(#decl_output)
+        }
+    };
     let mut args = Vec::new();
 
     if decl.variadic.is_some() {
@@ -833,6 +839,40 @@ mod t {
         let code = r#"
         extern "C" {
             pub fn foo(x: u32) -> i64;
+        }
+        "#;
+        check(&attrs, &desired, &code);
+    }
+
+    #[test]
+    fn foreign_returning_unit() {
+        let attrs = "mod mock;";
+        let desired = r#"
+        mod mock {
+            ::mockall::expectation!{
+                pub(in super::super) fn __foo< >() -> () { let () = (); }
+            }
+            ::mockall::lazy_static!{
+                static ref foo_expectation:
+                    ::std::sync::Mutex< __foo::Expectations>
+                    = ::std::sync::Mutex::new(__foo::Expectations:: < > ::new());
+            }
+            pub(in super) unsafe fn foo() -> () {
+                foo_expectation.lock().unwrap().call()
+            }
+            pub(in super) fn expect_foo< 'guard>()
+                -> __foo::ExpectationGuard< 'guard, >
+            {
+                __foo::ExpectationGuard:: < > ::new(foo_expectation.lock().unwrap())
+            }
+            pub fn checkpoint() {
+                foo_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        "#;
+        let code = r#"
+        extern "C" {
+            fn foo();
         }
         "#;
         check(&attrs, &desired, &code);
