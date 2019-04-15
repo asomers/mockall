@@ -970,7 +970,10 @@ use std::{
 mod expectation;
 
 pub use mockall_derive::{mock, automock};
-pub use predicates::prelude::{Predicate, predicate};
+pub use predicates::{
+    boolean::PredicateBooleanExt,
+    prelude::{Predicate, predicate}
+};
 
 /// For mocking static methods
 #[doc(hidden)]
