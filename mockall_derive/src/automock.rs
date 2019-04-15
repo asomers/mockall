@@ -293,7 +293,10 @@ fn find_ident_from_path(path: &syn::Path) -> (syn::Ident, syn::PathArguments) {
 fn mock_foreign(attrs: Attrs, foreign_mod: syn::ItemForeignMod) -> TokenStream {
     let mut body = TokenStream::new();
     let mut cp_body = TokenStream::new();
-    let modname = attrs.modname.unwrap();
+    let modname = attrs.modname.expect(concat!(
+        "module name is required when mocking foreign functions,",
+        " like `#[automock(mod mock_ffi)]`"
+    ));
 
     for item in foreign_mod.items {
         match item {
