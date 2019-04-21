@@ -104,7 +104,21 @@ impl Mock {
         // even if the struct implements a trait that has a new method.  The
         // trait's new method can still be called as `<MockX as TraitY>::new`
         if !has_new {
+            #[cfg(all(not(test),feature = "extra-docs"))]
+            let docstr = {
+                let inner_ds = concat!(
+                    "Create a new mock object with no expectations.\n\n",
+                    "This method will not be generated if the real struct ",
+                    "already has a `new` method.  However, it *will* be ",
+                    "generated if the struct implements a trait with a `new` ",
+                    "method.  The trait's `new` method can still be called ",
+                    "like `<MockX as TraitY>::new`");
+                quote!( #[doc = #inner_ds])
+            };
+            #[cfg(any(test, not(feature = "extra-docs")))]
+            let docstr: Option<syn::Attribute> = None;
             quote!(
+                #docstr
                 pub fn new() -> Self {
                     Self::default()
                 }

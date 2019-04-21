@@ -105,7 +105,7 @@ macro_rules! common_methods {
                 self.matcher.lock().unwrap().matches($( $args, )*)
             }
 
-            /// Forbid this expectation from ever being called
+            /// Forbid this expectation from ever being called.
             fn never(&mut self) {
                 self.times.never();
             }
@@ -116,7 +116,7 @@ macro_rules! common_methods {
                 }
             }
 
-            /// Require this expectation to be called exactly `n` times.
+            /// Expect this expectation to be called exactly `n` times.
             fn times(&mut self, n: usize) {
                 self.times.n(n);
             }
@@ -178,7 +178,7 @@ macro_rules! expectation_methods {
             self.common.matches($( $args, )*)
         }
 
-        /// Forbid this expectation from ever being called
+        /// Forbid this expectation from ever being called.
         $v fn never(&mut self) -> &mut Self {
             self.common.never();
             self
@@ -195,7 +195,7 @@ macro_rules! expectation_methods {
             self.times(1)
         }
 
-        /// Require this expectation to be called exactly `n` times.
+        /// Expect this expectation to be called exactly `n` times.
         $v fn times(&mut self, n: usize) -> &mut Self {
             self.common.times(n);
             self
@@ -390,7 +390,7 @@ macro_rules! static_expectation {
             [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
-        /// Expectation type for methods that take return a `'static` type.
+        /// Expectation type for methods that return a `'static` type.
         /// This is the type returned by the `expect_*` methods.
         $v struct Expectation<$($generics: 'static,)*> {
             common: Common<$($generics,)*>,
@@ -425,7 +425,7 @@ macro_rules! static_expectation {
 
             /// Supply an `FnOnce` closure that will provide the return value
             /// for this Expectation.  This is useful for return types that
-            /// aren't `Clone`.  It will be an error to call this Expectation
+            /// aren't `Clone`.  It will be an error to call this method
             /// multiple times.
             $v fn return_once<F>(&mut self, f: F) -> &mut Self
                 where F: FnOnce($( $argty, )*) -> $o + Send + 'static

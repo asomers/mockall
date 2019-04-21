@@ -12,6 +12,9 @@
 #[cfg(all(feature = "nightly-docs", rustdoc))]
 use mockall::*;
 
+/// A basic trait with several kinds of method.
+///
+/// It is mocked by the [`MockFoo`](struct.MockFoo.html) struct.
 #[cfg(all(feature = "nightly-docs", rustdoc))]
 #[automock]
 pub trait Foo {
