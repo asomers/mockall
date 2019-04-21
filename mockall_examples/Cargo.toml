@@ -1,0 +1,18 @@
+[package]
+name = "mockall_examples"
+version = "0.1.0"
+authors = ["Alan Somers <asomers@gmail.com>"]
+edition = "2018"
+
+[package.metadata.docs.rs]
+features = ["nightly-docs"]
+
+[features]
+# For building documentation only; no functional change to the library.
+nightly-docs = []
+
+[dependencies]
+downcast = "0.9"
+fragile = "0.3"
+mockall = { path = "../mockall" }
+predicates-tree = "1.0"

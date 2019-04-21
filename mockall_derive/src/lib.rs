@@ -22,20 +22,20 @@ use crate::mock::{Mock, do_mock};
 
 struct MethodTypes {
     is_static: bool,
-    input_type: syn::TypeTuple,
-    output_type: syn::Type,
     /// Type of Expectation returned by the expect method
     expectation: syn::Type,
     /// Type of Expectations container used by the expect method, without its
     /// generics fields
     expectations: syn::Type,
-    /// Type of Expectation object stored in the mock structure, with generics
+    /// Type of Expectations object stored in the mock structure, with generics
     /// fields
     expect_obj: syn::Type,
     /// Method to call when invoking the expectation
     call: syn::Ident,
-    /// Any turbofish needed when invoking the expectation
-    call_turbofish: Option<syn::MethodTurbofish>
+    /// Version of the arguments used for the Predicates
+    altargs: syn::punctuated::Punctuated<syn::ArgCaptured, Token![,]>,
+    /// Expressions producing references from the arguments
+    matchexprs: syn::punctuated::Punctuated<syn::Expr, Token![,]>,
 }
 
 cfg_if! {
@@ -58,7 +58,7 @@ cfg_if! {
 /// Replace any "impl trait" types with "Box<dyn trait>" equivalents
 fn deimplify(ty: &mut syn::Type) {
     if let syn::Type::ImplTrait(tit) = ty {
-        let bounds = &tit.bounds; // Punctuated<TypeParamBound, Add>
+        let bounds = &tit.bounds;
         *ty = syn::parse2(quote!(Box<dyn #bounds>)).unwrap();
     }
 }
@@ -100,28 +100,6 @@ fn demutify_arg(arg: &mut syn::ArgCaptured) {
             compile_error(arg.span(), "Unsupported argument type");
         }
     };
-}
-
-/// Turn a non-'static reference argument into a pointer argument.  This is
-/// sadly necessary because Fn(I) -> O objects aren't 'static unless I is.  And
-/// we don't want to restrict our users to use bare fn pointers.
-fn derefify(arg: &syn::ArgCaptured) -> (TokenStream, syn::Type) {
-    let pat = &arg.pat;
-    if let syn::Type::Reference(r) = &arg.ty {
-        if let Some(lt) = &r.lifetime {
-            if lt.ident == "static" {
-                return (quote!(#pat), arg.ty.clone());
-            }
-        }
-        let ty = r.elem.as_ref();
-        if r.mutability.is_some() {
-            (quote!(#pat as *mut _), syn::parse2(quote!(*mut #ty)).unwrap())
-        } else {
-            (quote!(#pat as *const _), syn::parse2(quote!(*const #ty)).unwrap())
-        }
-    } else {
-        (quote!(#pat), arg.ty.clone())
-    }
 }
 
 /// Replace any references to `Self` in `literal_type` with `actual`.  Useful
@@ -213,17 +191,208 @@ fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
     syn::Ident::new(&format!("Mock{}", ident), ident.span())
 }
 
-fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
+/// Generate an identifier for the mock struct's private module: eg "Foo" =>
+/// "__mock_Foo"
+fn gen_mod_ident(struct_: &syn::Ident, trait_: Option<&syn::Ident>)
+    -> syn::Ident
+{
+    if let Some(t) = trait_ {
+        syn::Ident::new(&format!("__mock_{}_{}", struct_, t), struct_.span())
+    } else {
+        syn::Ident::new(&format!("__mock_{}", struct_), struct_.span())
+    }
+}
+
+/// Combine two Generics structs, producing a new one that has the union of
+/// their parameters.  The output's parameter bounds are not accurate!
+fn merge_generics(x: &syn::Generics, y: &syn::Generics) -> syn::Generics {
+    /// Compare only the identifiers of two GenericParams
+    fn cmp_gp_idents(x: &syn::GenericParam, y: &syn::GenericParam) -> bool {
+        use syn::GenericParam::*;
+
+        match (x, y) {
+            (Type(xtp), Type(ytp)) => {
+                xtp.ident == ytp.ident
+            },
+            (Lifetime(xld), Lifetime(yld)) => {
+                xld.lifetime == yld.lifetime
+            },
+            (Const(xc), Const(yc)) => {
+                xc.ident == yc.ident
+            },
+            _ => false
+        }
+    }
+
+    /// Compare only the identifiers of two WherePredicates
+    fn cmp_wp_idents(x: &syn::WherePredicate, y: &syn::WherePredicate) -> bool {
+        use syn::WherePredicate::*;
+
+        match (x, y) {
+            (Type(xpt), Type(ypt)) => {
+                xpt.bounded_ty == ypt.bounded_ty
+            },
+            (Lifetime(xpl), Lifetime(ypl)) => {
+                xpl.lifetime == ypl.lifetime
+            },
+            (Eq(xeq), Eq(yeq)) => {
+                xeq.lhs_ty == yeq.lhs_ty
+            },
+            _ => false
+        }
+    }
+
+    if x.lt_token.is_none() {
+        y.clone()
+    } else if y.lt_token.is_none() {
+        x.clone()
+    } else {
+        let mut out = x.clone();
+        // First merge the params
+        for param in y.params.iter() {
+            if ! x.params.iter().any(|t| cmp_gp_idents(t, param)) {
+                out.params.push(param.clone());
+            }
+        }
+        // Then merge the where clauses
+        if x.where_clause.is_none() {
+            out.where_clause = y.where_clause.clone();
+        } else if let Some(wc) = &y.where_clause {
+            if x.where_clause.is_none() {
+                out.where_clause = Some(wc.clone());
+            }
+            for predicate in wc.predicates.iter() {
+                let x_p = &x.where_clause.as_ref().unwrap().predicates;
+                let out_p = &mut out.where_clause.as_mut().unwrap().predicates;
+                if ! x_p.iter().any(|t| cmp_wp_idents(t, predicate)) {
+                    out_p.push(predicate.clone());
+                }
+            }
+        }
+        out
+    }
+}
+
+/// Return the visibility that should be used for expectation!, given the
+/// original method's visibility.
+///
+/// # Arguments
+/// - `vis`:    Original visibility of the item
+/// - `levels`: How many modules will the mock item be nested in?
+fn expectation_visibility(vis: &syn::Visibility, levels: u32)
+    -> syn::Visibility
+{
+    debug_assert!(levels > 0);
+    let in_token = Token![in](vis.span());
+    let super_token = Token![super](vis.span());
+    match vis {
+        syn::Visibility::Inherited => {
+            // Private items need pub(in super::[...]) for each level
+            let mut path = syn::Path::from(super_token);
+            for _ in 1..levels {
+                path.segments.push(super_token.into());
+            }
+            let supersuper = syn::Visibility::Restricted(syn::VisRestricted{
+                pub_token: Token![pub](vis.span()),
+                paren_token: syn::token::Paren::default(),
+                in_token: Some(in_token),
+                path: Box::new(path)
+            });
+            supersuper.into()
+        },
+        syn::Visibility::Restricted(vr) => {
+            // crate => don't change
+            // in crate::* => don't change
+            // super => in super::super::super
+            // self => in super::super
+            // in anything_else => super::super::anything_else
+            if vr.path.segments.first().unwrap().value().ident == "crate" {
+                vr.clone().into()
+            } else {
+                let mut out = vr.clone();
+                out.in_token = Some(in_token);
+                for _ in 0..levels {
+                    out.path.segments.insert(0, super_token.into());
+                }
+                out.into()
+            }
+        },
+        _ => vis.clone()
+    }
+}
+
+/// Extract useful data about a method
+///
+/// # Arguments
+///
+/// * `sig`:            Signature of the original method
+/// * `generics`:       Generics of the method's parent trait or structure,
+///                     _not_ the method itself.
+fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
     -> MethodTypes
 {
     let mut is_static = true;
-    let mut elems
+    let mut altargs = syn::punctuated::Punctuated::new();
+    let mut matchexprs = syn::punctuated::Punctuated::new();
+    let mut args
         = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
+    let ident = &sig.ident;
     let is_generic = !sig.decl.generics.params.is_empty();
-    for fn_arg in sig.decl.inputs.iter() {
+    let merged_g = if let Some(g) = generics {
+        merge_generics(&g, &sig.decl.generics)
+    } else {
+        sig.decl.generics.clone()
+    };
+    let (_ig, tg, _wc) = merged_g.split_for_impl();
+    for (i, fn_arg) in sig.decl.inputs.iter().enumerate() {
         match fn_arg {
             syn::FnArg::Captured(arg) => {
-                elems.push(derefify(arg).1.clone());
+                args.push(arg.ty.clone());
+                let mep = if let syn::Pat::Ident(arg_ident) = &arg.pat {
+                    syn::Expr::Path(syn::ExprPath{
+                        attrs: Vec::new(),
+                        qself: None,
+                        path: syn::Path::from(arg_ident.ident.clone())
+                    })
+                } else {
+                    compile_error(arg.span(),
+                        "Unexpected argument pattern in function declaration");
+                    break;
+                };
+                let alt_ty = if let syn::Type::Reference(tr) = &arg.ty {
+                    /* Remove any "mut" */
+                    let mut alt_tr = tr.clone();
+                    alt_tr.mutability = None;
+                    matchexprs.push(mep);
+                    syn::Type::Reference(alt_tr)
+                } else {
+                    let matchexpr = syn::Expr::Reference(syn::ExprReference {
+                        attrs: Vec::new(),
+                        and_token: syn::Token![&](arg.span()),
+                        mutability: None,
+                        expr: Box::new(mep)
+                    });
+                    matchexprs.push(matchexpr);
+                    syn::Type::Reference(syn::TypeReference{
+                        and_token: syn::Token![&](arg.span()),
+                        lifetime: None,
+                        mutability: None,
+                        elem: Box::new(arg.ty.clone())
+                    })
+                };
+                let altident = syn::Ident::new(&format!("p{}", i), arg.span());
+                let altpat = syn::Pat::Ident(syn::PatIdent {
+                    by_ref: None,
+                    mutability: None,
+                    ident: altident,
+                    subpat: None
+                });
+                let altarg = syn::ArgCaptured {
+                    pat: altpat,
+                    colon_token: syn::Token![:](arg.span()),
+                    ty: alt_ty
+                };
+                altargs.push(altarg);
             },
             syn::FnArg::SelfRef(_) => {
                 is_static = false;
@@ -235,19 +404,11 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
                 "Should be unreachable for normal Rust code")
         }
     }
-    let paren_token = syn::token::Paren::default();
-    let input_type = syn::TypeTuple{paren_token, elems};
 
     let span = Span::call_site();
-    let (mut output_type, partial_ex, call) = match &sig.decl.output {
+    let call = match &sig.decl.output {
         syn::ReturnType::Default => {
-            let paren_token = syn::token::Paren{span};
-            let elems = syn::punctuated::Punctuated::new();
-            (
-                syn::Type::Tuple(syn::TypeTuple{paren_token, elems}),
-                syn::Ident::new("Expectation", span),
-                syn::Ident::new("call", span)
-            )
+            syn::Ident::new("call", span)
         },
         syn::ReturnType::Type(_, ty) => {
             match ty.as_ref() {
@@ -257,102 +418,76 @@ fn method_types(mock_ident: Option<&syn::Ident>, sig: &syn::MethodSig)
                             compile_error(r.span(), "Non-'static non-'self lifetimes are not yet supported");
                         }
                     }
-                    let output_type = ref_to_owned(r);
                     if r.mutability.is_some() {
-                        (
-                            output_type,
-                            syn::Ident::new("RefMutExpectation", span),
-                            syn::Ident::new("call_mut", span)
-                        )
+                        syn::Ident::new("call_mut", span)
                     } else {
-                        (
-                            output_type,
-                            syn::Ident::new("RefExpectation", span),
-                            syn::Ident::new("call", span)
-                        )
+                        syn::Ident::new("call", span)
                     }
                 },
-                _ => (
-                    (**ty).clone(),
-                    syn::Ident::new("Expectation", span),
-                    syn::Ident::new("call", span)
-                )
+                _ => syn::Ident::new("call", span)
             }
         }
     };
-    deimplify(&mut output_type);
-    if mock_ident.is_some() {
-        deselfify(&mut output_type, &mock_ident.as_ref().unwrap());
-    }
 
-    let call_turbofish = if is_generic {
-        let mut args = syn::punctuated::Punctuated::new();
-        let input_type_type = syn::Type::Tuple(input_type.clone());
-        args.push(syn::GenericMethodArgument::Type(input_type_type));
-        args.push(syn::GenericMethodArgument::Type(output_type.clone()));
-        Some(syn::MethodTurbofish{
-            colon2_token: syn::token::Colon2::default(),
-            lt_token: syn::token::Lt::default(),
-            args,
-            gt_token: syn::token::Gt::default()
-        })
-    } else {
-        None
-    };
+    let expectation_ident = syn::Ident::new("Expectation", span);
     let expectations_ident = if is_generic {
-        syn::Ident::new(&format!("Generic{}s", partial_ex), span)
+        syn::Ident::new("GenericExpectations", span)
     } else {
-        syn::Ident::new(&format!("{}s", partial_ex), span)
+        syn::Ident::new("Expectations", span)
     };
     let expectations = syn::parse2(
-        quote!(::mockall::#expectations_ident)
+        quote!(#ident::#expectations_ident)
     ).unwrap();
     let expect_obj = if is_generic {
         syn::parse2(quote!(#expectations)).unwrap()
     } else {
-        syn::parse2(
-            quote!(#expectations<#input_type, #output_type>)
-        ).unwrap()
+        syn::parse2(quote!(#expectations #tg)).unwrap()
     };
-    let expect_ts = quote!(::mockall::#partial_ex);
+    let expect_ts = quote!(#ident::#expectation_ident #tg);
     let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
 
-    MethodTypes{is_static, input_type, output_type, expectation, expectations,
-                call, expect_obj, call_turbofish}
+    MethodTypes{is_static, expectation, expectations,
+                call, expect_obj, altargs, matchexprs}
 }
 
-/// Convert a reference type into its owned type.  Usually this is a simple
-/// matter of removing the "&", but there are some special cases.
-fn ref_to_owned(ty: &syn::TypeReference) -> syn::Type {
-    let path_ty: syn::TypePath = syn::parse2(quote!(Path)).unwrap();
-    let pathbuf_ty: syn::Type = syn::parse2(quote!(::std::path::PathBuf))
-        .unwrap();
+/// Convert a special reference type like "&str" into a reference to its owned
+/// type like "&String".
+fn destrify(ty: &mut syn::Type) {
+    if let syn::Type::Reference(ref mut tr) = ty {
+        let path_ty: syn::TypePath = syn::parse2(quote!(Path)).unwrap();
+        let pathbuf_ty: syn::Type = syn::parse2(quote!(::std::path::PathBuf))
+            .unwrap();
 
-    let str_ty: syn::TypePath = syn::parse2(quote!(str)).unwrap();
-    let string_ty: syn::Type = syn::parse2(quote!(::std::string::String))
-        .unwrap();
+        let str_ty: syn::TypePath = syn::parse2(quote!(str)).unwrap();
+        let string_ty: syn::Type = syn::parse2(quote!(::std::string::String))
+            .unwrap();
 
-    let cstr_ty: syn::TypePath = syn::parse2(quote!(CStr)).unwrap();
-    let cstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::CString))
-        .unwrap();
+        let cstr_ty: syn::TypePath = syn::parse2(quote!(CStr)).unwrap();
+        let cstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::CString))
+            .unwrap();
 
-    let osstr_ty: syn::TypePath = syn::parse2(quote!(OsStr)).unwrap();
-    let osstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::OsString))
-        .unwrap();
+        let osstr_ty: syn::TypePath = syn::parse2(quote!(OsStr)).unwrap();
+        let osstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::OsString))
+            .unwrap();
 
-    match *ty.elem {
-        syn::Type::Path(ref path) if *path == cstr_ty => cstring_ty,
-        syn::Type::Path(ref path) if *path == osstr_ty => osstring_ty,
-        syn::Type::Path(ref path) if *path == path_ty => pathbuf_ty,
-        syn::Type::Path(ref path) if *path == str_ty => string_ty,
-        _ => (*ty.elem).clone()
+        match tr.elem.as_ref() {
+            syn::Type::Path(ref path) if *path == cstr_ty =>
+                *tr.elem = cstring_ty,
+            syn::Type::Path(ref path) if *path == osstr_ty =>
+                *tr.elem = osstring_ty,
+            syn::Type::Path(ref path) if *path == path_ty =>
+                *tr.elem = pathbuf_ty,
+            syn::Type::Path(ref path) if *path == str_ty =>
+                *tr.elem = string_ty,
+            _ => (), // Nothing to do
+        };
     }
 }
 
 /// Manually mock a structure.
 ///
 /// Sometimes `automock` can't be used.  In those cases you can use `mock!`,
-/// which basically involves repeat the struct's or trait's definitions.
+/// which basically involves repeating the struct's or trait's definitions.
 ///
 /// The format is:
 ///
@@ -372,7 +507,7 @@ fn ref_to_owned(ty: &syn::TypeReference) -> syn::Type {
 ///     fn foo(&self, x: u32);
 /// }
 /// mock!{
-///     pub MyStruct<T: Clone> {
+///     pub MyStruct<T: Clone + 'static> {
 ///         fn bar(&self) -> u8;
 ///     }
 ///     trait Foo {
@@ -388,7 +523,7 @@ fn ref_to_owned(ty: &syn::TypeReference) -> syn::Type {
 /// ```
 /// # use mockall_derive::mock;
 /// mock!{
-///     pub Rc<T> {}
+///     pub Rc<T: 'static> {}
 ///     trait AsRef<T> {
 ///         fn as_ref(&self) -> &T;
 ///     }
@@ -399,8 +534,8 @@ fn ref_to_owned(ty: &syn::TypeReference) -> syn::Type {
 /// ```compile_fail
 /// # use mockall_derive::mock;
 /// mock!{
-///     pub Rc<Q> {}
-///     trait AsRef<T> {
+///     pub Rc<Q: 'static> {}
+///     trait AsRef<T: 'static> {
 ///         fn as_ref(&self) -> &T;
 ///     }
 /// }
@@ -409,7 +544,7 @@ fn ref_to_owned(ty: &syn::TypeReference) -> syn::Type {
 /// Associated types can easily be mocked by specifying a concrete type in the
 /// `mock!{}` invocation.  But be careful not to reference the associated type
 /// in the signatures of any of the trait's methods; repeat the concrete type
-/// instead.  For exampe, do:
+/// instead.  For example, do:
 /// ```
 /// # use mockall_derive::mock;
 /// mock!{
@@ -494,7 +629,7 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// # use mockall_derive::*;
 /// #[automock(mod mock_ffi;)]
 /// extern "C" {
-///     fn foo() -> u32;
+///     pub fn foo() -> u32;
 /// }
 /// ```
 ///

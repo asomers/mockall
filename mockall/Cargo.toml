@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Alan Somers <asomers@gmail.com>"]
 edition = "2018"
 
+[package.metadata.docs.rs]
+features = ["nightly"]
+
 [features]
 # Extra features for the nightly compiler only
 nightly = ["mockall_derive/nightly"]

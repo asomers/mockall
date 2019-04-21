@@ -13,6 +13,8 @@ use std::{
     path::{Path, PathBuf}
 };
 
+struct NonCopy{}
+
 // automatic-style mocking with associated types
 #[test]
 fn associated_types_auto() {
@@ -28,9 +30,23 @@ fn associated_types_auto() {
     assert_eq!(4, mock.foo(4));
 }
 
+// Attributes are applied to the mock object, too.
+#[test]
+#[allow(unused)]
+fn attrs() {
+    struct A{}
+    #[automock]
+    impl A {
+        // Neither A::foo nor MockA::foo should not be defined
+        #[cfg(target_os = "multics")] pub fn foo(&self, x: DoesNotExist) {}
+    }
+
+    // Sufficient to check that it compiles.
+    let _mock = MockA::new();
+}
+
 #[test]
 fn consume_parameters() {
-    struct NonCopy{}
     #[automock]
     trait T {
         fn foo(&self, x: NonCopy);
@@ -42,8 +58,24 @@ fn consume_parameters() {
     mock.foo(NonCopy{});
 }
 
+mod foreign_c {
+    use super::*;
+
+    #[automock(mod mock_ffi;)]
+    extern "C" {
+        #[allow(unused)]
+        fn foo(x: u32) -> i64;
+    }
+
+    #[test]
+    fn t() {
+        mock_ffi::expect_foo().returning(i64::from);
+        assert_eq!(42, unsafe{mock_ffi::foo(42)});
+    }
+}
+
 #[test]
-fn foreign_c() {
+fn foreign_c_pub() {
     #[automock(mod mock_ffi;)]
     extern "C" {
         #[allow(unused)]
@@ -56,6 +88,18 @@ fn foreign_c() {
 
 #[test]
 fn foreign_rust() {
+    #[automock(mod mock_ffi;)]
+    extern "Rust" {
+        #[allow(unused)]
+        fn foo(x: u32) -> i64;
+    }
+
+    mock_ffi::expect_foo().returning(i64::from);
+    assert_eq!(42, unsafe{mock_ffi::foo(42)});
+}
+
+#[test]
+fn foreign_rust_pub() {
     #[automock(mod mock_ffi;)]
     extern "Rust" {
         #[allow(unused)]
@@ -126,40 +170,63 @@ fn generic_static_method() {
 #[test]
 fn generic_struct() {
     #[allow(unused)]
-    struct GenericStruct<'a, T, V> {
+    struct GenericStruct<T, V> {
         t: T,
-        v: &'a V
+        v: V
     }
     #[automock]
-    impl<'a, T, V> GenericStruct<'a, T, V> {
+    impl<T: 'static, V: 'static> GenericStruct<T, V> {
         #[allow(unused)]
         fn foo(&self, _x: u32) -> i64 {
             42
         }
     }
 
-    let mut mock = MockGenericStruct::<'static, u8, i8>::new();
+    let mut mock = MockGenericStruct::<u8, i8>::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
 }
 
+// XXX Mockall's expectation! macro currently doesn't allow lifetime parameters
+// :( . It could, if it were rewritten as a proc macro.
+//#[test]
+//fn generic_struct_with_lifetime() {
+    //#[allow(unused)]
+    //struct GenericStruct<'a, T, V> {
+        //t: T,
+        //v: &'a V
+    //}
+    //#[automock]
+    //impl<'a, T, V> GenericStruct<'a, T, V> {
+        //#[allow(unused)]
+        //fn foo(&self, _x: u32) -> i64 {
+            //42
+        //}
+    //}
+
+    //let mut mock = MockGenericStruct::<'static, u8, i8>::new();
+    //mock.expect_foo()
+        //.returning(|x| i64::from(x) + 1);
+    //assert_eq!(5, mock.foo(4));
+//}
+
 #[test]
 fn generic_struct_with_bounds() {
     #[allow(unused)]
-    struct GenericStruct<'a, T: Copy, V: Clone> {
+    struct GenericStruct<T: Copy, V: Clone> {
         t: T,
-        v: &'a V
+        v: V
     }
     #[automock]
-    impl<'a, T: Copy, V: Clone> GenericStruct<'a, T, V> {
+    impl<T: Copy + 'static, V: Clone + 'static> GenericStruct<T, V> {
         #[allow(unused)]
         fn foo(&self, _x: u32) -> i64 {
             42
         }
     }
 
-    let mut mock = MockGenericStruct::<'static, u8, i8>::new();
+    let mut mock = MockGenericStruct::<u8, i8>::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
@@ -168,42 +235,42 @@ fn generic_struct_with_bounds() {
 #[test]
 fn generic_trait() {
     #[automock]
-    trait A<T> {
+    trait A<T: 'static> {
         fn foo(&self);
     }
 
     let mut mock = MockA::<u32>::new();
     mock.expect_foo()
-        .returning(|_| ());
+        .returning(|| ());
     mock.foo();
 }
 
 #[test]
 fn generic_trait_with_bounds() {
     #[automock]
-    trait A<T: Copy> {
+    trait A<T: Copy + 'static> {
         fn foo(&self);
     }
 
     let mut mock = MockA::<u32>::new();
     mock.expect_foo()
-        .returning(|_| ());
+        .returning(|| ());
     mock.foo();
 }
 
 #[test]
 fn impl_generic_trait() {
-    trait Foo<T> {
+    trait Foo<T: 'static> {
         fn foo(&self, t: T) -> T;
     }
 
     #[allow(unused)]
-    struct SomeStruct<T> {
+    struct SomeStruct<T: 'static> {
         _t: std::marker::PhantomData<T>
     }
 
     #[automock]
-    impl<T> Foo<T> for SomeStruct<T> {
+    impl<T: 'static> Foo<T> for SomeStruct<T> {
         fn foo(&self, t: T) -> T {
             t
         }
@@ -227,7 +294,7 @@ fn impl_trait() {
     }
 
     let mut mock = MockFoo::new();
-    mock.expect_foo().returning(|_| Box::new(4));
+    mock.expect_foo().returning(|| Box::new(4));
     format!("{:?}", mock.foo());
 }
 
@@ -260,12 +327,12 @@ fn impl_trait_on_generic() {
     }
 
     #[allow(unused)]
-    struct SomeStruct<T> {
+    struct SomeStruct<T: 'static> {
         _t: std::marker::PhantomData<T>
     }
 
     #[automock]
-    impl<T> Foo for SomeStruct<T> {
+    impl<T: 'static> Foo for SomeStruct<T> {
         fn foo(&self, _x: u32) -> i64 {
             42
         }
@@ -291,7 +358,7 @@ fn impl_trait_with_associated_types() {
     }
 
     let mut mock = MockFoo::new();
-    mock.expect_next().returning(|_| None);
+    mock.expect_next().returning(|| None);
     assert!(mock.next().is_none());
 }
 
@@ -310,7 +377,7 @@ fn many_args() {
 
     let mut mock = MockManyArgs::new();
     mock.expect_foo()
-        .returning(|_: (u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8)| ());
+        .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
     mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
@@ -347,9 +414,8 @@ cfg_if! {
 
 /// Structs with a "new" method should mock that method rather than add a new
 /// method just for the mock object.
-#[test]
-#[allow(unused)]
-fn new_method() {
+pub mod new_method {
+    use super::*;
     pub struct Foo{}
 
     #[automock]
@@ -363,15 +429,18 @@ fn new_method() {
         }
     }
 
-    let mut mock = MockFoo::default();
-    mock.expect_foo()
-        .returning(|_| -1);
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::default();
+        mock.expect_foo()
+            .returning(|| -1);
 
-    MockFoo::expect_new()
-        .return_once(|_| mock);
+        MockFoo::expect_new()
+            .return_once(|_| mock);
 
-    let mock = MockFoo::new(5);
-    assert_eq!(-1, mock.foo());
+        let mock = MockFoo::new(5);
+        assert_eq!(-1, mock.foo());
+    }
 }
 
 #[test]
@@ -429,6 +498,19 @@ fn ref_path_return() {
 }
 
 #[test]
+fn ref_static_return() {
+    #[automock]
+    trait A {
+        fn foo(&self) -> &'static u32;
+    }
+
+    const X: u32 = 5;
+    let mut mock = MockA::new();
+    mock.expect_foo().return_const(&X);
+    assert_eq!(5, *mock.foo());
+}
+
+#[test]
 fn ref_str_return() {
     #[automock]
     trait Foo {
@@ -459,7 +541,6 @@ fn ref_mut_return() {
 
 #[test]
 fn return_owned() {
-    struct NonCopy{}
     #[automock]
     trait T {
         fn foo(&self) -> NonCopy;
@@ -468,28 +549,28 @@ fn return_owned() {
     let mut mock = MockT::new();
     let r = NonCopy{};
     mock.expect_foo()
-        .return_once(|_| r);
+        .return_once(|| r);
     mock.foo();
 }
 
 // TODO: mock non-'static lifetimes
-///// Mock a method that returns through its arguments
-//#[test]
-//fn return_parameters() {
-    //#[automock]
-    //trait T {
-        //fn foo(&self, x: &mut u32);
-    //}
+/// Mock a method that returns through its arguments
+#[test]
+fn return_parameters() {
+    #[automock]
+    trait T {
+        fn foo(&self, x: &mut u32);
+    }
 
-    //let mut mock = MockT::new();
-    //let mut x = 5;
-    //mock.expect_foo()
-        //.returning(|x: &mut u32| {
-            //*x = 42;
-        //});
-    //mock.foo(&mut x);
-    //assert_eq!(42, x);
-//}
+    let mut mock = MockT::new();
+    let mut x = 5;
+    mock.expect_foo()
+        .returning(|x: &mut u32| {
+            *x = 42;
+        });
+    mock.foo(&mut x);
+    assert_eq!(42, x);
+}
 
 #[allow(clippy::unnecessary_operation)] // The cast is the whole point
 #[test]
@@ -544,30 +625,40 @@ fn static_method() {
     }
 
     MockA::expect_bar()
-        .returning(|_| 42);
+        .returning(|| 42);
     assert_eq!(42, MockA::bar());
 }
 
-#[test]
-fn trait_with_constructor() {
+mod trait_with_constructor {
+    use super::*;
+    // When mocking constructor methods, the mocks must be in a global scope,
+    // not function scope.
     #[automock]
-    trait A {
+    pub trait A {
         fn new() -> Self;
     }
 
-    MockA::expect_new().returning(|_| MockA::default());
-    let _a: MockA = <MockA as A>::new();
+    #[test]
+    fn t() {
+        MockA::expect_new().returning(|| MockA::default());
+        let _a: MockA = <MockA as A>::new();
+    }
 }
 
-#[test]
-fn trait_with_boxed_constructor() {
+mod trait_with_boxed_constructor {
+    use super::*;
+    // When mocking constructor methods, the mocks must be in a global scope,
+    // not function scope.
     #[automock]
-    trait A {
+    pub trait A {
         fn new() -> Box<Self>;
     }
 
-    MockA::expect_new().returning(|_| Box::new(MockA::default()));
-    let _a: Box<MockA> = <MockA as A>::new();
+    #[test]
+    fn t() {
+        MockA::expect_new().returning(|| Box::new(MockA::default()));
+        let _a: Box<MockA> = <MockA as A>::new();
+    }
 }
 
 #[test]
@@ -589,12 +680,12 @@ fn where_clause_on_method() {
 #[test]
 fn where_clause_on_struct() {
     #[allow(unused)]
-    struct GenericStruct<T> {
+    struct GenericStruct<T: 'static> {
         t: T,
     }
     #[automock]
     impl<T> GenericStruct<T>
-        where T: Clone + Default
+        where T: Clone + Default + 'static
     {
         #[allow(unused)]
         fn foo(&self, x: T) -> T {
@@ -611,12 +702,12 @@ fn where_clause_on_struct() {
 #[test]
 fn where_clause_on_trait() {
     #[automock]
-    trait Foo<T> where T: Clone {
+    trait Foo<T> where T: Clone + 'static {
         fn foo(&self);
     }
 
     let mut mock = MockFoo::<u8>::default();
     mock.expect_foo()
-        .returning(|_| ());
+        .returning(|| ());
     mock.foo();
 }
