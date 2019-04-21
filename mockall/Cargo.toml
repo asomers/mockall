@@ -13,7 +13,7 @@ nightly = ["mockall_derive/nightly"]
 
 [dependencies]
 cfg-if = "0.1"
-downcast = "0.9"
+downcast = "0.10"
 fragile = "0.3"
 lazy_static = "1.0"
 predicates = "1.0"
