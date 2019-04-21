@@ -461,6 +461,27 @@ mod reference_arguments {
     }
 }
 
+mod ref_mut_arguments {
+    use super::*;
+
+    mock!{
+        Foo {
+            fn foo(&self, x: &mut u32);
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut x: u32 = 5;
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .withf(|x| *x == 5)
+            .returning(|x| { *x = 42;} );
+        mock.foo(&mut x);
+        assert_eq!(x, 42);
+    }
+}
+
 mod reference_return {
     use super::*;
 

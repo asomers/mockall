@@ -1579,6 +1579,68 @@ mod t {
     }
 
     #[test]
+    fn ref_mut_arguments() {
+        let desired = r#"
+        #[allow(non_snake_case)]
+        pub mod __mock_Foo {
+                use super:: * ;
+            ::mockall::expectation! {
+                pub fn foo< >(&self, x: &mut u32) -> () {
+                    let (p1: &u32) = (x);
+                }
+            }
+            ::mockall::expectation! {
+                pub fn bar< >(&self, y: & 'static mut u32) -> () {
+                    let (p1: & 'static u32) = (y);
+                }
+            }
+        }
+        pub struct MockFoo {
+            foo: __mock_Foo::foo::Expectations,
+            bar: __mock_Foo::bar::Expectations,
+        }
+        impl::std::default::Default for MockFoo {
+            fn default() -> Self {
+                Self {
+                    foo: __mock_Foo::foo::Expectations::default(),
+                    bar: __mock_Foo::bar::Expectations::default(),
+                }
+            }
+        }
+        impl MockFoo {
+            pub fn foo(&self, x: &mut u32) {
+                self.foo.call(x)
+            }
+            pub fn expect_foo(&mut self) -> &mut __mock_Foo::foo::Expectation
+            {
+                self.foo.expect()
+            }
+            pub fn bar(&self, y: & 'static mut u32) {
+                self.bar.call(y)
+            }
+            pub fn expect_bar(&mut self) -> &mut __mock_Foo::bar::Expectation
+            {
+                self.bar.expect()
+            }
+            pub fn checkpoint(&mut self) {
+                { self.foo.checkpoint(); }
+                { self.bar.checkpoint(); }
+            }
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }"#;
+
+        let code = r#"
+            pub Foo {
+                fn foo(&self, x: &mut u32);
+                fn bar(&self, y: &'static mut u32);
+            }
+        "#;
+        check(desired, code);
+    }
+
+    #[test]
     fn reference_return() {
         let desired = r#"
         #[allow(non_snake_case)]

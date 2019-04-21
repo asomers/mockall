@@ -554,23 +554,23 @@ fn return_owned() {
 }
 
 // TODO: mock non-'static lifetimes
-///// Mock a method that returns through its arguments
-//#[test]
-//fn return_parameters() {
-    //#[automock]
-    //trait T {
-        //fn foo(&self, x: &mut u32);
-    //}
+/// Mock a method that returns through its arguments
+#[test]
+fn return_parameters() {
+    #[automock]
+    trait T {
+        fn foo(&self, x: &mut u32);
+    }
 
-    //let mut mock = MockT::new();
-    //let mut x = 5;
-    //mock.expect_foo()
-        //.returning(|x: &mut u32| {
-            //*x = 42;
-        //});
-    //mock.foo(&mut x);
-    //assert_eq!(42, x);
-//}
+    let mut mock = MockT::new();
+    let mut x = 5;
+    mock.expect_foo()
+        .returning(|x: &mut u32| {
+            *x = 42;
+        });
+    mock.foo(&mut x);
+    assert_eq!(42, x);
+}
 
 #[allow(clippy::unnecessary_operation)] // The cast is the whole point
 #[test]

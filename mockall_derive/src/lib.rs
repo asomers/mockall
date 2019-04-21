@@ -359,9 +359,12 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
                         "Unexpected argument pattern in function declaration");
                     break;
                 };
-                let alt_ty = if let syn::Type::Reference(_) = arg.ty {
+                let alt_ty = if let syn::Type::Reference(tr) = &arg.ty {
+                    /* Remove any "mut" */
+                    let mut alt_tr = tr.clone();
+                    alt_tr.mutability = None;
                     matchexprs.push(mep);
-                    arg.ty.clone()
+                    syn::Type::Reference(alt_tr)
                 } else {
                     let matchexpr = syn::Expr::Reference(syn::ExprReference {
                         attrs: Vec::new(),

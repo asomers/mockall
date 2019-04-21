@@ -146,6 +146,24 @@ mod reference_argument {
     }
 }
 
+mod ref_mut_argument {
+    use super::*;
+
+    expectation!{
+        pub fn foo<>(&self, x: &mut u32) -> () { let (p: &u32) = (x); }
+    }
+
+    #[test]
+    fn t() {
+        let mut e = foo::Expectation::default();
+        e.with(predicate::eq(42u32))
+            .returning(|x| {*x = 5;});
+        let mut x = 42u32;
+        e.call(&mut x);
+        assert_eq!(5, x);
+    }
+}
+
 mod ref_and_nonref_arguments {
     use super::*;
 
