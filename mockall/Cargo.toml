@@ -16,6 +16,6 @@ cfg-if = "0.1"
 downcast = "0.10"
 fragile = "0.3"
 lazy_static = "1.0"
-predicates = "1.0"
+predicates = "1.0.1"
 predicates-tree = "1.0"
 mockall_derive = { path = "../mockall_derive" }
