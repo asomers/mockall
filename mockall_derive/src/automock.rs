@@ -324,7 +324,7 @@ fn mock_foreign(attrs: Attrs, foreign_mod: syn::ItemForeignMod) -> TokenStream {
     }
 
     quote!( pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
-    quote!(mod #modname { #body })
+    quote!(pub mod #modname { #body })
 }
 
 /// Mock a foreign function the same way we mock static trait methods: with a
@@ -571,7 +571,7 @@ fn mock_module(mod_: syn::ItemMod) -> TokenStream {
     }
 
     quote!(pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
-    quote!(mod #modname { #body })
+    quote!(pub mod #modname { #body })
 }
 
 /// Mock a function the same way we mock static trait methods: with a
@@ -778,7 +778,7 @@ mod t {
     fn foreign() {
         let attrs = "mod mock;";
         let desired = r#"
-        mod mock {
+        pub mod mock {
             ::mockall::expectation!{
                 pub(in super::super) fn __foo< >(x: u32) -> i64 {
                     let (p0: &u32) = (&x);
@@ -814,7 +814,7 @@ mod t {
     fn foreign_pub() {
         let attrs = "mod mock;";
         let desired = r#"
-        mod mock {
+        pub mod mock {
             ::mockall::expectation!{
                 pub fn __foo< >(x: u32) -> i64 { let (p0: &u32) = (&x);}
             }
@@ -848,7 +848,7 @@ mod t {
     fn foreign_returning_unit() {
         let attrs = "mod mock;";
         let desired = r#"
-        mod mock {
+        pub mod mock {
             ::mockall::expectation!{
                 pub(in super::super) fn __foo< >() -> () { let () = (); }
             }
@@ -1549,7 +1549,7 @@ mod t {
     #[test]
     fn module() {
         let desired = r#"
-        mod mock_foo {
+        pub mod mock_foo {
             ::mockall::expectation!{
                 pub fn __bar< >(x: u32) -> i64 { let (p0: &u32) = (&x); }
             }

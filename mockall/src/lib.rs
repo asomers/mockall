@@ -868,10 +868,10 @@
 //! #![feature(proc_macro_hygiene)]
 //! # use mockall::*;
 //! # use cfg_if::cfg_if;
-//! mod foo {
+//! mod outer {
 //!     # use mockall::automock;
 //!     #[automock()]
-//!     mod foo {
+//!     pub(super) mod inner {
 //!         pub fn bar(x: u32) -> i64 {
 //!             // ...
 //!             # 4
@@ -881,9 +881,9 @@
 //!
 //! cfg_if! {
 //!     if #[cfg(test)] {
-//!         use mock_foo::*;
+//!         use outer::mock_inner as inner;
 //!     } else {
-//!         use foo::*;
+//!         use outer::inner;
 //!     }
 //! }
 //!
@@ -893,11 +893,12 @@
 //!
 //!     #[test]
 //!     fn test_foo_bar() {
-//!         mock_foo::expect_bar()
+//!         inner::expect_bar()
 //!             .returning(|x| i64::from(x + 1));
-//!         assert_eq!(5, foo(4));
+//!         assert_eq!(5, inner::bar(4));
 //!     }
 //! }
+//! # fn main() {}
 //! ```
 //!
 //! ## Crate features
