@@ -1,6 +1,6 @@
 [package]
 name = "mockall_derive"
-version = "0.1.0"
+version = "0.1.0-pre"
 authors = ["Alan Somers <asomers@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/asomers/mockall"
@@ -33,6 +33,15 @@ syn = { version = "0.15", features = ["extra-traits", "full"] }
 [dev-dependencies]
 downcast = "0.10"
 fragile = "0.3"
-mockall = { path = "../mockall" }
+# TODO: enable this dependency after publishing mockall 0.1
+#mockall = { version = "0.1", path = "../mockall" }
 predicates-tree = "1.0"
 pretty_assertions = "0.5"
+
+# TODO: reenable the tests after publishing mockall 0.1
+[[test]]
+name = "mock"
+test = false
+[[test]]
+name = "automock"
+test = false
