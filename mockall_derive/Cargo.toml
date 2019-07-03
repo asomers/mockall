@@ -33,6 +33,6 @@ syn = { version = "0.15", features = ["extra-traits", "full"] }
 [dev-dependencies]
 downcast = "0.10"
 fragile = "0.3"
-mockall = { version = ">=0.1.0-pre", path = "../mockall" }
+mockall = { version = "=0.1.1", path = "../mockall" }
 predicates-tree = "1.0"
 pretty_assertions = "0.5"
