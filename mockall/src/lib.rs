@@ -8,9 +8,12 @@
 //! # Usage
 //!
 //! There are three ways to use Mockall.  The easiest is to use
-//! [`#[automock]`].  It can mock most
+//! [`#[automock]`](https://docs.rs/mockall_derive/latest/mockall_derive/attr.automock.html).
+//! It can mock most
 //! traits, or structs that only have a single `impl` block.  For things it
-//! can't handle, there is [`mock!`].  Finally, there are rare
+//! can't handle, there is
+//! [`mock!`](https://docs.rs/mockall_derive/latest/mockall_derive/macro.mock.html).
+//! Finally, there are rare
 //! cases where one may need to manually construct a mock object using
 //! [`expectation!`].
 //!
@@ -29,7 +32,7 @@
 //! # User Guide
 //!
 //! * [`Getting started`](#getting-started)
-//! * [`Return values`](#return-values)
+//! * [`Static Return values`](#static-return-values)
 //! * [`Matching arguments`](#matching-arguments)
 //! * [`Call counts`](#call-counts)
 //! * [`Getting started`](#getting-started)
@@ -71,14 +74,20 @@
 //! assert_eq!(5, call_with_four(&mock));
 //! ```
 //!
-//! ## Return values
+//! ## Static Return values
 //!
 //! Every expectation must have an associated return value (though when the
 //! **nightly** feature is enabled expectations will automatically return the
 //! default values of their return types, if their return types implement
-//! `Default`.).  For `'static` return types there are two ways to set the
-//! return value: with a constant or a closure.  A closure will take the
-//! method's arguments by value.
+//! `Default`.).  For methods that return a `static` value, the macros will
+//! generate an `Expectation` struct like
+//! [`this`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html).
+//! There are two ways to set such an expectation's return value: with a
+//! constant
+//! ([`return_const`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_const))
+//! or a closure
+//! ([`returning`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.returning)).
+//! A closure will take the method's arguments by value.
 //!
 //! ```
 //! # use mockall::*;
@@ -96,7 +105,8 @@
 //! ```
 //!
 //! Additionally, constants that aren't `Clone` can be returned with the
-//! [`return_once`] method.
+//! [`return_once`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_once)
+//! method.
 //!
 //! ```
 //! # use mockall::*;
@@ -114,7 +124,7 @@
 //! # }
 //! ```
 //!
-//! [`return_once`] can also be used for computing the return value with an
+//! `return_once` can also be used for computing the return value with an
 //! `FnOnce` closure.  This is useful for returning a non-`Clone` value and also
 //! triggering side effects at the same time.
 //!
@@ -141,7 +151,11 @@
 //! ```
 //!
 //! Mock objects are always `Send`.  If you need to use a return type that
-//! isn't, you can use the [`returning_st`] or [`return_once_st`] methods.
+//! isn't, you can use the
+//! [`returning_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.returning_st)
+//! or
+//! [`return_once_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_once_st)
+//! methods.
 //! These take a non-`Send` object and add runtime access checks.  The wrapped
 //! object will be `Send`, but accessing it from multiple threads will cause a
 //! runtime panic.
@@ -187,7 +201,9 @@
 //! ```
 //!
 //! See [`predicates`] for a list of Mockall's builtin predicate functions.
-//! For convenience, [`withf`] is a shorthand for setting the commonly used
+//! For convenience,
+//! [`withf`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.withf)
+//! is a shorthand for setting the commonly used
 //! [`function`] predicate.  The arguments to the predicate function are the
 //! method's arguments, *by reference*.  For example:
 //!
@@ -279,7 +295,12 @@
 //! mock.foo(1);    // Panics!
 //! ```
 //!
-//! See also [`never`], [`times`], [`times_any`], and [`times_range`].
+//! See also
+//! [`never`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.never),
+//! [`times`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times),
+//! [`times_any`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times_any),
+//! and
+//! [`times_range`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times_range).
 //!
 //! ## Sequences
 //!
@@ -314,7 +335,7 @@
 //! ## Checkpoints
 //!
 //! Sometimes its useful to validate all expectations mid-test, throw them away,
-//! and add new ones.  That's what checkpoints are for.  Every mock object has a
+//! and add new ones.  That's what checkpoints do.  Every mock object has a
 //! `checkpoint` method.  When called, it will immediately validate all methods'
 //! expectations.  So any expectations that haven't satisfied their call count
 //! will panic.  Afterwards, those expectations will be cleared so you can add
@@ -384,7 +405,7 @@
 //! of the mock object, or `'static`.
 //!
 //! Mockall creates different expectation types for methods that return
-//! references.  Their API is the same as the usual [`Expectation`], except for
+//! references.  Their API is the same as the basic `Expectation`, except for
 //! setting return values.
 //!
 //! Methods that return `'static` references work just like methods that return
@@ -408,9 +429,11 @@
 //! # }
 //! ```
 //!
-//! Methods that take a `&self` argument use the [`RefExpectation`] class, which
+//! Methods that take a `&self` argument use an `Expectation` class like
+//! [this](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/bar/struct.Expectation.html),
+//! which
 //! gets its return value from the
-//! [`return_const`](struct.RefExpectation.html#method.return_const) method.
+//! [`return_const`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/bar/struct.Expectation.html#method.return_const) method.
 //!
 //! ```
 //! # use mockall::*;
@@ -431,11 +454,14 @@
 //! # }
 //! ```
 //!
-//! Methods that take a `&mut self` argument use the [`RefMutExpectation`]
+//! Methods that take a `&mut self` argument use an `Expectation` class like
+//! [this](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/baz/struct.Expectation.html),
 //! class, regardless of whether the return value is actually mutable.  They can
 //! take their return value either from the
-//! [`return_var`](struct.RefMutExpectation.html#method.return_var) or
-//! [`returning`](struct.RefMutExpectation.html#method.returning) methods.
+//! [`return_var`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/baz/struct.Expectation.html#method.return_var)
+//! or
+//! [`returning`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/baz/struct.Expectation.html#method.returning)
+//! methods.
 //!
 //! ```
 //! # use mockall::*;
@@ -457,9 +483,16 @@
 //! # }
 //! ```
 //!
-//! Unsized types that are common targets for [`Deref`] are special.  Mockall
+//! Unsized types that are common targets for
+//! [`Deref`](https://doc.rust-lang.org/stable/std/ops/trait.Deref.html)
+//! are special.  Mockall
 //! will automatically use the type's owned form for the Expectation.
-//! Currently, the [`str`], [`CStr`], [`OsStr`], and [`Path`] types are
+//! Currently, the
+//! [`CStr`](https://doc.rust-lang.org/stable/std/ffi/struct.CStr.html),
+//! [`OsStr`](https://doc.rust-lang.org/stable/std/ffi/struct.OsStr.html),
+//! and
+//! [`Path`](https://doc.rust-lang.org/stable/std/path/struct.Path.html)
+//! types are
 //! supported.  Using this feature is automatic:
 //!
 //! ```
@@ -550,7 +583,8 @@
 //! because it has a different name.  The solution is to alter import paths
 //! during test.  The [`cfg-if`] crate helps.
 //!
-//! [`#[automock]`] works for structs that have a single `impl` block:
+//! [`#[automock]`](https://docs.rs/mockall_derive/latest/mockall_derive/attr.automock.html)
+//! works for structs that have a single `impl` block:
 //! ```no_run
 //! # use mockall::*;
 //! # use cfg_if::cfg_if;
@@ -591,7 +625,9 @@
 //! }
 //! # fn main() {}
 //! ```
-//! For structs with more than one `impl` block, see [`mock!`] instead.
+//! For structs with more than one `impl` block, see
+//! [`mock!`](https://docs.rs/mockall_derive/latest/mockall_derive/macro.mock.html)
+//! instead.
 //!
 //! ## Generic methods
 //!
@@ -599,7 +635,7 @@
 //! infinite set of regular methods, and each of those works just like any other
 //! regular method.  The expect_* method is generic, too, and usually must be
 //! called with a turbofish.  The only restrictions on mocking generic methods
-//! is that each generic parameter must be `'static`, and generic lifetime
+//! are that each generic parameter must be `'static`, and generic lifetime
 //! parameters are not allowed.
 //!
 //! ```
@@ -646,7 +682,8 @@
 //! Traits with associated types can be mocked too.  Unlike generic traits, the
 //! mock struct will not be generic.  Instead, you must specify the associated
 //! types when defining the mock struct.  They're specified as metaitems to the
-//! [`#[automock]`] attribute.
+//! [`#[automock]`](https://docs.rs/mockall_derive/latest/mockall_derive/attr.automock.html)
+//! attribute.
 //!
 //! ```
 //! # use mockall::*;
@@ -659,15 +696,17 @@
 //!
 //! let mut mock = MockA::new();
 //! mock.expect_foo()
-//!     .returning(|x| i32::from(x));
+//!     .returning(|x: u16| i32::from(x));
 //! assert_eq!(4, mock.foo(4));
 //! ```
 //!
 //! ## Multiple and inherited traits
 //!
 //! Creating a mock struct that implements multiple traits, whether inherited or
-//! not, requires using the [`mock!`] macro.  But once created, using it is just
-//! the same as using any other mock object
+//! not, requires using the
+//! [`mock!`](https://docs.rs/mockall_derive/latest/mockall_derive/macro.mock.html)
+//! macro.  But once created, using it is just the same as using any other mock
+//! object
 //!
 //! ```
 //! # use mockall::*;
@@ -703,7 +742,9 @@
 //! ## External traits
 //!
 //! Mockall can mock traits and structs defined in external crates that are
-//! beyond your control, but you must use [`mock!`] instead of [`#[automock]`].
+//! beyond your control, but you must use 
+//! [`mock!`](https://docs.rs/mockall_derive/latest/mockall_derive/macro.mock.html)
+//! instead of [`#[automock]`](https://docs.rs/mockall_derive/latest/mockall_derive/attr.automock.html).
 //! Mock an external trait like this:
 //!
 //! ```
@@ -816,7 +857,8 @@
 //! expectations are global.  And like mocking structs, you'll probably have to
 //! fiddle with your imports to make the mock function accessible.  Finally,
 //! like associated types, you'll need to provide some extra info to
-//! [`#[automock]`] to make it work.
+//! [`#[automock]`](https://docs.rs/mockall_derive/latest/mockall_derive/attr.automock.html)
+//! to make it work.
 //!
 //! ```no_run
 //! # use mockall::*;
@@ -849,7 +891,7 @@
 //!     fn test_foo() {
 //!         ffi::mock::expect_foo()
 //!             .returning(|x| i64::from(x + 1));
-//!         do_stuff();
+//!         assert_eq!(43, do_stuff());
 //!     }
 //! }
 //! # fn main() {}
@@ -931,37 +973,18 @@
 //! ## Examples
 //!
 //! For additional examples of Mockall in action, including detailed
-//! documentation on the autogenerated methods, see [`mockall_examples`].
+//! documentation on the autogenerated methods, see
+//! [`mockall_examples`](https://docs.rs/mockall_examples/latest/mockall_examples/).
 //!
-//! [`#[automock]`]: ../mockall_derive/attr.automock.html
-//! [`CStr`]: https://doc.rust-lang.org/stable/std/ffi/struct.CStr.html
-//! [`Deref`]: https://doc.rust-lang.org/stable/std/ops/trait.Deref.html
-//! [`Expectation`]: struct.Expectation.html
-//! [`Expectations`]: struct.Expectations.html
-//! [`OsStr`]: https://doc.rust-lang.org/stable/std/ffi/struct.OsStr.html
-//! [`Path`]: https://doc.rust-lang.org/stable/std/path/struct.Path.html
 //! [`Predicate`]: trait.Predicate.html
-//! [`RefExpectation`]: struct.RefExpectation.html
-//! [`RefMutExpectation`]: struct.RefMutExpectation.html
-//! [`Sequence`]: struct.Sequence.html
+//! [`Sequence`]: Sequence
 //! [`cfg-if`]: https://crates.io/crates/cfg-if
 //! [`expectation!`]: macro.expectation.html
 //! [`function`]: predicate/fn.function.html
-//! [`mock!`]: ../mockall_derive/macro.mock.html
-//! [`mockall_examples`]: ../mockall_examples/index.html
-//! [`never`]: struct.Expectation.html#method.never
 //! [`predicates`]: predicate/index.html
-//! [`return_once`]: struct.Expectation.html#method.return_once
-//! [`return_once_st`]: struct.Expectation.html#method.return_once_st
-//! [`returning_st`]: struct.Expectation.html#method.returning_st
-//! [`str`]: https://doc.rust-lang.org/stable/std/primitive.str.html
-//! [`times_any`]: struct.Expectation.html#method.times_any
-//! [`times_range`]: struct.Expectation.html#method.times_range
-//! [`times`]: struct.Expectation.html#method.times
-//! [`withf_unsafe`]: struct.Expectation.html#method.withf_unsafe
-//! [`withf`]: struct.Expectation.html#method.withf
 
 #![cfg_attr(feature = "nightly", feature(specialization))]
+#![deny(intra_doc_link_resolution_failure)]
 
 use downcast::*;
 use std::{
