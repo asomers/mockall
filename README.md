@@ -55,6 +55,11 @@ assert_eq!(5, mock.foo(4));
 
 See the [API docs](https://docs.rs/mockall) for more information.
 
+# Minimum Supported Rust Version (MSRV)
+
+Mockall is supported on Rust 1.32.0 and higher.  Mockall's MSRV will not be
+changed in the future without bumping the major or minor version.
+
 # License
 
 `mockall` is primarily distributed under the terms of both the MIT license
