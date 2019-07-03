@@ -501,7 +501,7 @@ fn destrify(ty: &mut syn::Type) {
 /// # Examples
 ///
 /// Mock a trait.  This is the simplest use case.
-/// ```ignore
+/// ```
 /// # use mockall_derive::mock;
 /// trait Foo {
 ///     fn foo(&self, x: u32);
@@ -520,7 +520,7 @@ fn destrify(ty: &mut syn::Type) {
 /// When mocking a generic struct's implementation of a generic trait, use the
 /// same namespace for their generic parameters.  For example, if you wanted to
 /// mock `Rc`, do
-/// ```ignore
+/// ```
 /// # use mockall_derive::mock;
 /// mock!{
 ///     pub Rc<T: 'static> {}
@@ -545,7 +545,7 @@ fn destrify(ty: &mut syn::Type) {
 /// `mock!{}` invocation.  But be careful not to reference the associated type
 /// in the signatures of any of the trait's methods; repeat the concrete type
 /// instead.  For example, do:
-/// ```ignore
+/// ```
 /// # use mockall_derive::mock;
 /// mock!{
 ///     MyIter {}
@@ -588,7 +588,7 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// # Examples
 ///
 /// The simplest use case is mocking a no-frills trait
-/// ```ignore
+/// ```
 /// # use mockall_derive::*;
 /// #[automock]
 /// pub trait Foo {
@@ -599,7 +599,7 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// ```
 ///
 /// Mocking a structure:
-/// ```ignore
+/// ```
 /// # use mockall_derive::*;
 /// struct Foo {}
 /// #[automock]
@@ -613,7 +613,7 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///
 /// Mocking a trait with associated types requires adding a metaitem to the
 /// attribute:
-/// ```ignore
+/// ```
 /// # use mockall_derive::*;
 /// #[automock(type Item=u32;)]
 /// trait Foo {
@@ -625,7 +625,7 @@ pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// Finally, `#[automock]` can also mock foreign functions.  This requires
 /// another metaitem to specify the mock module name.
 ///
-/// ```ignore
+/// ```
 /// # use mockall_derive::*;
 /// #[automock(mod mock_ffi;)]
 /// extern "C" {
