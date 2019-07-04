@@ -35,7 +35,6 @@
 //! * [`Static Return values`](#static-return-values)
 //! * [`Matching arguments`](#matching-arguments)
 //! * [`Call counts`](#call-counts)
-//! * [`Getting started`](#getting-started)
 //! * [`Sequences`](#sequences)
 //! * [`Checkpoints`](#checkpoints)
 //! * [`Reference arguments`](#reference-arguments)
