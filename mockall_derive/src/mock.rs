@@ -363,7 +363,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         let attrs = format_attrs(&meth.borrow().attrs);
         let method_ident = &meth.borrow().sig.ident;
         let meth_types = method_types(&meth.borrow().sig, Some(generics));
-        let args = &meth.borrow().sig.decl.inputs;
+        let args = demutify(&meth.borrow().sig.decl.inputs);
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
         let altargs = &meth_types.altargs;

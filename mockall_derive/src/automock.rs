@@ -345,7 +345,7 @@ fn mock_function(vis: &syn::Visibility,
 {
     let fn_token = &decl.fn_token;
     let generics = &decl.generics;
-    let inputs = &decl.inputs;
+    let inputs = demutify(&decl.inputs);
     let output = match &decl.output{
         syn::ReturnType::Default => quote!(-> ()),
         _ => {
@@ -361,7 +361,7 @@ fn mock_function(vis: &syn::Visibility,
         return TokenStream::new();
     }
 
-    for p in decl.inputs.iter() {
+    for p in inputs.iter() {
         match p {
             syn::FnArg::Captured(arg) => {
                 args.push(arg.pat.clone());
@@ -873,6 +873,42 @@ mod t {
         let code = r#"
         extern "C" {
             fn foo();
+        }
+        "#;
+        check(&attrs, &desired, &code);
+    }
+
+    #[test]
+    fn foreign_mutable_arg() {
+        let attrs = "mod mock;";
+        let desired = r#"
+        pub mod mock {
+            ::mockall::expectation!{
+                pub(in super::super) fn __foo< >(x: u32) -> i64 {
+                    let (p0: &u32) = (&x);
+                }
+            }
+            ::mockall::lazy_static!{
+                static ref foo_expectation:
+                    ::std::sync::Mutex< __foo::Expectations>
+                    = ::std::sync::Mutex::new(__foo::Expectations:: < > ::new());
+            }
+            pub(in super) unsafe fn foo(x: u32) -> i64 {
+                foo_expectation.lock().unwrap().call(x)
+            }
+            pub(in super) fn expect_foo< 'guard>()
+                -> __foo::ExpectationGuard< 'guard, >
+            {
+                __foo::ExpectationGuard:: < > ::new(foo_expectation.lock().unwrap())
+            }
+            pub fn checkpoint() {
+                foo_expectation.lock().unwrap().checkpoint();
+            }
+        }
+        "#;
+        let code = r#"
+        extern "Rust" {
+            fn foo(mut x: u32) -> i64;
         }
         "#;
         check(&attrs, &desired, &code);
@@ -1589,12 +1625,12 @@ mod t {
         pub mod __mock_Foo {
             use super:: * ;
             ::mockall::expectation!{
-                pub fn foo< >(&self, mut x: u32) -> () {
+                pub fn foo< >(&self, x: u32) -> () {
                     let (p1: &u32) = (&x);
                 }
             }
             ::mockall::expectation!{
-                pub fn bar< >(mut self) -> () { let () = (); }
+                pub fn bar< >(self) -> () { let () = (); }
             }
         }
         pub struct MockFoo {
