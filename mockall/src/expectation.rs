@@ -613,8 +613,6 @@ macro_rules! static_expectation {
 /// * `matchty`:        comma-delimited sequence of types for each match
 ///                     argument.  Must all be `'static`.
 ///
-/// # TODO: document generated methods
-///
 /// # Examples
 ///
 /// Mock a method with a `'static` return type like
