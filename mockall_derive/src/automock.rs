@@ -59,11 +59,18 @@ impl Attrs {
             },
             syn::PathArguments::AngleBracketed(abga) => {
                 for arg in abga.args.iter_mut() {
-                    if let syn::GenericArgument::Type(ty) = arg {
-                        self.substitute_type(ty)
-                    } else {
-                        compile_error(arg.span(),
-                            "Mockall does not yet support this argument type in this position");
+                    match arg {
+                        syn::GenericArgument::Type(ty) => {
+                            self.substitute_type(ty)
+                        },
+                        syn::GenericArgument::Binding(binding) => {
+                            self.substitute_type(&mut binding.ty);
+                        },
+                        _ => {
+                            dbg!(&arg);
+                            compile_error(arg.span(),
+                                "Mockall does not yet support this argument type in this position");
+                        }
                     }
                 }
             },
@@ -139,7 +146,11 @@ impl Attrs {
     fn substitute_type_param_bound(&self, bound: &mut syn::TypeParamBound) {
         if let syn::TypeParamBound::Trait(t) = bound {
             match self.get_path(&t.path) {
-                None => (), /* Nothing to do */
+                None => {
+                    for seg in t.path.segments.iter_mut() {
+                        self.substitute_path_segment(seg);
+                    }
+                },
                 Some(syn::Type::Path(type_path)) => {
                     t.path = type_path.path;
                 },
@@ -665,20 +676,28 @@ mod t {
                     let (p1: &u32) = (&x);
                 }
             }
+            ::mockall::expectation! {
+                pub fn bar< >(&self) -> Box<SomeTrait<u32> > {
+                    let () = ();
+                }
+            }
         }
         struct MockA_A {
             foo: __mock_A_A::foo::Expectations ,
+            bar: __mock_A_A::bar::Expectations ,
         }
         impl ::std::default::Default for MockA_A {
             fn default() -> Self {
                 Self {
                     foo: __mock_A_A::foo::Expectations::default(),
+                    bar: __mock_A_A::bar::Expectations::default(),
                 }
             }
         }
         impl MockA_A {
             fn checkpoint(&mut self) {
                 { self.foo.checkpoint(); }
+                { self.bar.checkpoint(); }
             }
         }
         impl MockA {
@@ -694,6 +713,9 @@ mod t {
             fn foo(&self, x: u32) -> u32 {
                 self.A_expectations.foo.call(x)
             }
+            fn bar(&self) -> Box<dyn SomeTrait<u32> > {
+                self.A_expectations.bar.call()
+            }
         }
         impl MockA {
             pub fn expect_foo(&mut self)
@@ -701,10 +723,16 @@ mod t {
             {
                 self.A_expectations.foo.expect()
             }
+            pub fn expect_bar(&mut self)
+                -> &mut __mock_A_A::bar::Expectation
+            {
+                self.A_expectations.bar.expect()
+            }
         }"#, r#"
         pub trait A {
             type T: Clone + 'static;
             fn foo(&self, x: Self::T) -> Self::T;
+            fn bar(&self) -> Box<dyn SomeTrait<Self::T>>;
         }"#);
     }
 
