@@ -67,7 +67,6 @@ impl Attrs {
                             self.substitute_type(&mut binding.ty);
                         },
                         _ => {
-                            dbg!(&arg);
                             compile_error(arg.span(),
                                 "Mockall does not yet support this argument type in this position");
                         }
@@ -106,10 +105,28 @@ impl Attrs {
                 }
             }
             syn::Type::Path(path) => {
-                if let Some(ref _qself) = path.qself {
-                    compile_error(path.span(), "QSelf is TODO");
-                }
-                if let Some(newty) = self.get_path(&path.path) {
+                if let Some(ref qself) = path.qself {
+                    let qp = if let syn::Type::Path(p) = qself.ty.as_ref() {
+                        &p.path
+                    } else {
+                        panic!("QSelf's type isn't a path?")
+                    };
+                    let qident = &qp.segments.first().unwrap().value().ident;
+                    if qself.position != 1
+                        || qp.segments.len() != 1
+                        || path.path.segments.len() != 2
+                        || qident != "Self" {
+                        compile_error(path.span(),
+                            "QSelf is a work in progress");
+                    }
+                    let last_seg = path.path.segments.pop().unwrap();
+                    let to_sub = &last_seg.value().ident;
+                    let _ident = path.path.segments.pop().unwrap().value();
+                    // TODO: check that the ident is the name of this type
+                    let new_type = self.attrs.get(to_sub)
+                        .expect("Unknown type substitution for QSelf");
+                    *ty = new_type.clone();
+                } else if let Some(newty) = self.get_path(&path.path) {
                     *ty = newty;
                 } else {
                     for seg in path.path.segments.iter_mut() {
@@ -681,16 +698,23 @@ mod t {
                     let () = ();
                 }
             }
+            ::mockall::expectation! {
+                pub fn baz< >(&self) -> Box<SomeTrait<u32> > {
+                    let () = ();
+                }
+            }
         }
         struct MockA_A {
             foo: __mock_A_A::foo::Expectations ,
             bar: __mock_A_A::bar::Expectations ,
+            baz: __mock_A_A::baz::Expectations ,
         }
         impl ::std::default::Default for MockA_A {
             fn default() -> Self {
                 Self {
                     foo: __mock_A_A::foo::Expectations::default(),
                     bar: __mock_A_A::bar::Expectations::default(),
+                    baz: __mock_A_A::baz::Expectations::default(),
                 }
             }
         }
@@ -698,6 +722,7 @@ mod t {
             fn checkpoint(&mut self) {
                 { self.foo.checkpoint(); }
                 { self.bar.checkpoint(); }
+                { self.baz.checkpoint(); }
             }
         }
         impl MockA {
@@ -716,6 +741,9 @@ mod t {
             fn bar(&self) -> Box<dyn SomeTrait<u32> > {
                 self.A_expectations.bar.call()
             }
+            fn baz(&self) -> Box<dyn SomeTrait<u32> > {
+                self.A_expectations.baz.call()
+            }
         }
         impl MockA {
             pub fn expect_foo(&mut self)
@@ -728,11 +756,17 @@ mod t {
             {
                 self.A_expectations.bar.expect()
             }
+            pub fn expect_baz(&mut self)
+                -> &mut __mock_A_A::baz::Expectation
+            {
+                self.A_expectations.baz.expect()
+            }
         }"#, r#"
         pub trait A {
             type T: Clone + 'static;
             fn foo(&self, x: Self::T) -> Self::T;
             fn bar(&self) -> Box<dyn SomeTrait<Self::T>>;
+            fn baz(&self) -> Box<dyn SomeTrait<<Self as A>::T>>;
         }"#);
     }
 
@@ -1704,6 +1738,23 @@ mod t {
             pub fn bar(mut self) {}
         }"#;
         check("", &desired, &code);
+    }
+
+    fn check_substitute_type(attrs: TokenStream, input: TokenStream,
+        expected: TokenStream)
+    {
+        let _self: super::Attrs = syn::parse2(attrs).unwrap();
+        let mut in_ty: syn::Type = syn::parse2(input).unwrap();
+        let expect_ty: syn::Type = syn::parse2(expected).unwrap();
+        _self.substitute_type(&mut in_ty);
+        assert_eq!(in_ty, expect_ty);
+    }
+
+    #[test]
+    fn qself() {
+        check_substitute_type(quote!(type T = u32;),
+                              quote!(<Self as Foo>::T),
+                              quote!(u32));
     }
 
     #[test]
