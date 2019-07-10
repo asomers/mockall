@@ -3,10 +3,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [0.1.2]
+## [Unreleased]
 ### Added
 ### Changed
 ### Fixed
+
+- Fixed mocking generic traits or structs with generic methods
+  ([6126359](https://github.com/asomers/mockall/commit/612635978540e06de93a218d937d70016221de9a))
 
 - Fixed an issue with using associated types in generic parameter bounds
   ([116e5a2](https://github.com/asomers/mockall/commit/116e5a293254d6ae0348f73370bbf8623521a4c2))
