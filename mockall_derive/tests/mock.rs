@@ -277,6 +277,25 @@ mod generic_struct_with_non_default_parameter {
     }
 }
 
+mod generic_struct_with_generic_method {
+    use super::*;
+
+    mock!{
+        pub Foo<T: Clone + 'static> {
+            fn foo<Q: 'static>(&self, q: Q) -> T;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::<u32>::new();
+        mock.expect_foo::<i16>()
+            .return_const(100_000u32);
+        assert_eq!(100_000, mock.foo(-5i16));
+    }
+
+}
+
 /// Use mock! to mock a generic struct
 mod generic_struct_with_generic_trait {
     use super::*;

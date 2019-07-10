@@ -221,7 +221,7 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let fn_token = &sig.decl.fn_token;
     let ident = &sig.ident;
     let (ig, tg, wc) = sig.decl.generics.split_for_impl();
-    let call_turbofish = tg.as_turbofish();
+    let merged_g = merge_generics(&generics, &sig.decl.generics);
     let inputs = demutify(&sig.decl.inputs);
     let output = &sig.decl.output;
     let attrs = format_attrs(meth_attrs);
@@ -265,12 +265,15 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         }
     }
 
+    let tg = if meth_types.is_static || !sig.decl.generics.params.is_empty() {
+        // For generic and static methods only, the trait's generic parameters
+        // become generic parameters of the method.
+        merged_g.split_for_impl().1
+    } else {
+        tg
+    };
+    let call_turbofish = tg.as_turbofish();
     if meth_types.is_static {
-        // For static methods only, the trait's generic parameters become
-        // generic parameters of the method.
-        let merged_g = merge_generics(&generics, &sig.decl.generics);
-        let (_, tg, _) = merged_g.split_for_impl();
-        let call_turbofish = tg.as_turbofish();
         quote!({
             #expect_obj_name.lock().unwrap().#call#call_turbofish(#(#args),*)
         })
@@ -939,6 +942,56 @@ mod t {
             pub Bar<T: Copy + 'static> {}
             trait Foo {
                 fn foo(&self, x: u32) -> u32;
+            }
+        "#;
+        check(desired, code);
+    }
+
+    /// Mocking a generic struct that also has a generic method
+    #[test]
+    fn generic_struct_with_generic_method() {
+        let desired = r#"
+            #[allow(non_snake_case)]
+            pub mod __mock_Foo {
+                use super:: * ;
+                ::mockall::expectation!{
+                    pub fn foo<T, Q>(&self) -> () {
+                        let () = ();
+                    }
+                }
+            }
+            pub struct MockFoo<T: Clone + 'static> {
+                foo: __mock_Foo::foo::GenericExpectations ,
+                _t0: ::std::marker::PhantomData<T> ,
+            }
+            impl<T: Clone + 'static> ::std::default::Default for MockFoo<T> {
+                fn default() -> Self {
+                    Self {
+                        foo: __mock_Foo::foo::GenericExpectations::default(),
+                        _t0: ::std::marker::PhantomData,
+                    }
+                }
+            }
+            impl<T: Clone + 'static> MockFoo<T> {
+                pub fn foo<Q: 'static>(&self) {
+                    self.foo.call:: <T, Q>()
+                }
+                pub fn expect_foo<Q: 'static>(&mut self)
+                    -> &mut __mock_Foo::foo::Expectation<T, Q>
+                {
+                    self.foo.expect:: <T, Q>()
+                }
+                pub fn checkpoint(&mut self) {
+                    { self.foo.checkpoint(); }
+                }
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
+        "#;
+        let code = r#"
+            pub Foo<T: Clone + 'static> {
+                fn foo<Q: 'static>(&self);
             }
         "#;
         check(desired, code);
