@@ -374,22 +374,6 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         let meth_ident = &meth.borrow().sig.ident;
 
         let expect_vis = expectation_visibility(&meth.borrow().vis, 2);
-        let return_type = match &meth.borrow().sig.decl.output {
-            syn::ReturnType::Type(_, ty) => {
-                let mut rt = (**ty).clone();
-                deimplify(&mut rt);
-                destrify(&mut rt);
-                deselfify(&mut rt, mock_ident);
-                rt
-            },
-            syn::ReturnType::Default => {
-                syn::Type::Tuple(syn::TypeTuple {
-                    paren_token: syn::token::Paren::default(),
-                    elems: syn::punctuated::Punctuated::new()
-                })
-            }
-        };
-
         let meth_generics = &meth.borrow().sig.decl.generics;
         let mut macro_g = TokenStream::new();
         let merged_g = merge_generics(&generics, &meth_generics);
@@ -400,11 +384,9 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             quote!(<>).to_tokens(&mut macro_g);
         }
 
-        quote!(#attrs ::mockall::expectation! {
-            #expect_vis fn #meth_ident #macro_g (#args) -> #return_type {
-                let (#altargs) = (#matchexprs);
-            }
-        }).to_tokens(&mut mod_body);
+        expectation(&attrs, &expect_vis, Some(&mock_ident), &meth_ident,
+            &merged_g, &args, &meth.borrow().sig.decl.output, &altargs,
+            &matchexprs).to_tokens(&mut mod_body);
 
         if meth_types.is_static {
             let name = syn::Ident::new(

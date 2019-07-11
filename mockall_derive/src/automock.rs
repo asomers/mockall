@@ -425,12 +425,9 @@ fn mock_function(vis: &syn::Visibility,
         &format!("{}_expectation", ident),
         Span::call_site());
     // TODO: strip bounds from generics
+    let mut out = expectation(&TokenStream::new(), &expect_vis, None,
+        &mod_ident, generics, &inputs, &decl.output, &altargs, &matchexprs);
     quote!(
-        ::mockall::expectation!{
-            #expect_vis fn #mod_ident<#generics>(#inputs) #output {
-                let (#(#altargs),*) = (#(#matchexprs),*);
-            }
-        }
         ::mockall::lazy_static! {
             static ref #obj: ::std::sync::Mutex<#expect_obj> = 
                 ::std::sync::Mutex::new(#mod_ident::Expectations::<#generics>::new());
@@ -444,7 +441,8 @@ fn mock_function(vis: &syn::Visibility,
         {
             #mod_ident::ExpectationGuard::<#generics>::new(#obj.lock().unwrap())
         }
-    )
+    ).to_tokens(&mut out);
+    out
 }
 
 /// Implement a struct's methods on its mock struct.  Only works if the struct

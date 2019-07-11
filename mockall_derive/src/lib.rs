@@ -9,7 +9,7 @@ extern crate proc_macro;
 
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{ToTokens, quote};
 use syn::{
     Token,
     spanned::Spanned
@@ -482,6 +482,43 @@ fn destrify(ty: &mut syn::Type) {
             _ => (), // Nothing to do
         };
     }
+}
+
+/// Generate the code that implements an expectation for a single method
+fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
+    self_ident: Option<&syn::Ident>,
+    ident: &syn::Ident,
+    generics: &syn::Generics,
+    args: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>,
+    return_type: &syn::ReturnType,
+    altargs: &syn::punctuated::Punctuated<syn::ArgCaptured, Token![,]>,
+    matchexprs: &syn::punctuated::Punctuated<syn::Expr, Token![,]>
+    ) -> TokenStream
+{
+    let mut macro_g = TokenStream::new();
+    if ! generics.params.is_empty() {
+        generics.split_for_impl().1.to_tokens(&mut macro_g)
+    } else {
+        // expectation! requires the <> even if it's empty
+        quote!(<>).to_tokens(&mut macro_g);
+    }
+    let output = match return_type{
+        syn::ReturnType::Default => quote!(()),
+        syn::ReturnType::Type(_, ty) => {
+            let mut rt = ty.clone();
+            deimplify(&mut rt);
+            destrify(&mut rt);
+            if let Some(i) = self_ident {
+                deselfify(&mut rt, i);
+            }
+            quote!(#rt)
+        }
+    };
+    quote!(#attrs ::mockall::expectation! {
+        #vis fn #ident #macro_g (#args) -> #output {
+            let (#altargs) = (#matchexprs);
+        }
+    })
 }
 
 /// Manually mock a structure.
