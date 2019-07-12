@@ -49,7 +49,7 @@ mod generic {
 /// The return type must be deimplified by the user
 #[test]
 fn impl_trait() {
-    expectation!{ pub fn foo<>(&self,) -> Box<Debug + Send> {
+    expectation!{ pub fn foo<>(&self,) -> Box<dyn Debug + Send> {
             let () = ();
         }
     }

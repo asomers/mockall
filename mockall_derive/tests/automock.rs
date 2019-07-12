@@ -581,7 +581,7 @@ fn send() {
     }
 
     let mock = MockT::new();
-    Box::new(mock) as Box<T + Send>;
+    Box::new(mock) as Box<dyn T + Send>;
 }
 
 #[test]

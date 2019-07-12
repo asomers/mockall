@@ -1011,7 +1011,7 @@ pub use lazy_static::lazy_static;
 
 #[doc(hidden)]
 pub trait AnyExpectations : Any + Send + Sync {}
-downcast!(AnyExpectations);
+downcast!(dyn AnyExpectations);
 
 #[doc(hidden)]
 pub trait ReturnDefault<O> {
