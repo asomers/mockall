@@ -7,6 +7,7 @@ use syn::{
     spanned::Spanned,
     Token
 };
+use crate::expectation::expectation;
 
 /// A single automock attribute
 // This enum is very short-lived, so it's fine not to box it.

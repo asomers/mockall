@@ -4,18 +4,21 @@
 //! You probably don't want to use this crate directly.  Instead, you use use
 //! its reexports via the [`mockall`](../mockall/index.html) crate.
 
+#![recursion_limit="256"]
+
 #![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
 extern crate proc_macro;
 
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, quote};
+use quote::quote;
 use syn::{
     Token,
     spanned::Spanned
 };
 
 mod automock;
+mod expectation;
 mod mock;
 use crate::automock::do_automock;
 use crate::mock::{Mock, do_mock};
@@ -33,7 +36,7 @@ struct MethodTypes {
     /// Method to call when invoking the expectation
     call: syn::Ident,
     /// Version of the arguments used for the Predicates
-    altargs: syn::punctuated::Punctuated<syn::ArgCaptured, Token![,]>,
+    altargs: syn::punctuated::Punctuated<syn::FnArg, Token![,]>,
     /// Expressions producing references from the arguments
     matchexprs: syn::punctuated::Punctuated<syn::Expr, Token![,]>,
 }
@@ -360,11 +363,12 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
                     break;
                 };
                 let alt_ty = if let syn::Type::Reference(tr) = &arg.ty {
-                    /* Remove any "mut" */
-                    let mut alt_tr = tr.clone();
-                    alt_tr.mutability = None;
+                    // /* Remove any "mut" */
+                    //let mut alt_tr = tr.clone();
+                    //alt_tr.mutability = None;
                     matchexprs.push(mep);
-                    syn::Type::Reference(alt_tr)
+                    (*tr.elem).clone()
+                    //syn::Type::Reference(alt_tr)
                 } else {
                     let matchexpr = syn::Expr::Reference(syn::ExprReference {
                         attrs: Vec::new(),
@@ -373,12 +377,13 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
                         expr: Box::new(mep)
                     });
                     matchexprs.push(matchexpr);
-                    syn::Type::Reference(syn::TypeReference{
-                        and_token: syn::Token![&](arg.span()),
-                        lifetime: None,
-                        mutability: None,
-                        elem: Box::new(arg.ty.clone())
-                    })
+                    arg.ty.clone()
+                    //syn::Type::Reference(syn::TypeReference{
+                        //and_token: syn::Token![&](arg.span()),
+                        //lifetime: None,
+                        //mutability: None,
+                        //elem: Box::new(arg.ty.clone())
+                    //})
                 };
                 let altident = syn::Ident::new(&format!("p{}", i), arg.span());
                 let altpat = syn::Pat::Ident(syn::PatIdent {
@@ -387,11 +392,11 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
                     ident: altident,
                     subpat: None
                 });
-                let altarg = syn::ArgCaptured {
+                let altarg = syn::FnArg::Captured(syn::ArgCaptured {
                     pat: altpat,
                     colon_token: syn::Token![:](arg.span()),
                     ty: alt_ty
-                };
+                });
                 altargs.push(altarg);
             },
             syn::FnArg::SelfRef(_) => {
@@ -448,77 +453,6 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
 
     MethodTypes{is_static, expectation, expectations,
                 call, expect_obj, altargs, matchexprs}
-}
-
-/// Convert a special reference type like "&str" into a reference to its owned
-/// type like "&String".
-fn destrify(ty: &mut syn::Type) {
-    if let syn::Type::Reference(ref mut tr) = ty {
-        let path_ty: syn::TypePath = syn::parse2(quote!(Path)).unwrap();
-        let pathbuf_ty: syn::Type = syn::parse2(quote!(::std::path::PathBuf))
-            .unwrap();
-
-        let str_ty: syn::TypePath = syn::parse2(quote!(str)).unwrap();
-        let string_ty: syn::Type = syn::parse2(quote!(::std::string::String))
-            .unwrap();
-
-        let cstr_ty: syn::TypePath = syn::parse2(quote!(CStr)).unwrap();
-        let cstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::CString))
-            .unwrap();
-
-        let osstr_ty: syn::TypePath = syn::parse2(quote!(OsStr)).unwrap();
-        let osstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::OsString))
-            .unwrap();
-
-        match tr.elem.as_ref() {
-            syn::Type::Path(ref path) if *path == cstr_ty =>
-                *tr.elem = cstring_ty,
-            syn::Type::Path(ref path) if *path == osstr_ty =>
-                *tr.elem = osstring_ty,
-            syn::Type::Path(ref path) if *path == path_ty =>
-                *tr.elem = pathbuf_ty,
-            syn::Type::Path(ref path) if *path == str_ty =>
-                *tr.elem = string_ty,
-            _ => (), // Nothing to do
-        };
-    }
-}
-
-/// Generate the code that implements an expectation for a single method
-fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
-    self_ident: Option<&syn::Ident>,
-    ident: &syn::Ident,
-    generics: &syn::Generics,
-    args: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>,
-    return_type: &syn::ReturnType,
-    altargs: &syn::punctuated::Punctuated<syn::ArgCaptured, Token![,]>,
-    matchexprs: &syn::punctuated::Punctuated<syn::Expr, Token![,]>
-    ) -> TokenStream
-{
-    let mut macro_g = TokenStream::new();
-    if ! generics.params.is_empty() {
-        generics.split_for_impl().1.to_tokens(&mut macro_g)
-    } else {
-        // expectation! requires the <> even if it's empty
-        quote!(<>).to_tokens(&mut macro_g);
-    }
-    let output = match return_type{
-        syn::ReturnType::Default => quote!(()),
-        syn::ReturnType::Type(_, ty) => {
-            let mut rt = ty.clone();
-            deimplify(&mut rt);
-            destrify(&mut rt);
-            if let Some(i) = self_ident {
-                deselfify(&mut rt, i);
-            }
-            quote!(#rt)
-        }
-    };
-    quote!(#attrs ::mockall::expectation! {
-        #vis fn #ident #macro_g (#args) -> #output {
-            let (#altargs) = (#matchexprs);
-        }
-    })
 }
 
 /// Manually mock a structure.

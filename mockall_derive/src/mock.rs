@@ -7,6 +7,7 @@ use syn::{
     parse::{Parse, ParseStream},
     spanned::Spanned,
 };
+use crate::expectation::expectation;
 
 pub(crate) struct Mock {
     pub(crate) vis: syn::Visibility,
