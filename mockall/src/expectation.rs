@@ -662,7 +662,6 @@ macro_rules! static_expectation {
 macro_rules! expectation {
     (
         // First pattern, for methods returning 'static references
-        //pub fn foo<>(&self, )
         $v:vis fn $module:ident < $( $generics:ident ),* >
         ($(&)?$(mut)?self $(,)? $( $args:ident : $argty:ty ),* )
             -> & 'static $o:ty
