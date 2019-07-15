@@ -17,7 +17,7 @@ struct NonCopy{}
 
 // automatic-style mocking with associated types
 #[test]
-fn associated_types_auto() {
+fn associated_types() {
     #[automock(type T=u32;)]
     trait A {
         type T: Clone;
@@ -30,6 +30,28 @@ fn associated_types_auto() {
     assert_eq!(4, mock.foo(4));
 }
 
+mod associated_types_with_qself {
+    use super::*;
+
+    trait SomeTrait<Q>{}
+    struct Foo {}
+    impl SomeTrait<u32> for Foo {}
+
+    #[automock(type T=u32;)]
+    trait A {
+        type T: Clone;
+        fn baz(&self) -> Box<dyn SomeTrait<<Self as A>::T>>;
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockA::new();
+        mock.expect_baz()
+            .returning(|| Box::new(Foo{}));
+        mock.baz();
+    }
+}
+
 // Attributes are applied to the mock object, too.
 #[test]
 #[allow(unused)]
@@ -37,12 +59,95 @@ fn attrs() {
     struct A{}
     #[automock]
     impl A {
-        // Neither A::foo nor MockA::foo should not be defined
+        // Neither A::foo nor MockA::foo should be defined
         #[cfg(target_os = "multics")] pub fn foo(&self, x: DoesNotExist) {}
     }
 
     // Sufficient to check that it compiles.
     let _mock = MockA::new();
+}
+
+mod constructor {
+    use super::*;
+
+    mod boxed {
+        use super::*;
+
+        #[automock]
+        pub trait A {
+            fn new() -> Box<Self>;
+        }
+
+        #[test]
+        fn t() {
+            MockA::expect_new().returning(|| Box::new(MockA::default()));
+            let _a: Box<MockA> = <MockA as A>::new();
+        }
+    }
+
+    // TODO: FIXME
+    //mod impl_trait {
+        //use super::*;
+
+        //trait Foo {}
+        //struct A{}
+
+        //struct Bar {}
+        //impl Foo for Bar {}
+
+        //#[automock]
+        //impl A {
+            //fn new(&self) -> impl Foo {
+                //Bar{}
+            //}
+        //}
+
+        //#[test]
+        //fn t() {
+            //MockA::expect_new().returning(|| {
+                //struct Baz {}
+                //impl Foo for Baz {}
+                //Box::new(Baz{})
+            //});
+            //let _a = MockA::new();
+        //}
+    //}
+
+    mod in_struct {
+        use super::*;
+
+        #[allow(unused)]
+        struct A {}
+
+        #[allow(unused)]
+        #[automock]
+        impl A {
+            fn new() -> Self {
+                unimplemented!()
+            }
+        }
+
+        #[test]
+        fn t() {
+            MockA::expect_new().returning(|| MockA::default());
+            let _a: MockA = MockA::new();
+        }
+    }
+
+    mod in_trait {
+        use super::*;
+
+        #[automock]
+        pub trait A {
+            fn new() -> Self;
+        }
+
+        #[test]
+        fn t() {
+            MockA::expect_new().returning(|| MockA::default());
+            let _a: MockA = <MockA as A>::new();
+        }
+    }
 }
 
 #[test]
@@ -58,60 +163,56 @@ fn consume_parameters() {
     mock.foo(NonCopy{});
 }
 
-mod foreign_c {
+mod foreign {
     use super::*;
 
-    #[automock(mod mock_ffi;)]
-    extern "C" {
-        #[allow(unused)]
-        fn foo(x: u32) -> i64;
+    mod c {
+        use super::*;
+
+        #[automock(mod mock_ffi;)]
+        extern "C" {
+            #[allow(unused)]
+            fn foo(x: u32) -> i64;
+        }
+
+        #[test]
+        fn t() {
+            mock_ffi::expect_foo().returning(i64::from);
+            assert_eq!(42, unsafe{mock_ffi::foo(42)});
+        }
     }
 
     #[test]
-    fn t() {
+    fn rust() {
+        #[automock(mod mock_ffi;)]
+        extern "Rust" {
+            #[allow(unused)]
+            fn foo(x: u32) -> i64;
+        }
+
         mock_ffi::expect_foo().returning(i64::from);
         assert_eq!(42, unsafe{mock_ffi::foo(42)});
     }
-}
 
-#[test]
-fn foreign_c_pub() {
-    #[automock(mod mock_ffi;)]
-    extern "C" {
-        #[allow(unused)]
-        pub fn foo(x: u32) -> i64;
+    mod return_unit {
+        use super::*;
+
+        #[automock(mod mock_ffi;)]
+        extern "C" {
+            #[allow(unused)]
+            fn foo();
+        }
+
+        #[test]
+        fn t() {
+            mock_ffi::expect_foo().returning(|| ());
+            unsafe{mock_ffi::foo()};
+        }
     }
-
-    mock_ffi::expect_foo().returning(i64::from);
-    assert_eq!(42, unsafe{mock_ffi::foo(42)});
 }
 
 #[test]
-fn foreign_rust() {
-    #[automock(mod mock_ffi;)]
-    extern "Rust" {
-        #[allow(unused)]
-        fn foo(x: u32) -> i64;
-    }
-
-    mock_ffi::expect_foo().returning(i64::from);
-    assert_eq!(42, unsafe{mock_ffi::foo(42)});
-}
-
-#[test]
-fn foreign_rust_pub() {
-    #[automock(mod mock_ffi;)]
-    extern "Rust" {
-        #[allow(unused)]
-        pub fn foo(x: u32) -> i64;
-    }
-
-    mock_ffi::expect_foo().returning(i64::from);
-    assert_eq!(42, unsafe{mock_ffi::foo(42)});
-}
-
-#[test]
-fn generic_parameters() {
+fn generic_arguments() {
     #[automock]
     trait A {
         fn foo<T: 'static>(&self, t: T);
@@ -127,7 +228,7 @@ fn generic_parameters() {
 }
 
 #[test]
-fn generic_parameters_returning_ref() {
+fn generic_arguments_returning_ref() {
     #[automock]
     trait A {
         fn foo<T: 'static>(&self, t: T) -> &u32;
@@ -412,6 +513,26 @@ cfg_if! {
     }
 }
 
+#[test]
+fn mutable_args() {
+    struct Foo {}
+
+    #[allow(unused)]
+    #[automock]
+    impl Foo {
+        fn foo(&self, mut x: u32) {}
+        fn bar(mut self) {}
+    }
+
+    let mut mock = MockFoo::new();
+    mock.expect_foo()
+        .returning(|_| ());
+    mock.expect_bar()
+        .returning(|| ());
+    mock.foo(42);
+    mock.bar();
+}
+
 /// Structs with a "new" method should mock that method rather than add a new
 /// method just for the mock object.
 pub mod new_method {
@@ -553,7 +674,6 @@ fn return_owned() {
     mock.foo();
 }
 
-// TODO: mock non-'static lifetimes
 /// Mock a method that returns through its arguments
 #[test]
 fn return_parameters() {
@@ -627,38 +747,6 @@ fn static_method() {
     MockA::expect_bar()
         .returning(|| 42);
     assert_eq!(42, MockA::bar());
-}
-
-mod trait_with_constructor {
-    use super::*;
-    // When mocking constructor methods, the mocks must be in a global scope,
-    // not function scope.
-    #[automock]
-    pub trait A {
-        fn new() -> Self;
-    }
-
-    #[test]
-    fn t() {
-        MockA::expect_new().returning(|| MockA::default());
-        let _a: MockA = <MockA as A>::new();
-    }
-}
-
-mod trait_with_boxed_constructor {
-    use super::*;
-    // When mocking constructor methods, the mocks must be in a global scope,
-    // not function scope.
-    #[automock]
-    pub trait A {
-        fn new() -> Box<Self>;
-    }
-
-    #[test]
-    fn t() {
-        MockA::expect_new().returning(|| Box::new(MockA::default()));
-        let _a: Box<MockA> = <MockA as A>::new();
-    }
 }
 
 #[test]
