@@ -319,8 +319,8 @@ macro_rules! generic_expectation_methods {
 #[macro_export]
 macro_rules! static_expectation {
     (
-        $v:vis [$($generics:ident)*] [$($args:ident)*] [$($argty:ty)*]
-        [$($altargs:ident)*] [$($matchty:ty)*] [$($matchcall:expr)*] $o:ty
+        $v:vis [$($generics:ident)*] [$($args:ident),*] [$($argty:ty),*]
+        [$($altargs:ident),*] [$($matchty:ty),*] [$($matchcall:expr),*] $o:ty
     ) => {
         use ::downcast::*;
         use ::fragile::Fragile;
