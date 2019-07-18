@@ -5,7 +5,7 @@
 // code
 #![cfg_attr(feature = "nightly", feature(proc_macro_hygiene))]
 
-use cfg_if::cfg_if;
+//use cfg_if::cfg_if;
 use mockall_derive::*;
 use std::{
     ffi::{CStr, CString, OsStr, OsString},
@@ -67,88 +67,88 @@ fn attrs() {
     let _mock = MockA::new();
 }
 
-mod constructor {
-    use super::*;
+//mod constructor {
+    //use super::*;
 
-    mod boxed {
-        use super::*;
-
-        #[automock]
-        pub trait A {
-            fn new() -> Box<Self>;
-        }
-
-        #[test]
-        fn t() {
-            MockA::expect_new().returning(|| Box::new(MockA::default()));
-            let _a: Box<MockA> = <MockA as A>::new();
-        }
-    }
-
-    // TODO: FIXME
-    //mod impl_trait {
+    //mod boxed {
         //use super::*;
 
-        //trait Foo {}
-        //struct A{}
+        //#[automock]
+        //pub trait A {
+            //fn new() -> Box<Self>;
+        //}
 
-        //struct Bar {}
-        //impl Foo for Bar {}
+        //#[test]
+        //fn t() {
+            //MockA::expect_new().returning(|| Box::new(MockA::default()));
+            //let _a: Box<MockA> = <MockA as A>::new();
+        //}
+    //}
 
+    //// TODO: FIXME
+    ////mod impl_trait {
+        ////use super::*;
+
+        ////trait Foo {}
+        ////struct A{}
+
+        ////struct Bar {}
+        ////impl Foo for Bar {}
+
+        ////#[automock]
+        ////impl A {
+            ////fn new(&self) -> impl Foo {
+                ////Bar{}
+            ////}
+        ////}
+
+        ////#[test]
+        ////fn t() {
+            ////MockA::expect_new().returning(|| {
+                ////struct Baz {}
+                ////impl Foo for Baz {}
+                ////Box::new(Baz{})
+            ////});
+            ////let _a = MockA::new();
+        ////}
+    ////}
+
+    //mod in_struct {
+        //use super::*;
+
+        //#[allow(unused)]
+        //struct A {}
+
+        //#[allow(unused)]
         //#[automock]
         //impl A {
-            //fn new(&self) -> impl Foo {
-                //Bar{}
+            //fn new() -> Self {
+                //unimplemented!()
             //}
         //}
 
         //#[test]
         //fn t() {
-            //MockA::expect_new().returning(|| {
-                //struct Baz {}
-                //impl Foo for Baz {}
-                //Box::new(Baz{})
-            //});
-            //let _a = MockA::new();
+            //MockA::expect_new().returning(|| MockA::default());
+            //let _a: MockA = MockA::new();
         //}
     //}
 
-    mod in_struct {
-        use super::*;
+    //mod in_trait {
+        //use super::*;
 
-        #[allow(unused)]
-        struct A {}
+        //#[automock]
+        //pub trait A {
+            //fn new() -> Self;
+        //}
 
-        #[allow(unused)]
-        #[automock]
-        impl A {
-            fn new() -> Self {
-                unimplemented!()
-            }
-        }
-
-        #[test]
-        fn t() {
-            MockA::expect_new().returning(|| MockA::default());
-            let _a: MockA = MockA::new();
-        }
-    }
-
-    mod in_trait {
-        use super::*;
-
-        #[automock]
-        pub trait A {
-            fn new() -> Self;
-        }
-
-        #[test]
-        fn t() {
-            MockA::expect_new().returning(|| MockA::default());
-            let _a: MockA = <MockA as A>::new();
-        }
-    }
-}
+        //#[test]
+        //fn t() {
+            //MockA::expect_new().returning(|| MockA::default());
+            //let _a: MockA = <MockA as A>::new();
+        //}
+    //}
+//}
 
 #[test]
 fn consume_parameters() {
@@ -163,53 +163,53 @@ fn consume_parameters() {
     mock.foo(NonCopy{});
 }
 
-mod foreign {
-    use super::*;
+//mod foreign {
+    //use super::*;
 
-    mod c {
-        use super::*;
+    //mod c {
+        //use super::*;
 
-        #[automock(mod mock_ffi;)]
-        extern "C" {
-            #[allow(unused)]
-            fn foo(x: u32) -> i64;
-        }
+        //#[automock(mod mock_ffi;)]
+        //extern "C" {
+            //#[allow(unused)]
+            //fn foo(x: u32) -> i64;
+        //}
 
-        #[test]
-        fn t() {
-            mock_ffi::expect_foo().returning(i64::from);
-            assert_eq!(42, unsafe{mock_ffi::foo(42)});
-        }
-    }
+        //#[test]
+        //fn t() {
+            //mock_ffi::expect_foo().returning(i64::from);
+            //assert_eq!(42, unsafe{mock_ffi::foo(42)});
+        //}
+    //}
 
-    #[test]
-    fn rust() {
-        #[automock(mod mock_ffi;)]
-        extern "Rust" {
-            #[allow(unused)]
-            fn foo(x: u32) -> i64;
-        }
+    //#[test]
+    //fn rust() {
+        //#[automock(mod mock_ffi;)]
+        //extern "Rust" {
+            //#[allow(unused)]
+            //fn foo(x: u32) -> i64;
+        //}
 
-        mock_ffi::expect_foo().returning(i64::from);
-        assert_eq!(42, unsafe{mock_ffi::foo(42)});
-    }
+        //mock_ffi::expect_foo().returning(i64::from);
+        //assert_eq!(42, unsafe{mock_ffi::foo(42)});
+    //}
 
-    mod return_unit {
-        use super::*;
+    //mod return_unit {
+        //use super::*;
 
-        #[automock(mod mock_ffi;)]
-        extern "C" {
-            #[allow(unused)]
-            fn foo();
-        }
+        //#[automock(mod mock_ffi;)]
+        //extern "C" {
+            //#[allow(unused)]
+            //fn foo();
+        //}
 
-        #[test]
-        fn t() {
-            mock_ffi::expect_foo().returning(|| ());
-            unsafe{mock_ffi::foo()};
-        }
-    }
-}
+        //#[test]
+        //fn t() {
+            //mock_ffi::expect_foo().returning(|| ());
+            //unsafe{mock_ffi::foo()};
+        //}
+    //}
+//}
 
 #[test]
 fn generic_arguments() {
@@ -227,17 +227,17 @@ fn generic_arguments() {
     mock.foo(-1i16);
 }
 
-#[test]
-fn generic_arguments_returning_ref() {
-    #[automock]
-    trait A {
-        fn foo<T: 'static>(&self, t: T) -> &u32;
-    }
+//#[test]
+//fn generic_arguments_returning_ref() {
+    //#[automock]
+    //trait A {
+        //fn foo<T: 'static>(&self, t: T) -> &u32;
+    //}
 
-    let mut mock = MockA::new();
-    mock.expect_foo::<u32>().return_const(5);
-    assert_eq!(5, *mock.foo(42u32));
-}
+    //let mut mock = MockA::new();
+    //mock.expect_foo::<u32>().return_const(5);
+    //assert_eq!(5, *mock.foo(42u32));
+//}
 
 #[test]
 fn generic_return() {
@@ -255,18 +255,18 @@ fn generic_return() {
     assert_eq!(42i16, mock.foo(-1i16));
 }
 
-#[test]
-fn generic_static_method() {
-    #[automock]
-    trait A {
-        fn bar<T: 'static>(t: T) -> u32;
-    }
+//#[test]
+//fn generic_static_method() {
+    //#[automock]
+    //trait A {
+        //fn bar<T: 'static>(t: T) -> u32;
+    //}
 
-    MockA::expect_bar::<i16>()
-        .times(1)
-        .returning(|_| 42);
-    assert_eq!(42, MockA::bar(-1i16));
-}
+    //MockA::expect_bar::<i16>()
+        //.times(1)
+        //.returning(|_| 42);
+    //assert_eq!(42, MockA::bar(-1i16));
+//}
 
 #[test]
 fn generic_struct() {
@@ -464,23 +464,23 @@ fn impl_trait_with_associated_types() {
 }
 
 /// mockall should be able to mock methods with at least 16 arguments
-#[test]
-#[allow(unused)]
-#[allow(clippy::too_many_arguments)]    // Good job, Clippy!
-#[allow(clippy::type_complexity)]
-fn many_args() {
-    #[automock]
-    trait ManyArgs {
-        fn foo(&self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
-               _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
-               _a12: u8, _a13: u8, _a14: u8, _a15: u8);
-    }
+//#[test]
+//#[allow(unused)]
+//#[allow(clippy::too_many_arguments)]    // Good job, Clippy!
+//#[allow(clippy::type_complexity)]
+//fn many_args() {
+    //#[automock]
+    //trait ManyArgs {
+        //fn foo(&self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
+               //_a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
+               //_a12: u8, _a13: u8, _a14: u8, _a15: u8);
+    //}
 
-    let mut mock = MockManyArgs::new();
-    mock.expect_foo()
-        .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
-    mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-}
+    //let mut mock = MockManyArgs::new();
+    //mock.expect_foo()
+        //.returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
+    //mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+//}
 
 #[test]
 #[allow(unused)]
@@ -496,22 +496,22 @@ fn method_self_by_value() {
     assert_eq!(5, mock.foo(4));
 }
 
-cfg_if! {
-    if #[cfg(feature = "nightly")] {
-        #[test]
-        fn module() {
-            #[automock]
-            #[allow(unused)]
-            mod foo {
-                pub fn bar(_x: u32) -> i64 {unimplemented!()}
-            }
+//cfg_if! {
+    //if #[cfg(feature = "nightly")] {
+        //#[test]
+        //fn module() {
+            //#[automock]
+            //#[allow(unused)]
+            //mod foo {
+                //pub fn bar(_x: u32) -> i64 {unimplemented!()}
+            //}
 
-            mock_foo::expect_bar()
-                .returning(|x| i64::from(x) + 1);
-            assert_eq!(5, mock_foo::bar(4));
-        }
-    }
-}
+            //mock_foo::expect_bar()
+                //.returning(|x| i64::from(x) + 1);
+            //assert_eq!(5, mock_foo::bar(4));
+        //}
+    //}
+//}
 
 #[test]
 fn mutable_args() {
@@ -535,34 +535,34 @@ fn mutable_args() {
 
 /// Structs with a "new" method should mock that method rather than add a new
 /// method just for the mock object.
-pub mod new_method {
-    use super::*;
-    pub struct Foo{}
+//pub mod new_method {
+    //use super::*;
+    //pub struct Foo{}
 
-    #[automock]
-    impl Foo {
-        pub fn foo(&self) -> i16 {
-            unimplemented!()
-        }
+    //#[automock]
+    //impl Foo {
+        //pub fn foo(&self) -> i16 {
+            //unimplemented!()
+        //}
 
-        pub fn new(_x: u32) -> Self {
-            unimplemented!()
-        }
-    }
+        //pub fn new(_x: u32) -> Self {
+            //unimplemented!()
+        //}
+    //}
 
-    #[test]
-    fn t() {
-        let mut mock = MockFoo::default();
-        mock.expect_foo()
-            .returning(|| -1);
+    //#[test]
+    //fn t() {
+        //let mut mock = MockFoo::default();
+        //mock.expect_foo()
+            //.returning(|| -1);
 
-        MockFoo::expect_new()
-            .return_once(|_| mock);
+        //MockFoo::expect_new()
+            //.return_once(|_| mock);
 
-        let mock = MockFoo::new(5);
-        assert_eq!(-1, mock.foo());
-    }
-}
+        //let mock = MockFoo::new(5);
+        //assert_eq!(-1, mock.foo());
+    //}
+//}
 
 #[test]
 fn reference_return() {
@@ -643,22 +643,22 @@ fn ref_str_return() {
     assert_eq!("abcd", mock.name());
 }
 
-#[test]
-fn ref_mut_return() {
-    #[automock]
-    trait A {
-        fn foo(&mut self) -> &mut u32;
-    }
+//#[test]
+//fn ref_mut_return() {
+    //#[automock]
+    //trait A {
+        //fn foo(&mut self) -> &mut u32;
+    //}
 
-    let mut mock = MockA::new();
-    mock.expect_foo().return_var(5);
-    {
-        let r = mock.foo();
-        assert_eq!(5, *r);
-        *r = 6;
-    }
-    assert_eq!(6, *mock.foo());
-}
+    //let mut mock = MockA::new();
+    //mock.expect_foo().return_var(5);
+    //{
+        //let r = mock.foo();
+        //assert_eq!(5, *r);
+        //*r = 6;
+    //}
+    //assert_eq!(6, *mock.foo());
+//}
 
 #[test]
 fn return_owned() {
@@ -736,18 +736,18 @@ fn simple_trait() {
 }
 
 /// Traits with static methods may be mocked.
-#[test]
-fn static_method() {
-    #[automock]
-    trait A {
-        fn bar() -> u32;
-        fn foo(&self, x: u32) -> u32;
-    }
+//#[test]
+//fn static_method() {
+    //#[automock]
+    //trait A {
+        //fn bar() -> u32;
+        //fn foo(&self, x: u32) -> u32;
+    //}
 
-    MockA::expect_bar()
-        .returning(|| 42);
-    assert_eq!(42, MockA::bar());
-}
+    //MockA::expect_bar()
+        //.returning(|| 42);
+    //assert_eq!(42, MockA::bar());
+//}
 
 #[test]
 fn where_clause_on_method() {
