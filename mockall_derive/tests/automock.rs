@@ -644,22 +644,22 @@ fn ref_str_return() {
     assert_eq!("abcd", mock.name());
 }
 
-//#[test]
-//fn ref_mut_return() {
-    //#[automock]
-    //trait A {
-        //fn foo(&mut self) -> &mut u32;
-    //}
+#[test]
+fn ref_mut_return() {
+    #[automock]
+    trait A {
+        fn foo(&mut self) -> &mut u32;
+    }
 
-    //let mut mock = MockA::new();
-    //mock.expect_foo().return_var(5);
-    //{
-        //let r = mock.foo();
-        //assert_eq!(5, *r);
-        //*r = 6;
-    //}
-    //assert_eq!(6, *mock.foo());
-//}
+    let mut mock = MockA::new();
+    mock.expect_foo().return_var(5);
+    {
+        let r = mock.foo();
+        assert_eq!(5, *r);
+        *r = 6;
+    }
+    assert_eq!(6, *mock.foo());
+}
 
 #[test]
 fn return_owned() {

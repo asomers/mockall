@@ -641,7 +641,7 @@ mod ref_mut_arguments {
     mock!{
         Foo {
             fn foo(&self, x: &mut u32);
-            //fn bar(&self, y: &'static mut u32);
+            fn bar(&self, y: &'static mut u32);
         }
     }
 
@@ -717,28 +717,28 @@ mod ref_static_return {
     }
 }
 
-//mod ref_mut_return {
-    //use super::*;
+mod ref_mut_return {
+    use super::*;
 
-    //mock! {
-        //Foo {
-            //fn foo(&mut self) -> &mut u32;
-        //}
-    //}
+    mock! {
+        Foo {
+            fn foo(&mut self) -> &mut u32;
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //let mut mock = MockFoo::new();
-        //mock.expect_foo()
-            //.return_var(5u32);
-        //{
-            //let r = mock.foo();
-            //assert_eq!(5, *r);
-            //*r = 6;
-        //}
-        //assert_eq!(6, *mock.foo());
-    //}
-//}
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .return_var(5u32);
+        {
+            let r = mock.foo();
+            assert_eq!(5, *r);
+            *r = 6;
+        }
+        assert_eq!(6, *mock.foo());
+    }
+}
 
 /// Methods that return types like &str use the owned form for the expectation
 mod ref_str_return {

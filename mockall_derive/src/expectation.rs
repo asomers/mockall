@@ -1,3 +1,4 @@
+// vim: tw=80
 //! A replacement for the old (omnimacro era) expectation!
 
 use proc_macro2::TokenStream;
@@ -145,9 +146,9 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 [#macro_g] [#argnames] [#altargnames] [#altargty]
             }
 
-            /// Expectation type for methods taking a `&self` argument and returning
-            /// immutable references.  This is the type returned by the `expect_*`
-            /// methods.
+            /// Expectation type for methods taking a `&self` argument and
+            /// returning immutable references.  This is the type returned by
+            /// the `expect_*` methods.
             #vis struct Expectation<#bounded_macro_g> {
                 common: Common<#macro_g>,
                 result: Option<#output>,
@@ -183,9 +184,9 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
 
             ::mockall::expectations_methods!{#vis [#macro_g]}
             impl<#bounded_macro_g> Expectations<#macro_g> {
-                /// Simulating calling the real method.  Every current expectation
-                /// will be checked in FIFO order and the first one with matching
-                /// arguments will be used.
+                /// Simulating calling the real method.  Every current
+                /// expectation will be checked in FIFO order and the first one
+                /// with matching arguments will be used.
                 #vis fn call(&self, #selfless_args ) -> &#output {
                     let n = self.0.len();
                     match self.0.iter()
@@ -197,8 +198,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                     }
                 }
             }
-            // The Senc + Sync are required for downcast, since Expectation stores
-            // an Option<#output>
+            // The Senc + Sync are required for downcast, since Expectation
+            // stores an Option<#output>
             impl<#bounded_macro_g>
                 ::mockall::AnyExpectations for Expectations<#macro_g>
                     where #output: Send + Sync
@@ -220,6 +221,153 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
 
                 /// Create a new Expectation.
                 #vis fn expect<'e, #bounded_macro_g>(&'e mut self)
+                    -> &'e mut Expectation<#macro_g>
+                    where #output: Send + Sync
+                {
+                    let key = ::mockall::Key::new::<(#argty)>();
+                    let ee: &mut Expectations<#macro_g> =
+                        self.store.entry(key)
+                        .or_insert_with(||
+                            Box::new(Expectations::<#macro_g>::new())
+                        ).downcast_mut()
+                        .unwrap();
+                    ee.expect()
+                }
+            }
+        }
+        )
+    } else if ref_mut_expectation {
+        quote!(
+            #attrs
+            pub mod #ident {
+            use ::downcast::*;
+            use ::predicates_tree::CaseTreeExt;
+            use ::fragile::Fragile;
+            use ::std::{
+                collections::hash_map::HashMap,
+                marker::PhantomData,
+                mem,
+                ops::{DerefMut, Range},
+                sync::{Mutex, MutexGuard}
+            };
+            use super::*;
+
+            ::mockall::common_matcher!{
+                [#macro_g] [#argnames] [#altargnames] [#altargty]
+            }
+
+            ::mockall::common_methods!{
+                [#macro_g] [#argnames] [#altargnames] [#altargty]
+            }
+
+            /// Expectation type for methods taking a `&mut self` argument and
+            /// returning references.  This is the type returned by the
+            /// `expect_*` methods.
+            #vis struct Expectation<#bounded_macro_g> {
+                common: Common<#macro_g>,
+                result: Option<#output>,
+                rfunc: Option<Box<dyn FnMut(#argty) -> #output + Send + Sync>>,
+            }
+
+            impl<#bounded_macro_g> Expectation<#macro_g> {
+                /// Simulating calling the real method for this expectation
+                #vis fn call_mut(&mut self, #selfless_args) -> &mut #output {
+                    self.common.call(#selfless_args);
+                    if let Some(ref mut f) = self.rfunc {
+                        self.result = Some(f(#argnames));
+                    }
+                    self.result.as_mut()
+                        .expect("Must first set return function with returning or return_var")
+                }
+
+                /// Convenience method that can be used to supply a return value
+                /// for a `Expectation`.  The value will be returned by mutable
+                /// reference.
+                #vis fn return_var(&mut self, o: #output) -> &mut Self
+                {
+                    self.result = Some(o);
+                    self
+                }
+
+                /// Supply a closure that the `Expectation` will use to create its
+                /// return value.  The return value will be returned by mutable
+                /// reference.
+                #vis fn returning<F>(&mut self, f: F) -> &mut Self
+                    where F: FnMut(#argty) -> #output + Send + Sync + 'static
+                {
+                    mem::replace(&mut self.rfunc, Some(Box::new(f)));
+                    self
+                }
+
+                /// Single-threaded version of [`returning`](#method.returning).
+                /// Can be used when the argument or return type isn't `Send`.
+                #vis fn returning_st<F>(&mut self, f: F) -> &mut Self
+                    where F: FnMut(#argty) -> #output + 'static
+                {
+                    let mut fragile = Fragile::new(f);
+                    let fmut = move |#selfless_args| {
+                        (fragile.get_mut())(#argnames)
+                    };
+                    mem::replace(&mut self.rfunc, Some(Box::new(fmut)));
+                    self
+                }
+
+                ::mockall::expectation_methods!{
+                    #vis [#argnames] [#altargnames] [#altargty]
+                }
+            }
+            impl<#bounded_macro_g> Default for Expectation<#macro_g>
+            {
+                fn default() -> Self {
+                    Expectation {
+                        common: Common::default(),
+                        result: None,
+                        rfunc: None
+                    }
+                }
+            }
+            ::mockall::expectations_methods!{#vis [#macro_g]}
+            impl<#bounded_macro_g> Expectations<#macro_g> {
+                /// Simulating calling the real method.  Every current
+                /// expectation will be checked in FIFO order and the first one
+                /// with matching arguments will be used.
+                #vis fn call_mut(&mut self, #selfless_args ) -> &mut #output {
+                    let n = self.0.len();
+                    match self.0.iter_mut()
+                        .find(|e| e.matches(#matchexprs) &&
+                              (!e.is_done() || n == 1))
+                    {
+                        None => panic!("No matching expectation found"),
+                        Some(e) => e.call_mut(#argnames)
+                    }
+                }
+            }
+            // The Senc + Sync are required for downcast, since Expectation
+            // stores an Option<#output>
+            impl<#bounded_macro_g>
+                ::mockall::AnyExpectations for Expectations<#macro_g>
+                where #output: Send + Sync
+            {}
+
+            ::mockall::generic_expectation_methods!{
+                #vis [#macro_g] [#argty] #output
+            }
+            impl GenericExpectations {
+                /// Simulating calling the real method.
+                #vis fn call_mut<#bounded_macro_g>
+                    (&mut self, #selfless_args ) -> &mut #output
+                {
+                    let key = ::mockall::Key::new::<(#argty)>();
+                    let e: &mut Expectations<#macro_g> = self.store
+                        .get_mut(&key)
+                        .expect("No matching expectation found")
+                        .downcast_mut()
+                        .unwrap();
+                    e.call_mut(#argnames)
+                }
+
+                /// Create a new Expectation.
+                #vis fn expect<'e, #bounded_macro_g> (&'e mut self)
                     -> &'e mut Expectation<#macro_g>
                     where #output: Send + Sync
                 {
