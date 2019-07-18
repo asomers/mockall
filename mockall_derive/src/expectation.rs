@@ -123,6 +123,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
     let (altargnames, altargty) = split_args(altargs);
     if ref_expectation {
         quote!(
+            #attrs
             pub mod #ident {
             use ::downcast::*;
             use ::fragile::Fragile;
@@ -235,7 +236,9 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
         }
         )
     } else {
-        quote!(pub mod #ident {
+        quote!(
+            #attrs
+            pub mod #ident {
             ::mockall::static_expectation!{
                 #vis [#macro_g] [#argnames] [#argty] [#altargnames]
                 [#altargty] [#matchexprs] #output
