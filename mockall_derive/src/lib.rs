@@ -4,7 +4,7 @@
 //! You probably don't want to use this crate directly.  Instead, you use use
 //! its reexports via the [`mockall`](../mockall/index.html) crate.
 
-#![recursion_limit="256"]
+#![recursion_limit="512"]
 
 #![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
 extern crate proc_macro;

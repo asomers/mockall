@@ -737,18 +737,18 @@ fn simple_trait() {
 }
 
 /// Traits with static methods may be mocked.
-//#[test]
-//fn static_method() {
-    //#[automock]
-    //trait A {
-        //fn bar() -> u32;
-        //fn foo(&self, x: u32) -> u32;
-    //}
+#[test]
+fn static_method() {
+    #[automock]
+    trait A {
+        fn bar() -> u32;
+        fn foo(&self, x: u32) -> u32;
+    }
 
-    //MockA::expect_bar()
-        //.returning(|| 42);
-    //assert_eq!(42, MockA::bar());
-//}
+    MockA::expect_bar()
+        .returning(|| 42);
+    assert_eq!(42, MockA::bar());
+}
 
 #[test]
 fn where_clause_on_method() {

@@ -3,106 +3,106 @@
 
 use mockall_derive::*;
 
-//pub mod checkpoint {
-    //use super::*;
+pub mod checkpoint {
+    use super::*;
 
-    //// Each checkpoint test must use a separate Mock class, because of the
-    //// static method.
-    //macro_rules! mock_foo {
-        //() => {
-            //mock!{
-                //pub Foo {
-                    //fn bar(&self) -> u32;
-                    //fn baz() -> u32;
-                //}
-            //}
-        //}
-    //}
+    // Each checkpoint test must use a separate Mock class, because of the
+    // static method.
+    macro_rules! mock_foo {
+        () => {
+            mock!{
+                pub Foo {
+                    fn bar(&self) -> u32;
+                    fn baz() -> u32;
+                }
+            }
+        }
+    }
 
-    //pub mod ok {
-        //use super::*;
-        //mock_foo!{}
+    pub mod ok {
+        use super::*;
+        mock_foo!{}
 
-        //#[test]
-        //fn t() {
-            //let mut mock = MockFoo::new();
-            //mock.expect_bar()
-                //.returning(|| 5)
-                //.times_range(1..3);
-            //mock.bar();
-            //mock.checkpoint();
-        //}
-    //}
+        #[test]
+        fn t() {
+            let mut mock = MockFoo::new();
+            mock.expect_bar()
+                .returning(|| 5)
+                .times_range(1..3);
+            mock.bar();
+            mock.checkpoint();
+        }
+    }
 
-    //pub mod expect_again {
-        //use super::*;
-        //mock_foo!{}
+    pub mod expect_again {
+        use super::*;
+        mock_foo!{}
 
-        //#[test]
-        //fn t() {
-            //let mut mock = MockFoo::new();
-            //mock.expect_bar()
-                //.returning(|| 42)
-                //.times_range(1..3);
-            //mock.bar();
-            //mock.checkpoint();
+        #[test]
+        fn t() {
+            let mut mock = MockFoo::new();
+            mock.expect_bar()
+                .returning(|| 42)
+                .times_range(1..3);
+            mock.bar();
+            mock.checkpoint();
 
-            //mock.expect_bar()
-                //.returning(|| 25);
-            //assert_eq!(25, mock.bar());
-        //}
-    //}
+            mock.expect_bar()
+                .returning(|| 25);
+            assert_eq!(25, mock.bar());
+        }
+    }
 
-    //pub mod not_yet_satisfied {
-        //use super::*;
-        //mock_foo!{}
+    pub mod not_yet_satisfied {
+        use super::*;
+        mock_foo!{}
 
-        //#[test]
-        //#[should_panic(expected = "Expectation called fewer than 1 times")]
-        //fn t() {
-            //let mut mock = MockFoo::new();
-            //mock.expect_bar()
-                //.returning(|| 42)
-                //.times(1);
-            //mock.checkpoint();
-            //panic!("Shouldn't get here!");
-        //}
-    //}
+        #[test]
+        #[should_panic(expected = "Expectation called fewer than 1 times")]
+        fn t() {
+            let mut mock = MockFoo::new();
+            mock.expect_bar()
+                .returning(|| 42)
+                .times(1);
+            mock.checkpoint();
+            panic!("Shouldn't get here!");
+        }
+    }
 
-    //pub mod removes_old_expectations {
-        //use super::*;
-        //mock_foo!{}
+    pub mod removes_old_expectations {
+        use super::*;
+        mock_foo!{}
 
-        //#[test]
-        //#[should_panic(expected = "No matching expectation found")]
-        //fn t() {
-            //let mut mock = MockFoo::new();
-            //mock.expect_bar()
-                //.returning(|| 42)
-                //.times_range(1..3);
-            //mock.bar();
-            //mock.checkpoint();
-            //mock.bar();
-            //panic!("Shouldn't get here!");
-        //}
-    //}
+        #[test]
+        #[should_panic(expected = "No matching expectation found")]
+        fn t() {
+            let mut mock = MockFoo::new();
+            mock.expect_bar()
+                .returning(|| 42)
+                .times_range(1..3);
+            mock.bar();
+            mock.checkpoint();
+            mock.bar();
+            panic!("Shouldn't get here!");
+        }
+    }
 
-    //pub mod static_method {
-        //use super::*;
-        //mock_foo!{}
+    pub mod static_method {
+        use super::*;
+        mock_foo!{}
 
-        //#[test]
-        //#[should_panic(expected = "Expectation called fewer than 1 times")]
-        //fn t() {
-            //let mut mock = MockFoo::new();
-            //MockFoo::expect_baz()
-                //.returning(|| 32)
-                //.times_range(1..3);
-            //mock.checkpoint();
-            //panic!("Shouldn't get here!");
-        //}
-    //}
-//}
+        #[test]
+        #[should_panic(expected = "Expectation called fewer than 1 times")]
+        fn t() {
+            let mut mock = MockFoo::new();
+            MockFoo::expect_baz()
+                .returning(|| 32)
+                .times_range(1..3);
+            mock.checkpoint();
+            panic!("Shouldn't get here!");
+        }
+    }
+}
 
 // Clone-like methods (non-static method with Self return type) need the return
 // type to be deselfified.
@@ -759,44 +759,44 @@ mod ref_str_return {
     }
 }
 
-//mod static_method {
-    //use super::*;
+mod static_method {
+    use super::*;
 
-    //mock!{
-        //Foo {
-            //fn bar(x: u32) -> u64;
-        //}
-    //}
+    mock!{
+        Foo {
+            fn bar(x: u32) -> u64;
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //MockFoo::expect_bar()
-            //.returning(|x| u64::from(x + 1));
-        //assert_eq!(42, MockFoo::bar(41));
-    //}
-//}
+    #[test]
+    fn t() {
+        MockFoo::expect_bar()
+            .returning(|x| u64::from(x + 1));
+        assert_eq!(42, MockFoo::bar(41));
+    }
+}
 
-//mod static_method_in_trait {
-    //use super::*;
+mod static_method_in_trait {
+    use super::*;
 
-    //trait Bar {
-        //fn baz(x: u32) -> u64;
-    //}
+    trait Bar {
+        fn baz(x: u32) -> u64;
+    }
 
-    //mock!{
-        //pub Foo {}
-        //trait Bar {
-            //fn baz(x: u32) -> u64;
-        //}
-    //}
+    mock!{
+        pub Foo {}
+        trait Bar {
+            fn baz(x: u32) -> u64;
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //MockFoo::expect_baz()
-            //.returning(|x| u64::from(x + 1));
-        //assert_eq!(42, MockFoo::baz(41));
-    //}
-//}
+    #[test]
+    fn t() {
+        MockFoo::expect_baz()
+            .returning(|x| u64::from(x + 1));
+        assert_eq!(42, MockFoo::baz(41));
+    }
+}
 
 mod struct_with_trait {
     use super::*;
