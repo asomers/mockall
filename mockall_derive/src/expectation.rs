@@ -117,7 +117,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
     for p in generics.params.iter() {
         if let syn::GenericParam::Type(tp) = p {
             tp.ident.to_tokens(&mut macro_g);
-            quote!(#ident: 'static).to_tokens(&mut bounded_macro_g);
+            let tp_ident = &tp.ident;
+            quote!(#tp_ident: 'static).to_tokens(&mut bounded_macro_g);
         }
     }
     for fa in args {
@@ -202,7 +203,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                               (!e.is_done() || n == 1))
                     {
                         None => panic!("No matching expectation found"),
-                        Some(e) => e.call(#selfless_args)
+                        Some(e) => e.call(#argnames)
                     }
                 }
             }
@@ -224,7 +225,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                         .expect("No matching expectation found")
                         .downcast_ref()
                         .unwrap();
-                    e.call(#selfless_args)
+                    e.call(#argnames)
                 }
 
                 /// Create a new Expectation.

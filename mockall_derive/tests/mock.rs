@@ -273,27 +273,27 @@ mod generic_method {
     }
 }
 
-//mod generic_method_returning_reference {
-    //use super::*;
+mod generic_method_returning_reference {
+    use super::*;
 
-    //trait Foo {
-        //fn foo<T: 'static>(&self, t: T) -> &u32;
-    //}
+    trait Foo {
+        fn foo<T: 'static>(&self, t: T) -> &u32;
+    }
 
-    //mock!{
-        //MyStruct {}
-        //trait Foo {
-            //fn foo<T: 'static>(&self, t: T) -> &u32;
-        //}
-    //}
+    mock!{
+        MyStruct {}
+        trait Foo {
+            fn foo<T: 'static>(&self, t: T) -> &u32;
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //let mut mock = MockMyStruct::new();
-        //mock.expect_foo::<i16>().return_const(5u32);
-        //assert_eq!(5u32, *mock.foo(99i16));
-    //}
-//}
+    #[test]
+    fn t() {
+        let mut mock = MockMyStruct::new();
+        mock.expect_foo::<i16>().return_const(5u32);
+        assert_eq!(5u32, *mock.foo(99i16));
+    }
+}
 
 //mod generic_static_method {
     //use super::*;
@@ -583,31 +583,30 @@ mod multi_trait {
 
 /// Structs or traits that have a "new" method shouldn't have a "new" method
 /// added to the mock object
-//mod new_method {
-    //use super::*;
+mod new_method {
+    use super::*;
 
-    //mock! {
-        //pub Foo {
-            //fn foo(&self) -> u32;
-            //fn new(x: u32) -> Self;
-        //}
-    //}
+    mock! {
+        pub Foo {
+            fn foo(&self) -> u32;
+            fn new(x: u32) -> Self;
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //let mut mock = MockFoo::default();
-        //mock.expect_foo()
-            //.returning(|| 42);
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::default();
+        mock.expect_foo()
+            .returning(|| 42);
 
-        //MockFoo::expect_new()
-            //.return_once(|_| mock);
+        MockFoo::expect_new()
+            .return_once(|_| mock);
 
-        //let mock = MockFoo::new(5);
-        //assert_eq!(42, mock.foo());
-    //}
-//}
+        let mock = MockFoo::new(5);
+        assert_eq!(42, mock.foo());
+    }
+}
 
-// TODO: fix &'static arguments
 mod reference_arguments {
     use super::*;
     const X: u32 = 99;
