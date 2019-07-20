@@ -130,6 +130,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
 
     let selfless_args = strip_self(args);
     let (argnames, argty) = split_args(args);
+    let mut argty_tp = argty.clone();
+    if !argty_tp.empty_or_trailing() {
+        // The non-proc macro static_expectation! always uses trailing
+        // punctuation.  Until we eliminate that macro, the proc macro must use
+        // trailing punctuation to match.
+        argty_tp.push_punct(Token![,](Span::call_site()));
+    }
     let (altargnames, altargty) = split_args(altargs);
     if ref_expectation {
         quote!(
@@ -220,7 +227,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn call<#bounded_macro_g>
                     (&self, #selfless_args ) -> &#output
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let e: &Expectations<#macro_g> = self.store.get(&key)
                         .expect("No matching expectation found")
                         .downcast_ref()
@@ -233,7 +240,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                     -> &'e mut Expectation<#macro_g>
                     where #output: Send + Sync
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.store.entry(key)
                         .or_insert_with(||
@@ -366,7 +373,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn call_mut<#bounded_macro_g>
                     (&mut self, #selfless_args ) -> &mut #output
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let e: &mut Expectations<#macro_g> = self.store
                         .get_mut(&key)
                         .expect("No matching expectation found")
@@ -380,7 +387,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                     -> &'e mut Expectation<#macro_g>
                     where #output: Send + Sync
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.store.entry(key)
                         .or_insert_with(||
@@ -624,7 +631,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
                     -> &mut Expectation<#macro_g>
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -634,7 +641,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 /// Just like
                 /// [`Expectation::never`](struct.Expectation.html#method.never)
                 #vis fn never(&mut self) -> &mut Expectation<#macro_g> {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -646,7 +653,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn new(mut guard: MutexGuard<'guard, GenericExpectations>)
                     -> Self
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         guard.store.entry(key)
                         .or_insert_with(||
@@ -661,7 +668,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 /// Just like
                 /// [`Expectation::once`](struct.Expectation.html#method.once)
                 #vis fn once(&mut self) -> &mut Expectation<#macro_g> {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -673,7 +680,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn returning<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
                     where F: FnMut(#argty) -> #output + Send + 'static
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -685,7 +692,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn return_once<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
                     where F: FnOnce(#argty) -> #output + Send + 'static
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -697,7 +704,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn returning_st<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
                     where F: FnMut(#argty) -> #output + 'static
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -707,7 +714,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
                 #vis fn times(&mut self, n: usize) -> &mut Expectation<#macro_g> {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -717,7 +724,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 /// Just like
                 /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
                 #vis fn times_any(&mut self) -> &mut Expectation<#macro_g> {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -728,7 +735,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
                 #vis fn times_range(&mut self, range: Range<usize>) -> &mut Expectation<#macro_g>
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -740,7 +747,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn with #pred_generics (&mut self, #pred_args)
                     -> &mut Expectation<#macro_g>
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();
@@ -752,7 +759,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 #vis fn withf<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
                     where F: Fn(#withfty) -> bool + Send + 'static
                 {
-                    let key = ::mockall::Key::new::<(#argty)>();
+                    let key = ::mockall::Key::new::<(#argty_tp)>();
                     let ee: &mut Expectations<#macro_g> =
                         self.guard.store.get_mut(&key).unwrap()
                         .downcast_mut().unwrap();

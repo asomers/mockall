@@ -273,6 +273,27 @@ mod generic_method {
     }
 }
 
+mod generic_method_with_multiple_parameters {
+    use super::*;
+
+    trait Foo {
+        fn foo<T, Q>(&self, t: T, q: Q);
+    }
+
+    mock! {
+        Foo {
+            fn foo<T: 'static, Q: 'static>(&self, t: T, q: Q);
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo::<i16, i32>().return_const(());
+        mock.foo(0i16, 1i32)
+    }
+}
+
 mod generic_method_returning_reference {
     use super::*;
 
@@ -295,25 +316,25 @@ mod generic_method_returning_reference {
     }
 }
 
-//mod generic_static_method {
-    //use super::*;
+mod generic_static_method {
+    use super::*;
 
-    //trait Foo {
-        //fn bar<T>(x: T);
-    //}
+    trait Foo {
+        fn bar<T>(x: T);
+    }
 
-    //mock! {
-        //Foo {
-            //fn bar<T: 'static>(x: T);
-        //}
-    //}
+    mock! {
+        Foo {
+            fn bar<T: 'static>(x: T);
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //MockFoo::expect_bar::<i16>().returning(|_| ());
-        //MockFoo::bar(0i16)
-    //}
-//}
+    #[test]
+    fn t() {
+        MockFoo::expect_bar::<i16>().returning(|_| ());
+        MockFoo::bar(0i16)
+    }
+}
 
 mod generic_struct {
     use super::*;
