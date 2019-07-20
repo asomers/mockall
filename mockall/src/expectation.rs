@@ -4,7 +4,7 @@
 #[macro_export]
 #[doc(hidden)]
 macro_rules! common_matcher {
-    ([$($generics:ident)*] [$($args:ident)*]
+    ([$($generics:ident, )*] [$($args:ident)*]
      [$($altargs:ident)*] [$($matchty:ty)*]) =>
     {
         enum Matcher<$($generics: 'static,)*> {
@@ -57,7 +57,7 @@ macro_rules! common_matcher {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! common_methods {
-    ([$($generics:ident)*] [$($args:ident)*]
+    ([$($generics:ident, )*] [$($args:ident)*]
      [$($altargs:ident)*] [$($matchty:ty)*]) =>
     {
         /// Holds the stuff that is independent of the output type
@@ -250,7 +250,7 @@ macro_rules! expectation_methods {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! expectations_methods {
-    ($v:vis [$($generics:ident)*]) => {
+    ($v:vis [$($generics:ident, )*]) => {
         /// A collection of [`Expectation`](struct.Expectations.html) objects.
         /// Users will rarely if ever use this struct directly.
         #[doc(hidden)]
@@ -290,7 +290,7 @@ macro_rules! expectations_methods {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generic_expectation_methods {
-    ($v:vis [$($generics:ident)*] [$($argty:ty)*] $o:ty) =>
+    ($v:vis [$($generics:ident, )*] [$($argty:ty)*] $o:ty) =>
     {
         /// A collection of [`Expectation`](struct.Expectations.html) objects
         /// for a generic method.  Users will rarely if ever use this struct
@@ -319,7 +319,7 @@ macro_rules! generic_expectation_methods {
 #[macro_export]
 macro_rules! static_expectation {
     (
-        $v:vis [$($generics:ident)*] [$($args:ident),*] [$($argty:ty),*]
+        $v:vis [$($generics:ident, )*] [$($args:ident),*] [$($argty:ty),*]
         [$($altargs:ident),*] [$($matchty:ty),*] [$($matchcall:expr),*] $o:ty
     ) => {
         use ::downcast::*;
@@ -383,11 +383,11 @@ macro_rules! static_expectation {
         }
 
         $crate::common_matcher!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+            [$($generics, )*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
         $crate::common_methods!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+            [$($generics, )*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
         /// Expectation type for methods that return a `'static` type.
@@ -517,7 +517,7 @@ macro_rules! static_expectation {
             }
         }
 
-        $crate::expectations_methods!{$v [$($generics)*]}
+        $crate::expectations_methods!{$v [$($generics, )*]}
         impl<$($generics,)*> Expectations<$($generics,)*> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
@@ -539,7 +539,7 @@ macro_rules! static_expectation {
             $crate::AnyExpectations for Expectations<$($generics,)*>
         {}
 
-        $crate::generic_expectation_methods!{$v [$($generics)*] [$($argty)*] $o}
+        $crate::generic_expectation_methods!{$v [$($generics, )*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
             $v fn call<$($generics: 'static,)*>
@@ -702,11 +702,11 @@ macro_rules! expectation {
         use super::*;
 
         $crate::common_matcher!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+            [$($generics, )*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
         $crate::common_methods!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+            [$($generics, )*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
         /// Expectation type for methods taking a `&self` argument and returning
@@ -745,7 +745,7 @@ macro_rules! expectation {
             }
         }
 
-        $crate::expectations_methods!{$v [$($generics)*]}
+        $crate::expectations_methods!{$v [$($generics, )*]}
         impl<$($generics: 'static,)*> Expectations<$($generics,)*> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
@@ -768,7 +768,7 @@ macro_rules! expectation {
                 where $o: Send + Sync
         {}
 
-        $crate::generic_expectation_methods!{$v [$($generics)*] [$($argty)*] $o}
+        $crate::generic_expectation_methods!{$v [$($generics, )*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
             $v fn call<$($generics: 'static,)*>
@@ -825,11 +825,11 @@ macro_rules! expectation {
         use super::*;
 
         $crate::common_matcher!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+            [$($generics, )*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
         $crate::common_methods!{
-            [$($generics)*] [$($args)*] [$($altargs)*] [$($matchty)*]
+            [$($generics, )*] [$($args)*] [$($altargs)*] [$($matchty)*]
         }
 
         /// Expectation type for methods taking a `&mut self` argument and
@@ -898,7 +898,7 @@ macro_rules! expectation {
                 }
             }
         }
-        $crate::expectations_methods!{$v [$($generics)*]}
+        $crate::expectations_methods!{$v [$($generics, )*]}
         impl<$($generics: 'static,)*> Expectations<$($generics,)*> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
@@ -921,7 +921,7 @@ macro_rules! expectation {
             where $o: Send + Sync
         {}
 
-        $crate::generic_expectation_methods!{$v [$($generics)*] [$($argty)*] $o}
+        $crate::generic_expectation_methods!{$v [$($generics, )*] [$($argty)*] $o}
         impl GenericExpectations {
             /// Simulating calling the real method.
             $v fn call_mut<$($generics: 'static,)*>

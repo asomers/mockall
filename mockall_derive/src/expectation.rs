@@ -2,7 +2,7 @@
 //! A replacement for the old (omnimacro era) expectation!
 
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, quote};
+use quote::quote;
 use std::iter::{FromIterator, IntoIterator};
 use syn::Token;
 
@@ -82,6 +82,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
     let mut ref_mut_expectation = false;
     let mut static_method = true;
 
+    let static_bound = syn::Lifetime::new("'static", Span::call_site());
+
     let output = match return_type{
         syn::ReturnType::Default => quote!(()),
         syn::ReturnType::Type(_, ty) => {
@@ -108,19 +110,31 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
         }
     };
 
-    let mut macro_g = TokenStream::new();
-    let mut bounded_macro_g = TokenStream::new();
+    let mut egenerics = generics.clone();
+    let mut macro_g = syn::punctuated::Punctuated::<syn::Ident, Token![,]>::new();
     // Convert the TypeGenerics into a sequence of idents, because that's
-    // what static_expectations! expects
-    // TODO: once static_expectations! is gone, something like this:
+    // what static_expectation! expects
+    // TODO: once static_expectation! is gone, something like this:
     //generics.split_for_impl().1.to_tokens(&mut macro_g)
-    for p in generics.params.iter() {
+    for p in egenerics.params.iter_mut() {
         if let syn::GenericParam::Type(tp) = p {
-            tp.ident.to_tokens(&mut macro_g);
-            let tp_ident = &tp.ident;
-            quote!(#tp_ident: 'static).to_tokens(&mut bounded_macro_g);
+            tp.bounds.push(syn::TypeParamBound::Lifetime(static_bound.clone()));
         }
     }
+    let (bounded_macro_g, _, _) = egenerics.split_for_impl();
+    for p in generics.params.iter() {
+        if let syn::GenericParam::Type(tp) = p {
+            macro_g.push(tp.ident.clone());
+        }
+    }
+    if !macro_g.empty_or_trailing() {
+        // static_expectation! requires trailing punctuation
+        macro_g.push_punct(Token![,](Span::call_site()));
+    }
+    let mut eltgenerics = egenerics.clone();
+    let ltdef = syn::LifetimeDef::new(syn::Lifetime::new("'lt", Span::call_site()));
+    eltgenerics.params.push(syn::GenericParam::Lifetime(ltdef));
+    let (bounded_lt_macro_g, _, _) = eltgenerics.split_for_impl();
     for fa in args {
         static_method &= match fa {
             syn::FnArg::SelfRef(_) | syn::FnArg::SelfValue(_) => false,
@@ -165,12 +179,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             /// Expectation type for methods taking a `&self` argument and
             /// returning immutable references.  This is the type returned by
             /// the `expect_*` methods.
-            #vis struct Expectation<#bounded_macro_g> {
+            #vis struct Expectation #bounded_macro_g {
                 common: Common<#macro_g>,
                 result: Option<#output>,
             }
 
-            impl<#bounded_macro_g> Expectation<#macro_g> {
+            impl #bounded_macro_g Expectation<#macro_g> {
                 #vis fn call(&self, #selfless_args ) -> &#output {
                     self.common.call(#matchexprs);
                     &self.result.as_ref()
@@ -188,7 +202,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 }
             }
 
-            impl<#bounded_macro_g> Default for Expectation<#macro_g>
+            impl #bounded_macro_g Default for Expectation<#macro_g>
             {
                 fn default() -> Self {
                     Expectation {
@@ -199,7 +213,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             }
 
             ::mockall::expectations_methods!{#vis [#macro_g]}
-            impl<#bounded_macro_g> Expectations<#macro_g> {
+            impl #bounded_macro_g Expectations<#macro_g> {
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
@@ -216,7 +230,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             }
             // The Senc + Sync are required for downcast, since Expectation
             // stores an Option<#output>
-            impl<#bounded_macro_g>
+            impl #bounded_macro_g
                 ::mockall::AnyExpectations for Expectations<#macro_g>
                     where #output: Send + Sync
             {}
@@ -224,7 +238,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             ::mockall::generic_expectation_methods!{#vis [#macro_g] [#argty] #output}
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #vis fn call<#bounded_macro_g>
+                #vis fn call #bounded_macro_g
                     (&self, #selfless_args ) -> &#output
                 {
                     let key = ::mockall::Key::new::<(#argty_tp)>();
@@ -236,8 +250,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 }
 
                 /// Create a new Expectation.
-                #vis fn expect<'e, #bounded_macro_g>(&'e mut self)
-                    -> &'e mut Expectation<#macro_g>
+                #vis fn expect #bounded_lt_macro_g (&'lt mut self)
+                    -> &'lt mut Expectation<#macro_g>
                     where #output: Send + Sync
                 {
                     let key = ::mockall::Key::new::<(#argty_tp)>();
@@ -279,13 +293,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             /// Expectation type for methods taking a `&mut self` argument and
             /// returning references.  This is the type returned by the
             /// `expect_*` methods.
-            #vis struct Expectation<#bounded_macro_g> {
+            #vis struct Expectation #bounded_macro_g {
                 common: Common<#macro_g>,
                 result: Option<#output>,
                 rfunc: Option<Box<dyn FnMut(#argty) -> #output + Send + Sync>>,
             }
 
-            impl<#bounded_macro_g> Expectation<#macro_g> {
+            impl #bounded_macro_g Expectation<#macro_g> {
                 /// Simulating calling the real method for this expectation
                 #vis fn call_mut(&mut self, #selfless_args) -> &mut #output {
                     self.common.call(#selfless_args);
@@ -332,7 +346,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                     #vis [#argnames] [#altargnames] [#altargty]
                 }
             }
-            impl<#bounded_macro_g> Default for Expectation<#macro_g>
+            impl #bounded_macro_g Default for Expectation<#macro_g>
             {
                 fn default() -> Self {
                     Expectation {
@@ -343,7 +357,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 }
             }
             ::mockall::expectations_methods!{#vis [#macro_g]}
-            impl<#bounded_macro_g> Expectations<#macro_g> {
+            impl #bounded_macro_g Expectations<#macro_g> {
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
@@ -360,7 +374,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             }
             // The Senc + Sync are required for downcast, since Expectation
             // stores an Option<#output>
-            impl<#bounded_macro_g>
+            impl #bounded_macro_g
                 ::mockall::AnyExpectations for Expectations<#macro_g>
                 where #output: Send + Sync
             {}
@@ -370,7 +384,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             }
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #vis fn call_mut<#bounded_macro_g>
+                #vis fn call_mut #bounded_macro_g
                     (&mut self, #selfless_args ) -> &mut #output
                 {
                     let key = ::mockall::Key::new::<(#argty_tp)>();
@@ -383,8 +397,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 }
 
                 /// Create a new Expectation.
-                #vis fn expect<'e, #bounded_macro_g> (&'e mut self)
-                    -> &'e mut Expectation<#macro_g>
+                #vis fn expect #bounded_lt_macro_g (&'lt mut self)
+                    -> &'lt mut Expectation<#macro_g>
                     where #output: Send + Sync
                 {
                     let key = ::mockall::Key::new::<(#argty_tp)>();
@@ -453,10 +467,9 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
                 lifetimes: None,
                 path: syn::Path{leading_colon: None, segments: send_segments}
             };
-            let static_bound = syn::Lifetime::new("'static", Span::call_site());
             bounds.push(syn::TypeParamBound::Trait(pred_bound));
             bounds.push(syn::TypeParamBound::Trait(send_bound));
-            bounds.push(syn::TypeParamBound::Lifetime(static_bound));
+            bounds.push(syn::TypeParamBound::Lifetime(static_bound.clone()));
             let pred_arg_name = syn::Ident::new(&format!("mockall_g{}", i),
                 Span::call_site());
             let pred_arg_ty = syn::Ident::new(&format!("MockallG{}", i),
@@ -515,12 +528,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
             //
             // ExpectationGuard is only defined for expectations that return
             // 'static return types.
-            #vis struct ExpectationGuard<'guard, #bounded_macro_g>{
-                guard: MutexGuard<'guard, Expectations<#macro_g>>,
+            #vis struct ExpectationGuard #bounded_lt_macro_g {
+                guard: MutexGuard<'lt, Expectations<#macro_g>>,
                 i: usize
             }
 
-            impl<'guard, #macro_g> ExpectationGuard<'guard, #macro_g> {
+            impl #bounded_lt_macro_g ExpectationGuard<'lt, #macro_g> {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
                 #vis fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
@@ -537,7 +550,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
 
                 // Should only be called from the mockall_derive generated code
                 #[doc(hidden)]
-                #vis fn new(mut guard: MutexGuard<'guard, Expectations<#macro_g>>)
+                #vis fn new(mut guard: MutexGuard<'lt, Expectations<#macro_g>>)
                     -> Self
                 {
                     guard.expect(); // Drop the &Expectation
@@ -617,14 +630,14 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
 
             /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html) but for
             /// generic methods.
-            #vis struct GenericExpectationGuard<'guard, #bounded_macro_g> {
-                guard: MutexGuard<'guard, GenericExpectations>,
+            #vis struct GenericExpectationGuard #bounded_lt_macro_g {
+                guard: MutexGuard<'lt, GenericExpectations>,
                 i: usize,
                 _phantom: PhantomData<((), #macro_g)>,
             }
 
-            impl<'guard, #bounded_macro_g>
-                GenericExpectationGuard<'guard, #macro_g>
+            impl #bounded_lt_macro_g
+                GenericExpectationGuard<'lt, #macro_g>
             {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
@@ -650,7 +663,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
 
                 // Should only be called from the mockall_derive generated code
                 #[doc(hidden)]
-                #vis fn new(mut guard: MutexGuard<'guard, GenericExpectations>)
+                #vis fn new(mut guard: MutexGuard<'lt, GenericExpectations>)
                     -> Self
                 {
                     let key = ::mockall::Key::new::<(#argty_tp)>();

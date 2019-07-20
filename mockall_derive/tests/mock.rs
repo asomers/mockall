@@ -441,31 +441,31 @@ mod generic_struct_with_generic_trait_with_different_bounds {
     }
 }
 
-//mod generic_struct_with_static_method {
-    //use super::*;
+mod generic_struct_with_static_method {
+    use super::*;
 
-    //// Static methods parameterized on the struct's generic parameter need to be
-    //// turned into generic methods for mocking.  A struct like this:
-    ////
-    //// struct Foo<T> {}
-    //// impl<T> Foo<T> {
-    ////     fn foo(t: T) {...}
-    //// }
-    ////
-    //// Can be mocked like this:
-    //mock! {
-        //Foo<T: 'static> {
-            //fn foo<T2: 'static>(t: T2);
-        //}
-    //}
+    // Static methods parameterized on the struct's generic parameter need to be
+    // turned into generic methods for mocking.  A struct like this:
+    //
+    // struct Foo<T> {}
+    // impl<T> Foo<T> {
+    //     fn foo(t: T) {...}
+    // }
+    //
+    // Can be mocked like this:
+    mock! {
+        Foo<T: 'static> {
+            fn foo<T2: 'static>(t: T2);
+        }
+    }
 
-    //#[test]
-    //fn t() {
-        //MockFoo::<u32>::expect_foo::<u32>()
-            //.returning(|_| ());
-        //MockFoo::<u32>::foo(42u32);
-    //}
-//}
+    #[test]
+    fn t() {
+        MockFoo::<u32>::expect_foo::<u32>()
+            .returning(|_| ());
+        MockFoo::<u32>::foo(42u32);
+    }
+}
 
 mod generic_struct_with_trait {
     use super::*;
