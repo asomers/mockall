@@ -7,44 +7,6 @@ use std::{
     rc::Rc
 };
 
-/// A MockObject with a method that consumes self like:
-/// fn foo(self, x: i32) -> u32
-#[test]
-fn consuming_self() {
-    expectation!{ pub fn foo<>(self, x: i32) -> i32 { let (p: &i32) = (&x); } }
-    let mut e = foo::Expectation::default();
-    e.returning(|_| 42);
-    assert_eq!(42, e.call(5));
-}
-
-mod generic {
-    use super::*;
-
-    #[test]
-    fn generic_argument_and_return() {
-        expectation!{
-            pub fn foo<I, O>(&self, x: I) -> O { let (p: &I) = (&x); }
-        }
-        let mut e = foo::Expectation::<i16, i32>::default();
-        e.with(predicate::eq(4))
-            .returning(|i| i32::from(i));
-
-        assert_eq!(4i32, e.call(4i16));
-    }
-
-    #[test]
-    fn generic_return() {
-        expectation!{
-            pub fn foo<O>(&self, x: u32) -> O { let (p: &u32) = (&x); }
-        }
-        let mut e = foo::Expectation::<i32>::default();
-        e.with(predicate::eq(4))
-            .returning(|_| -42);
-
-        assert_eq!(-42, e.call(4));
-    }
-}
-
 /// Mock a method like `fn foo(&self) -> impl Debug + Send {...}`
 /// The return type must be deimplified by the user
 #[test]

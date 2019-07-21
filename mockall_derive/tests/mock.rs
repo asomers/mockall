@@ -294,6 +294,27 @@ mod generic_method_with_multiple_parameters {
     }
 }
 
+mod generic_method_returning_generic {
+    use super::*;
+
+    trait Foo {
+        fn foo<O>(&self) -> O;
+    }
+
+    mock! {
+        Foo {
+            fn foo<O: 'static>(&self) -> O;
+        }
+    }
+
+    #[test]
+    fn t() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo::<i32>().return_const(42);
+        assert_eq!(42i32, mock.foo());
+    }
+}
+
 mod generic_method_returning_reference {
     use super::*;
 
