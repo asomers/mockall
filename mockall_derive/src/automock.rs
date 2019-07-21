@@ -1,7 +1,10 @@
 // vim: tw=80
 use super::*;
 use quote::ToTokens;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    env
+};
 use syn::parse::{Parse, ParseStream};
 use crate::expectation::expectation;
 
@@ -632,7 +635,7 @@ fn do_automock(attr_stream: TokenStream, input: TokenStream) -> TokenStream
             return err.to_compile_error();
         }
     };
-    match item {
+    let ts = match item {
         Item::Impl(item_impl) => mock_impl(item_impl),
         Item::ForeignMod(foreign_mod) => mock_foreign(attrs, foreign_mod),
         Item::Mod(item_mod) => mock_module(item_mod),
@@ -642,7 +645,11 @@ fn do_automock(attr_stream: TokenStream, input: TokenStream) -> TokenStream
                 "#[automock] does not support this item type");
             TokenStream::new()
         }
+    };
+    if env::var("MOCKALL_DEBUG").is_ok() {
+        println!("{}", ts);
     }
+    ts
 }
 
 /// Test cases for `#[automock]`.

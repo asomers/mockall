@@ -1,7 +1,10 @@
 // vim: tw=80
 use super::*;
 use quote::ToTokens;
-use std::borrow::Borrow;
+use std::{
+    borrow::Borrow,
+    env
+};
 use syn::parse::{Parse, ParseStream};
 use crate::expectation::expectation;
 
@@ -560,6 +563,9 @@ pub(crate) fn do_mock(input: TokenStream) -> TokenStream {
             return err.to_compile_error();
         }
     };
+    if env::var("MOCKALL_DEBUG").is_ok() {
+        println!("{}", mock.gen());
+    }
     mock.gen()
 }
 
