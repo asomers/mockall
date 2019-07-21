@@ -1,24 +1,20 @@
 // vim: tw=80
-use quote::{ToTokens, quote};
 use super::*;
+use quote::ToTokens;
 use std::collections::HashMap;
-use syn::{
-    parse::{Parse, ParseStream},
-    spanned::Spanned,
-    Token
-};
+use syn::parse::{Parse, ParseStream};
 use crate::expectation::expectation;
 
 /// A single automock attribute
 // This enum is very short-lived, so it's fine not to box it.
 #[allow(clippy::large_enum_variant)]
 enum Attr {
-    Mod(syn::ItemMod),
-    Type(syn::TraitItemType),
+    Mod(ItemMod),
+    Type(TraitItemType),
 }
 
 impl Parse for Attr {
-    fn parse(input: ParseStream) -> syn::parse::Result<Self> {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
         let lookahead = input.lookahead1();
         if lookahead.peek(Token![mod]) {
             input.parse().map(Attr::Mod)
@@ -33,12 +29,12 @@ impl Parse for Attr {
 /// automock attributes
 #[derive(Debug, Default)]
 struct Attrs {
-    attrs: HashMap<syn::Ident, syn::Type>,
-    modname: Option<syn::Ident>
+    attrs: HashMap<Ident, Type>,
+    modname: Option<Ident>
 }
 
 impl Attrs {
-    fn get_path(&self, path: &syn::Path) -> Option<syn::Type> {
+    fn get_path(&self, path: &Path) -> Option<Type> {
         if path.leading_colon.is_none() & (path.segments.len() == 2) {
             if path.segments.first().unwrap().value().ident == "Self" {
                 let ident = &path.segments.last().unwrap().value().ident;
@@ -51,20 +47,20 @@ impl Attrs {
         }
     }
 
-    fn substitute_path_segment(&self, seg: &mut syn::PathSegment) {
+    fn substitute_path_segment(&self, seg: &mut PathSegment) {
         match &mut seg.arguments {
-            syn::PathArguments::None => /* nothing to do */(),
-            syn::PathArguments::Parenthesized(p) => {
+            PathArguments::None => /* nothing to do */(),
+            PathArguments::Parenthesized(p) => {
                 compile_error(p.span(),
                     "Mockall does not support mocking Fn objects");
             },
-            syn::PathArguments::AngleBracketed(abga) => {
+            PathArguments::AngleBracketed(abga) => {
                 for arg in abga.args.iter_mut() {
                     match arg {
-                        syn::GenericArgument::Type(ty) => {
+                        GenericArgument::Type(ty) => {
                             self.substitute_type(ty)
                         },
-                        syn::GenericArgument::Binding(binding) => {
+                        GenericArgument::Binding(binding) => {
                             self.substitute_type(&mut binding.ty);
                         },
                         _ => {
@@ -78,36 +74,36 @@ impl Attrs {
     }
 
     /// Recursively substitute types in the input
-    fn substitute_type(&self, ty: &mut syn::Type) {
+    fn substitute_type(&self, ty: &mut Type) {
         match ty {
-            syn::Type::Slice(s) => {
+            Type::Slice(s) => {
                 self.substitute_type(s.elem.as_mut())
             },
-            syn::Type::Array(a) => {
+            Type::Array(a) => {
                 self.substitute_type(a.elem.as_mut())
             },
-            syn::Type::Ptr(p) => {
+            Type::Ptr(p) => {
                 self.substitute_type(p.elem.as_mut())
             },
-            syn::Type::Reference(r) => {
+            Type::Reference(r) => {
                 self.substitute_type(r.elem.as_mut())
             },
-            syn::Type::BareFn(bfn) => {
+            Type::BareFn(bfn) => {
                 for fn_arg in bfn.inputs.iter_mut() {
                     self.substitute_type(&mut fn_arg.ty);
                 }
-                if let syn::ReturnType::Type(_, ref mut ty) = &mut bfn.output {
+                if let ReturnType::Type(_, ref mut ty) = &mut bfn.output {
                     self.substitute_type(ty);
                 }
             },
-            syn::Type::Tuple(tuple) => {
+            Type::Tuple(tuple) => {
                 for elem in tuple.elems.iter_mut() {
                     self.substitute_type(elem)
                 }
             }
-            syn::Type::Path(path) => {
+            Type::Path(path) => {
                 if let Some(ref qself) = path.qself {
-                    let qp = if let syn::Type::Path(p) = qself.ty.as_ref() {
+                    let qp = if let Type::Path(p) = qself.ty.as_ref() {
                         &p.path
                     } else {
                         panic!("QSelf's type isn't a path?")
@@ -135,41 +131,41 @@ impl Attrs {
                     }
                 }
             },
-            syn::Type::TraitObject(to) => {
+            Type::TraitObject(to) => {
                 for bound in to.bounds.iter_mut() {
                     self.substitute_type_param_bound(bound);
                 }
             },
-            syn::Type::ImplTrait(it) => {
+            Type::ImplTrait(it) => {
                 for bound in it.bounds.iter_mut() {
                     self.substitute_type_param_bound(bound);
                 }
             },
-            syn::Type::Paren(p) => {
+            Type::Paren(p) => {
                 self.substitute_type(p.elem.as_mut())
             },
-            syn::Type::Group(g) => {
+            Type::Group(g) => {
                 self.substitute_type(g.elem.as_mut())
             },
-            syn::Type::Macro(_) | syn::Type::Verbatim(_) => {
+            Type::Macro(_) | Type::Verbatim(_) => {
                 compile_error(ty.span(),
                     "mockall_derive does not support this type when using associated types");
             },
-            syn::Type::Infer(_) | syn::Type::Never(_) => {
+            Type::Infer(_) | Type::Never(_) => {
                 /* Nothing to do */
             }
         }
     }
 
-    fn substitute_type_param_bound(&self, bound: &mut syn::TypeParamBound) {
-        if let syn::TypeParamBound::Trait(t) = bound {
+    fn substitute_type_param_bound(&self, bound: &mut TypeParamBound) {
+        if let TypeParamBound::Trait(t) = bound {
             match self.get_path(&t.path) {
                 None => {
                     for seg in t.path.segments.iter_mut() {
                         self.substitute_path_segment(seg);
                     }
                 },
-                Some(syn::Type::Path(type_path)) => {
+                Some(Type::Path(type_path)) => {
                     t.path = type_path.path;
                 },
                 Some(_) => {
@@ -180,30 +176,30 @@ impl Attrs {
         }
     }
 
-    fn substitute_trait(&self, item: &syn::ItemTrait) -> syn::ItemTrait {
+    fn substitute_trait(&self, item: &ItemTrait) -> ItemTrait {
         let mut output = item.clone();
         for trait_item in output.items.iter_mut() {
             match trait_item {
-                syn::TraitItem::Type(tity) => {
+                TraitItem::Type(tity) => {
                     if let Some(ty) = self.attrs.get(&tity.ident) {
                         let span = tity.span();
-                        tity.default = Some((syn::Token![=](span), ty.clone()));
+                        tity.default = Some((Token![=](span), ty.clone()));
                         // Concrete associated types aren't allowed to have
                         // bounds
-                        tity.bounds = syn::punctuated::Punctuated::new();
+                        tity.bounds = Punctuated::new();
                     } else {
                         compile_error(tity.span(),
                             "Default value not given for associated type");
                     }
                 },
-                syn::TraitItem::Method(method) => {
+                TraitItem::Method(method) => {
                     let decl = &mut method.sig.decl;
                     for fn_arg in decl.inputs.iter_mut() {
-                        if let syn::FnArg::Captured(arg) = fn_arg {
+                        if let FnArg::Captured(arg) = fn_arg {
                             self.substitute_type(&mut arg.ty);
                         }
                     }
-                    if let syn::ReturnType::Type(_, ref mut ty) = &mut decl.output {
+                    if let ReturnType::Type(_, ref mut ty) = &mut decl.output {
                         self.substitute_type(ty);
                     }
                 },
@@ -217,7 +213,7 @@ impl Attrs {
 }
 
 impl Parse for Attrs {
-    fn parse(input: ParseStream) -> syn::parse::Result<Self> {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
         let mut attrs = HashMap::new();
         let mut modname = None;
         while !input.is_empty() {
@@ -247,17 +243,17 @@ impl Parse for Attrs {
 
 /// Filter a generics list, keeping only the elements specified by path_args
 /// e.g. filter_generics(<A: Copy, B: Clone>, <A>) -> <A: Copy>
-fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
-    -> syn::Generics
+fn filter_generics(g: &Generics, path_args: &PathArguments)
+    -> Generics
 {
-    let mut params = syn::punctuated::Punctuated::new();
+    let mut params = Punctuated::new();
     match path_args {
-        syn::PathArguments::None => ()/* No generics selected */,
-        syn::PathArguments::Parenthesized(p) => {
+        PathArguments::None => ()/* No generics selected */,
+        PathArguments::Parenthesized(p) => {
             compile_error(p.span(),
                           "Mockall does not support mocking Fn objects");
         },
-        syn::PathArguments::AngleBracketed(abga) => {
+        PathArguments::AngleBracketed(abga) => {
             let args = &abga.args;
             if g.where_clause.is_some() {
                 compile_error(g.where_clause.span(),
@@ -266,10 +262,10 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
             }
             for param in g.params.iter() {
                 match param {
-                    syn::GenericParam::Type(tp) => {
-                        let matches = |ga: &syn::GenericArgument| {
-                            if let syn::GenericArgument::Type(
-                                syn::Type::Path(type_path)) = ga
+                    GenericParam::Type(tp) => {
+                        let matches = |ga: &GenericArgument| {
+                            if let GenericArgument::Type(
+                                Type::Path(type_path)) = ga
                             {
                                 type_path.path.is_ident(tp.ident.clone())
                             } else {
@@ -280,9 +276,9 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
                             params.push(param.clone())
                         }
                     },
-                    syn::GenericParam::Lifetime(ld) => {
-                        let matches = |ga: &syn::GenericArgument| {
-                            if let syn::GenericArgument::Lifetime(lt) = ga {
+                    GenericParam::Lifetime(ld) => {
+                        let matches = |ga: &GenericArgument| {
+                            if let GenericArgument::Lifetime(lt) = ga {
                                 *lt == ld.lifetime
                             } else {
                                 false
@@ -292,34 +288,34 @@ fn filter_generics(g: &syn::Generics, path_args: &syn::PathArguments)
                             params.push(param.clone())
                         }
                     },
-                    syn::GenericParam::Const(_) => ()/* Ignore */,
+                    GenericParam::Const(_) => ()/* Ignore */,
                 }
             }
         }
     };
     if params.is_empty() {
-        syn::Generics::default()
+        Generics::default()
     } else {
-        syn::Generics {
-            lt_token: Some(syn::Token![<](g.span())),
+        Generics {
+            lt_token: Some(Token![<](g.span())),
             params,
-            gt_token: Some(syn::Token![>](g.span())),
+            gt_token: Some(Token![>](g.span())),
             where_clause: None
         }
     }
 }
 
-fn find_ident_from_path(path: &syn::Path) -> (syn::Ident, syn::PathArguments) {
+fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
         if path.segments.len() != 1 {
             compile_error(path.span(),
                 "mockall_derive only supports structs defined in the current module");
-            return (syn::Ident::new("", path.span()), syn::PathArguments::None);
+            return (Ident::new("", path.span()), PathArguments::None);
         }
         let last_seg = path.segments.last().unwrap();
         (last_seg.value().ident.clone(), last_seg.value().arguments.clone())
 }
 
-fn mock_foreign(attrs: Attrs, foreign_mod: syn::ItemForeignMod) -> TokenStream {
+fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
     let mut body = TokenStream::new();
     let mut cp_body = TokenStream::new();
     let modname = attrs.modname.expect(concat!(
@@ -329,25 +325,25 @@ fn mock_foreign(attrs: Attrs, foreign_mod: syn::ItemForeignMod) -> TokenStream {
 
     for item in foreign_mod.items {
         match item {
-            syn::ForeignItem::Fn(f) => {
-                let obj = syn::Ident::new(
+            ForeignItem::Fn(f) => {
+                let obj = Ident::new(
                     &format!("{}_expectation", &f.ident),
                     Span::call_site());
                 quote!(#obj.lock().unwrap().checkpoint();)
                     .to_tokens(&mut cp_body);
                 mock_foreign_function(f).to_tokens(&mut body);
             },
-            syn::ForeignItem::Static(s) => {
+            ForeignItem::Static(s) => {
                 // Copy verbatim so a mock method can mutate it
                 s.to_tokens(&mut body)
             },
-            syn::ForeignItem::Type(ty) => {
+            ForeignItem::Type(ty) => {
                 // Copy verbatim
                 ty.to_tokens(&mut body)
             },
-            syn::ForeignItem::Macro(m) => compile_error(m.span(),
+            ForeignItem::Macro(m) => compile_error(m.span(),
                 "Mockall does not support macros in this context"),
-            syn::ForeignItem::Verbatim(v) => compile_error(v.span(),
+            ForeignItem::Verbatim(v) => compile_error(v.span(),
                 "Content unrecognized by Mockall"),
         }
     }
@@ -358,25 +354,25 @@ fn mock_foreign(attrs: Attrs, foreign_mod: syn::ItemForeignMod) -> TokenStream {
 
 /// Mock a foreign function the same way we mock static trait methods: with a
 /// global Expectations object
-fn mock_foreign_function(f: syn::ForeignItemFn) -> TokenStream {
+fn mock_foreign_function(f: ForeignItemFn) -> TokenStream {
     // Foreign functions are always unsafe.  Mock foreign functions should be
     // unsafe too, to prevent "warning: unused unsafe" messages.
-    let unsafety = Some(syn::Token![unsafe](f.span()));
+    let unsafety = Some(Token![unsafe](f.span()));
     mock_function(&f.vis, None, unsafety, None, &f.ident, &f.decl)
 }
 
-fn mock_function(vis: &syn::Visibility,
-                 constness: Option<syn::token::Const>,
-                 unsafety: Option<syn::token::Unsafe>,
-                 asyncness: Option<syn::token::Async>,
-                 ident: &syn::Ident,
-                 decl: &syn::FnDecl) -> TokenStream
+fn mock_function(vis: &Visibility,
+                 constness: Option<token::Const>,
+                 unsafety: Option<token::Unsafe>,
+                 asyncness: Option<token::Async>,
+                 ident: &Ident,
+                 decl: &FnDecl) -> TokenStream
 {
     let fn_token = &decl.fn_token;
     let generics = &decl.generics;
     let inputs = demutify(&decl.inputs);
     let output = match &decl.output{
-        syn::ReturnType::Default => quote!(-> ()),
+        ReturnType::Default => quote!(-> ()),
         _ => {
             let decl_output = &decl.output;
             quote!(#decl_output)
@@ -392,7 +388,7 @@ fn mock_function(vis: &syn::Visibility,
 
     for p in inputs.iter() {
         match p {
-            syn::FnArg::Captured(arg) => {
+            FnArg::Captured(arg) => {
                 args.push(arg.pat.clone());
             },
             _ => compile_error(p.span(),
@@ -401,8 +397,8 @@ fn mock_function(vis: &syn::Visibility,
     }
 
     let meth_vis = expectation_visibility(&vis, 1);
-    let mod_ident = syn::Ident::new(&format!("__{}", &ident), ident.span());
-    let sig = syn::MethodSig {
+    let mod_ident = Ident::new(&format!("__{}", &ident), ident.span());
+    let sig = MethodSig {
         constness,
         unsafety,
         asyncness,
@@ -414,15 +410,15 @@ fn mock_function(vis: &syn::Visibility,
     let altargs = &meth_types.altargs;
     let matchexprs = &meth_types.matchexprs;
     let expect_obj = &meth_types.expect_obj;
-    let expect_ident = syn::Ident::new(&format!("expect_{}", &ident),
+    let expect_ident = Ident::new(&format!("expect_{}", &ident),
                                        ident.span());
     let expect_vis = expectation_visibility(&vis, 2);
     let mut g = generics.clone();
-    let lt = syn::Lifetime::new("'guard", Span::call_site());
-    let ltd = syn::LifetimeDef::new(lt);
-    g.params.push(syn::GenericParam::Lifetime(ltd.clone()));
+    let lt = Lifetime::new("'guard", Span::call_site());
+    let ltd = LifetimeDef::new(lt);
+    g.params.push(GenericParam::Lifetime(ltd.clone()));
 
-    let obj = syn::Ident::new(
+    let obj = Ident::new(
         &format!("{}_expectation", ident),
         Span::call_site());
     // TODO: strip bounds from generics
@@ -448,9 +444,9 @@ fn mock_function(vis: &syn::Visibility,
 
 /// Implement a struct's methods on its mock struct.  Only works if the struct
 /// has a single impl block
-fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
+fn mock_impl(item_impl: ItemImpl) -> TokenStream {
     let name = match *item_impl.self_ty {
-        syn::Type::Path(type_path) => {
+        Type::Path(type_path) => {
             find_ident_from_path(&type_path.path).0
         },
         x => {
@@ -464,21 +460,21 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
     let mut attrs = Attrs::default();
     for item in item_impl.items.iter() {
         match item {
-            syn::ImplItem::Const(_) => {
+            ImplItem::Const(_) => {
                 // const items can easily be added by the user in a separate
                 // impl block
             },
-            syn::ImplItem::Method(meth) => {
+            ImplItem::Method(meth) => {
                 methods.push(meth.clone());
             },
-            syn::ImplItem::Type(ty) => {
-                let tity = syn::TraitItemType {
+            ImplItem::Type(ty) => {
+                let tity = TraitItemType {
                     attrs: ty.attrs.clone(),
                     type_token: ty.type_token,
                     ident: ty.ident.clone(),
                     generics: ty.generics.clone(),
                     colon_token: None,
-                    bounds: syn::punctuated::Punctuated::new(),
+                    bounds: Punctuated::new(),
                     default: Some((ty.eq_token, ty.ty.clone())),
                     semi_token: ty.semi_token
                 };
@@ -492,34 +488,34 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
         }
     };
     // automock makes everything public
-    let pub_token = syn::Token![pub](Span::call_site());
-    let vis = syn::Visibility::Public(syn::VisPublic{pub_token});
+    let pub_token = Token![pub](Span::call_site());
+    let vis = Visibility::Public(VisPublic{pub_token});
     let (methods, traits) = if let Some((_, path, _)) = item_impl.trait_ {
         let mut items = Vec::new();
         for ty in titys.into_iter() {
-            items.push(syn::TraitItem::Type(ty));
+            items.push(TraitItem::Type(ty));
         }
         for meth in methods.into_iter() {
-            let tim = syn::TraitItemMethod {
+            let tim = TraitItemMethod {
                 attrs: Vec::new(),
                 default: None,
                 sig: meth.sig.clone(),
                 semi_token: Some(Token![;](Span::call_site()))
             };
-            items.push(syn::TraitItem::Method(tim));
+            items.push(TraitItem::Method(tim));
         }
         let path_args = &path.segments.last().unwrap().value().arguments;
-        let trait_ = syn::ItemTrait {
+        let trait_ = ItemTrait {
             attrs: item_impl.attrs.clone(),
             vis: vis.clone(),
             unsafety: item_impl.unsafety,
             auto_token: None,
-            trait_token: syn::token::Trait::default(),
+            trait_token: token::Trait::default(),
             ident: find_ident_from_path(&path).0,
             generics: filter_generics(&item_impl.generics, path_args),
             colon_token: None,
-            supertraits: syn::punctuated::Punctuated::new(),
-            brace_token: syn::token::Brace::default(),
+            supertraits: Punctuated::new(),
+            brace_token: token::Brace::default(),
             items
         };
         let concretized_trait = attrs.substitute_trait(&trait_);
@@ -539,10 +535,10 @@ fn mock_impl(item_impl: syn::ItemImpl) -> TokenStream {
 }
 
 /// Generate mock functions for an entire module
-fn mock_module(mod_: syn::ItemMod) -> TokenStream {
+fn mock_module(mod_: ItemMod) -> TokenStream {
     let mut body = TokenStream::new();
     let mut cp_body = TokenStream::new();
-    let modname = syn::Ident::new(&format!("mock_{}", mod_.ident),
+    let modname = Ident::new(&format!("mock_{}", mod_.ident),
         mod_.ident.span());
 
     let items = if let Some((_, items)) = mod_.content {
@@ -552,47 +548,47 @@ fn mock_module(mod_: syn::ItemMod) -> TokenStream {
     };
     for item in items.iter() {
         match item {
-            syn::Item::ExternCrate(_) | syn::Item::Use(_)
-                | syn::Item::Impl(_) =>
+            Item::ExternCrate(_) | Item::Use(_)
+                | Item::Impl(_) =>
             {
                 // Ignore
             },
-            syn::Item::Static(is) => {
+            Item::Static(is) => {
                 is.to_tokens(&mut body)
             },
-            syn::Item::Const(ic) => ic.to_tokens(&mut body),
-            syn::Item::Fn(f) => {
-                let obj = syn::Ident::new(
+            Item::Const(ic) => ic.to_tokens(&mut body),
+            Item::Fn(f) => {
+                let obj = Ident::new(
                     &format!("{}_expectation", &f.ident),
                     Span::call_site());
                 quote!(#obj.lock().unwrap().checkpoint();)
                     .to_tokens(&mut cp_body);
                 mock_native_function(&f).to_tokens(&mut body);
             },
-            syn::Item::Mod(_) | syn::Item::ForeignMod(_)
-                | syn::Item::Struct(_) | syn::Item::Enum(_)
-                | syn::Item::Union(_) | syn::Item::Trait(_) =>
+            Item::Mod(_) | Item::ForeignMod(_)
+                | Item::Struct(_) | Item::Enum(_)
+                | Item::Union(_) | Item::Trait(_) =>
             {
                 compile_error(item.span(),
                     "Mockall does not yet support deriving nested mocks");
             },
-            syn::Item::Type(ty) => {
+            Item::Type(ty) => {
                 // Copy verbatim
                 ty.to_tokens(&mut body)
             },
-            syn::Item::Existential(_) => {
+            Item::Existential(_) => {
                 compile_error(item.span(),
                     "Mockall does not yet support named existential types");
             },
-            syn::Item::TraitAlias(ta) => {
+            Item::TraitAlias(ta) => {
                 // Copy verbatim
                 ta.to_tokens(&mut body)
             },
-            syn::Item::Macro(m) => compile_error(m.span(),
+            Item::Macro(m) => compile_error(m.span(),
                 "Mockall does not support macros in this context"),
-            syn::Item::Macro2(m) => compile_error(m.span(),
+            Item::Macro2(m) => compile_error(m.span(),
                 "Mockall does not support macros in this context"),
-            syn::Item::Verbatim(v) => compile_error(v.span(),
+            Item::Verbatim(v) => compile_error(v.span(),
                 "Content unrecognized by Mockall"),
         }
     }
@@ -603,13 +599,13 @@ fn mock_module(mod_: syn::ItemMod) -> TokenStream {
 
 /// Mock a function the same way we mock static trait methods: with a
 /// global Expectations object
-fn mock_native_function(f: &syn::ItemFn) -> TokenStream {
+fn mock_native_function(f: &ItemFn) -> TokenStream {
     mock_function(&f.vis, f.constness, f.unsafety, f.asyncness, &f.ident,
                   &f.decl)
 }
 
 /// Generate a mock struct that implements a trait
-fn mock_trait(attrs: Attrs, item: syn::ItemTrait) -> TokenStream {
+fn mock_trait(attrs: Attrs, item: ItemTrait) -> TokenStream {
     let trait_ = attrs.substitute_trait(&item);
     let mock = Mock {
         vis: item.vis.clone(),
@@ -624,23 +620,23 @@ fn mock_trait(attrs: Attrs, item: syn::ItemTrait) -> TokenStream {
 pub(crate)
 fn do_automock(attr_stream: TokenStream, input: TokenStream) -> TokenStream
 {
-    let attrs: Attrs = match syn::parse2(attr_stream) {
+    let attrs: Attrs = match parse2(attr_stream) {
         Ok(a) => a,
         Err(err) => {
             return err.to_compile_error();
         }
     };
-    let item: syn::Item = match syn::parse2(input) {
+    let item: Item = match parse2(input) {
         Ok(item) => item,
         Err(err) => {
             return err.to_compile_error();
         }
     };
     match item {
-        syn::Item::Impl(item_impl) => mock_impl(item_impl),
-        syn::Item::ForeignMod(foreign_mod) => mock_foreign(attrs, foreign_mod),
-        syn::Item::Mod(item_mod) => mock_module(item_mod),
-        syn::Item::Trait(item_trait) => mock_trait(attrs, item_trait),
+        Item::Impl(item_impl) => mock_impl(item_impl),
+        Item::ForeignMod(foreign_mod) => mock_foreign(attrs, foreign_mod),
+        Item::Mod(item_mod) => mock_module(item_mod),
+        Item::Trait(item_trait) => mock_trait(attrs, item_trait),
         _ => {
             compile_error(item.span(),
                 "#[automock] does not support this item type");
@@ -659,9 +655,9 @@ mod t {
     fn check_substitute_type(attrs: TokenStream, input: TokenStream,
         expected: TokenStream)
     {
-        let _self: super::Attrs = syn::parse2(attrs).unwrap();
-        let mut in_ty: syn::Type = syn::parse2(input).unwrap();
-        let expect_ty: syn::Type = syn::parse2(expected).unwrap();
+        let _self: super::Attrs = parse2(attrs).unwrap();
+        let mut in_ty: Type = parse2(input).unwrap();
+        let expect_ty: Type = parse2(expected).unwrap();
         _self.substitute_type(&mut in_ty);
         assert_eq!(in_ty, expect_ty);
     }

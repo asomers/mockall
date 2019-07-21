@@ -12,10 +12,7 @@ extern crate proc_macro;
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::{
-    Token,
-    spanned::Spanned
-};
+use syn::{*, punctuated::Punctuated, spanned::Spanned};
 
 mod automock;
 mod expectation;
@@ -26,19 +23,19 @@ use crate::mock::{Mock, do_mock};
 struct MethodTypes {
     is_static: bool,
     /// Type of Expectation returned by the expect method
-    expectation: syn::Type,
+    expectation: Type,
     /// Type of Expectations container used by the expect method, without its
     /// generics fields
-    expectations: syn::Type,
+    expectations: Type,
     /// Type of Expectations object stored in the mock structure, with generics
     /// fields
-    expect_obj: syn::Type,
+    expect_obj: Type,
     /// Method to call when invoking the expectation
-    call: syn::Ident,
+    call: Ident,
     /// Version of the arguments used for the Predicates
-    altargs: syn::punctuated::Punctuated<syn::FnArg, Token![,]>,
+    altargs: Punctuated<FnArg, Token![,]>,
     /// Expressions producing references from the arguments
-    matchexprs: syn::punctuated::Punctuated<syn::Expr, Token![,]>,
+    matchexprs: Punctuated<Expr, Token![,]>,
 }
 
 cfg_if! {
@@ -59,22 +56,22 @@ cfg_if! {
 }
 
 /// Replace any "impl trait" types with "Box<dyn trait>" equivalents
-fn deimplify(ty: &mut syn::Type) {
-    if let syn::Type::ImplTrait(tit) = ty {
+fn deimplify(ty: &mut Type) {
+    if let Type::ImplTrait(tit) = ty {
         let bounds = &tit.bounds;
-        *ty = syn::parse2(quote!(Box<dyn #bounds>)).unwrap();
+        *ty = parse2(quote!(Box<dyn #bounds>)).unwrap();
     }
 }
 
 /// Remove any mutability qualifiers from a method's argument list
-fn demutify(args: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>)
-    -> syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>
+fn demutify(args: &Punctuated<FnArg, token::Comma>)
+    -> Punctuated<FnArg, token::Comma>
 {
     let mut output = args.clone();
     for arg in output.iter_mut() {
         match arg {
-            syn::FnArg::SelfValue(arg_self) => arg_self.mutability = None,
-            syn::FnArg::Captured(arg_captured) => demutify_arg(arg_captured),
+            FnArg::SelfValue(arg_self) => arg_self.mutability = None,
+            FnArg::Captured(arg_captured) => demutify_arg(arg_captured),
             _ => (),    // Nothing to do
         }
     }
@@ -82,13 +79,13 @@ fn demutify(args: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>)
 }
 
 /// Remove any "mut" from a method argument's binding.
-fn demutify_arg(arg: &mut syn::ArgCaptured) {
+fn demutify_arg(arg: &mut ArgCaptured) {
     match arg.pat {
-        syn::Pat::Wild(_) => {
+        Pat::Wild(_) => {
             compile_error(arg.span(),
                 "Mocked methods must have named arguments");
         },
-        syn::Pat::Ident(ref mut pat_ident) => {
+        Pat::Ident(ref mut pat_ident) => {
             if let Some(r) = &pat_ident.by_ref {
                 compile_error(r.span(),
                     "Mockall does not support by-reference argument bindings");
@@ -107,29 +104,29 @@ fn demutify_arg(arg: &mut syn::ArgCaptured) {
 
 /// Replace any references to `Self` in `literal_type` with `actual`.  Useful
 /// for constructor methods
-fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
+fn deselfify(literal_type: &mut Type, actual: &Ident) {
     match literal_type {
-        syn::Type::Slice(s) => {
+        Type::Slice(s) => {
             deselfify(s.elem.as_mut(), actual);
         },
-        syn::Type::Array(a) => {
+        Type::Array(a) => {
             deselfify(a.elem.as_mut(), actual);
         },
-        syn::Type::Ptr(p) => {
+        Type::Ptr(p) => {
             deselfify(p.elem.as_mut(), actual);
         },
-        syn::Type::Reference(r) => {
+        Type::Reference(r) => {
             deselfify(r.elem.as_mut(), actual);
         },
-        syn::Type::BareFn(_bfn) => {
+        Type::BareFn(_bfn) => {
             unimplemented!()
         },
-        syn::Type::Tuple(tuple) => {
+        Type::Tuple(tuple) => {
             for elem in tuple.elems.iter_mut() {
                 deselfify(elem, actual);
             }
         }
-        syn::Type::Path(type_path) => {
+        Type::Path(type_path) => {
             if let Some(ref _qself) = type_path.qself {
                 compile_error(type_path.span(), "QSelf is TODO");
             }
@@ -138,14 +135,13 @@ fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
                 if seg.ident == "Self" {
                     seg.ident = actual.clone()
                 }
-                if let syn::PathArguments::AngleBracketed(abga) =
-                    &mut seg.arguments
+                if let PathArguments::AngleBracketed(abga) = &mut seg.arguments
                 {
                     for arg in abga.args.iter_mut() {
                         match arg {
-                            syn::GenericArgument::Type(ty) =>
+                            GenericArgument::Type(ty) =>
                                 deselfify(ty, actual),
-                            syn::GenericArgument::Binding(b) =>
+                            GenericArgument::Binding(b) =>
                                 deselfify(&mut b.ty, actual),
                             _ => /* Nothing to do */(),
                         }
@@ -153,36 +149,35 @@ fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
                 }
             }
         },
-        syn::Type::Paren(p) => {
+        Type::Paren(p) => {
             deselfify(p.elem.as_mut(), actual);
         },
-        syn::Type::Group(g) => {
+        Type::Group(g) => {
             deselfify(g.elem.as_mut(), actual);
         },
-        syn::Type::Macro(_) | syn::Type::Verbatim(_) => {
+        Type::Macro(_) | Type::Verbatim(_) => {
             compile_error(literal_type.span(),
                 "mockall_derive does not support this type as a return argument");
         },
-        syn::Type::ImplTrait(_) => {
+        Type::ImplTrait(_) => {
             panic!("deimplify should've already been run on this output type");
         },
-        syn::Type::TraitObject(tto) => {
+        Type::TraitObject(tto) => {
             // Change types like `dyn Self` into `MockXXX`.  For now,
             // don't worry about multiple trait bounds, because they aren't very
             // useful in combination with Self.
             if tto.bounds.len() == 1 {
-                if let syn::TypeParamBound::Trait(t)
+                if let TypeParamBound::Trait(t)
                     = tto.bounds.first().unwrap().value()
                 {
                     let path = &t.path;
-                    let mut new_type: syn::Type
-                        = syn::parse2(quote!(#path)).unwrap();
+                    let mut new_type: Type = parse2(quote!(#path)).unwrap();
                     deselfify(&mut new_type, actual);
                     *literal_type = new_type;
                 }
             }
         },
-        syn::Type::Infer(_) | syn::Type::Never(_) =>
+        Type::Infer(_) | Type::Never(_) =>
         {
             /* Nothing to do */
         }
@@ -190,57 +185,45 @@ fn deselfify(literal_type: &mut syn::Type, actual: &syn::Ident) {
 }
 
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
-fn gen_mock_ident(ident: &syn::Ident) -> syn::Ident {
-    syn::Ident::new(&format!("Mock{}", ident), ident.span())
+fn gen_mock_ident(ident: &Ident) -> Ident {
+    Ident::new(&format!("Mock{}", ident), ident.span())
 }
 
 /// Generate an identifier for the mock struct's private module: eg "Foo" =>
 /// "__mock_Foo"
-fn gen_mod_ident(struct_: &syn::Ident, trait_: Option<&syn::Ident>)
-    -> syn::Ident
+fn gen_mod_ident(struct_: &Ident, trait_: Option<&Ident>)
+    -> Ident
 {
     if let Some(t) = trait_ {
-        syn::Ident::new(&format!("__mock_{}_{}", struct_, t), struct_.span())
+        Ident::new(&format!("__mock_{}_{}", struct_, t), struct_.span())
     } else {
-        syn::Ident::new(&format!("__mock_{}", struct_), struct_.span())
+        Ident::new(&format!("__mock_{}", struct_), struct_.span())
     }
 }
 
 /// Combine two Generics structs, producing a new one that has the union of
 /// their parameters.  The output's parameter bounds are not accurate!
-fn merge_generics(x: &syn::Generics, y: &syn::Generics) -> syn::Generics {
+fn merge_generics(x: &Generics, y: &Generics) -> Generics {
     /// Compare only the identifiers of two GenericParams
-    fn cmp_gp_idents(x: &syn::GenericParam, y: &syn::GenericParam) -> bool {
-        use syn::GenericParam::*;
+    fn cmp_gp_idents(x: &GenericParam, y: &GenericParam) -> bool {
+        use GenericParam::*;
 
         match (x, y) {
-            (Type(xtp), Type(ytp)) => {
-                xtp.ident == ytp.ident
-            },
-            (Lifetime(xld), Lifetime(yld)) => {
-                xld.lifetime == yld.lifetime
-            },
-            (Const(xc), Const(yc)) => {
-                xc.ident == yc.ident
-            },
+            (Type(xtp), Type(ytp)) => xtp.ident == ytp.ident,
+            (Lifetime(xld), Lifetime(yld)) => xld.lifetime == yld.lifetime,
+            (Const(xc), Const(yc)) => xc.ident == yc.ident,
             _ => false
         }
     }
 
     /// Compare only the identifiers of two WherePredicates
-    fn cmp_wp_idents(x: &syn::WherePredicate, y: &syn::WherePredicate) -> bool {
-        use syn::WherePredicate::*;
+    fn cmp_wp_idents(x: &WherePredicate, y: &WherePredicate) -> bool {
+        use WherePredicate::*;
 
         match (x, y) {
-            (Type(xpt), Type(ypt)) => {
-                xpt.bounded_ty == ypt.bounded_ty
-            },
-            (Lifetime(xpl), Lifetime(ypl)) => {
-                xpl.lifetime == ypl.lifetime
-            },
-            (Eq(xeq), Eq(yeq)) => {
-                xeq.lhs_ty == yeq.lhs_ty
-            },
+            (Type(xpt), Type(ypt)) => xpt.bounded_ty == ypt.bounded_ty,
+            (Lifetime(xpl), Lifetime(ypl)) => xpl.lifetime == ypl.lifetime,
+            (Eq(xeq), Eq(yeq)) => xeq.lhs_ty == yeq.lhs_ty,
             _ => false
         }
     }
@@ -282,28 +265,28 @@ fn merge_generics(x: &syn::Generics, y: &syn::Generics) -> syn::Generics {
 /// # Arguments
 /// - `vis`:    Original visibility of the item
 /// - `levels`: How many modules will the mock item be nested in?
-fn expectation_visibility(vis: &syn::Visibility, levels: u32)
-    -> syn::Visibility
+fn expectation_visibility(vis: &Visibility, levels: u32)
+    -> Visibility
 {
     debug_assert!(levels > 0);
     let in_token = Token![in](vis.span());
     let super_token = Token![super](vis.span());
     match vis {
-        syn::Visibility::Inherited => {
+        Visibility::Inherited => {
             // Private items need pub(in super::[...]) for each level
-            let mut path = syn::Path::from(super_token);
+            let mut path = Path::from(super_token);
             for _ in 1..levels {
                 path.segments.push(super_token.into());
             }
-            let supersuper = syn::Visibility::Restricted(syn::VisRestricted{
+            let supersuper = Visibility::Restricted(VisRestricted{
                 pub_token: Token![pub](vis.span()),
-                paren_token: syn::token::Paren::default(),
+                paren_token: token::Paren::default(),
                 in_token: Some(in_token),
                 path: Box::new(path)
             });
             supersuper.into()
         },
-        syn::Visibility::Restricted(vr) => {
+        Visibility::Restricted(vr) => {
             // crate => don't change
             // in crate::* => don't change
             // super => in super::super::super
@@ -331,14 +314,13 @@ fn expectation_visibility(vis: &syn::Visibility, levels: u32)
 /// * `sig`:            Signature of the original method
 /// * `generics`:       Generics of the method's parent trait or structure,
 ///                     _not_ the method itself.
-fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
+fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     -> MethodTypes
 {
     let mut is_static = true;
-    let mut altargs = syn::punctuated::Punctuated::new();
-    let mut matchexprs = syn::punctuated::Punctuated::new();
-    let mut args
-        = syn::punctuated::Punctuated::<syn::Type, Token![,]>::new();
+    let mut altargs = Punctuated::new();
+    let mut matchexprs = Punctuated::new();
+    let mut args = Punctuated::<Type, Token![,]>::new();
     let ident = &sig.ident;
     let is_generic = !sig.decl.generics.params.is_empty();
     let merged_g = if let Some(g) = generics {
@@ -349,60 +331,51 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
     let (_ig, tg, _wc) = merged_g.split_for_impl();
     for (i, fn_arg) in sig.decl.inputs.iter().enumerate() {
         match fn_arg {
-            syn::FnArg::Captured(arg) => {
+            FnArg::Captured(arg) => {
                 args.push(arg.ty.clone());
-                let mep = if let syn::Pat::Ident(arg_ident) = &arg.pat {
-                    syn::Expr::Path(syn::ExprPath{
+                let mep = if let Pat::Ident(arg_ident) = &arg.pat {
+                    Expr::Path(ExprPath{
                         attrs: Vec::new(),
                         qself: None,
-                        path: syn::Path::from(arg_ident.ident.clone())
+                        path: Path::from(arg_ident.ident.clone())
                     })
                 } else {
                     compile_error(arg.span(),
                         "Unexpected argument pattern in function declaration");
                     break;
                 };
-                let alt_ty = if let syn::Type::Reference(tr) = &arg.ty {
+                let alt_ty = if let Type::Reference(tr) = &arg.ty {
                     // /* Remove any "mut" */
-                    //let mut alt_tr = tr.clone();
-                    //alt_tr.mutability = None;
                     matchexprs.push(mep);
                     (*tr.elem).clone()
-                    //syn::Type::Reference(alt_tr)
                 } else {
-                    let matchexpr = syn::Expr::Reference(syn::ExprReference {
+                    let matchexpr = Expr::Reference(ExprReference {
                         attrs: Vec::new(),
-                        and_token: syn::Token![&](arg.span()),
+                        and_token: Token![&](arg.span()),
                         mutability: None,
                         expr: Box::new(mep)
                     });
                     matchexprs.push(matchexpr);
                     arg.ty.clone()
-                    //syn::Type::Reference(syn::TypeReference{
-                        //and_token: syn::Token![&](arg.span()),
-                        //lifetime: None,
-                        //mutability: None,
-                        //elem: Box::new(arg.ty.clone())
-                    //})
                 };
-                let altident = syn::Ident::new(&format!("p{}", i), arg.span());
-                let altpat = syn::Pat::Ident(syn::PatIdent {
+                let altident = Ident::new(&format!("p{}", i), arg.span());
+                let altpat = Pat::Ident(PatIdent {
                     by_ref: None,
                     mutability: None,
                     ident: altident,
                     subpat: None
                 });
-                let altarg = syn::FnArg::Captured(syn::ArgCaptured {
+                let altarg = FnArg::Captured(ArgCaptured {
                     pat: altpat,
-                    colon_token: syn::Token![:](arg.span()),
+                    colon_token: Token![:](arg.span()),
                     ty: alt_ty
                 });
                 altargs.push(altarg);
             },
-            syn::FnArg::SelfRef(_) => {
+            FnArg::SelfRef(_) => {
                 is_static = false;
             },
-            syn::FnArg::SelfValue(_) => {
+            FnArg::SelfValue(_) => {
                 is_static = false;
             },
             _ => compile_error(fn_arg.span(),
@@ -412,44 +385,44 @@ fn method_types(sig: &syn::MethodSig, generics: Option<&syn::Generics>)
 
     let span = Span::call_site();
     let call = match &sig.decl.output {
-        syn::ReturnType::Default => {
-            syn::Ident::new("call", span)
+        ReturnType::Default => {
+            Ident::new("call", span)
         },
-        syn::ReturnType::Type(_, ty) => {
+        ReturnType::Type(_, ty) => {
             match ty.as_ref() {
-                syn::Type::Reference(r) => {
+                Type::Reference(r) => {
                     if let Some(ref lt) = r.lifetime {
                         if lt.ident != "static" {
                             compile_error(r.span(), "Non-'static non-'self lifetimes are not yet supported");
                         }
                     }
                     if r.mutability.is_some() {
-                        syn::Ident::new("call_mut", span)
+                        Ident::new("call_mut", span)
                     } else {
-                        syn::Ident::new("call", span)
+                        Ident::new("call", span)
                     }
                 },
-                _ => syn::Ident::new("call", span)
+                _ => Ident::new("call", span)
             }
         }
     };
 
-    let expectation_ident = syn::Ident::new("Expectation", span);
+    let expectation_ident = Ident::new("Expectation", span);
     let expectations_ident = if is_generic {
-        syn::Ident::new("GenericExpectations", span)
+        Ident::new("GenericExpectations", span)
     } else {
-        syn::Ident::new("Expectations", span)
+        Ident::new("Expectations", span)
     };
-    let expectations = syn::parse2(
+    let expectations = parse2(
         quote!(#ident::#expectations_ident)
     ).unwrap();
     let expect_obj = if is_generic {
-        syn::parse2(quote!(#expectations)).unwrap()
+        parse2(quote!(#expectations)).unwrap()
     } else {
-        syn::parse2(quote!(#expectations #tg)).unwrap()
+        parse2(quote!(#expectations #tg)).unwrap()
     };
     let expect_ts = quote!(#ident::#expectation_ident #tg);
-    let expectation: syn::Type = syn::parse2(expect_ts).unwrap();
+    let expectation: Type = parse2(expect_ts).unwrap();
 
     MethodTypes{is_static, expectation, expectations,
                 call, expect_obj, altargs, matchexprs}

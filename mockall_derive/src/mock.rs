@@ -1,12 +1,8 @@
 // vim: tw=80
 use super::*;
-use quote::{ToTokens, quote};
+use quote::ToTokens;
 use std::borrow::Borrow;
-use syn::{
-    braced,
-    parse::{Parse, ParseStream},
-    spanned::Spanned,
-};
+use syn::parse::{Parse, ParseStream};
 use crate::expectation::expectation;
 
 pub(crate) struct Mock {
@@ -385,11 +381,10 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             quote!(<>).to_tokens(&mut macro_g);
         }
 
-        let ecode = expectation(&attrs, &expect_vis, Some(&mock_ident), &meth_ident,
-            &merged_g, &args, &meth.borrow().sig.decl.output, &altargs,
-            &matchexprs);
+        let ecode = expectation(&attrs, &expect_vis, Some(&mock_ident),
+            &meth_ident, &merged_g, &args, &meth.borrow().sig.decl.output,
+            &altargs, &matchexprs);
         ecode.to_tokens(&mut mod_body);
-        //println!("{}", &mod_body);
 
         if meth_types.is_static {
             let name = syn::Ident::new(

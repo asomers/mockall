@@ -1,53 +1,47 @@
 // vim: tw=80
 //! A replacement for the old (omnimacro era) expectation!
 
-use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use super::*;
 use std::iter::{FromIterator, IntoIterator};
-use syn::Token;
 
 /// Convert a special reference type like "&str" into a reference to its owned
 /// type like "&String".
-fn destrify(ty: &mut syn::Type) {
-    if let syn::Type::Reference(ref mut tr) = ty {
-        let path_ty: syn::TypePath = syn::parse2(quote!(Path)).unwrap();
-        let pathbuf_ty: syn::Type = syn::parse2(quote!(::std::path::PathBuf))
-            .unwrap();
+fn destrify(ty: &mut Type) {
+    if let Type::Reference(ref mut tr) = ty {
+        let path_ty: TypePath = parse2(quote!(Path)).unwrap();
+        let pathbuf_ty: Type = parse2(quote!(::std::path::PathBuf)).unwrap();
 
-        let str_ty: syn::TypePath = syn::parse2(quote!(str)).unwrap();
-        let string_ty: syn::Type = syn::parse2(quote!(::std::string::String))
-            .unwrap();
+        let str_ty: TypePath = parse2(quote!(str)).unwrap();
+        let string_ty: Type = parse2(quote!(::std::string::String)).unwrap();
 
-        let cstr_ty: syn::TypePath = syn::parse2(quote!(CStr)).unwrap();
-        let cstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::CString))
-            .unwrap();
+        let cstr_ty: TypePath = parse2(quote!(CStr)).unwrap();
+        let cstring_ty: Type = parse2(quote!(::std::ffi::CString)).unwrap();
 
-        let osstr_ty: syn::TypePath = syn::parse2(quote!(OsStr)).unwrap();
-        let osstring_ty: syn::Type = syn::parse2(quote!(::std::ffi::OsString))
-            .unwrap();
+        let osstr_ty: TypePath = parse2(quote!(OsStr)).unwrap();
+        let osstring_ty: Type = parse2(quote!(::std::ffi::OsString)).unwrap();
 
         match tr.elem.as_ref() {
-            syn::Type::Path(ref path) if *path == cstr_ty =>
+            Type::Path(ref path) if *path == cstr_ty =>
                 *tr.elem = cstring_ty,
-            syn::Type::Path(ref path) if *path == osstr_ty =>
+            Type::Path(ref path) if *path == osstr_ty =>
                 *tr.elem = osstring_ty,
-            syn::Type::Path(ref path) if *path == path_ty =>
+            Type::Path(ref path) if *path == path_ty =>
                 *tr.elem = pathbuf_ty,
-            syn::Type::Path(ref path) if *path == str_ty =>
+            Type::Path(ref path) if *path == str_ty =>
                 *tr.elem = string_ty,
             _ => (), // Nothing to do
         };
     }
 }
 
-fn split_args(args: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>)
-    -> (syn::punctuated::Punctuated<syn::Pat, Token![,]>,
-        syn::punctuated::Punctuated<syn::Type, Token![,]>)
+fn split_args(args: &Punctuated<FnArg, Token![,]>)
+    -> (Punctuated<Pat, Token![,]>,
+        Punctuated<Type, Token![,]>)
 {
-    let mut names = syn::punctuated::Punctuated::new();
-    let mut types = syn::punctuated::Punctuated::new();
+    let mut names = Punctuated::new();
+    let mut types = Punctuated::new();
     for fa in args {
-        if let syn::FnArg::Captured(ac) = fa {
+        if let FnArg::Captured(ac) = fa {
             names.push(ac.pat.clone());
             types.push(ac.ty.clone());
         }
@@ -55,12 +49,12 @@ fn split_args(args: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>)
     (names, types)
 }
 
-fn strip_self(args: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>)
-    -> syn::punctuated::Punctuated<syn::FnArg, Token![,]>
+fn strip_self(args: &Punctuated<FnArg, Token![,]>)
+    -> Punctuated<FnArg, Token![,]>
 {
-    let mut out = syn::punctuated::Punctuated::new();
+    let mut out = Punctuated::new();
     for fa in args {
-        if let syn::FnArg::Captured(_) = fa {
+        if let FnArg::Captured(_) = fa {
             out.push(fa.clone());
         }
     }
@@ -68,32 +62,32 @@ fn strip_self(args: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>)
 }
 
 /// Generate the code that implements an expectation for a single method
-pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
-    self_ident: Option<&syn::Ident>,
-    ident: &syn::Ident,
-    generics: &syn::Generics,
-    args: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>,
-    return_type: &syn::ReturnType,
-    altargs: &syn::punctuated::Punctuated<syn::FnArg, Token![,]>,
-    matchexprs: &syn::punctuated::Punctuated<syn::Expr, Token![,]>
+pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
+    self_ident: Option<&Ident>,
+    ident: &Ident,
+    generics: &Generics,
+    args: &Punctuated<FnArg, Token![,]>,
+    return_type: &ReturnType,
+    altargs: &Punctuated<FnArg, Token![,]>,
+    matchexprs: &Punctuated<Expr, Token![,]>
     ) -> TokenStream
 {
     let mut ref_expectation = false;
     let mut ref_mut_expectation = false;
     let mut static_method = true;
 
-    let static_bound = syn::Lifetime::new("'static", Span::call_site());
+    let static_bound = Lifetime::new("'static", Span::call_site());
 
     let output = match return_type{
-        syn::ReturnType::Default => quote!(()),
-        syn::ReturnType::Type(_, ty) => {
+        ReturnType::Default => quote!(()),
+        ReturnType::Type(_, ty) => {
             let mut rt = ty.clone();
             crate::deimplify(&mut rt);
             destrify(&mut rt);
             if let Some(i) = self_ident {
                 crate::deselfify(&mut rt, i);
             }
-            if let syn::Type::Reference(ref tr) = rt.as_ref() {
+            if let Type::Reference(ref tr) = rt.as_ref() {
                 if tr.lifetime.as_ref().map_or(false, |lt| lt.ident == "static")
                 {
                     // Just a static expectation
@@ -111,19 +105,19 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
     };
 
     let mut egenerics = generics.clone();
-    let mut macro_g = syn::punctuated::Punctuated::<syn::Ident, Token![,]>::new();
+    let mut macro_g = Punctuated::<Ident, Token![,]>::new();
     // Convert the TypeGenerics into a sequence of idents, because that's
     // what static_expectation! expects
     // TODO: once static_expectation! is gone, something like this:
     //generics.split_for_impl().1.to_tokens(&mut macro_g)
     for p in egenerics.params.iter_mut() {
-        if let syn::GenericParam::Type(tp) = p {
-            tp.bounds.push(syn::TypeParamBound::Lifetime(static_bound.clone()));
+        if let GenericParam::Type(tp) = p {
+            tp.bounds.push(TypeParamBound::Lifetime(static_bound.clone()));
         }
     }
     let (bounded_macro_g, _, _) = egenerics.split_for_impl();
     for p in generics.params.iter() {
-        if let syn::GenericParam::Type(tp) = p {
+        if let GenericParam::Type(tp) = p {
             macro_g.push(tp.ident.clone());
         }
     }
@@ -132,12 +126,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
         macro_g.push_punct(Token![,](Span::call_site()));
     }
     let mut eltgenerics = egenerics.clone();
-    let ltdef = syn::LifetimeDef::new(syn::Lifetime::new("'lt", Span::call_site()));
-    eltgenerics.params.push(syn::GenericParam::Lifetime(ltdef));
+    let ltdef = LifetimeDef::new(Lifetime::new("'lt", Span::call_site()));
+    eltgenerics.params.push(GenericParam::Lifetime(ltdef));
     let (bounded_lt_macro_g, _, _) = eltgenerics.split_for_impl();
     for fa in args {
         static_method &= match fa {
-            syn::FnArg::SelfRef(_) | syn::FnArg::SelfValue(_) => false,
+            FnArg::SelfRef(_) | FnArg::SelfValue(_) => false,
             _ => true
         };
     }
@@ -414,99 +408,96 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &syn::Visibility,
         }
         )
     } else if static_method {
-        let mut withfty: syn::punctuated::Punctuated<syn::Type, Token![,]> =
-            syn::punctuated::Punctuated::new();
-        let mut pred_args: syn::punctuated::Punctuated<syn::FnArg, Token![,]> =
-            syn::punctuated::Punctuated::new();
-        let mut pred_argnames: syn::punctuated::Punctuated<syn::Ident, Token![,]> =
-            syn::punctuated::Punctuated::new();
-        let mut pred_params = syn::punctuated::Punctuated::new();
+        let mut withfty: Punctuated<Type, Token![,]> = Punctuated::new();
+        let mut pred_args: Punctuated<FnArg, Token![,]> = Punctuated::new();
+        let mut pred_argnames: Punctuated<Ident, Token![,]> = Punctuated::new();
+        let mut pred_params = Punctuated::new();
         for (i, ty) in altargty.iter().enumerate() {
-            let tr = syn::TypeReference {
+            let tr = TypeReference {
                 and_token: Token![&](Span::call_site()),
                 lifetime: None,
                 mutability: None,
                 elem: Box::new(ty.clone())
             };
-            withfty.push(syn::Type::Reference(tr));
-            let mut bounds = syn::punctuated::Punctuated::new();
-            let mut segments = syn::punctuated::Punctuated::new();
-            let mockall_segment = syn::PathSegment {
-                ident: syn::Ident::new("mockall", Span::call_site()),
-                arguments: syn::PathArguments::None
+            withfty.push(Type::Reference(tr));
+            let mut bounds = Punctuated::new();
+            let mut segments = Punctuated::new();
+            let mockall_segment = PathSegment {
+                ident: Ident::new("mockall", Span::call_site()),
+                arguments: PathArguments::None
             };
-            let mut abga_args = syn::punctuated::Punctuated::new();
+            let mut abga_args = Punctuated::new();
             for ty in &argty {
-                abga_args.push(syn::GenericArgument::Type(ty.clone()));
+                abga_args.push(GenericArgument::Type(ty.clone()));
             }
-            let pred_abga = syn::AngleBracketedGenericArguments {
+            let pred_abga = AngleBracketedGenericArguments {
                 colon2_token: None,
                 lt_token: Token![<](Span::call_site()),
                 args: abga_args,
                 gt_token: Token![>](Span::call_site()),
             };
-            let pred_segment = syn::PathSegment {
-                ident: syn::Ident::new("Predicate", Span::call_site()),
-                arguments: syn::PathArguments::AngleBracketed(pred_abga)
+            let pred_segment = PathSegment {
+                ident: Ident::new("Predicate", Span::call_site()),
+                arguments: PathArguments::AngleBracketed(pred_abga)
             };
             segments.push(mockall_segment);
             segments.push(pred_segment);
             let leading_colon = Some(Token![::](Span::call_site()));
-            let pred_bound = syn::TraitBound {
+            let pred_bound = TraitBound {
                 paren_token: None,
-                modifier: syn::TraitBoundModifier::None,
+                modifier: TraitBoundModifier::None,
                 lifetimes: None,
-                path: syn::Path{leading_colon, segments}
+                path: Path{leading_colon, segments}
             };
-            let mut send_segments = syn::punctuated::Punctuated::new();
-            let send_ident = syn::Ident::new("Send", Span::call_site());
-            send_segments.push(syn::PathSegment::from(send_ident));
-            let send_bound = syn::TraitBound {
+            let mut send_segments = Punctuated::new();
+            let send_ident = Ident::new("Send", Span::call_site());
+            send_segments.push(PathSegment::from(send_ident));
+            let send_bound = TraitBound {
                 paren_token: None,
-                modifier: syn::TraitBoundModifier::None,
+                modifier: TraitBoundModifier::None,
                 lifetimes: None,
-                path: syn::Path{leading_colon: None, segments: send_segments}
+                path: Path{leading_colon: None, segments: send_segments}
             };
-            bounds.push(syn::TypeParamBound::Trait(pred_bound));
-            bounds.push(syn::TypeParamBound::Trait(send_bound));
-            bounds.push(syn::TypeParamBound::Lifetime(static_bound.clone()));
-            let pred_arg_name = syn::Ident::new(&format!("mockall_g{}", i),
+            bounds.push(TypeParamBound::Trait(pred_bound));
+            bounds.push(TypeParamBound::Trait(send_bound));
+            bounds.push(TypeParamBound::Lifetime(static_bound.clone()));
+            let pred_arg_name = Ident::new(&format!("mockall_g{}", i),
                 Span::call_site());
-            let pred_arg_ty = syn::Ident::new(&format!("MockallG{}", i),
+            let pred_arg_ty = Ident::new(&format!("MockallG{}", i),
                 Span::call_site());
-            let tp = syn::TypeParam {
+            let tp = TypeParam {
                 attrs: vec![],
                 ident: pred_arg_ty.clone(),
-                colon_token: Some(syn::Token![:](Span::call_site())),
+                colon_token: Some(Token![:](Span::call_site())),
                 bounds,
                 eq_token: None,
                 default: None
             };
-            pred_params.push(syn::GenericParam::Type(tp));
-            let ps = syn::PathSegment::from(pred_arg_ty);
+            pred_params.push(GenericParam::Type(tp));
+            let ps = PathSegment::from(pred_arg_ty);
             let piter = Some(ps).into_iter();
-            pred_args.push(syn::FnArg::from(syn::ArgCaptured {
-                pat: syn::Pat::from(syn::PatIdent {
+            pred_args.push(FnArg::from(ArgCaptured {
+                pat: Pat::from(PatIdent {
                     by_ref: None,
                     mutability: None,
                     ident: pred_arg_name.clone(),
                     subpat: None
                 }),
                 colon_token: Token![:](Span::call_site()),
-                ty: syn::Type::Path(syn::TypePath{
+                ty: Type::Path(TypePath{
                     qself: None,
-                    path: syn::Path {
+                    path: Path {
                         leading_colon: None,
-                        segments: syn::punctuated::Punctuated::from_iter(piter)
+                        segments: Punctuated::from_iter(piter)
                     }
                 }),
             }));
             pred_argnames.push(pred_arg_name);
         }
-        let pred_generics = syn::Generics {
-            lt_token: Some(syn::Token![<](Span::call_site())),
+        let pred_generics = Generics {
+            lt_token: Some(Token![<](Span::call_site())),
             params: pred_params,
-            gt_token: Some(syn::Token![>](Span::call_site())),
+            gt_token: Some(Token![>](Span::call_site())),
             where_clause: None
         };
         quote!(
