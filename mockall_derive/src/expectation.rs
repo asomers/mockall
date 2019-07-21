@@ -296,7 +296,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             impl #bounded_macro_g Expectation<#macro_g> {
                 /// Simulating calling the real method for this expectation
                 #vis fn call_mut(&mut self, #selfless_args) -> &mut #output {
-                    self.common.call(#selfless_args);
+                    self.common.call(#matchexprs);
                     if let Some(ref mut f) = self.rfunc {
                         self.result = Some(f(#argnames));
                     }

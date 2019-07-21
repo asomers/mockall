@@ -742,7 +742,7 @@ mod ref_mut_return {
 
     mock! {
         Foo {
-            fn foo(&mut self) -> &mut u32;
+            fn foo(&mut self, i: u32) -> &mut u32;
         }
     }
 
@@ -752,11 +752,11 @@ mod ref_mut_return {
         mock.expect_foo()
             .return_var(5u32);
         {
-            let r = mock.foo();
+            let r = mock.foo(0);
             assert_eq!(5, *r);
             *r = 6;
         }
-        assert_eq!(6, *mock.foo());
+        assert_eq!(6, *mock.foo(0));
     }
 }
 
