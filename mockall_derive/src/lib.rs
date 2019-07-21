@@ -56,10 +56,12 @@ cfg_if! {
 }
 
 /// Replace any "impl trait" types with "Box<dyn trait>" equivalents
-fn deimplify(ty: &mut Type) {
-    if let Type::ImplTrait(tit) = ty {
-        let bounds = &tit.bounds;
-        *ty = parse2(quote!(Box<dyn #bounds>)).unwrap();
+fn deimplify(rt: &mut ReturnType) {
+    if let ReturnType::Type(_, ty) = rt {
+        if let Type::ImplTrait(ref tit) = &**ty {
+            let bounds = &tit.bounds;
+            *ty = parse2(quote!(Box<dyn #bounds>)).unwrap();
+        }
     }
 }
 

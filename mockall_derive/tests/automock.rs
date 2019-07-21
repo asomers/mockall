@@ -85,33 +85,35 @@ mod constructor {
         }
     }
 
-    // TODO: FIXME
-    //mod impl_trait {
-        //use super::*;
+    mod impl_trait {
+        use super::*;
 
-        //trait Foo {}
-        //struct A{}
+        trait Foo {}
+        #[allow(unused)]
+        struct A{}
 
-        //struct Bar {}
-        //impl Foo for Bar {}
+        #[allow(unused)]
+        struct Bar {}
+        impl Foo for Bar {}
 
-        //#[automock]
-        //impl A {
-            //fn new(&self) -> impl Foo {
-                //Bar{}
-            //}
-        //}
+        #[allow(unused)]
+        #[automock]
+        impl A {
+            fn new() -> impl Foo {
+                Bar{}
+            }
+        }
 
-        //#[test]
-        //fn t() {
-            //MockA::expect_new().returning(|| {
-                //struct Baz {}
-                //impl Foo for Baz {}
-                //Box::new(Baz{})
-            //});
-            //let _a = MockA::new();
-        //}
-    //}
+        #[test]
+        fn t() {
+            MockA::expect_new().returning(|| {
+                struct Baz {}
+                impl Foo for Baz {}
+                Box::new(Baz{})
+            });
+            let _a = MockA::new();
+        }
+    }
 
     mod in_struct {
         use super::*;

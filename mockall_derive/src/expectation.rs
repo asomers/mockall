@@ -82,7 +82,6 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         ReturnType::Default => quote!(()),
         ReturnType::Type(_, ty) => {
             let mut rt = ty.clone();
-            crate::deimplify(&mut rt);
             destrify(&mut rt);
             if let Some(i) = self_ident {
                 crate::deselfify(&mut rt, i);

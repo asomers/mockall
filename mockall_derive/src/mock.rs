@@ -223,7 +223,8 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let (ig, tg, wc) = sig.decl.generics.split_for_impl();
     let merged_g = merge_generics(&generics, &sig.decl.generics);
     let inputs = demutify(&sig.decl.inputs);
-    let output = &sig.decl.output;
+    let mut output = sig.decl.output.clone();
+    deimplify(&mut output);
     let attrs = format_attrs(meth_attrs);
 
     // First the mock method
@@ -372,6 +373,8 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         let altargs = &meth_types.altargs;
         let matchexprs = &meth_types.matchexprs;
         let meth_ident = &meth.borrow().sig.ident;
+        let mut output = meth.borrow().sig.decl.output.clone();
+        deimplify(&mut output);
 
         let expect_vis = expectation_visibility(&meth.borrow().vis, 2);
         let meth_generics = &meth.borrow().sig.decl.generics;
@@ -385,8 +388,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         }
 
         let ecode = expectation(&attrs, &expect_vis, Some(&mock_ident),
-            &meth_ident, &merged_g, &args, &meth.borrow().sig.decl.output,
-            &altargs, &matchexprs);
+            &meth_ident, &merged_g, &args, &output, &altargs, &matchexprs);
         ecode.to_tokens(&mut mod_body);
 
         if meth_types.is_static {
