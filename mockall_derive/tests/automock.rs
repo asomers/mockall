@@ -5,7 +5,7 @@
 // code
 #![cfg_attr(feature = "nightly", feature(proc_macro_hygiene))]
 
-//use cfg_if::cfg_if;
+use cfg_if::cfg_if;
 use mockall_derive::*;
 use std::{
     ffi::{CStr, CString, OsStr, OsString},
@@ -163,53 +163,53 @@ fn consume_parameters() {
     mock.foo(NonCopy{});
 }
 
-//mod foreign {
-    //use super::*;
+mod foreign {
+    use super::*;
 
-    //mod c {
-        //use super::*;
+    mod c {
+        use super::*;
 
-        //#[automock(mod mock_ffi;)]
-        //extern "C" {
-            //#[allow(unused)]
-            //fn foo(x: u32) -> i64;
-        //}
+        #[automock(mod mock_ffi;)]
+        extern "C" {
+            #[allow(unused)]
+            fn foo(x: u32) -> i64;
+        }
 
-        //#[test]
-        //fn t() {
-            //mock_ffi::expect_foo().returning(i64::from);
-            //assert_eq!(42, unsafe{mock_ffi::foo(42)});
-        //}
-    //}
+        #[test]
+        fn t() {
+            mock_ffi::expect_foo().returning(i64::from);
+            assert_eq!(42, unsafe{mock_ffi::foo(42)});
+        }
+    }
 
-    //#[test]
-    //fn rust() {
-        //#[automock(mod mock_ffi;)]
-        //extern "Rust" {
-            //#[allow(unused)]
-            //fn foo(x: u32) -> i64;
-        //}
+    #[test]
+    fn rust() {
+        #[automock(mod mock_ffi;)]
+        extern "Rust" {
+            #[allow(unused)]
+            fn foo(x: u32) -> i64;
+        }
 
-        //mock_ffi::expect_foo().returning(i64::from);
-        //assert_eq!(42, unsafe{mock_ffi::foo(42)});
-    //}
+        mock_ffi::expect_foo().returning(i64::from);
+        assert_eq!(42, unsafe{mock_ffi::foo(42)});
+    }
 
-    //mod return_unit {
-        //use super::*;
+    mod return_unit {
+        use super::*;
 
-        //#[automock(mod mock_ffi;)]
-        //extern "C" {
-            //#[allow(unused)]
-            //fn foo();
-        //}
+        #[automock(mod mock_ffi;)]
+        extern "C" {
+            #[allow(unused)]
+            fn foo();
+        }
 
-        //#[test]
-        //fn t() {
-            //mock_ffi::expect_foo().returning(|| ());
-            //unsafe{mock_ffi::foo()};
-        //}
-    //}
-//}
+        #[test]
+        fn t() {
+            mock_ffi::expect_foo().returning(|| ());
+            unsafe{mock_ffi::foo()};
+        }
+    }
+}
 
 #[test]
 fn generic_arguments() {
@@ -255,18 +255,18 @@ fn generic_return() {
     assert_eq!(42i16, mock.foo(-1i16));
 }
 
-//#[test]
-//fn generic_static_method() {
-    //#[automock]
-    //trait A {
-        //fn bar<T: 'static>(t: T) -> u32;
-    //}
+#[test]
+fn generic_static_method() {
+    #[automock]
+    trait A {
+        fn bar<T: 'static>(t: T) -> u32;
+    }
 
-    //MockA::expect_bar::<i16>()
-        //.times(1)
-        //.returning(|_| 42);
-    //assert_eq!(42, MockA::bar(-1i16));
-//}
+    MockA::expect_bar::<i16>()
+        .times(1)
+        .returning(|_| 42);
+    assert_eq!(42, MockA::bar(-1i16));
+}
 
 #[test]
 fn generic_struct() {
@@ -496,22 +496,22 @@ fn method_self_by_value() {
     assert_eq!(5, mock.foo(4));
 }
 
-//cfg_if! {
-    //if #[cfg(feature = "nightly")] {
-        //#[test]
-        //fn module() {
-            //#[automock]
-            //#[allow(unused)]
-            //mod foo {
-                //pub fn bar(_x: u32) -> i64 {unimplemented!()}
-            //}
+cfg_if! {
+    if #[cfg(feature = "nightly")] {
+        #[test]
+        fn module() {
+            #[automock]
+            #[allow(unused)]
+            mod foo {
+                pub fn bar(_x: u32) -> i64 {unimplemented!()}
+            }
 
-            //mock_foo::expect_bar()
-                //.returning(|x| i64::from(x) + 1);
-            //assert_eq!(5, mock_foo::bar(4));
-        //}
-    //}
-//}
+            mock_foo::expect_bar()
+                .returning(|x| i64::from(x) + 1);
+            assert_eq!(5, mock_foo::bar(4));
+        }
+    }
+}
 
 #[test]
 fn mutable_args() {
