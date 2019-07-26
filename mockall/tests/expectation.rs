@@ -7,20 +7,6 @@ use std::{
     rc::Rc
 };
 
-/// Mock a method like `fn foo(&self) -> impl Debug + Send {...}`
-/// The return type must be deimplified by the user
-#[test]
-fn impl_trait() {
-    expectation!{ pub fn foo<>(&self,) -> Box<dyn Debug + Send> {
-            let () = ();
-        }
-    }
-
-    let mut e = foo::Expectation::default();
-    e.returning(|| Box::new(42u32));
-    format!("{:?}", e.call());
-}
-
 #[test]
 fn match_eq_ok() {
     expectation!{ pub fn foo<>(&self, x: i32) -> () { let (p: &i32) = (&x); } }
