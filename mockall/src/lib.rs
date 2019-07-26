@@ -489,8 +489,9 @@
 //! Currently, the
 //! [`CStr`](https://doc.rust-lang.org/stable/std/ffi/struct.CStr.html),
 //! [`OsStr`](https://doc.rust-lang.org/stable/std/ffi/struct.OsStr.html),
+//! [`Path`](https://doc.rust-lang.org/stable/std/path/struct.Path.html),
 //! and
-//! [`Path`](https://doc.rust-lang.org/stable/std/path/struct.Path.html)
+//! [`str`](https://doc.rust-lang.org/stable/std/primitive.str.html)
 //! types are
 //! supported.  Using this feature is automatic:
 //!
