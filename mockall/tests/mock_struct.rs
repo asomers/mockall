@@ -78,9 +78,37 @@ mod checkpoint {
 mod r#match {
     use super::*;
 
+    /// Unlike Mockers, Mockall calls should use the oldest matching
+    /// expectation, if multiple expectations match
+    #[test]
+    fn fifo_order() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .with(predicate::eq(5))
+            .returning(|_| 99);
+        mock.expect_foo()
+            .with(predicate::always())
+            .returning(|_| 42);
+
+        assert_eq!(99, mock.foo(5));
+    }
+
+    #[test]
+    fn one_match() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .with(predicate::eq(5))
+            .returning(|_| 99);
+        mock.expect_foo()
+            .with(predicate::eq(6))
+            .returning(|_| 42);
+
+        assert_eq!(42, mock.foo(6));
+    }
+
     #[test]
     #[should_panic(expected = "No matching expectation found")]
-    fn with_fail() {
+    fn with_no_matches() {
         let mut mock = MockFoo::new();
         mock.expect_bar()
             .with(predicate::eq(4))
@@ -108,7 +136,7 @@ mod r#match {
 
     #[test]
     #[should_panic(expected = "No matching expectation found")]
-    fn withf_fail() {
+    fn withf_no_matches() {
         let mut mock = MockFoo::new();
         mock.expect_bar()
             .withf(|x: &u32| *x == 6)
@@ -214,6 +242,32 @@ mod sequence {
         mock.baz();
         mock.bar(0);
     }
+
+    /// When adding multiple calls of a single method, with the same arguments,
+    /// to a sequence, expectations should not be called after they are done if
+    /// there are more expectations to follow.
+    #[test]
+    fn single_method() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| 1);
+        mock.expect_foo()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| 2);
+        mock.expect_foo()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| 3);
+
+        assert_eq!(1, mock.foo(0));
+        assert_eq!(2, mock.foo(0));
+        assert_eq!(3, mock.foo(0));
+    }
+
 }
 
 mod times {

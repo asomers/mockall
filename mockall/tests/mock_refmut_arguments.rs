@@ -25,6 +25,9 @@ fn returning() {
 fn with() {
     let mut mock = MockFoo::new();
     mock.expect_foo()
+        .with(predicate::eq(0u32))
+        .returning(|x| {*x = 6;});
+    mock.expect_foo()
         .with(predicate::eq(42u32))
         .returning(|x| {*x = 5;});
     let mut x = 42u32;
