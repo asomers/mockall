@@ -3,15 +3,27 @@
 
 use mockall::*;
 
+#[allow(unused)]
+struct MethodByValue {}
+
+#[allow(unused)]
 #[automock]
-trait MethodByValue {
-    fn foo(self, _x: u32) -> i64;
+impl MethodByValue {
+    fn foo(self, _x: u32) -> i64 {0}
+    fn bar(mut self) {}
 }
 
 #[test]
-fn returning() {
+fn immutable() {
     let mut mock = MockMethodByValue::new();
     mock.expect_foo()
         .returning(|x| i64::from(x) + 1);
     assert_eq!(5, mock.foo(4));
+}
+
+#[test]
+fn mutable() {
+    let mut mock = MockMethodByValue::new();
+    mock.expect_bar();
+    mock.bar();
 }

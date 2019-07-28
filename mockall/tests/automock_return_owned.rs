@@ -18,3 +18,14 @@ fn return_once() {
         .return_once(|| r);
     mock.foo();
 }
+
+#[test]
+#[should_panic(expected = "expected only once")]
+fn return_once_too_many_times() {
+    let mut mock = MockT::new();
+    let r = NonCopy{};
+    mock.expect_foo()
+        .return_once(|| r);
+    mock.foo();
+    mock.foo();
+}

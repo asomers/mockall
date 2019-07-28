@@ -17,6 +17,8 @@ use mockall::*;
 mock!{
     Foo {
         fn foo(&self, x: u32) -> u32;
+        fn bar(&self, x: u32);
+        fn baz(&self);
     }
 }
 
@@ -73,6 +75,87 @@ mod checkpoint {
     }
 }
 
+mod r#match {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "No matching expectation found")]
+    fn with_fail() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .with(predicate::eq(4))
+            .return_const(());
+        mock.bar(5);
+    }
+
+    #[test]
+    fn with_ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .with(predicate::eq(5))
+            .return_const(());
+        mock.bar(5);
+    }
+
+    #[test]
+    fn withf_ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .withf(|x: &u32| *x == 5)
+            .return_const(());
+        mock.bar(5);
+    }
+
+    #[test]
+    #[should_panic(expected = "No matching expectation found")]
+    fn withf_fail() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .withf(|x: &u32| *x == 6)
+            .return_const(());
+        mock.bar(5);
+    }
+
+}
+
+mod never {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "Expectation should not have been called")]
+    fn fail() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .returning(|_| ())
+            .never();
+        mock.bar(0);
+    }
+
+    #[test]
+    fn ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .never();
+    }
+}
+
+#[test]
+fn return_const() {
+    let mut mock = MockFoo::new();
+    mock.expect_foo()
+        .return_const(42u32);
+    assert_eq!(42, mock.foo(5));
+}
+
+#[test]
+#[cfg_attr(not(feature = "nightly"), ignore)]
+fn return_default() {
+    let mut mock = MockFoo::new();
+    mock.expect_foo();
+    let r = mock.foo(5);
+    assert_eq!(u32::default(), r);
+}
+
 #[test]
 fn returning() {
     let mut mock = MockFoo::new();
@@ -81,3 +164,149 @@ fn returning() {
     assert_eq!(6, mock.foo(5));
 }
 
+mod sequence {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "exact call count")]
+    fn ambiguous() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .times_range(1..3)
+            .in_sequence(&mut seq);
+        mock.baz();
+    }
+
+    #[test]
+    #[should_panic(expected = "Method sequence violation")]
+    fn fail() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .times(1)
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+
+        mock.expect_baz()
+            .times(1)
+            .returning(|| ())
+            .in_sequence(&mut seq);
+
+        mock.baz();
+        mock.bar(0);
+    }
+
+    #[test]
+    fn ok() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .times(1)
+            .returning(|| ())
+            .in_sequence(&mut seq);
+
+        mock.expect_bar()
+            .times(1)
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+
+        mock.baz();
+        mock.bar(0);
+    }
+}
+
+mod times {
+    use super::*;
+
+    #[test]
+    fn ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times(2);
+        mock.baz();
+        mock.baz();
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called fewer than 2 times")]
+    fn too_few() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times(2);
+        mock.baz();
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called more than 2 times")]
+    fn too_many() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times(2);
+        mock.baz();
+        mock.baz();
+        mock.baz();
+        // Verify that we panic quickly and don't reach code below this point.
+        panic!("Shouldn't get here!");
+    }
+}
+
+mod times_range {
+    use super::*;
+
+    #[test]
+    fn ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times_range(2..4);
+        mock.baz();
+        mock.baz();
+
+        mock.expect_bar()
+            .returning(|_| ())
+            .times_range(2..4);
+        mock.bar(0);
+        mock.bar(0);
+        mock.bar(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called fewer than 2 times")]
+    fn too_few() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times_range(2..4);
+        mock.baz();
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called more than 3 times")]
+    fn too_many() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times_range(2..4);
+        mock.baz();
+        mock.baz();
+        mock.baz();
+        mock.baz();
+        // Verify that we panic quickly and don't reach code below this point.
+        panic!("Shouldn't get here!");
+    }
+}
+
+#[test]
+fn times_any() {
+    let mut mock = MockFoo::new();
+    mock.expect_baz()
+        .returning(|| ())
+        .times(1)
+        .times_any();
+    mock.baz();
+    mock.baz();
+}

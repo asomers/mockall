@@ -4,8 +4,9 @@
 use mockall::*;
 
 #[allow(unused)]
-struct SimpleStruct {
-}
+struct SimpleStruct {}
+
+#[allow(unused)]
 #[automock]
 impl SimpleStruct {
     fn foo(&self, _x: u32) -> i64 {

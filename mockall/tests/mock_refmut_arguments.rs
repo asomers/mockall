@@ -20,3 +20,14 @@ fn returning() {
     mock.foo(&mut x);
     assert_eq!(x, 42);
 }
+
+#[test]
+fn with() {
+    let mut mock = MockFoo::new();
+    mock.expect_foo()
+        .with(predicate::eq(42u32))
+        .returning(|x| {*x = 5;});
+    let mut x = 42u32;
+    mock.foo(&mut x);
+    assert_eq!(5, x);
+}

@@ -17,8 +17,18 @@ mock! {
 }
 
 #[test]
+#[should_panic(expected =
+    "Can only return default values for types that impl std::Default")]
+fn return_default() {
+    let mut mock = MockExternalStruct::<NonDefault>::new();
+    mock.expect_foo();
+    mock.foo();
+}
+
+#[test]
 fn returning() {
     let mut mock = MockExternalStruct::<NonDefault>::new();
-    mock.expect_foo().returning(|| NonDefault());
+    mock.expect_foo()
+        .returning(|| NonDefault());
     mock.foo();
 }
