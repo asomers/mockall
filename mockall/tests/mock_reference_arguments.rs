@@ -45,3 +45,94 @@ mod r#match {
         mock.bar(&X);
     }
 }
+
+mod times {
+    use super::*;
+    const X: u32 = 42;
+
+    #[test]
+    fn ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .returning(|_| 0)
+            .times(2);
+        mock.foo(&X);
+        mock.foo(&X);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called fewer than 2 times")]
+    fn too_few() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .returning(|_| 0)
+            .times(2);
+        mock.foo(&X);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called more than 2 times")]
+    fn too_many() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .returning(|_| 0)
+            .times(2);
+        mock.foo(&X);
+        mock.foo(&X);
+        mock.foo(&X);
+        // Verify that we panic quickly and don't reach code below this point.
+        panic!("Shouldn't get here!");
+    }
+}
+
+mod times_range {
+    use super::*;
+    const X: u32 = 42;
+
+    #[test]
+    fn ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .returning(|_| 0)
+            .times_range(2..4);
+        mock.foo(&X);
+        mock.foo(&X);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called fewer than 2 times")]
+    fn too_few() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .returning(|_| 0)
+            .times_range(2..4);
+        mock.foo(&X);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called more than 3 times")]
+    fn too_many() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .returning(|_| 0)
+            .times_range(2..4);
+        mock.foo(&X);
+        mock.foo(&X);
+        mock.foo(&X);
+        mock.foo(&X);
+        // Verify that we panic quickly and don't reach code below this point.
+        panic!("Shouldn't get here!");
+    }
+}
+
+#[test]
+fn times_any() {
+    const X: u32 = 42;
+    let mut mock = MockFoo::new();
+    mock.expect_foo()
+        .returning(|_| 0)
+        .times(1)
+        .times_any();
+    mock.foo(&X);
+    mock.foo(&X);
+}
