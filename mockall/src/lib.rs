@@ -7,15 +7,12 @@
 //!
 //! # Usage
 //!
-//! There are three ways to use Mockall.  The easiest is to use
+//! There are two ways to use Mockall.  The easiest is to use
 //! [`#[automock]`](https://docs.rs/mockall_derive/latest/mockall_derive/attr.automock.html).
 //! It can mock most
 //! traits, or structs that only have a single `impl` block.  For things it
 //! can't handle, there is
 //! [`mock!`](https://docs.rs/mockall_derive/latest/mockall_derive/macro.mock.html).
-//! Finally, there are rare
-//! cases where one may need to manually construct a mock object using
-//! [`expectation!`].
 //!
 //! Whichever method is used, the basic idea is the same.
 //! * Create a mock struct.  It's name will be the same as the original, with
@@ -979,7 +976,6 @@
 //! [`Predicate`]: trait.Predicate.html
 //! [`Sequence`]: Sequence
 //! [`cfg-if`]: https://crates.io/crates/cfg-if
-//! [`expectation!`]: macro.expectation.html
 //! [`function`]: predicate/fn.function.html
 //! [`predicates`]: predicate/index.html
 
