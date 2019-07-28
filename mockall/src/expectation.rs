@@ -612,52 +612,6 @@ macro_rules! static_expectation {
 ///                     length as `args`, but distinct.
 /// * `matchty`:        comma-delimited sequence of types for each match
 ///                     argument.  Must all be `'static`.
-///
-/// # Examples
-///
-/// Mock a method with a `'static` return type like
-/// `foo(&self, x: u32, y: &i16) -> u32`
-/// ```no_run
-/// # use mockall::*;
-/// expectation! {
-///     pub fn foo<>(&self, x: u32, y: &i16) -> u32 {
-///         let (px: &u32, py: &i16) = (&x, y);
-///     }
-/// }
-/// ```
-///
-/// Mock a generic method with a `'static` return type like
-/// `foo<D: Clone>(d: D, x: &u32) -> bool`
-/// ```no_run
-/// # use mockall::*;
-/// expectation! {
-///     pub fn foo<D>(&self, d: D, x: &u32) -> bool {
-///         let (pd: &D, px: &u32) = (&d, x);
-///     }
-/// }
-/// ```
-///
-/// Mock a method returning a reference like
-/// `foo(&self, x: u32, y: &i16) -> &u32`
-/// ```no_run
-/// # use mockall::*;
-/// expectation!{
-///     pub fn foo<>(&self, i0: u32, i1: &i16) -> &u32 {
-///         let (p0: &u32, p1: &i16) = (&i0, i1);
-///     }
-/// }
-/// ```
-///
-/// Mock a method returning a mutable reference like
-/// `foo(&mut self, x: u32, y: &i16) -> &mut u32`
-/// ```no_run
-/// # use mockall::*;
-/// expectation!{
-///     pub fn foo<>(&mut self, i0: u32, i1: &i16) -> &mut u32 {
-///         let (p0: &u32, p1: &i16) = (&i0, i1);
-///     }
-/// }
-/// ```
 #[macro_export]
 macro_rules! expectation {
     (
