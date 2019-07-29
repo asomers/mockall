@@ -1054,7 +1054,7 @@ impl Times {
     pub fn call(&self) {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
         if count >= self.range.end {
-            if self.range.end == 0 {
+            if self.range.end == 1 {
                 panic!("Expectation should not have been called");
             } else {
                 let lim = self.range.end - 1;
@@ -1092,10 +1092,11 @@ impl Times {
     }
 
     pub fn never(&mut self) {
-        self.range = 0..0;
+        self.range = 0..1;
     }
 
     pub fn range(&mut self, range: Range<usize>) {
+        assert!(range.end > range.start, "Backwards range");
         self.range = range;
     }
 }
