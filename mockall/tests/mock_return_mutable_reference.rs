@@ -21,3 +21,12 @@ fn return_var() {
     }
     assert_eq!(6, *mock.foo(0));
 }
+
+#[test]
+fn returning() {
+    let mut mock = MockFoo::new();
+    mock.expect_foo()
+        .returning(|_| 5u32);
+    let r = mock.foo(0);
+    assert_eq!(5, *r);
+}

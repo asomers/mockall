@@ -95,15 +95,24 @@ mod r#match {
 
     #[test]
     fn one_match() {
-        let mut mock = MockFoo::new();
-        mock.expect_foo()
+        let mut mock0 = MockFoo::new();
+        mock0.expect_foo()
             .with(predicate::eq(5))
             .returning(|_| 99);
-        mock.expect_foo()
+        mock0.expect_foo()
             .with(predicate::eq(6))
             .returning(|_| 42);
+        assert_eq!(42, mock0.foo(6));
 
-        assert_eq!(42, mock.foo(6));
+        // And in reverse order
+        let mut mock1 = MockFoo::new();
+        mock1.expect_foo()
+            .with(predicate::eq(5))
+            .returning(|_| 99);
+        mock1.expect_foo()
+            .with(predicate::eq(6))
+            .returning(|_| 42);
+        assert_eq!(99, mock0.foo(5));
     }
 
     #[test]
