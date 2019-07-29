@@ -55,6 +55,7 @@ impl Mock {
                 .to_tokens(&mut output);
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
+                has_new |= meth.borrow().sig.ident == "new";
                 let generics = merge_generics(&self.generics, &trait_.generics);
                 let (_, _, cp) = gen_mock_method(Some(&mock_mod_ident),
                                                  &mock_sub_name,
