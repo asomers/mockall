@@ -19,6 +19,7 @@ mock! {
 #[test]
 #[should_panic(expected =
     "Can only return default values for types that impl std::Default")]
+#[cfg_attr(not(feature = "nightly"), ignore)]
 fn return_default() {
     let mut mock = MockExternalStruct::<NonDefault>::new();
     mock.expect_foo();

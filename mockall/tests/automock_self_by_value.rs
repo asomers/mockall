@@ -24,6 +24,7 @@ fn immutable() {
 #[test]
 fn mutable() {
     let mut mock = MockMethodByValue::new();
-    mock.expect_bar();
+    mock.expect_bar()
+        .returning(|| ());
     mock.bar();
 }
