@@ -12,7 +12,12 @@ extern crate proc_macro;
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::{*, punctuated::Punctuated, spanned::Spanned};
+use syn::{
+    *,
+    punctuated::Pair,
+    punctuated::Punctuated,
+    spanned::Spanned
+};
 
 mod automock;
 mod expectation;
@@ -184,6 +189,80 @@ fn deselfify(literal_type: &mut Type, actual: &Ident) {
             /* Nothing to do */
         }
     }
+}
+
+fn supersuperfy_path(path: &mut Path) {
+        if let Some(Pair::Punctuated(t, _)) = path.segments.first() {
+            if t.ident == "super" {
+                let ps = PathSegment {
+                    ident: Ident::new("super", path.segments.span()),
+                    arguments: PathArguments::None
+                };
+                path.segments.insert(0, ps.clone());
+                path.segments.insert(0, ps);
+            }
+        }
+}
+
+/// Replace any references to `super::X` in `original` with `super::super::X`.
+fn supersuperfy(original: &Type) -> Type {
+    let mut output = original.clone();
+    fn recurse(t: &mut Type) {
+        match t {
+            Type::Slice(s) => {
+                supersuperfy(s.elem.as_mut());
+            },
+            Type::Array(a) => {
+                supersuperfy(a.elem.as_mut());
+            },
+            Type::Ptr(p) => {
+                supersuperfy(p.elem.as_mut());
+            },
+            Type::Reference(r) => {
+                supersuperfy(r.elem.as_mut());
+            },
+            Type::BareFn(_bfn) => {
+                unimplemented!()
+            },
+            Type::Tuple(tuple) => {
+                for elem in tuple.elems.iter_mut() {
+                    supersuperfy(elem);
+                }
+            }
+            Type::Path(type_path) => {
+                if let Some(ref _qself) = type_path.qself {
+                    compile_error(type_path.span(), "QSelf is TODO");
+                }
+                supersuperfy_path(&mut type_path.path)
+            },
+            Type::Paren(p) => {
+                supersuperfy(p.elem.as_mut());
+            },
+            Type::Group(g) => {
+                supersuperfy(g.elem.as_mut());
+            },
+            Type::Macro(_) | Type::Verbatim(_) => {
+                compile_error(t.span(),
+                    "mockall_derive does not support this type in this position");
+            },
+            Type::ImplTrait(_) => {
+                panic!("deimplify should've already been run on this output type");
+            },
+            Type::TraitObject(tto) => {
+                for bound in tto.bounds.iter_mut() {
+                    if let TypeParamBound::Trait(tb) = bound {
+                        supersuperfy_path(&mut tb.path)
+                    }
+                }
+            },
+            Type::Infer(_) | Type::Never(_) =>
+            {
+                /* Nothing to do */
+            }
+        }
+    }
+    recurse(&mut output);
+    output
 }
 
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"

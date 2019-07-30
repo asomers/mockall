@@ -78,9 +78,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
     let static_bound = Lifetime::new("'static", Span::call_site());
 
-    let output = match return_type{
-        ReturnType::Default => quote!(()),
-        ReturnType::Type(_, ty) => {
+    let mut rt2 = return_type.clone();
+    let output = match rt2 {
+        ReturnType::Default => Box::new(Type::Tuple(TypeTuple {
+            paren_token: token::Paren::default(),
+            elems: Punctuated::new()
+        })),
+        ReturnType::Type(_, ref mut ty) => {
             let mut rt = ty.clone();
             destrify(&mut rt);
             if let Some(i) = self_ident {
@@ -90,18 +94,22 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 if tr.lifetime.as_ref().map_or(false, |lt| lt.ident == "static")
                 {
                     // Just a static expectation
+                    rt
                 } else {
                     if !tr.mutability.is_some() {
                         ref_expectation = true;
                     } else {
                         ref_mut_expectation = true;
                     }
-                    rt = tr.elem.clone();
+                    tr.elem.clone()
                 }
+            } else {
+                rt
             }
-            quote!(#rt)
         }
     };
+    let supersuper_output = supersuperfy(&output);
+    let output = quote!(#output);
 
     let mut egenerics = generics.clone();
     let mut macro_g = Punctuated::<Ident, Token![,]>::new();
@@ -137,6 +145,10 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
     let selfless_args = strip_self(args);
     let (argnames, argty) = split_args(args);
+    let supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
+        argty.iter()
+        .map(|t| supersuperfy(&t))
+    );
     let mut argty_tp = argty.clone();
     if !argty_tp.empty_or_trailing() {
         // The non-proc macro static_expectation! always uses trailing
@@ -145,6 +157,10 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         argty_tp.push_punct(Token![,](Span::call_site()));
     }
     let (altargnames, altargty) = split_args(altargs);
+    let supersuper_altargty = Punctuated::<Type, token::Comma>::from_iter(
+        altargty.iter()
+        .map(|t| supersuperfy(&t))
+    );
     if ref_expectation {
         quote!(
             #attrs
@@ -228,7 +244,9 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     where #output: Send + Sync
             {}
 
-            ::mockall::generic_expectation_methods!{#vis [#macro_g] [#argty] #output}
+            ::mockall::generic_expectation_methods!{
+                #vis [#macro_g] [#argty] #supersuper_output
+            }
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #vis fn call #bounded_macro_g
@@ -503,8 +521,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             #attrs
             pub mod #ident {
             ::mockall::static_expectation!{
-                #vis [#macro_g] [#argnames] [#argty] [#altargnames]
-                [#altargty] [#matchexprs] #output
+                #vis [#macro_g] [#argnames] [#supersuper_argty] [#altargnames]
+                [#supersuper_altargty] [#matchexprs] #supersuper_output
             }
 
             /// Like an [`&Expectation`](struct.Expectation.html) but protected
@@ -776,8 +794,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             #attrs
             pub mod #ident {
             ::mockall::static_expectation!{
-                #vis [#macro_g] [#argnames] [#argty] [#altargnames]
-                [#altargty] [#matchexprs] #output
+                #vis [#macro_g] [#argnames] [#supersuper_argty] [#altargnames]
+                [#supersuper_altargty] [#matchexprs] #supersuper_output
             }
         })
     }
