@@ -138,8 +138,8 @@ fn static_expectation(v: &Visibility,
                         f( #argnames )
                     },
                     Rfunc::Once(_) => {
-                        let __fo = mem::replace(self, Rfunc::Expired);
-                        if let Rfunc::Once(mut f) = __fo {
+                        if let Rfunc::Once(mut f) =
+                            mem::replace(self, Rfunc::Expired) {
                             f( #argnames )
                         } else {
                             unreachable!()
@@ -198,8 +198,7 @@ fn static_expectation(v: &Visibility,
                 -> &mut Self
                 where MockallOutput: Clone + Into<#output> + Send + 'static
             {
-                let __f = move |#supersuper_args| c.clone().into();
-                self.returning(__f)
+                self.returning(move |#supersuper_args| c.clone().into())
             }
 
             /// Supply an `FnOnce` closure that will provide the return value
@@ -209,9 +208,9 @@ fn static_expectation(v: &Visibility,
             #v fn return_once<F>(&mut self, f: F) -> &mut Self
                 where F: FnOnce(#argty) -> #output + Send + 'static
             {
-                let mut __fopt = Some(f);
-                let __fmut = move |#supersuper_args| {
-                    if let Some(f) = __fopt.take() {
+                let mut fopt = Some(f);
+                let fmut = move |#supersuper_args| {
+                    if let Some(f) = fopt.take() {
                         f(#argnames)
                     } else {
                         panic!("Called a method twice that was expected only once")
@@ -220,7 +219,7 @@ fn static_expectation(v: &Visibility,
                 {
                     let mut guard = self.rfunc.lock().unwrap();
                     mem::replace(guard.deref_mut(),
-                                 Rfunc::Once(Box::new(__fmut)));
+                                 Rfunc::Once(Box::new(fmut)));
                 }
                 self
             }
@@ -235,17 +234,17 @@ fn static_expectation(v: &Visibility,
             #v fn return_once_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnOnce(#argty) -> #output + 'static
             {
-                let mut __fragile = Some(::fragile::Fragile::new(f));
-                let __fmut = Box::new(move |#supersuper_args| {
-                    match __fragile.take() {
+                let mut fragile = Some(::fragile::Fragile::new(f));
+                let fmut = Box::new(move |#supersuper_args| {
+                    match fragile.take() {
                         Some(frag) => (frag.into_inner())(#argnames),
                         None => panic!(
                             "Called a method twice that was expected only once")
                     }
                 });
                 {
-                    let mut __guard = self.rfunc.lock().unwrap();
-                    mem::replace(__guard.deref_mut(), Rfunc::Once(__fmut));
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
                 }
                 self
             }
@@ -257,8 +256,8 @@ fn static_expectation(v: &Visibility,
                 where F: FnMut(#argty) -> #output + Send + 'static
             {
                 {
-                    let mut __guard = self.rfunc.lock().unwrap();
-                    mem::replace(__guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
                 }
                 self
             }
@@ -271,14 +270,13 @@ fn static_expectation(v: &Visibility,
             #v fn returning_st<F>(&mut self, f: F) -> &mut Self
                 where F: FnMut(#argty) -> #output + 'static
             {
-                let mut __fragile = Fragile::new(f);
-                let __fmut = move |#supersuper_args| {
-                    (__fragile.get_mut())(#argnames)
+                let mut fragile = Fragile::new(f);
+                let fmut = move |#supersuper_args| {
+                    (fragile.get_mut())(#argnames)
                 };
                 {
-                    let mut __guard = self.rfunc.lock().unwrap();
-                    mem::replace(__guard.deref_mut(),
-                                 Rfunc::Mut(Box::new(__fmut)));
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
                 }
                 self
             }
@@ -304,10 +302,9 @@ fn static_expectation(v: &Visibility,
             /// arguments will be used.
             #v fn call(&self, #supersuper_args ) -> #output
             {
-                let __n = self.0.len();
                 match self.0.iter()
                     .find(|e| e.matches(#matchcall) &&
-                          (!e.is_done() || __n == 1))
+                          (!e.is_done() || self.0.len() == 1))
                 {
                     None => panic!("No matching expectation found"),
                     Some(e) => e.call(#argnames)
@@ -327,12 +324,11 @@ fn static_expectation(v: &Visibility,
             #v fn call<#static_generics>
                 (&self, #supersuper_args ) -> #output
             {
-                let __key = ::mockall::Key::new::<(#argty)>();
-                let __e: &Expectations<#generics> = self.store.get(&__key)
+                self.store.get(&::mockall::Key::new::<(#argty)>())
                     .expect("No matching expectation found")
-                    .downcast_ref()
-                    .unwrap();
-                __e.call(#argnames)
+                    .downcast_ref::<Expectations<#generics>>()
+                    .unwrap()
+                    .call(#argnames)
             }
 
             /// Create a new Expectation.
@@ -340,14 +336,12 @@ fn static_expectation(v: &Visibility,
                 (&'e mut self)
                 -> &'e mut Expectation<#generics>
             {
-                let __key = ::mockall::Key::new::<(#argty)>();
-                let __ee: &mut Expectations<#generics> =
-                    self.store.entry(__key)
+                self.store.entry(::mockall::Key::new::<(#argty)>())
                     .or_insert_with(||
                         Box::new(Expectations::<#generics>::new())
-                    ).downcast_mut()
-                    .unwrap();
-                __ee.expect()
+                    ).downcast_mut::<Expectations<#generics>>()
+                    .unwrap()
+                    .expect()
             }
 
         }
@@ -541,13 +535,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
                 #vis fn call(&self, #selfless_args ) -> &#output {
-                    let n = self.0.len();
                     match self.0.iter()
                         .find(|e| e.matches(#matchexprs) &&
-                              (!e.is_done() || n == 1))
+                              (!e.is_done() || self.0.len() == 1))
                     {
                         None => panic!("No matching expectation found"),
-                        Some(e) => e.call(#argnames)
+                        Some(__e) => __e.call(#argnames)
                     }
                 }
             }
@@ -566,12 +559,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 #vis fn call #bounded_macro_g
                     (&self, #selfless_args ) -> &#output
                 {
-                    let key = ::mockall::Key::new::<(#argty_tp)>();
-                    let e: &Expectations<#macro_g> = self.store.get(&key)
+                    self.store.get(&::mockall::Key::new::<(#argty_tp)>())
                         .expect("No matching expectation found")
-                        .downcast_ref()
-                        .unwrap();
-                    e.call(#argnames)
+                        .downcast_ref::<Expectations<#macro_g>>()
+                        .unwrap()
+                        .call(#argnames)
                 }
 
                 /// Create a new Expectation.
@@ -579,14 +571,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     -> &'lt mut Expectation<#macro_g>
                     where #output: Send + Sync
                 {
-                    let key = ::mockall::Key::new::<(#argty_tp)>();
-                    let ee: &mut Expectations<#macro_g> =
-                        self.store.entry(key)
+                    self.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
                             Box::new(Expectations::<#macro_g>::new())
-                        ).downcast_mut()
-                        .unwrap();
-                    ee.expect()
+                        ).downcast_mut::<Expectations<#macro_g>>()
+                        .unwrap()
+                        .expect()
                 }
             }
         }
@@ -630,8 +620,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Simulating calling the real method for this expectation
                 #vis fn call_mut(&mut self, #selfless_args) -> &mut #output {
                     self.common.call(#matchexprs);
-                    if let Some(ref mut f) = self.rfunc {
-                        self.result = Some(f(#argnames));
+                    if let Some(ref mut __f) = self.rfunc {
+                        self.result = Some(__f(#argnames));
                     }
                     self.result.as_mut()
                         .expect("Must first set return function with returning or return_var")
@@ -661,11 +651,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 #vis fn returning_st<F>(&mut self, f: F) -> &mut Self
                     where F: FnMut(#argty) -> #output + 'static
                 {
-                    let mut fragile = Fragile::new(f);
-                    let fmut = move |#selfless_args| {
-                        (fragile.get_mut())(#argnames)
+                    let mut __fragile = Fragile::new(f);
+                    let __fmut = move |#selfless_args| {
+                        (__fragile.get_mut())(#argnames)
                     };
-                    mem::replace(&mut self.rfunc, Some(Box::new(fmut)));
+                    mem::replace(&mut self.rfunc, Some(Box::new(__fmut)));
                     self
                 }
 
@@ -690,13 +680,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
                 #vis fn call_mut(&mut self, #selfless_args ) -> &mut #output {
-                    let n = self.0.len();
+                    let __n = self.0.len();
                     match self.0.iter_mut()
                         .find(|e| e.matches(#matchexprs) &&
-                              (!e.is_done() || n == 1))
+                              (!e.is_done() || __n == 1))
                     {
                         None => panic!("No matching expectation found"),
-                        Some(e) => e.call_mut(#argnames)
+                        Some(__e) => __e.call_mut(#argnames)
                     }
                 }
             }
@@ -715,13 +705,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 #vis fn call_mut #bounded_macro_g
                     (&mut self, #selfless_args ) -> &mut #output
                 {
-                    let key = ::mockall::Key::new::<(#argty_tp)>();
-                    let e: &mut Expectations<#macro_g> = self.store
-                        .get_mut(&key)
+                    self.store.get_mut(&::mockall::Key::new::<(#argty_tp)>())
                         .expect("No matching expectation found")
-                        .downcast_mut()
-                        .unwrap();
-                    e.call_mut(#argnames)
+                        .downcast_mut::<Expectations<#macro_g>>()
+                        .unwrap()
+                        .call_mut(#argnames)
                 }
 
                 /// Create a new Expectation.
@@ -729,14 +717,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     -> &'lt mut Expectation<#macro_g>
                     where #output: Send + Sync
                 {
-                    let key = ::mockall::Key::new::<(#argty_tp)>();
-                    let ee: &mut Expectations<#macro_g> =
-                        self.store.entry(key)
+                    self.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
                             Box::new(Expectations::<#macro_g>::new())
-                        ).downcast_mut()
-                        .unwrap();
-                    ee.expect()
+                        ).downcast_mut::<Expectations<#macro_g>>()
+                        .unwrap()
+                        .expect()
                 }
             }
         }
