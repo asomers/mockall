@@ -6,14 +6,12 @@ use std::iter::{FromIterator, IntoIterator};
 
 /// Common methods of all Expectation types
 fn common_methods(
-    generics: &Punctuated<Ident, Token![,]>,
+    egenerics: &Generics,
     argnames: &Punctuated<Pat, Token![,]>,
     altargs: &Punctuated<Pat, Token![,]>,
     matchty: &Punctuated<Type, Token![,]>) -> TokenStream
 {
-    let static_generics = TokenStream::from_iter(
-        generics.iter().map(|g| quote!(#g: 'static, ))
-    );
+    let (egenerics_impl, egenerics_ty, _) = egenerics.split_for_impl();
     let args = TokenStream::from_iter(
         argnames.iter().zip(matchty.iter())
         .map(|(argname, mt)| quote!(#argname: &#mt, ))
@@ -50,17 +48,20 @@ fn common_methods(
     let boxed_withargs = TokenStream::from_iter(
         argnames.iter().map(|aa| quote!(Box::new(#aa), ))
     );
+    let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+        egenerics.type_params().map(|tp| tp.ident.clone())
+    );
     quote!(
-        enum Matcher<#static_generics> {
+        enum Matcher #egenerics_impl {
             Func(Box<Fn(#refmatchty) -> bool + Send>),
             Pred( #preds ),
             // Prevent "unused type parameter" errors
             // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
             // are not, unlike PhantomData<generics>
-            _Phantom(Box<Fn(#generics) -> () + Send>)
+            _Phantom(Box<Fn(#fn_params) -> () + Send>)
         }
 
-        impl<#static_generics> Matcher<#generics> {
+        impl #egenerics_impl Matcher #egenerics_ty {
             fn matches(&self, #args) -> bool {
                 match self {
                     Matcher::Func(f) => f(#argnames),
@@ -82,20 +83,20 @@ fn common_methods(
             }
         }
 
-        impl<#static_generics> Default for Matcher<#generics> {
+        impl #egenerics_impl Default for Matcher #egenerics_ty {
             #[allow(unused_variables)]
             fn default() -> Self {
                 Matcher::Func(Box::new(|#argnames| true))
             }
         }
         /// Holds the stuff that is independent of the output type
-        struct Common<#static_generics> {
-            matcher: Mutex<Matcher<#generics>>,
+        struct Common #egenerics_impl {
+            matcher: Mutex<Matcher #egenerics_ty>,
             seq_handle: Option<::mockall::SeqHandle>,
             times: ::mockall::Times
         }
 
-        impl<#static_generics> std::default::Default for Common<#generics>
+        impl #egenerics_impl std::default::Default for Common #egenerics_ty
         {
             fn default() -> Self {
                 Common {
@@ -106,7 +107,7 @@ fn common_methods(
             }
         }
 
-        impl<#static_generics> Common<#generics> {
+        impl #egenerics_impl Common #egenerics_ty {
             fn call(&self, #args ) {
                 self.matcher.lock().unwrap().verify(#argnames);
                 self.times.call();
@@ -327,20 +328,18 @@ fn expectation_methods(v: &Visibility,
 
 /// Common methods of the Expectations structs
 fn expectations_methods(v: &Visibility,
-    generics: &Punctuated<Ident, Token![,]>) -> TokenStream
+    egenerics: &Generics) -> TokenStream
 {
-    let static_generics = TokenStream::from_iter(
-        generics.iter().map(|g| quote!(#g: 'static, ))
-    );
+    let (egenerics_impl, egenerics_ty, _) = egenerics.split_for_impl();
     quote!(
         /// A collection of [`Expectation`](struct.Expectations.html) objects.
         /// Users will rarely if ever use this struct directly.
         #[doc(hidden)]
-        #v struct Expectations<#static_generics>(
-            Vec<Expectation<#generics>>
+        #v struct Expectations #egenerics_impl (
+            Vec<Expectation #egenerics_ty>
         );
 
-        impl<#static_generics> Expectations<#generics> {
+        impl #egenerics_impl Expectations #egenerics_ty {
             /// Verify that all current expectations are satisfied and clear
             /// them.
             #v fn checkpoint(&mut self) {
@@ -348,7 +347,7 @@ fn expectations_methods(v: &Visibility,
             }
 
             /// Create a new expectation for this method.
-            #v fn expect(&mut self) -> &mut Expectation<#generics>
+            #v fn expect(&mut self) -> &mut Expectation #egenerics_ty
             {
                 let e = Expectation::default();
                 self.0.push(e);
@@ -360,7 +359,7 @@ fn expectations_methods(v: &Visibility,
                 Self::default()
             }
         }
-        impl<#static_generics> Default for Expectations<#generics>
+        impl #egenerics_impl Default for Expectations #egenerics_ty
         {
             fn default() -> Self {
                 Expectations(Vec::new())
@@ -422,8 +421,11 @@ fn strip_self(args: &Punctuated<FnArg, Token![,]>)
 }
 
 /// Generate code for an expectation that returns a 'static value
+///
+/// # Arguments
+/// * `egenerics` - The method's generic parameters, with `'static` bounds added
 fn static_expectation(v: &Visibility,
-    generics: &Punctuated<Ident, Token![,]>,
+    egenerics: &Generics,
     selfless_args: &Punctuated<ArgCaptured, Token![,]>,
     argnames: &Punctuated<Pat, Token![,]>,
     argty: &Punctuated<Type, Token![,]>,
@@ -432,9 +434,8 @@ fn static_expectation(v: &Visibility,
     matchcall: &Punctuated<Expr, Token![,]>,
     output: &Type) -> TokenStream
 {
-    let static_generics = TokenStream::from_iter(
-        generics.iter().map(|g| quote!(#g: 'static, ))
-    );
+    let (egenerics_impl, egenerics_ty, _) = egenerics.split_for_impl();
+    let egenerics_tbf = egenerics_ty.as_turbofish();
     let supersuper_args = Punctuated::<ArgCaptured, Token![,]>::from_iter(
         selfless_args.iter()
         .map(|ac| {
@@ -445,10 +446,13 @@ fn static_expectation(v: &Visibility,
             }
         })
     );
-    let cm_ts = common_methods(generics, argnames, altargs, matchty);
+    let cm_ts = common_methods(egenerics, argnames, altargs, matchty);
     let em_ts = expectation_methods(v, argnames, altargs, matchty);
-    let eem_ts = expectations_methods(v, generics);
+    let eem_ts = expectations_methods(v, egenerics);
     let gem_ts = generic_expectation_methods(v);
+    let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+        egenerics.type_params().map(|tp| tp.ident.clone())
+    );
     quote!(
         use ::downcast::*;
         use ::fragile::Fragile;
@@ -462,7 +466,7 @@ fn static_expectation(v: &Visibility,
         };
         use super::*;   // Import types from the calling environment
 
-        enum Rfunc<#static_generics> {
+        enum Rfunc #egenerics_impl {
             Default,
             // Indicates that a `return_once` expectation has already returned
             Expired,
@@ -473,10 +477,10 @@ fn static_expectation(v: &Visibility,
             // Prevent "unused type parameter" errors
             // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
             // are not, unlike PhantomData<generics>
-            _Phantom(Box<Fn(#generics) -> () + Send>)
+            _Phantom(Box<Fn(#fn_params) -> () + Send>)
         }
 
-        impl<#generics>  Rfunc<#generics> {
+        impl #egenerics_impl  Rfunc #egenerics_ty {
             fn call_mut(&mut self, #supersuper_args ) -> #output {
                 match self {
                     Rfunc::Default => {
@@ -502,8 +506,8 @@ fn static_expectation(v: &Visibility,
             }
         }
 
-        impl<#generics>
-            std::default::Default for Rfunc<#generics>
+        impl #egenerics_impl
+            std::default::Default for Rfunc #egenerics_ty
         {
             fn default() -> Self {
                 Rfunc::Default
@@ -514,12 +518,12 @@ fn static_expectation(v: &Visibility,
 
         /// Expectation type for methods that return a `'static` type.
         /// This is the type returned by the `expect_*` methods.
-        #v struct Expectation<#static_generics> {
-            common: Common<#generics>,
-            rfunc: Mutex<Rfunc<#generics>>,
+        #v struct Expectation #egenerics_impl {
+            common: Common #egenerics_ty,
+            rfunc: Mutex<Rfunc #egenerics_ty>,
         }
 
-        impl<#generics> Expectation<#generics> {
+        impl #egenerics_impl Expectation #egenerics_ty {
             /// Call this [`Expectation`] as if it were the real method.
             #[doc(hidden)]
             #v fn call(&self, #supersuper_args ) -> #output
@@ -627,7 +631,7 @@ fn static_expectation(v: &Visibility,
 
             #em_ts
         }
-        impl<#generics> Default for Expectation<#generics>
+        impl #egenerics_impl Default for Expectation #egenerics_ty
         {
             fn default() -> Self {
                 Expectation {
@@ -638,7 +642,7 @@ fn static_expectation(v: &Visibility,
         }
 
         #eem_ts
-        impl<#generics> Expectations<#generics> {
+        impl #egenerics_impl Expectations #egenerics_ty {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
             /// arguments will be used.
@@ -654,32 +658,31 @@ fn static_expectation(v: &Visibility,
             }
 
         }
-        impl<#static_generics>
-            ::mockall::AnyExpectations for Expectations<#generics>
+        impl #egenerics_impl
+            ::mockall::AnyExpectations for Expectations #egenerics_ty
         {}
 
         #gem_ts
         impl GenericExpectations {
             /// Simulating calling the real method.
-            #v fn call<#static_generics>
+            #v fn call #egenerics_impl
                 (&self, #supersuper_args ) -> #output
             {
                 self.store.get(&::mockall::Key::new::<(#argty)>())
                     .expect("No matching expectation found")
-                    .downcast_ref::<Expectations<#generics>>()
+                    .downcast_ref::<Expectations #egenerics_ty>()
                     .unwrap()
                     .call(#argnames)
             }
 
             /// Create a new Expectation.
-            #v fn expect<'e, #static_generics>
-                (&'e mut self)
-                -> &'e mut Expectation<#generics>
+            #v fn expect #egenerics_impl (&mut self)
+                -> &mut Expectation #egenerics_ty
             {
                 self.store.entry(::mockall::Key::new::<(#argty)>())
                     .or_insert_with(||
-                        Box::new(Expectations::<#generics>::new())
-                    ).downcast_mut::<Expectations<#generics>>()
+                        Box::new(Expectations #egenerics_tbf::new())
+                    ).downcast_mut::<Expectations #egenerics_ty>()
                     .unwrap()
                     .expect()
             }
@@ -739,30 +742,20 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
     let output = quote!(#output);
 
     let mut egenerics = generics.clone();
-    let mut macro_g = Punctuated::<Ident, Token![,]>::new();
-    // Convert the TypeGenerics into a sequence of idents, because that's
-    // what static_expectation! expects
-    // TODO: once static_expectation! is gone, something like this:
-    //generics.split_for_impl().1.to_tokens(&mut macro_g)
     for p in egenerics.params.iter_mut() {
         if let GenericParam::Type(tp) = p {
             tp.bounds.push(TypeParamBound::Lifetime(static_bound.clone()));
         }
     }
-    let (bounded_macro_g, _, _) = egenerics.split_for_impl();
-    for p in generics.params.iter() {
-        if let GenericParam::Type(tp) = p {
-            macro_g.push(tp.ident.clone());
-        }
-    }
-    if !macro_g.empty_or_trailing() {
-        // static_expectation! requires trailing punctuation
-        macro_g.push_punct(Token![,](Span::call_site()));
-    }
+    let (egenerics_impl, egenerics_ty, _) = egenerics.split_for_impl();
+    let egenerics_tbf = egenerics_ty.as_turbofish();
     let mut eltgenerics = egenerics.clone();
     let ltdef = LifetimeDef::new(Lifetime::new("'lt", Span::call_site()));
     eltgenerics.params.push(GenericParam::Lifetime(ltdef));
-    let (bounded_lt_macro_g, _, _) = eltgenerics.split_for_impl();
+    let (eltgenerics_impl, eltgenerics_ty, _) = eltgenerics.split_for_impl();
+    let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+        egenerics.type_params().map(|tp| tp.ident.clone())
+    );
     for fa in args {
         static_method &= match fa {
             FnArg::SelfRef(_) | FnArg::SelfValue(_) => false,
@@ -794,9 +787,9 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         altargty.iter()
         .map(|t| supersuperfy(&t))
     );
-    let cm_ts = common_methods(&macro_g, &argnames, &altargnames, &altargty);
+    let cm_ts = common_methods(&egenerics, &argnames, &altargnames, &altargty);
     let em_ts = expectation_methods(&vis, &argnames, &altargnames, &altargty);
-    let eem_ts = expectations_methods(&vis, &macro_g);
+    let eem_ts = expectations_methods(&vis, &egenerics);
     let gem_ts = generic_expectation_methods(&vis);
     if ref_expectation {
         quote!(
@@ -819,12 +812,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             /// Expectation type for methods taking a `&self` argument and
             /// returning immutable references.  This is the type returned by
             /// the `expect_*` methods.
-            #vis struct Expectation #bounded_macro_g {
-                common: Common<#macro_g>,
+            #vis struct Expectation #egenerics_impl {
+                common: Common #egenerics_ty,
                 result: Option<#output>,
             }
 
-            impl #bounded_macro_g Expectation<#macro_g> {
+            impl #egenerics_impl Expectation #egenerics_ty {
                 #vis fn call(&self, #selfless_args ) -> &#output {
                     self.common.call(#matchexprs);
                     &self.result.as_ref()
@@ -840,7 +833,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 #em_ts
             }
 
-            impl #bounded_macro_g Default for Expectation<#macro_g>
+            impl #egenerics_impl Default for Expectation #egenerics_ty
             {
                 fn default() -> Self {
                     Expectation {
@@ -851,7 +844,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             }
 
             #eem_ts
-            impl #bounded_macro_g Expectations<#macro_g> {
+            impl #egenerics_impl Expectations #egenerics_ty {
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
@@ -867,33 +860,33 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             }
             // The Senc + Sync are required for downcast, since Expectation
             // stores an Option<#output>
-            impl #bounded_macro_g
-                ::mockall::AnyExpectations for Expectations<#macro_g>
+            impl #egenerics_impl
+                ::mockall::AnyExpectations for Expectations #egenerics_ty
                     where #output: Send + Sync
             {}
 
             #gem_ts
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #vis fn call #bounded_macro_g
+                #vis fn call #egenerics_impl
                     (&self, #selfless_args ) -> &#output
                 {
                     self.store.get(&::mockall::Key::new::<(#argty_tp)>())
                         .expect("No matching expectation found")
-                        .downcast_ref::<Expectations<#macro_g>>()
+                        .downcast_ref::<Expectations #egenerics_ty>()
                         .unwrap()
                         .call(#argnames)
                 }
 
                 /// Create a new Expectation.
-                #vis fn expect #bounded_lt_macro_g (&'lt mut self)
-                    -> &'lt mut Expectation<#macro_g>
+                #vis fn expect #eltgenerics_impl (&'lt mut self)
+                    -> &'lt mut Expectation #egenerics_ty
                     where #output: Send + Sync
                 {
                     self.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
-                            Box::new(Expectations::<#macro_g>::new())
-                        ).downcast_mut::<Expectations<#macro_g>>()
+                            Box::new(Expectations #egenerics_tbf ::new())
+                        ).downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .expect()
                 }
@@ -901,11 +894,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         }
         )
     } else if ref_mut_expectation {
-        let cm_ts = common_methods(&macro_g, &argnames, &altargnames,
+        let cm_ts = common_methods(&egenerics, &argnames, &altargnames,
                                    &altargty);
         let em_ts = expectation_methods(&vis, &argnames, &altargnames,
                                         &altargty);
-        let eem_ts = expectations_methods(&vis, &macro_g);
+        let eem_ts = expectations_methods(&vis, &egenerics);
         let gem_ts = generic_expectation_methods(&vis);
         quote!(
             #attrs
@@ -927,13 +920,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             /// Expectation type for methods taking a `&mut self` argument and
             /// returning references.  This is the type returned by the
             /// `expect_*` methods.
-            #vis struct Expectation #bounded_macro_g {
-                common: Common<#macro_g>,
+            #vis struct Expectation #egenerics_impl {
+                common: Common #egenerics_ty,
                 result: Option<#output>,
                 rfunc: Option<Box<dyn FnMut(#argty) -> #output + Send + Sync>>,
             }
 
-            impl #bounded_macro_g Expectation<#macro_g> {
+            impl #egenerics_impl Expectation #egenerics_ty {
                 /// Simulating calling the real method for this expectation
                 #vis fn call_mut(&mut self, #selfless_args) -> &mut #output {
                     self.common.call(#matchexprs);
@@ -978,7 +971,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 #em_ts
             }
-            impl #bounded_macro_g Default for Expectation<#macro_g>
+            impl #egenerics_impl Default for Expectation #egenerics_ty
             {
                 fn default() -> Self {
                     Expectation {
@@ -989,7 +982,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 }
             }
             #eem_ts
-            impl #bounded_macro_g Expectations<#macro_g> {
+            impl #egenerics_impl Expectations #egenerics_ty {
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
@@ -1006,33 +999,33 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             }
             // The Senc + Sync are required for downcast, since Expectation
             // stores an Option<#output>
-            impl #bounded_macro_g
-                ::mockall::AnyExpectations for Expectations<#macro_g>
+            impl #egenerics_impl
+                ::mockall::AnyExpectations for Expectations #egenerics_ty
                 where #output: Send + Sync
             {}
 
             #gem_ts
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #vis fn call_mut #bounded_macro_g
+                #vis fn call_mut #egenerics_impl
                     (&mut self, #selfless_args ) -> &mut #output
                 {
                     self.store.get_mut(&::mockall::Key::new::<(#argty_tp)>())
                         .expect("No matching expectation found")
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .call_mut(#argnames)
                 }
 
                 /// Create a new Expectation.
-                #vis fn expect #bounded_lt_macro_g (&'lt mut self)
-                    -> &'lt mut Expectation<#macro_g>
+                #vis fn expect #eltgenerics_impl (&'lt mut self)
+                    -> &'lt mut Expectation #egenerics_ty
                     where #output: Send + Sync
                 {
                     self.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
-                            Box::new(Expectations::<#macro_g>::new())
-                        ).downcast_mut::<Expectations<#macro_g>>()
+                            Box::new(Expectations #egenerics_tbf ::new())
+                        ).downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .expect()
                 }
@@ -1132,7 +1125,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             gt_token: Some(Token![>](Span::call_site())),
             where_clause: None
         };
-        let ts = static_expectation(vis, &macro_g, &selfless_args, &argnames,
+        let ts = static_expectation(vis, &egenerics, &selfless_args, &argnames,
                                     &supersuper_argty, &altargnames,
                                     &supersuper_altargty, &matchexprs,
                                     &supersuper_output);
@@ -1152,29 +1145,29 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             //
             // ExpectationGuard is only defined for expectations that return
             // 'static return types.
-            #vis struct ExpectationGuard #bounded_lt_macro_g {
-                guard: MutexGuard<'lt, Expectations<#macro_g>>,
+            #vis struct ExpectationGuard #eltgenerics_impl {
+                guard: MutexGuard<'lt, Expectations #egenerics_ty>,
                 i: usize
             }
 
-            impl #bounded_lt_macro_g ExpectationGuard<'lt, #macro_g> {
+            impl #eltgenerics_impl ExpectationGuard #eltgenerics_ty {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
                 #vis fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                 {
                     self.guard.0[self.i].in_sequence(seq)
                 }
 
                 /// Just like
                 /// [`Expectation::never`](struct.Expectation.html#method.never)
-                #vis fn never(&mut self) -> &mut Expectation<#macro_g> {
+                #vis fn never(&mut self) -> &mut Expectation #egenerics_ty {
                     self.guard.0[self.i].never()
                 }
 
                 // Should only be called from the mockall_derive generated code
                 #[doc(hidden)]
-                #vis fn new(mut guard: MutexGuard<'lt, Expectations<#macro_g>>)
+                #vis fn new(mut guard: MutexGuard<'lt, Expectations #egenerics_ty>)
                     -> Self
                 {
                     guard.expect(); // Drop the &Expectation
@@ -1183,14 +1176,14 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 }
 
                 /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
-                #vis fn once(&mut self) -> &mut Expectation<#macro_g> {
+                #vis fn once(&mut self) -> &mut Expectation #egenerics_ty {
                     self.guard.0[self.i].once()
                 }
 
                 /// Just like
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
                 #vis fn returning<F>(&mut self, f: F)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                     where F: FnMut(#argty) -> #output + Send + 'static
                 {
                     self.guard.0[self.i].returning(f)
@@ -1199,7 +1192,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
                 #vis fn return_once<F>(&mut self, f: F)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                     where F: FnOnce(#argty) -> #output + Send + 'static
                 {
                     self.guard.0[self.i].return_once(f)
@@ -1208,7 +1201,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
                 #vis fn returning_st<F>(&mut self, f: F)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                     where F: FnMut(#argty) -> #output + 'static
                 {
                     self.guard.0[self.i].returning_st(f)
@@ -1217,20 +1210,20 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
                 #vis fn times(&mut self, n: usize)
-                    -> &mut Expectation<#macro_g> {
+                    -> &mut Expectation #egenerics_ty {
                     self.guard.0[self.i].times(n)
                 }
 
                 /// Just like
                 /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
-                #vis fn times_any(&mut self) -> &mut Expectation<#macro_g> {
+                #vis fn times_any(&mut self) -> &mut Expectation #egenerics_ty {
                     self.guard.0[self.i].times_any()
                 }
 
                 /// Just like
                 /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
                 #vis fn times_range(&mut self, range: Range<usize>)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                 {
                     self.guard.0[self.i].times_range(range)
                 }
@@ -1238,14 +1231,14 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::with`](struct.Expectation.html#method.with)
                 #vis fn with #pred_generics (&mut self, #pred_args)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                 {
                     self.guard.0[self.i].with(#pred_argnames)
                 }
 
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #vis fn withf<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
+                #vis fn withf<F>(&mut self, f: F) -> &mut Expectation #egenerics_ty
                     where F: Fn(#withfty) -> bool + Send + 'static
                 {
                     self.guard.0[self.i].withf(f)
@@ -1254,24 +1247,22 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
             /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html) but for
             /// generic methods.
-            #vis struct GenericExpectationGuard #bounded_lt_macro_g {
+            #vis struct GenericExpectationGuard #eltgenerics_impl {
                 guard: MutexGuard<'lt, GenericExpectations>,
                 i: usize,
-                _phantom: PhantomData<((), #macro_g)>,
+                _phantom: PhantomData<(#fn_params)>,
             }
 
-            impl #bounded_lt_macro_g
-                GenericExpectationGuard<'lt, #macro_g>
-            {
+            impl #eltgenerics_impl GenericExpectationGuard #eltgenerics_ty {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
                 #vis fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .in_sequence(seq)
@@ -1279,11 +1270,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::never`](struct.Expectation.html#method.never)
-                #vis fn never(&mut self) -> &mut Expectation<#macro_g> {
+                #vis fn never(&mut self) -> &mut Expectation #egenerics_ty {
                         self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .never()
@@ -1293,10 +1284,10 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 #vis fn new(mut guard: MutexGuard<'lt, GenericExpectations>)
                     -> Self
                 {
-                    let __ee: &mut Expectations<#macro_g> =
+                    let __ee: &mut Expectations #egenerics_ty =
                         guard.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
-                            Box::new(Expectations::<#macro_g>::new()))
+                            Box::new(Expectations #egenerics_tbf ::new()))
                         .downcast_mut()
                         .unwrap();
                     __ee.expect();    // Drop the &Expectation
@@ -1306,11 +1297,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::once`](struct.Expectation.html#method.once)
-                #vis fn once(&mut self) -> &mut Expectation<#macro_g> {
+                #vis fn once(&mut self) -> &mut Expectation #egenerics_ty {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .once()
@@ -1318,13 +1309,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-                #vis fn returning<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
+                #vis fn returning<F>(&mut self, f: F) -> &mut Expectation #egenerics_ty
                     where F: FnMut(#argty) -> #output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .returning(f)
@@ -1332,13 +1323,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-                #vis fn return_once<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
+                #vis fn return_once<F>(&mut self, f: F) -> &mut Expectation #egenerics_ty
                     where F: FnOnce(#argty) -> #output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .return_once(f)
@@ -1346,13 +1337,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-                #vis fn returning_st<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
+                #vis fn returning_st<F>(&mut self, f: F) -> &mut Expectation #egenerics_ty
                     where F: FnMut(#argty) -> #output + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .returning_st(f)
@@ -1360,11 +1351,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #vis fn times(&mut self, n: usize) -> &mut Expectation<#macro_g> {
+                #vis fn times(&mut self, n: usize) -> &mut Expectation #egenerics_ty {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .times(n)
@@ -1372,11 +1363,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
-                #vis fn times_any(&mut self) -> &mut Expectation<#macro_g> {
+                #vis fn times_any(&mut self) -> &mut Expectation #egenerics_ty {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .times_any()
@@ -1385,12 +1376,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
                 #vis fn times_range(&mut self, range: Range<usize>)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .times_range(range)
@@ -1399,12 +1390,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::with`](struct.Expectation.html#method.with)
                 #vis fn with #pred_generics (&mut self, #pred_args)
-                    -> &mut Expectation<#macro_g>
+                    -> &mut Expectation #egenerics_ty
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .with(#pred_argnames)
@@ -1412,13 +1403,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #vis fn withf<F>(&mut self, f: F) -> &mut Expectation<#macro_g>
+                #vis fn withf<F>(&mut self, f: F) -> &mut Expectation #egenerics_ty
                     where F: Fn(#withfty) -> bool + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
-                        .downcast_mut::<Expectations<#macro_g>>()
+                        .downcast_mut::<Expectations #egenerics_ty>()
                         .unwrap()
                         .0[self.i]
                         .withf(f)
@@ -1427,7 +1418,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             }
         )
     } else {
-        let ts = static_expectation(vis, &macro_g, &selfless_args, &argnames,
+        let ts = static_expectation(vis, &egenerics, &selfless_args, &argnames,
                                     &supersuper_argty, &altargnames,
                                     &supersuper_altargty, &matchexprs,
                                     &supersuper_output);
