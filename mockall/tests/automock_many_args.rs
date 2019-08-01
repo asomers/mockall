@@ -10,6 +10,12 @@ trait ManyArgs {
     fn foo(&self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
            _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
            _a12: u8, _a13: u8, _a14: u8, _a15: u8);
+    fn bar(&self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
+           _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
+           _a12: u8, _a13: u8, _a14: u8, _a15: u8) -> &u32;
+    fn baz(&mut self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
+           _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
+           _a12: u8, _a13: u8, _a14: u8, _a15: u8) -> &mut u32;
 }
 
 #[test]
@@ -18,4 +24,20 @@ fn returning() {
     mock.expect_foo()
         .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
     mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+#[test]
+fn return_const() {
+    let mut mock = MockManyArgs::new();
+    mock.expect_bar()
+        .return_const(42);
+    mock.bar(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+#[test]
+fn return_var() {
+    let mut mock = MockManyArgs::new();
+    mock.expect_baz()
+        .return_var(42);
+    mock.baz(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }

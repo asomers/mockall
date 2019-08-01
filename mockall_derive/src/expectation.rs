@@ -145,6 +145,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
     let selfless_args = strip_self(args);
     let (argnames, argty) = split_args(args);
+    let argnames_nocommas = TokenStream::from_iter(
+        argnames.iter().map(|a| quote!(#a))
+    );
+    let argty_nocommas = TokenStream::from_iter(
+        argty.iter().map(|a| quote!(#a))
+    );
     let supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
         argty.iter()
         .map(|t| supersuperfy(&t))
@@ -157,6 +163,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         argty_tp.push_punct(Token![,](Span::call_site()));
     }
     let (altargnames, altargty) = split_args(altargs);
+    let altargnames_nocommas = TokenStream::from_iter(
+        altargnames.iter().map(|a| quote!(#a))
+    );
+    let altargty_nocommas = TokenStream::from_iter(
+        altargty.iter().map(|a| quote!(#a))
+    );
     let supersuper_altargty = Punctuated::<Type, token::Comma>::from_iter(
         altargty.iter()
         .map(|t| supersuperfy(&t))
@@ -178,11 +190,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             use super::*;
 
             ::mockall::common_matcher!{
-                [#macro_g] [#argnames] [#altargnames] [#altargty]
+                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
+                [#altargty_nocommas]
             }
 
             ::mockall::common_methods!{
-                [#macro_g] [#argnames] [#altargnames] [#altargty]
+                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
+                [#altargty_nocommas]
             }
 
             /// Expectation type for methods taking a `&self` argument and
@@ -207,7 +221,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 }
 
                 ::mockall::expectation_methods!{
-                    #vis [#argnames] [#altargnames] [#altargty]
+                    #vis [#argnames_nocommas] [#altargnames_nocommas]
+                    [#altargty_nocommas]
                 }
             }
 
@@ -245,7 +260,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             {}
 
             ::mockall::generic_expectation_methods!{
-                #vis [#macro_g] [#argty] #supersuper_output
+                #vis [#macro_g] [#argty_nocommas] #supersuper_output
             }
             impl GenericExpectations {
                 /// Simulating calling the real method.
@@ -294,11 +309,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             use super::*;
 
             ::mockall::common_matcher!{
-                [#macro_g] [#argnames] [#altargnames] [#altargty]
+                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
+                [#altargty_nocommas]
             }
 
             ::mockall::common_methods!{
-                [#macro_g] [#argnames] [#altargnames] [#altargty]
+                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
+                [#altargty_nocommas]
             }
 
             /// Expectation type for methods taking a `&mut self` argument and
@@ -354,7 +371,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 }
 
                 ::mockall::expectation_methods!{
-                    #vis [#argnames] [#altargnames] [#altargty]
+                    #vis [#argnames_nocommas] [#altargnames_nocommas]
+                    [#altargty_nocommas]
                 }
             }
             impl #bounded_macro_g Default for Expectation<#macro_g>
@@ -391,7 +409,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             {}
 
             ::mockall::generic_expectation_methods!{
-                #vis [#macro_g] [#argty] #output
+                #vis [#macro_g] [#argty_nocommas] #output
             }
             impl GenericExpectations {
                 /// Simulating calling the real method.
