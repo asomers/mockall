@@ -215,6 +215,185 @@ fn destrify(ty: &mut Type) {
     }
 }
 
+/// Methods of the Expectation structs that are common for static expectations,
+/// ref expectations, and ref mut expectations
+fn expectation_methods(v: &Visibility,
+    argnames: &Punctuated<Pat, Token![,]>,
+    altargs: &Punctuated<Pat, Token![,]>,
+    matchty: &Punctuated<Type, Token![,]>) -> TokenStream
+{
+    let args = TokenStream::from_iter(
+        argnames.iter().zip(matchty.iter())
+        .map(|(argname, mt)| quote!(#argname: &#mt, ))
+    );
+    // TODO: construct new names rather than reuse altargs
+    let with_generics = TokenStream::from_iter(
+        altargs.iter().zip(matchty.iter())
+        .map(|(aa, mt)|
+             quote!(#aa: ::mockall::Predicate<#mt> + Send + 'static, )
+        )
+    );
+    let with_args = TokenStream::from_iter(
+        argnames.iter().zip(altargs.iter())
+        .map(|(argname, altarg)| quote!(#argname: #altarg, ))
+    );
+    let refmatchty = TokenStream::from_iter(
+        matchty.iter().map(|mt| quote!(&#mt,))
+    );
+    quote!(
+        /// Add this expectation to a
+        /// [`Sequence`](../../../mockall/struct.Sequence.html).
+        #v fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+            -> &mut Self
+        {
+            self.common.in_sequence(seq);
+            self
+        }
+
+        fn is_done(&self) -> bool {
+            self.common.is_done()
+        }
+
+        /// Validate this expectation's matcher.
+        fn matches(&self, #args) -> bool {
+            self.common.matches(#argnames)
+        }
+
+        /// Forbid this expectation from ever being called.
+        #v fn never(&mut self) -> &mut Self {
+            self.common.never();
+            self
+        }
+
+        /// Create a new, default, [`Expectation`](struct.Expectation.html)
+        #v fn new() -> Self {
+            Self::default()
+        }
+
+        /// Expect this expectation to be called exactly once.  Shortcut for
+        /// [`times(1)`](#method.times).
+        #v fn once(&mut self) -> &mut Self {
+            self.times(1)
+        }
+
+        /// Expect this expectation to be called exactly `n` times.
+        #v fn times(&mut self, n: usize) -> &mut Self {
+            self.common.times(n);
+            self
+        }
+
+        /// Allow this expectation to be called any number of times
+        ///
+        /// This behavior is the default, but the method is provided in case the
+        /// default behavior changes.
+        #v fn times_any(&mut self) -> &mut Self {
+            self.common.times_any();
+            self
+        }
+
+        /// Allow this expectation to be called any number of times within a
+        /// given range
+        #v fn times_range(&mut self, range: Range<usize>)
+            -> &mut Self
+        {
+            self.common.times_range(range);
+            self
+        }
+
+        /// Set matching crieteria for this Expectation.
+        ///
+        /// The matching predicate can be anything implemening the
+        /// [`Predicate`](../../../mockall/trait.Predicate.html) trait.  Only
+        /// one matcher can be set per `Expectation` at a time.
+        #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
+        #v fn with<#with_generics>(&mut self, #with_args) -> &mut Self
+        {
+            self.common.with(#argnames);
+            self
+        }
+
+        /// Set a matching function for this Expectation.
+        ///
+        /// This is equivalent to calling [`with`](#method.with) with a function
+        /// argument, like `with(predicate::function(f))`.
+        #v fn withf<F>(&mut self, f: F) -> &mut Self
+            where F: Fn(#refmatchty) -> bool + Send + 'static
+        {
+            self.common.withf(f);
+            self
+        }
+    )
+}
+
+/// Common methods of the Expectations structs
+fn expectations_methods(v: &Visibility,
+    generics: &Punctuated<Ident, Token![,]>) -> TokenStream
+{
+    let static_generics = TokenStream::from_iter(
+        generics.iter().map(|g| quote!(#g: 'static, ))
+    );
+    quote!(
+        /// A collection of [`Expectation`](struct.Expectations.html) objects.
+        /// Users will rarely if ever use this struct directly.
+        #[doc(hidden)]
+        #v struct Expectations<#static_generics>(
+            Vec<Expectation<#generics>>
+        );
+
+        impl<#static_generics> Expectations<#generics> {
+            /// Verify that all current expectations are satisfied and clear
+            /// them.
+            #v fn checkpoint(&mut self) {
+                self.0.drain(..);
+            }
+
+            /// Create a new expectation for this method.
+            #v fn expect(&mut self) -> &mut Expectation<#generics>
+            {
+                let e = Expectation::default();
+                self.0.push(e);
+                let l = self.0.len();
+                &mut self.0[l - 1]
+            }
+
+            #v fn new() -> Self {
+                Self::default()
+            }
+        }
+        impl<#static_generics> Default for Expectations<#generics>
+        {
+            fn default() -> Self {
+                Expectations(Vec::new())
+            }
+        }
+    )
+}
+
+fn generic_expectation_methods(v: &Visibility) -> TokenStream
+{
+    quote!(
+        /// A collection of [`Expectation`](struct.Expectations.html) objects
+        /// for a generic method.  Users will rarely if ever use this struct
+        /// directly.
+        #[doc(hidden)]
+        #[derive(Default)]
+        #v struct GenericExpectations{
+            store: HashMap<::mockall::Key, Box<dyn ::mockall::AnyExpectations>>
+        }
+        impl GenericExpectations {
+            /// Verify that all current expectations are satisfied and clear
+            /// them.  This applies to all sets of generic parameters!
+            #v fn checkpoint(&mut self) {
+                self.store.clear();
+            }
+
+            #v fn new() -> Self {
+                Self::default()
+            }
+        }
+    )
+}
+
 fn split_args(args: &Punctuated<FnArg, Token![,]>)
     -> (Punctuated<Pat, Token![,]>,
         Punctuated<Type, Token![,]>)
@@ -256,18 +435,6 @@ fn static_expectation(v: &Visibility,
     let static_generics = TokenStream::from_iter(
         generics.iter().map(|g| quote!(#g: 'static, ))
     );
-    let argnames_nocommas = TokenStream::from_iter(
-        argnames.iter().map(|a| quote!(#a))
-    );
-    let argty_nocommas = TokenStream::from_iter(
-        argty.iter().map(|a| quote!(#a))
-    );
-    let altargs_nocommas = TokenStream::from_iter(
-        altargs.iter().map(|a| quote!(#a))
-    );
-    let matchty_nocommas = TokenStream::from_iter(
-        matchty.iter().map(|a| quote!(#a))
-    );
     let supersuper_args = Punctuated::<ArgCaptured, Token![,]>::from_iter(
         selfless_args.iter()
         .map(|ac| {
@@ -279,6 +446,9 @@ fn static_expectation(v: &Visibility,
         })
     );
     let cm_ts = common_methods(generics, argnames, altargs, matchty);
+    let em_ts = expectation_methods(v, argnames, altargs, matchty);
+    let eem_ts = expectations_methods(v, generics);
+    let gem_ts = generic_expectation_methods(v);
     quote!(
         use ::downcast::*;
         use ::fragile::Fragile;
@@ -455,9 +625,7 @@ fn static_expectation(v: &Visibility,
                 self
             }
 
-            ::mockall::expectation_methods!{
-                #v [#argnames_nocommas] [#altargs_nocommas] [#matchty_nocommas]
-            }
+            #em_ts
         }
         impl<#generics> Default for Expectation<#generics>
         {
@@ -469,7 +637,7 @@ fn static_expectation(v: &Visibility,
             }
         }
 
-        ::mockall::expectations_methods!{#v [#generics]}
+        #eem_ts
         impl<#generics> Expectations<#generics> {
             /// Simulating calling the real method.  Every current expectation
             /// will be checked in FIFO order and the first one with matching
@@ -490,9 +658,7 @@ fn static_expectation(v: &Visibility,
             ::mockall::AnyExpectations for Expectations<#generics>
         {}
 
-        ::mockall::generic_expectation_methods!{#v [#generics] [#argty_nocommas]
-            #output
-        }
+        #gem_ts
         impl GenericExpectations {
             /// Simulating calling the real method.
             #v fn call<#static_generics>
@@ -606,12 +772,6 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
     let selfless_args = strip_self(args);
     let (argnames, argty) = split_args(args);
-    let argnames_nocommas = TokenStream::from_iter(
-        argnames.iter().map(|a| quote!(#a))
-    );
-    let argty_nocommas = TokenStream::from_iter(
-        argty.iter().map(|a| quote!(#a))
-    );
     let mut supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
         argty.iter()
         .map(|t| supersuperfy(&t))
@@ -630,17 +790,14 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         argty_tp.push_punct(Token![,](Span::call_site()));
     }
     let (altargnames, altargty) = split_args(altargs);
-    let altargnames_nocommas = TokenStream::from_iter(
-        altargnames.iter().map(|a| quote!(#a))
-    );
-    let altargty_nocommas = TokenStream::from_iter(
-        altargty.iter().map(|a| quote!(#a))
-    );
     let supersuper_altargty = Punctuated::<Type, token::Comma>::from_iter(
         altargty.iter()
         .map(|t| supersuperfy(&t))
     );
     let cm_ts = common_methods(&macro_g, &argnames, &altargnames, &altargty);
+    let em_ts = expectation_methods(&vis, &argnames, &altargnames, &altargty);
+    let eem_ts = expectations_methods(&vis, &macro_g);
+    let gem_ts = generic_expectation_methods(&vis);
     if ref_expectation {
         quote!(
             #attrs
@@ -680,10 +837,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     self
                 }
 
-                ::mockall::expectation_methods!{
-                    #vis [#argnames_nocommas] [#altargnames_nocommas]
-                    [#altargty_nocommas]
-                }
+                #em_ts
             }
 
             impl #bounded_macro_g Default for Expectation<#macro_g>
@@ -696,7 +850,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 }
             }
 
-            ::mockall::expectations_methods!{#vis [#macro_g]}
+            #eem_ts
             impl #bounded_macro_g Expectations<#macro_g> {
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
@@ -718,9 +872,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     where #output: Send + Sync
             {}
 
-            ::mockall::generic_expectation_methods!{
-                #vis [#macro_g] [#argty_nocommas] #supersuper_output
-            }
+            #gem_ts
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #vis fn call #bounded_macro_g
@@ -751,6 +903,10 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
     } else if ref_mut_expectation {
         let cm_ts = common_methods(&macro_g, &argnames, &altargnames,
                                    &altargty);
+        let em_ts = expectation_methods(&vis, &argnames, &altargnames,
+                                        &altargty);
+        let eem_ts = expectations_methods(&vis, &macro_g);
+        let gem_ts = generic_expectation_methods(&vis);
         quote!(
             #attrs
             pub mod #ident {
@@ -820,10 +976,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     self
                 }
 
-                ::mockall::expectation_methods!{
-                    #vis [#argnames_nocommas] [#altargnames_nocommas]
-                    [#altargty_nocommas]
-                }
+                #em_ts
             }
             impl #bounded_macro_g Default for Expectation<#macro_g>
             {
@@ -835,7 +988,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     }
                 }
             }
-            ::mockall::expectations_methods!{#vis [#macro_g]}
+            #eem_ts
             impl #bounded_macro_g Expectations<#macro_g> {
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
@@ -858,9 +1011,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 where #output: Send + Sync
             {}
 
-            ::mockall::generic_expectation_methods!{
-                #vis [#macro_g] [#argty_nocommas] #output
-            }
+            #gem_ts
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #vis fn call_mut #bounded_macro_g

@@ -994,8 +994,6 @@ use std::{
     thread
 };
 
-mod expectation;
-
 pub use mockall_derive::{mock, automock};
 pub use predicates::{
     boolean::PredicateBooleanExt,
