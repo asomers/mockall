@@ -4,6 +4,187 @@
 use super::*;
 use std::iter::{FromIterator, IntoIterator};
 
+/// Common methods of all Expectation types
+fn common_methods(
+    generics: &Punctuated<Ident, Token![,]>,
+    argnames: &Punctuated<Pat, Token![,]>,
+    altargs: &Punctuated<Pat, Token![,]>,
+    matchty: &Punctuated<Type, Token![,]>) -> TokenStream
+{
+    let static_generics = TokenStream::from_iter(
+        generics.iter().map(|g| quote!(#g: 'static, ))
+    );
+    let args = TokenStream::from_iter(
+        argnames.iter().zip(matchty.iter())
+        .map(|(argname, mt)| quote!(#argname: &#mt, ))
+    );
+    let refmatchty = TokenStream::from_iter(
+        matchty.iter().map(|mt| quote!(&#mt,))
+    );
+    let preds = TokenStream::from_iter(
+        matchty.iter().map(|mt| quote!(Box<::mockall::Predicate<#mt> + Send>,))
+    );
+    let pred_matches = TokenStream::from_iter(
+        altargs.iter().zip(argnames.iter())
+        .map(|(altarg, argname)| quote!(#altarg.eval(#argname),))
+    );
+    let pred_verify = TokenStream::from_iter(
+        altargs.iter().zip(argnames.iter())
+        .map(|(altarg, argname)| quote!(
+            if let Some(c) = #altarg.find_case(false, #argname){
+                panic!("Expectation didn't match arguments:\n{}", c.tree());
+            }
+        ))
+    );
+    // TODO: construct new names rather than reuse altargs
+    let with_generics = TokenStream::from_iter(
+        altargs.iter().zip(matchty.iter())
+        .map(|(aa, mt)|
+             quote!(#aa: ::mockall::Predicate<#mt> + Send + 'static, )
+        )
+    );
+    let with_args = TokenStream::from_iter(
+        argnames.iter().zip(altargs.iter())
+        .map(|(argname, altarg)| quote!(#argname: #altarg, ))
+    );
+    let boxed_withargs = TokenStream::from_iter(
+        argnames.iter().map(|aa| quote!(Box::new(#aa), ))
+    );
+    quote!(
+        enum Matcher<#static_generics> {
+            Func(Box<Fn(#refmatchty) -> bool + Send>),
+            Pred( #preds ),
+            // Prevent "unused type parameter" errors
+            // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
+            // are not, unlike PhantomData<generics>
+            _Phantom(Box<Fn(#generics) -> () + Send>)
+        }
+
+        impl<#static_generics> Matcher<#generics> {
+            fn matches(&self, #args) -> bool {
+                match self {
+                    Matcher::Func(f) => f(#argnames),
+                    Matcher::Pred(#altargs) =>
+                        [#pred_matches]
+                        .into_iter()
+                        .all(|x| *x),
+                    _ => unreachable!()
+                }
+            }
+
+            fn verify(&self, #args ) {
+                match self {
+                    Matcher::Func(f) => assert!(f(#argnames),
+                        "Expectation didn't match arguments"),
+                    Matcher::Pred(#altargs) => { #pred_verify },
+                    _ => unreachable!()
+                }
+            }
+        }
+
+        impl<#static_generics> Default for Matcher<#generics> {
+            #[allow(unused_variables)]
+            fn default() -> Self {
+                Matcher::Func(Box::new(|#argnames| true))
+            }
+        }
+        /// Holds the stuff that is independent of the output type
+        struct Common<#static_generics> {
+            matcher: Mutex<Matcher<#generics>>,
+            seq_handle: Option<::mockall::SeqHandle>,
+            times: ::mockall::Times
+        }
+
+        impl<#static_generics> std::default::Default for Common<#generics>
+        {
+            fn default() -> Self {
+                Common {
+                    matcher: Mutex::new(Matcher::default()),
+                    seq_handle: None,
+                    times: ::mockall::Times::default()
+                }
+            }
+        }
+
+        impl<#static_generics> Common<#generics> {
+            fn call(&self, #args ) {
+                self.matcher.lock().unwrap().verify(#argnames);
+                self.times.call();
+                self.verify_sequence();
+                if self.times.is_satisfied() {
+                    self.satisfy_sequence()
+                }
+            }
+
+            fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+                -> &mut Self
+            {
+                assert!(self.times.is_exact(),
+                    "Only Expectations with an exact call count have sequences");
+                self.seq_handle = Some(seq.next());
+                self
+            }
+
+            fn is_done(&self) -> bool {
+                self.times.is_done()
+            }
+
+            fn matches(&self, #args) -> bool {
+                self.matcher.lock().unwrap().matches(#argnames)
+            }
+
+            /// Forbid this expectation from ever being called.
+            fn never(&mut self) {
+                self.times.never();
+            }
+
+            fn satisfy_sequence(&self) {
+                if let Some(handle) = &self.seq_handle {
+                    handle.satisfy()
+                }
+            }
+
+            /// Expect this expectation to be called exactly `n` times.
+            fn times(&mut self, n: usize) {
+                self.times.n(n);
+            }
+
+            /// Allow this expectation to be called any number of times
+            fn times_any(&mut self) {
+                self.times.any();
+            }
+
+            /// Allow this expectation to be called any number of times within a
+            /// given range
+            fn times_range(&mut self, range: Range<usize>) {
+                self.times.range(range);
+            }
+
+            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
+            fn with<#with_generics>(&mut self, #with_args)
+            {
+                let mut guard = self.matcher.lock().unwrap();
+                let m = Matcher::Pred(#boxed_withargs);
+                mem::replace(guard.deref_mut(), m);
+            }
+
+            fn withf<F>(&mut self, f: F)
+                where F: Fn(#refmatchty) -> bool + Send + 'static
+            {
+                let mut guard = self.matcher.lock().unwrap();
+                let m = Matcher::Func(Box::new(f));
+                mem::replace(guard.deref_mut(), m);
+            }
+
+            fn verify_sequence(&self) {
+                if let Some(handle) = &self.seq_handle {
+                    handle.verify()
+                }
+            }
+        }
+    )
+}
+
 /// Convert a special reference type like "&str" into a reference to its owned
 /// type like "&String".
 fn destrify(ty: &mut Type) {
@@ -97,6 +278,7 @@ fn static_expectation(v: &Visibility,
             }
         })
     );
+    let cm_ts = common_methods(generics, argnames, altargs, matchty);
     quote!(
         use ::downcast::*;
         use ::fragile::Fragile;
@@ -158,15 +340,7 @@ fn static_expectation(v: &Visibility,
             }
         }
 
-        ::mockall::common_matcher!{
-            [#generics] [#argnames_nocommas] [#altargs_nocommas]
-            [#matchty_nocommas]
-        }
-
-        ::mockall::common_methods!{
-            [#generics] [#argnames_nocommas] [#altargs_nocommas]
-            [#matchty_nocommas]
-        }
+        #cm_ts
 
         /// Expectation type for methods that return a `'static` type.
         /// This is the type returned by the `expect_*` methods.
@@ -466,6 +640,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         altargty.iter()
         .map(|t| supersuperfy(&t))
     );
+    let cm_ts = common_methods(&macro_g, &argnames, &altargnames, &altargty);
     if ref_expectation {
         quote!(
             #attrs
@@ -482,15 +657,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             };
             use super::*;
 
-            ::mockall::common_matcher!{
-                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
-                [#altargty_nocommas]
-            }
-
-            ::mockall::common_methods!{
-                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
-                [#altargty_nocommas]
-            }
+            #cm_ts
 
             /// Expectation type for methods taking a `&self` argument and
             /// returning immutable references.  This is the type returned by
@@ -582,6 +749,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         }
         )
     } else if ref_mut_expectation {
+        let cm_ts = common_methods(&macro_g, &argnames, &altargnames,
+                                   &altargty);
         quote!(
             #attrs
             pub mod #ident {
@@ -597,15 +766,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             };
             use super::*;
 
-            ::mockall::common_matcher!{
-                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
-                [#altargty_nocommas]
-            }
-
-            ::mockall::common_methods!{
-                [#macro_g] [#argnames_nocommas] [#altargnames_nocommas]
-                [#altargty_nocommas]
-            }
+            #cm_ts
 
             /// Expectation type for methods taking a `&mut self` argument and
             /// returning references.  This is the type returned by the
