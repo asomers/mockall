@@ -50,15 +50,308 @@ fn split_args(args: &Punctuated<FnArg, Token![,]>)
 }
 
 fn strip_self(args: &Punctuated<FnArg, Token![,]>)
-    -> Punctuated<FnArg, Token![,]>
+    -> Punctuated<ArgCaptured, Token![,]>
 {
     let mut out = Punctuated::new();
     for fa in args {
-        if let FnArg::Captured(_) = fa {
-            out.push(fa.clone());
+        if let FnArg::Captured(ac) = fa {
+            out.push(ac.clone());
         }
     }
     out
+}
+
+/// Generate code for an expectation that returns a 'static value
+fn static_expectation(v: &Visibility,
+    generics: &Punctuated<Ident, Token![,]>,
+    selfless_args: &Punctuated<ArgCaptured, Token![,]>,
+    argnames: &Punctuated<Pat, Token![,]>,
+    argty: &Punctuated<Type, Token![,]>,
+    altargs: &Punctuated<Pat, Token![,]>,
+    matchty: &Punctuated<Type, Token![,]>,
+    matchcall: &Punctuated<Expr, Token![,]>,
+    output: &Type) -> TokenStream
+{
+    let static_generics = TokenStream::from_iter(
+        generics.iter().map(|g| quote!(#g: 'static, ))
+    );
+    let argnames_nocommas = TokenStream::from_iter(
+        argnames.iter().map(|a| quote!(#a))
+    );
+    let argty_nocommas = TokenStream::from_iter(
+        argty.iter().map(|a| quote!(#a))
+    );
+    let altargs_nocommas = TokenStream::from_iter(
+        altargs.iter().map(|a| quote!(#a))
+    );
+    let matchty_nocommas = TokenStream::from_iter(
+        matchty.iter().map(|a| quote!(#a))
+    );
+    let supersuper_args = Punctuated::<ArgCaptured, Token![,]>::from_iter(
+        selfless_args.iter()
+        .map(|ac| {
+            ArgCaptured {
+                pat: ac.pat.clone(),
+                colon_token: ac.colon_token.clone(),
+                ty: supersuperfy(&ac.ty)
+            }
+        })
+    );
+    quote!(
+        use ::downcast::*;
+        use ::fragile::Fragile;
+        use ::predicates_tree::CaseTreeExt;
+        use ::std::{
+            collections::hash_map::HashMap,
+            marker::PhantomData,
+            mem,
+            ops::{DerefMut, Range},
+            sync::{Mutex, MutexGuard}
+        };
+        use super::*;   // Import types from the calling environment
+
+        enum Rfunc<#static_generics> {
+            Default,
+            // Indicates that a `return_once` expectation has already returned
+            Expired,
+            Mut(Box<dyn FnMut(#argty) -> #output + Send>),
+            // Should be Box<dyn FnOnce> once that feature is stabilized
+            // https://github.com/rust-lang/rust/issues/28796
+            Once(Box<dyn FnMut(#argty) -> #output + Send>),
+            // Prevent "unused type parameter" errors
+            // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
+            // are not, unlike PhantomData<generics>
+            _Phantom(Box<Fn(#generics) -> () + Send>)
+        }
+
+        impl<#generics>  Rfunc<#generics> {
+            fn call_mut(&mut self, #supersuper_args ) -> #output {
+                match self {
+                    Rfunc::Default => {
+                        use ::mockall::ReturnDefault;
+                        ::mockall::DefaultReturner::<#output>::return_default()
+                    },
+                    Rfunc::Expired => {
+                        panic!("Called a method twice that was expected only once")
+                    },
+                    Rfunc::Mut(f) => {
+                        f( #argnames )
+                    },
+                    Rfunc::Once(_) => {
+                        let __fo = mem::replace(self, Rfunc::Expired);
+                        if let Rfunc::Once(mut f) = __fo {
+                            f( #argnames )
+                        } else {
+                            unreachable!()
+                        }
+                    },
+                    Rfunc::_Phantom(_) => unreachable!()
+                }
+            }
+        }
+
+        impl<#generics>
+            std::default::Default for Rfunc<#generics>
+        {
+            fn default() -> Self {
+                Rfunc::Default
+            }
+        }
+
+        ::mockall::common_matcher!{
+            [#generics] [#argnames_nocommas] [#altargs_nocommas]
+            [#matchty_nocommas]
+        }
+
+        ::mockall::common_methods!{
+            [#generics] [#argnames_nocommas] [#altargs_nocommas]
+            [#matchty_nocommas]
+        }
+
+        /// Expectation type for methods that return a `'static` type.
+        /// This is the type returned by the `expect_*` methods.
+        #v struct Expectation<#static_generics> {
+            common: Common<#generics>,
+            rfunc: Mutex<Rfunc<#generics>>,
+        }
+
+        impl<#generics> Expectation<#generics> {
+            /// Call this [`Expectation`] as if it were the real method.
+            #[doc(hidden)]
+            #v fn call(&self, #supersuper_args ) -> #output
+            {
+                self.common.call(#matchcall);
+                self.rfunc.lock().unwrap().call_mut(#argnames)
+            }
+
+            /// Return a constant value from the `Expectation`
+            ///
+            /// The output type must be `Clone`.  The compiler can't always
+            /// infer the proper type to use with this method; you will usually
+            /// need to specify it explicitly.  i.e. `return_const(42i32)`
+            /// instead of `return_const(42)`.
+            // We must use Into<#output> instead of #output because where
+            // clauses don't accept equality constraints.
+            // https://github.com/rust-lang/rust/issues/20041
+            #[allow(unused_variables)]
+            #v fn return_const<MockallOutput>(&mut self, c: MockallOutput)
+                -> &mut Self
+                where MockallOutput: Clone + Into<#output> + Send + 'static
+            {
+                let __f = move |#supersuper_args| c.clone().into();
+                self.returning(__f)
+            }
+
+            /// Supply an `FnOnce` closure that will provide the return value
+            /// for this Expectation.  This is useful for return types that
+            /// aren't `Clone`.  It will be an error to call this method
+            /// multiple times.
+            #v fn return_once<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce(#argty) -> #output + Send + 'static
+            {
+                let mut __fopt = Some(f);
+                let __fmut = move |#supersuper_args| {
+                    if let Some(f) = __fopt.take() {
+                        f(#argnames)
+                    } else {
+                        panic!("Called a method twice that was expected only once")
+                    }
+                };
+                {
+                    let mut guard = self.rfunc.lock().unwrap();
+                    mem::replace(guard.deref_mut(),
+                                 Rfunc::Once(Box::new(__fmut)));
+                }
+                self
+            }
+
+            /// Single-threaded version of [`return_once`](#method.return_once).
+            /// This is useful for return types that are neither `Send` nor
+            /// `Clone`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.  It is
+            /// also a runtime error to call the method more than once.
+            #v fn return_once_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnOnce(#argty) -> #output + 'static
+            {
+                let mut __fragile = Some(::fragile::Fragile::new(f));
+                let __fmut = Box::new(move |#supersuper_args| {
+                    match __fragile.take() {
+                        Some(frag) => (frag.into_inner())(#argnames),
+                        None => panic!(
+                            "Called a method twice that was expected only once")
+                    }
+                });
+                {
+                    let mut __guard = self.rfunc.lock().unwrap();
+                    mem::replace(__guard.deref_mut(), Rfunc::Once(__fmut));
+                }
+                self
+            }
+
+            /// Supply a closure that will provide the return value for this
+            /// `Expectation`.  The method's arguments are passed to the closure
+            /// by value.
+            #v fn returning<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut(#argty) -> #output + Send + 'static
+            {
+                {
+                    let mut __guard = self.rfunc.lock().unwrap();
+                    mem::replace(__guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+                }
+                self
+            }
+
+            /// Single-threaded version of [`returning`](#method.returning).
+            /// Can be used when the argument or return type isn't `Send`.
+            ///
+            /// It is a runtime error to call the mock method from a different
+            /// thread than the one that originally called this method.
+            #v fn returning_st<F>(&mut self, f: F) -> &mut Self
+                where F: FnMut(#argty) -> #output + 'static
+            {
+                let mut __fragile = Fragile::new(f);
+                let __fmut = move |#supersuper_args| {
+                    (__fragile.get_mut())(#argnames)
+                };
+                {
+                    let mut __guard = self.rfunc.lock().unwrap();
+                    mem::replace(__guard.deref_mut(),
+                                 Rfunc::Mut(Box::new(__fmut)));
+                }
+                self
+            }
+
+            ::mockall::expectation_methods!{
+                #v [#argnames_nocommas] [#altargs_nocommas] [#matchty_nocommas]
+            }
+        }
+        impl<#generics> Default for Expectation<#generics>
+        {
+            fn default() -> Self {
+                Expectation {
+                    common: Common::default(),
+                    rfunc: Mutex::new(Rfunc::default())
+                }
+            }
+        }
+
+        ::mockall::expectations_methods!{#v [#generics]}
+        impl<#generics> Expectations<#generics> {
+            /// Simulating calling the real method.  Every current expectation
+            /// will be checked in FIFO order and the first one with matching
+            /// arguments will be used.
+            #v fn call(&self, #supersuper_args ) -> #output
+            {
+                let __n = self.0.len();
+                match self.0.iter()
+                    .find(|e| e.matches(#matchcall) &&
+                          (!e.is_done() || __n == 1))
+                {
+                    None => panic!("No matching expectation found"),
+                    Some(e) => e.call(#argnames)
+                }
+            }
+
+        }
+        impl<#static_generics>
+            ::mockall::AnyExpectations for Expectations<#generics>
+        {}
+
+        ::mockall::generic_expectation_methods!{#v [#generics] [#argty_nocommas]
+            #output
+        }
+        impl GenericExpectations {
+            /// Simulating calling the real method.
+            #v fn call<#static_generics>
+                (&self, #supersuper_args ) -> #output
+            {
+                let __key = ::mockall::Key::new::<(#argty)>();
+                let __e: &Expectations<#generics> = self.store.get(&__key)
+                    .expect("No matching expectation found")
+                    .downcast_ref()
+                    .unwrap();
+                __e.call(#argnames)
+            }
+
+            /// Create a new Expectation.
+            #v fn expect<'e, #static_generics>
+                (&'e mut self)
+                -> &'e mut Expectation<#generics>
+            {
+                let __key = ::mockall::Key::new::<(#argty)>();
+                let __ee: &mut Expectations<#generics> =
+                    self.store.entry(__key)
+                    .or_insert_with(||
+                        Box::new(Expectations::<#generics>::new())
+                    ).downcast_mut()
+                    .unwrap();
+                __ee.expect()
+            }
+
+        }
+    )
 }
 
 /// Generate the code that implements an expectation for a single method
@@ -151,10 +444,16 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
     let argty_nocommas = TokenStream::from_iter(
         argty.iter().map(|a| quote!(#a))
     );
-    let supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
+    let mut supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
         argty.iter()
         .map(|t| supersuperfy(&t))
     );
+    if !supersuper_argty.empty_or_trailing() {
+        // The non-proc macro static_expectation! always uses trailing
+        // punctuation.  Until we eliminate that macro, the proc macro must use
+        // trailing punctuation to match.
+        supersuper_argty.push_punct(Token![,](Span::call_site()));
+    }
     let mut argty_tp = argty.clone();
     if !argty_tp.empty_or_trailing() {
         // The non-proc macro static_expectation! always uses trailing
@@ -535,13 +834,14 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             gt_token: Some(Token![>](Span::call_site())),
             where_clause: None
         };
+        let ts = static_expectation(vis, &macro_g, &selfless_args, &argnames,
+                                    &supersuper_argty, &altargnames,
+                                    &supersuper_altargty, &matchexprs,
+                                    &supersuper_output);
         quote!(
             #attrs
             pub mod #ident {
-            ::mockall::static_expectation!{
-                #vis [#macro_g] [#argnames] [#supersuper_argty] [#altargnames]
-                [#supersuper_altargty] [#matchexprs] #supersuper_output
-            }
+            #ts
 
             /// Like an [`&Expectation`](struct.Expectation.html) but protected
             /// by a Mutex guard.  Useful for mocking static methods.  Forwards
@@ -808,13 +1108,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             }
         )
     } else {
+        let ts = static_expectation(vis, &macro_g, &selfless_args, &argnames,
+                                    &supersuper_argty, &altargnames,
+                                    &supersuper_altargty, &matchexprs,
+                                    &supersuper_output);
         quote!(
             #attrs
-            pub mod #ident {
-            ::mockall::static_expectation!{
-                #vis [#macro_g] [#argnames] [#supersuper_argty] [#altargnames]
-                [#supersuper_altargty] [#matchexprs] #supersuper_output
-            }
-        })
+            pub mod #ident { #ts }
+        )
     }
 }
