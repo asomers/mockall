@@ -1,0 +1,54 @@
+// vim: tw=80
+//! A method that returns a type which is a common target for std::ops::Deref
+
+use mockall::*;
+use std::{
+    ffi::{CStr, CString, OsStr, OsString},
+    path::{Path, PathBuf},
+};
+
+#[automock]
+trait Foo {
+    fn name(&self) -> &CStr;
+    fn alias(&self) -> &str;
+    fn desc(&self) -> &OsStr;
+    fn path(&self) -> &Path;
+}
+
+mod return_const {
+    use super::*;
+
+    #[test]
+    fn cstr() {
+        let mut mock = MockFoo::new();
+        let name = CString::new("abcd").unwrap();
+        mock.expect_name().return_const(name.clone());
+        assert_eq!(name.as_c_str(), mock.name());
+    }
+
+    #[test]
+    fn osstr() {
+        let mut mock = MockFoo::new();
+        let desc = OsString::from("abcd");
+        mock.expect_desc().return_const(desc.clone());
+        assert_eq!(desc.as_os_str(), mock.desc());
+    }
+
+    #[test]
+    fn path() {
+        let mut mock = MockFoo::new();
+        let mut pb = PathBuf::new();
+        pb.push("foo");
+        pb.push("bar");
+        pb.push("baz");
+        mock.expect_path().return_const(pb.clone());
+        assert_eq!(pb.as_path(), mock.path());
+    }
+
+    #[test]
+    fn str() {
+        let mut mock = MockFoo::new();
+        mock.expect_alias().return_const("abcd".to_owned());
+        assert_eq!("abcd", mock.alias());
+    }
+}

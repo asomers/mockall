@@ -1,0 +1,26 @@
+// vim: tw=80
+/// Methods should be able to use non-pub types if the method is also
+/// non-pub
+
+use mockall::*;
+
+#[allow(unused)]
+mod outer {
+    struct SuperT();
+
+    mod inner {
+        use super::super::mock;
+
+        pub(crate) struct PubCrateT();
+        struct PrivT();
+
+        mock! {
+            Foo {
+                fn foo(&self) -> PubCrateT;
+                fn bar(&self) -> PrivT;
+                fn baz(&self) -> super::SuperT;
+                fn bang(&self) -> super::SuperT;
+            }
+        }
+    }
+}

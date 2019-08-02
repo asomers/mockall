@@ -7,15 +7,12 @@
 //!
 //! # Usage
 //!
-//! There are three ways to use Mockall.  The easiest is to use
+//! There are two ways to use Mockall.  The easiest is to use
 //! [`#[automock]`](https://docs.rs/mockall_derive/latest/mockall_derive/attr.automock.html).
 //! It can mock most
 //! traits, or structs that only have a single `impl` block.  For things it
 //! can't handle, there is
 //! [`mock!`](https://docs.rs/mockall_derive/latest/mockall_derive/macro.mock.html).
-//! Finally, there are rare
-//! cases where one may need to manually construct a mock object using
-//! [`expectation!`].
 //!
 //! Whichever method is used, the basic idea is the same.
 //! * Create a mock struct.  It's name will be the same as the original, with
@@ -489,8 +486,9 @@
 //! Currently, the
 //! [`CStr`](https://doc.rust-lang.org/stable/std/ffi/struct.CStr.html),
 //! [`OsStr`](https://doc.rust-lang.org/stable/std/ffi/struct.OsStr.html),
+//! [`Path`](https://doc.rust-lang.org/stable/std/path/struct.Path.html),
 //! and
-//! [`Path`](https://doc.rust-lang.org/stable/std/path/struct.Path.html)
+//! [`str`](https://doc.rust-lang.org/stable/std/primitive.str.html)
 //! types are
 //! supported.  Using this feature is automatic:
 //!
@@ -978,7 +976,6 @@
 //! [`Predicate`]: trait.Predicate.html
 //! [`Sequence`]: Sequence
 //! [`cfg-if`]: https://crates.io/crates/cfg-if
-//! [`expectation!`]: macro.expectation.html
 //! [`function`]: predicate/fn.function.html
 //! [`predicates`]: predicate/index.html
 
@@ -996,8 +993,6 @@ use std::{
     },
     thread
 };
-
-mod expectation;
 
 pub use mockall_derive::{mock, automock};
 pub use predicates::{
@@ -1057,7 +1052,7 @@ impl Times {
     pub fn call(&self) {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
         if count >= self.range.end {
-            if self.range.end == 0 {
+            if self.range.end == 1 {
                 panic!("Expectation should not have been called");
             } else {
                 let lim = self.range.end - 1;
@@ -1095,10 +1090,11 @@ impl Times {
     }
 
     pub fn never(&mut self) {
-        self.range = 0..0;
+        self.range = 0..1;
     }
 
     pub fn range(&mut self, range: Range<usize>) {
+        assert!(range.end > range.start, "Backwards range");
         self.range = range;
     }
 }
