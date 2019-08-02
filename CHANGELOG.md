@@ -6,6 +6,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased]
 ### Added
 
+- Support mocking generic specializing methods.
+  ([#13](https://github.com/asomers/mockall/issues/13))
+
+- Correctly handle where clauses on mocked methods.
+  ([#13](https://github.com/asomers/mockall/issues/13))
+
 - Allow mocking generic constructor methods
   ([#11](https://github.com/asomers/mockall/issues/11))
 

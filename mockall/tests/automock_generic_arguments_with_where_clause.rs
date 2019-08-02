@@ -5,7 +5,7 @@ use mockall::*;
 
 #[automock]
 trait A {
-    fn foo<T>(&self, t: T) where T: 'static;
+    fn foo<T>(&self, t: T) where T: Clone + 'static;
 }
 
 #[test]

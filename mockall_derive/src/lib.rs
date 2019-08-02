@@ -283,7 +283,7 @@ fn gen_mod_ident(struct_: &Ident, trait_: Option<&Ident>)
 }
 
 /// Combine two Generics structs, producing a new one that has the union of
-/// their parameters.  The output's parameter bounds are not accurate!
+/// their parameters.
 fn merge_generics(x: &Generics, y: &Generics) -> Generics {
     /// Compare only the identifiers of two GenericParams
     fn cmp_gp_idents(x: &GenericParam, y: &GenericParam) -> bool {
@@ -309,35 +309,68 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
         }
     }
 
-    if x.lt_token.is_none() {
+    let mut out = if x.lt_token.is_none() {
         y.clone()
     } else if y.lt_token.is_none() {
         x.clone()
     } else {
         let mut out = x.clone();
         // First merge the params
-        for param in y.params.iter() {
-            if ! x.params.iter().any(|t| cmp_gp_idents(t, param)) {
-                out.params.push(param.clone());
-            }
-        }
-        // Then merge the where clauses
-        if x.where_clause.is_none() {
-            out.where_clause = y.where_clause.clone();
-        } else if let Some(wc) = &y.where_clause {
-            if x.where_clause.is_none() {
-                out.where_clause = Some(wc.clone());
-            }
-            for predicate in wc.predicates.iter() {
-                let x_p = &x.where_clause.as_ref().unwrap().predicates;
-                let out_p = &mut out.where_clause.as_mut().unwrap().predicates;
-                if ! x_p.iter().any(|t| cmp_wp_idents(t, predicate)) {
-                    out_p.push(predicate.clone());
+        'outer_param: for yparam in y.params.iter() {
+            // XXX: O(n^2) loop
+            for outparam in out.params.iter_mut() {
+                if cmp_gp_idents(outparam, yparam) {
+                    if let (GenericParam::Type(ref mut ot),
+                            GenericParam::Type(yt)) = (outparam, yparam)
+                    {
+                        ot.attrs.extend(yt.attrs.iter().cloned());
+                        ot.colon_token = ot.colon_token.or(yt.colon_token);
+                        ot.eq_token = ot.eq_token.or(yt.eq_token);
+                        if ot.default.is_none() {
+                            ot.default = yt.default.clone();
+                        }
+                        // XXX this might result in duplicate bounds
+                        ot.bounds.extend(yt.bounds.iter().cloned());
+                    }
+                    continue 'outer_param;
                 }
             }
+            out.params.push(yparam.clone());
         }
         out
+    };
+    // Then merge the where clauses
+    match (&mut out.where_clause, &y.where_clause) {
+        (_, None) => (),
+        (None, Some(wc)) => out.where_clause = Some(wc.clone()),
+        (Some(out_wc), Some(y_wc)) => {
+            'outer_wc: for ypred in y_wc.predicates.iter() {
+                // XXX: O(n^2) loop
+                for outpred in out_wc.predicates.iter_mut() {
+                    if cmp_wp_idents(outpred, ypred) {
+                        if let (WherePredicate::Type(ref mut ot),
+                                WherePredicate::Type(yt)) = (outpred, ypred)
+                        {
+                            match (&mut ot.lifetimes, &yt.lifetimes) {
+                                (_, None) => (),
+                                (None, Some(bl)) =>
+                                    ot.lifetimes = Some(bl.clone()),
+                                (Some(obl), Some(ybl)) =>
+                                    // XXX: might result in duplicates
+                                    obl.lifetimes.extend(
+                                        ybl.lifetimes.iter().cloned()),
+                            };
+                            // XXX: might result in duplicate bounds
+                            ot.bounds.extend(yt.bounds.iter().cloned())
+                        }
+                        continue 'outer_wc;
+                    }
+                }
+                out_wc.predicates.push(ypred.clone());
+            }
+        }
     }
+    out
 }
 
 /// Return the visibility that should be used for expectation!, given the
@@ -654,4 +687,33 @@ pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     let mut output = input.clone();
     output.extend(do_automock(attrs.into(), input));
     output.into()
+}
+
+#[cfg(test)]
+mod t {
+    use super::*;
+
+    #[test]
+    fn merge_generics() {
+        let mut g1: Generics = parse2(quote!(<T: 'static, V: Copy> )).unwrap();
+        let wc1: WhereClause = parse2(quote!(where T: Default)).unwrap();
+        g1.where_clause = Some(wc1);
+
+        let mut g2: Generics = parse2(quote!(<Q: Send, V: Clone>)).unwrap();
+        let wc2: WhereClause = parse2(quote!(where T: Sync, Q: Debug)).unwrap();
+        g2.where_clause = Some(wc2);
+
+        let gm = super::merge_generics(&g1, &g2);
+        let gm_wc = &gm.where_clause;
+
+        let ge: Generics = parse2(quote!(
+                <T: 'static, V: Copy + Clone, Q: Send>
+        )).unwrap();
+        let wce: WhereClause = parse2(quote!(
+            where T: Default + Sync, Q: Debug
+        )).unwrap();
+
+        assert_eq!(quote!(#ge #wce).to_string(),
+                   quote!(#gm #gm_wc).to_string());
+    }
 }

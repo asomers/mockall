@@ -674,6 +674,38 @@
 //! # }
 //! ```
 //!
+//! ### Specializing methods
+//!
+//! A specializing method is a (possibly non-generic) method of a generic struct
+//! that places additional bounds on the struct's generic types via a where
+//! clause.
+//!
+//! Without trait specialization, it probably won't be possible for Mockall
+//! to support all specializing methods.  However, most specializing methods can
+//! be mocked as generic methods with repeated type parameters, just like static
+//! methods of generic structs.
+//!
+//! ```
+//! # use mockall::*;
+//! struct Foo<T>(T);
+//! impl<T> Foo<T> {
+//!     fn foo(&self, t: T) where T: Copy {
+//!         // ...
+//!         # unimplemented!()
+//!     }
+//! }
+//! mock! {
+//!     Foo<T: 'static> {
+//!         fn foo<T2: Copy + 'static>(&self, t: T2);
+//!     }
+//! }
+//! # fn main() {
+//! let mut mock = MockFoo::<u32>::new();
+//! mock.expect_foo::<u32>().returning(|_| ());
+//! mock.foo(42u32);
+//! # }
+//! ```
+//!
 //! ## Associated types
 //!
 //! Traits with associated types can be mocked too.  Unlike generic traits, the
@@ -809,6 +841,8 @@
 //! assert_eq!(42, foo.foo());
 //! # }
 //! ```
+//!
+//! ### Generic static methods
 //!
 //! Mocking static methods of generic structs is a little bit tricky.  If the
 //! static method uses any generic parameters, then those generic parameters
