@@ -23,16 +23,22 @@ fn common_methods(
         matchty.iter().map(|mt| quote!(Box<::mockall::Predicate<#mt> + Send>,))
     );
     let pred_matches = TokenStream::from_iter(
-        altargs.iter().zip(argnames.iter())
-        .map(|(altarg, argname)| quote!(#altarg.eval(#argname),))
+        argnames.iter().enumerate()
+        .map(|(i, argname)| {
+            let idx = syn::Index::from(i);
+            quote!(__pred.#idx.eval(#argname),)
+        })
     );
     let pred_verify = TokenStream::from_iter(
-        altargs.iter().zip(argnames.iter())
-        .map(|(altarg, argname)| quote!(
-            if let Some(c) = #altarg.find_case(false, #argname){
-                panic!("Expectation didn't match arguments:\n{}", c.tree());
-            }
-        ))
+        argnames.iter().enumerate()
+        .map(|(i, argname)| {
+            let idx = Index::from(i);
+            quote!(
+                if let Some(c) = __pred.#idx.find_case(false, #argname){
+                    panic!("Expectation didn't match arguments:\n{}", c.tree());
+                }
+            )
+        })
     );
     // TODO: construct new names rather than reuse altargs
     let with_generics = TokenStream::from_iter(
@@ -54,7 +60,7 @@ fn common_methods(
     quote!(
         enum Matcher #egenerics_impl {
             Func(Box<Fn(#refmatchty) -> bool + Send>),
-            Pred( #preds ),
+            Pred(Box<(#preds)>),
             // Prevent "unused type parameter" errors
             // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
             // are not, unlike PhantomData<generics>
@@ -65,7 +71,7 @@ fn common_methods(
             fn matches(&self, #args) -> bool {
                 match self {
                     Matcher::Func(f) => f(#argnames),
-                    Matcher::Pred(#altargs) =>
+                    Matcher::Pred(__pred) =>
                         [#pred_matches]
                         .into_iter()
                         .all(|x| *x),
@@ -77,7 +83,7 @@ fn common_methods(
                 match self {
                     Matcher::Func(f) => assert!(f(#argnames),
                         "Expectation didn't match arguments"),
-                    Matcher::Pred(#altargs) => { #pred_verify },
+                    Matcher::Pred(__pred) => { #pred_verify },
                     _ => unreachable!()
                 }
             }
@@ -165,7 +171,7 @@ fn common_methods(
             fn with<#with_generics>(&mut self, #with_args)
             {
                 let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Pred(#boxed_withargs);
+                let m = Matcher::Pred(Box::new((#boxed_withargs)));
                 mem::replace(guard.deref_mut(), m);
             }
 
