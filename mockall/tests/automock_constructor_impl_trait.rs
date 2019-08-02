@@ -15,17 +15,17 @@ impl Foo for Bar {}
 #[allow(unused)]
 #[automock]
 impl A {
-    fn new() -> impl Foo {
+    fn build() -> impl Foo {
         Bar{}
     }
 }
 
 #[test]
 fn returning() {
-    MockA::expect_new().returning(|| {
+    MockA::expect_build().returning(|| {
         struct Baz {}
         impl Foo for Baz {}
         Box::new(Baz{})
     });
-    let _a = MockA::new();
+    let _a = MockA::build();
 }

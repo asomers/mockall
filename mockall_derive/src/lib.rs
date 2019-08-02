@@ -359,13 +359,12 @@ fn expectation_visibility(vis: &Visibility, levels: u32)
             for _ in 1..levels {
                 path.segments.push(super_token.into());
             }
-            let supersuper = Visibility::Restricted(VisRestricted{
+            Visibility::Restricted(VisRestricted{
                 pub_token: Token![pub](vis.span()),
                 paren_token: token::Paren::default(),
                 in_token: Some(in_token),
                 path: Box::new(path)
-            });
-            supersuper.into()
+            })
         },
         Visibility::Restricted(vr) => {
             // crate => don't change

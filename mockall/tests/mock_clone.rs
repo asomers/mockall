@@ -15,6 +15,6 @@ mock! {
 fn returning() {
     let mut mock0 = MockA::new();
     mock0.expect_clone()
-        .returning(|| MockA::new());
+        .returning(MockA::new);
     let _mock1 = mock0.clone();
 }

@@ -30,6 +30,6 @@ fn return_default() {
 fn returning() {
     let mut mock = MockExternalStruct::<NonDefault>::new();
     mock.expect_foo()
-        .returning(|| NonDefault());
+        .returning(NonDefault);
     mock.foo();
 }

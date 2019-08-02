@@ -1223,7 +1223,10 @@ impl Sequence {
         Self::default()
     }
 
-    pub fn next(&mut self) -> SeqHandle {
+    /// Not for public consumption, but it must be public so the generated code
+    /// can call it.
+    #[doc(hidden)]
+    pub fn next_handle(&mut self) -> SeqHandle {
         let handle = SeqHandle{inner: self.inner.clone(), seq: self.next_seq};
         self.next_seq += 1;
         handle

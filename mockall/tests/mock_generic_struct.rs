@@ -2,6 +2,9 @@
 
 use mockall::*;
 
+#[derive(Clone)]
+struct NonCopy(u32);
+
 // A struct with a definition like this:
 // pub struct ExtGenericStruct<T: Clone> {
 //     _x: i16
@@ -20,9 +23,9 @@ mock!{
 
 #[test]
 fn returning() {
-    let mut mock = MockExtGenericStruct::<u32>::new();
+    let mut mock = MockExtGenericStruct::<NonCopy>::new();
     // An explicit .clone() is required so as not to return by move
     mock.expect_foo()
         .returning(|x| x.clone());
-    assert_eq!(5, mock.foo(5));
+    assert_eq!(5, mock.foo(NonCopy(5)).0);
 }

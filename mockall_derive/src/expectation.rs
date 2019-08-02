@@ -122,7 +122,7 @@ fn common_methods(
             {
                 assert!(self.times.is_exact(),
                     "Only Expectations with an exact call count have sequences");
-                self.seq_handle = Some(seq.next());
+                self.seq_handle = Some(seq.next_handle());
                 self
             }
 
@@ -441,7 +441,7 @@ fn static_expectation(v: &Visibility,
         .map(|ac| {
             ArgCaptured {
                 pat: ac.pat.clone(),
-                colon_token: ac.colon_token.clone(),
+                colon_token: ac.colon_token,
                 ty: supersuperfy(&ac.ty)
             }
         })
@@ -726,7 +726,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                     // Just a static expectation
                     rt
                 } else {
-                    if !tr.mutability.is_some() {
+                    if tr.mutability.is_none() {
                         ref_expectation = true;
                     } else {
                         ref_mut_expectation = true;

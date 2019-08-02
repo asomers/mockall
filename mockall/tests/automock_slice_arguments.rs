@@ -16,7 +16,7 @@ mod withf {
     fn fail() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
-            .withf(|sl| sl == &[1, 2, 3])
+            .withf(|sl| sl == [1, 2, 3])
             .returning(|_| ());
         let x = vec![1, 2, 3, 4];
         mock.foo(&x);
@@ -26,7 +26,7 @@ mod withf {
     fn ok() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
-            .withf(|sl| sl == &[1, 2, 3])
+            .withf(|sl| sl == [1, 2, 3])
             .returning(|_| ());
         let x = vec![1, 2, 3];
         mock.foo(&x);

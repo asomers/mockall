@@ -16,6 +16,6 @@ impl A {
 
 #[test]
 fn returning() {
-    MockA::expect_new().returning(|| MockA::default());
+    MockA::expect_new().returning(MockA::default);
     let _a: MockA = MockA::new();
 }
