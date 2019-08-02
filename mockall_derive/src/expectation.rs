@@ -8,7 +8,6 @@ use std::iter::{FromIterator, IntoIterator};
 fn common_methods(
     egenerics: &Generics,
     argnames: &Punctuated<Pat, Token![,]>,
-    altargs: &Punctuated<Pat, Token![,]>,
     matchty: &Punctuated<Type, Token![,]>) -> TokenStream
 {
     let (egenerics_impl, egenerics_ty, _) = egenerics.split_for_impl();
@@ -40,16 +39,18 @@ fn common_methods(
             )
         })
     );
-    // TODO: construct new names rather than reuse altargs
+    let with_generics_idents = (0..matchty.len())
+        .map(|i| Ident::new(&format!("__Matcher{}", i), Span::call_site()))
+        .collect::<Vec<_>>();
     let with_generics = TokenStream::from_iter(
-        altargs.iter().zip(matchty.iter())
-        .map(|(aa, mt)|
-             quote!(#aa: ::mockall::Predicate<#mt> + Send + 'static, )
+        with_generics_idents.iter().zip(matchty.iter())
+        .map(|(id, mt)|
+            quote!(#id: ::mockall::Predicate<#mt> + Send + 'static, )
         )
     );
     let with_args = TokenStream::from_iter(
-        argnames.iter().zip(altargs.iter())
-        .map(|(argname, altarg)| quote!(#argname: #altarg, ))
+        argnames.iter().zip(with_generics_idents.iter())
+        .map(|(argname, id)| quote!(#argname: #id, ))
     );
     let boxed_withargs = TokenStream::from_iter(
         argnames.iter().map(|aa| quote!(Box::new(#aa), ))
@@ -167,7 +168,6 @@ fn common_methods(
                 self.times.range(range);
             }
 
-            #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
             fn with<#with_generics>(&mut self, #with_args)
             {
                 let mut guard = self.matcher.lock().unwrap();
@@ -226,23 +226,24 @@ fn destrify(ty: &mut Type) {
 /// ref expectations, and ref mut expectations
 fn expectation_methods(v: &Visibility,
     argnames: &Punctuated<Pat, Token![,]>,
-    altargs: &Punctuated<Pat, Token![,]>,
     matchty: &Punctuated<Type, Token![,]>) -> TokenStream
 {
     let args = TokenStream::from_iter(
         argnames.iter().zip(matchty.iter())
         .map(|(argname, mt)| quote!(#argname: &#mt, ))
     );
-    // TODO: construct new names rather than reuse altargs
+    let with_generics_idents = (0..matchty.len())
+        .map(|i| Ident::new(&format!("__Matcher{}", i), Span::call_site()))
+        .collect::<Vec<_>>();
     let with_generics = TokenStream::from_iter(
-        altargs.iter().zip(matchty.iter())
-        .map(|(aa, mt)|
-             quote!(#aa: ::mockall::Predicate<#mt> + Send + 'static, )
+        with_generics_idents.iter().zip(matchty.iter())
+        .map(|(id, mt)|
+            quote!(#id: ::mockall::Predicate<#mt> + Send + 'static, )
         )
     );
     let with_args = TokenStream::from_iter(
-        argnames.iter().zip(altargs.iter())
-        .map(|(argname, altarg)| quote!(#argname: #altarg, ))
+        argnames.iter().zip(with_generics_idents.iter())
+        .map(|(argname, id)| quote!(#argname: #id, ))
     );
     let refmatchty = TokenStream::from_iter(
         matchty.iter().map(|mt| quote!(&#mt,))
@@ -312,7 +313,6 @@ fn expectation_methods(v: &Visibility,
         /// The matching predicate can be anything implemening the
         /// [`Predicate`](../../../mockall/trait.Predicate.html) trait.  Only
         /// one matcher can be set per `Expectation` at a time.
-        #[allow(non_camel_case_types)]  // Repurpose $altargs for generics
         #v fn with<#with_generics>(&mut self, #with_args) -> &mut Self
         {
             self.common.with(#argnames);
@@ -435,7 +435,6 @@ fn static_expectation(v: &Visibility,
     selfless_args: &Punctuated<ArgCaptured, Token![,]>,
     argnames: &Punctuated<Pat, Token![,]>,
     argty: &Punctuated<Type, Token![,]>,
-    altargs: &Punctuated<Pat, Token![,]>,
     matchty: &Punctuated<Type, Token![,]>,
     matchcall: &Punctuated<Expr, Token![,]>,
     output: &Type) -> TokenStream
@@ -452,8 +451,8 @@ fn static_expectation(v: &Visibility,
             }
         })
     );
-    let cm_ts = common_methods(egenerics, argnames, altargs, matchty);
-    let em_ts = expectation_methods(v, argnames, altargs, matchty);
+    let cm_ts = common_methods(egenerics, argnames, matchty);
+    let em_ts = expectation_methods(v, argnames, matchty);
     let eem_ts = expectations_methods(v, egenerics);
     let gem_ts = generic_expectation_methods(v);
     let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
@@ -704,7 +703,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
     generics: &Generics,
     args: &Punctuated<FnArg, Token![,]>,
     return_type: &ReturnType,
-    altargs: &Punctuated<FnArg, Token![,]>,
+    altargty: &Punctuated<Type, Token![,]>,
     matchexprs: &Punctuated<Expr, Token![,]>
     ) -> TokenStream
 {
@@ -788,13 +787,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         // trailing punctuation to match.
         argty_tp.push_punct(Token![,](Span::call_site()));
     }
-    let (altargnames, altargty) = split_args(altargs);
     let supersuper_altargty = Punctuated::<Type, token::Comma>::from_iter(
         altargty.iter()
         .map(|t| supersuperfy(&t))
     );
-    let cm_ts = common_methods(&egenerics, &argnames, &altargnames, &altargty);
-    let em_ts = expectation_methods(&vis, &argnames, &altargnames, &altargty);
+    let cm_ts = common_methods(&egenerics, &argnames, &altargty);
+    let em_ts = expectation_methods(&vis, &argnames, &altargty);
     let eem_ts = expectations_methods(&vis, &egenerics);
     let gem_ts = generic_expectation_methods(&vis);
     if ref_expectation {
@@ -900,10 +898,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         }
         )
     } else if ref_mut_expectation {
-        let cm_ts = common_methods(&egenerics, &argnames, &altargnames,
-                                   &altargty);
-        let em_ts = expectation_methods(&vis, &argnames, &altargnames,
-                                        &altargty);
+        let cm_ts = common_methods(&egenerics, &argnames, &altargty);
+        let em_ts = expectation_methods(&vis, &argnames, &altargty);
         let eem_ts = expectations_methods(&vis, &egenerics);
         let gem_ts = generic_expectation_methods(&vis);
         quote!(
@@ -1060,9 +1056,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         );
         let pred_generics = quote!(< #pred_params >);
         let ts = static_expectation(vis, &egenerics, &selfless_args, &argnames,
-                                    &supersuper_argty, &altargnames,
-                                    &supersuper_altargty, &matchexprs,
-                                    &supersuper_output);
+                                    &supersuper_argty, &supersuper_altargty,
+                                    &matchexprs, &supersuper_output);
         quote!(
             #attrs
             pub mod #ident {
@@ -1353,9 +1348,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         )
     } else {
         let ts = static_expectation(vis, &egenerics, &selfless_args, &argnames,
-                                    &supersuper_argty, &altargnames,
-                                    &supersuper_altargty, &matchexprs,
-                                    &supersuper_output);
+                                    &supersuper_argty, &supersuper_altargty,
+                                    &matchexprs, &supersuper_output);
         quote!(
             #attrs
             pub mod #ident { #ts }

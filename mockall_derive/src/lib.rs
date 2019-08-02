@@ -37,8 +37,8 @@ struct MethodTypes {
     expect_obj: Type,
     /// Method to call when invoking the expectation
     call: Ident,
-    /// Version of the arguments used for the Predicates
-    altargs: Punctuated<FnArg, Token![,]>,
+    /// Types of the arguments used for the Predicates
+    altargs: Punctuated<Type, Token![,]>,
     /// Expressions producing references from the arguments
     matchexprs: Punctuated<Expr, Token![,]>,
 }
@@ -409,7 +409,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
         sig.decl.generics.clone()
     };
     let (_ig, tg, _wc) = merged_g.split_for_impl();
-    for (i, fn_arg) in sig.decl.inputs.iter().enumerate() {
+    for fn_arg in sig.decl.inputs.iter() {
         match fn_arg {
             FnArg::Captured(arg) => {
                 args.push(arg.ty.clone());
@@ -438,19 +438,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
                     matchexprs.push(matchexpr);
                     arg.ty.clone()
                 };
-                let altident = Ident::new(&format!("p{}", i), arg.span());
-                let altpat = Pat::Ident(PatIdent {
-                    by_ref: None,
-                    mutability: None,
-                    ident: altident,
-                    subpat: None
-                });
-                let altarg = FnArg::Captured(ArgCaptured {
-                    pat: altpat,
-                    colon_token: Token![:](arg.span()),
-                    ty: alt_ty
-                });
-                altargs.push(altarg);
+                altargs.push(alt_ty);
             },
             FnArg::SelfRef(_) => {
                 is_static = false;
