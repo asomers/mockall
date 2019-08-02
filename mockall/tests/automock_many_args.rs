@@ -16,6 +16,9 @@ trait ManyArgs {
     fn baz(&mut self, _a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
            _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
            _a12: u8, _a13: u8, _a14: u8, _a15: u8) -> &mut u32;
+    fn bean(_a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
+           _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
+           _a12: u8, _a13: u8, _a14: u8, _a15: u8);
 }
 
 #[test]
@@ -40,4 +43,11 @@ fn return_var() {
     mock.expect_baz()
         .return_var(42);
     mock.baz(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+#[test]
+fn static_method_returning() {
+    MockManyArgs::expect_bean()
+        .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
+    MockManyArgs::bean(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }

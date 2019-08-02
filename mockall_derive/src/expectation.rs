@@ -1044,8 +1044,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             .map(|i| Ident::new(&format!("MockallG{}", i), Span::call_site()))
             .collect::<Vec<_>>();
         let pred_params = Punctuated::<TokenStream, Token![,]>::from_iter(
-            pred_arg_tys.iter().map(|ident|
-                quote!(#ident: ::mockall::Predicate<#argty> + Send + 'static)
+            pred_arg_tys.iter().zip(argty.iter()).map(|(ident, ty)|
+                quote!(#ident: ::mockall::Predicate<#ty> + Send + 'static)
             )
         );
         let pred_args = Punctuated::<TokenStream, Token![,]>::from_iter(
