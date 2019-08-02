@@ -178,8 +178,7 @@ fn deselfify(literal_type: &mut Type, actual: &Ident) {
                     = tto.bounds.first().unwrap().value()
                 {
                     let path = &t.path;
-                    let mut new_type: Type = parse2(quote!(#path)).unwrap();
-                    deselfify(&mut new_type, actual);
+                    let new_type: Type = parse2(quote!(dyn #path)).unwrap();
                     *literal_type = new_type;
                 }
             }
