@@ -10,7 +10,7 @@ fn common_methods(
     argnames: &Punctuated<Pat, Token![,]>,
     matchty: &Punctuated<Type, Token![,]>) -> TokenStream
 {
-    let (egenerics_ig, egenerics_ty, _) = egenerics.split_for_impl();
+    let (egenerics_ig, egenerics_ty, egenerics_wc) = egenerics.split_for_impl();
     let args = TokenStream::from_iter(
         argnames.iter().zip(matchty.iter())
         .map(|(argname, mt)| quote!(#argname: &#mt, ))
@@ -59,7 +59,7 @@ fn common_methods(
         egenerics.type_params().map(|tp| tp.ident.clone())
     );
     quote!(
-        enum Matcher #egenerics_ig {
+        enum Matcher #egenerics_ig #egenerics_wc {
             Func(Box<Fn(#refmatchty) -> bool + Send>),
             Pred(Box<(#preds)>),
             // Prevent "unused type parameter" errors
@@ -68,7 +68,7 @@ fn common_methods(
             _Phantom(Box<Fn(#fn_params) -> () + Send>)
         }
 
-        impl #egenerics_ig Matcher #egenerics_ty {
+        impl #egenerics_ig Matcher #egenerics_ty #egenerics_wc {
             fn matches(&self, #args) -> bool {
                 match self {
                     Matcher::Func(f) => f(#argnames),
@@ -90,20 +90,21 @@ fn common_methods(
             }
         }
 
-        impl #egenerics_ig Default for Matcher #egenerics_ty {
+        impl #egenerics_ig Default for Matcher #egenerics_ty #egenerics_wc {
             #[allow(unused_variables)]
             fn default() -> Self {
                 Matcher::Func(Box::new(|#argnames| true))
             }
         }
         /// Holds the stuff that is independent of the output type
-        struct Common #egenerics_ig {
+        struct Common #egenerics_ig #egenerics_wc {
             matcher: Mutex<Matcher #egenerics_ty>,
             seq_handle: Option<::mockall::SeqHandle>,
             times: ::mockall::Times
         }
 
         impl #egenerics_ig std::default::Default for Common #egenerics_ty
+            #egenerics_wc
         {
             fn default() -> Self {
                 Common {
@@ -114,7 +115,7 @@ fn common_methods(
             }
         }
 
-        impl #egenerics_ig Common #egenerics_ty {
+        impl #egenerics_ig Common #egenerics_ty #egenerics_wc {
             fn call(&self, #args ) {
                 self.matcher.lock().unwrap().verify(#argnames);
                 self.times.call();
