@@ -1033,98 +1033,26 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
         }
         )
     } else if static_method {
-        let mut withfty: Punctuated<Type, Token![,]> = Punctuated::new();
-        let mut pred_args: Punctuated<FnArg, Token![,]> = Punctuated::new();
-        let mut pred_argnames: Punctuated<Ident, Token![,]> = Punctuated::new();
-        let mut pred_params = Punctuated::new();
-        for (i, ty) in altargty.iter().enumerate() {
-            let tr = TypeReference {
-                and_token: Token![&](Span::call_site()),
-                lifetime: None,
-                mutability: None,
-                elem: Box::new(ty.clone())
-            };
-            withfty.push(Type::Reference(tr));
-            let mut bounds = Punctuated::new();
-            let mut segments = Punctuated::new();
-            let mockall_segment = PathSegment {
-                ident: Ident::new("mockall", Span::call_site()),
-                arguments: PathArguments::None
-            };
-            let mut abga_args = Punctuated::new();
-            for ty in &argty {
-                abga_args.push(GenericArgument::Type(ty.clone()));
-            }
-            let pred_abga = AngleBracketedGenericArguments {
-                colon2_token: None,
-                lt_token: Token![<](Span::call_site()),
-                args: abga_args,
-                gt_token: Token![>](Span::call_site()),
-            };
-            let pred_segment = PathSegment {
-                ident: Ident::new("Predicate", Span::call_site()),
-                arguments: PathArguments::AngleBracketed(pred_abga)
-            };
-            segments.push(mockall_segment);
-            segments.push(pred_segment);
-            let leading_colon = Some(Token![::](Span::call_site()));
-            let pred_bound = TraitBound {
-                paren_token: None,
-                modifier: TraitBoundModifier::None,
-                lifetimes: None,
-                path: Path{leading_colon, segments}
-            };
-            let mut send_segments = Punctuated::new();
-            let send_ident = Ident::new("Send", Span::call_site());
-            send_segments.push(PathSegment::from(send_ident));
-            let send_bound = TraitBound {
-                paren_token: None,
-                modifier: TraitBoundModifier::None,
-                lifetimes: None,
-                path: Path{leading_colon: None, segments: send_segments}
-            };
-            bounds.push(TypeParamBound::Trait(pred_bound));
-            bounds.push(TypeParamBound::Trait(send_bound));
-            bounds.push(TypeParamBound::Lifetime(static_bound.clone()));
-            let pred_arg_name = Ident::new(&format!("mockall_g{}", i),
-                Span::call_site());
-            let pred_arg_ty = Ident::new(&format!("MockallG{}", i),
-                Span::call_site());
-            let tp = TypeParam {
-                attrs: vec![],
-                ident: pred_arg_ty.clone(),
-                colon_token: Some(Token![:](Span::call_site())),
-                bounds,
-                eq_token: None,
-                default: None
-            };
-            pred_params.push(GenericParam::Type(tp));
-            let ps = PathSegment::from(pred_arg_ty);
-            let piter = Some(ps).into_iter();
-            pred_args.push(FnArg::from(ArgCaptured {
-                pat: Pat::from(PatIdent {
-                    by_ref: None,
-                    mutability: None,
-                    ident: pred_arg_name.clone(),
-                    subpat: None
-                }),
-                colon_token: Token![:](Span::call_site()),
-                ty: Type::Path(TypePath{
-                    qself: None,
-                    path: Path {
-                        leading_colon: None,
-                        segments: Punctuated::from_iter(piter)
-                    }
-                }),
-            }));
-            pred_argnames.push(pred_arg_name);
-        }
-        let pred_generics = Generics {
-            lt_token: Some(Token![<](Span::call_site())),
-            params: pred_params,
-            gt_token: Some(Token![>](Span::call_site())),
-            where_clause: None
-        };
+        let refaltargty = TokenStream::from_iter(
+            altargty.iter().map(|aaty| quote!(&#aaty,))
+        );
+        let pred_argnames = Punctuated::<Ident, Token![,]>::from_iter(
+            (0..altargty.len())
+            .map(|i| Ident::new(&format!("mockall_g{}", i), Span::call_site()))
+        );
+        let pred_arg_tys = (0..altargty.len())
+            .map(|i| Ident::new(&format!("MockallG{}", i), Span::call_site()))
+            .collect::<Vec<_>>();
+        let pred_params = Punctuated::<TokenStream, Token![,]>::from_iter(
+            pred_arg_tys.iter().map(|ident|
+                quote!(#ident: ::mockall::Predicate<#argty> + Send + 'static)
+            )
+        );
+        let pred_args = Punctuated::<TokenStream, Token![,]>::from_iter(
+            pred_argnames.iter().zip(pred_arg_tys.into_iter())
+            .map(|(pred_arg_name, ident)| quote!(#pred_arg_name: #ident))
+        );
+        let pred_generics = quote!(< #pred_params >);
         let ts = static_expectation(vis, &egenerics, &selfless_args, &argnames,
                                     &supersuper_argty, &altargnames,
                                     &supersuper_altargty, &matchexprs,
@@ -1239,7 +1167,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
                 #vis fn withf<F>(&mut self, f: F) -> &mut Expectation #egenerics_ty
-                    where F: Fn(#withfty) -> bool + Send + 'static
+                    where F: Fn(#refaltargty) -> bool + Send + 'static
                 {
                     self.guard.0[self.i].withf(f)
                 }
@@ -1404,7 +1332,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
                 #vis fn withf<F>(&mut self, f: F) -> &mut Expectation #egenerics_ty
-                    where F: Fn(#withfty) -> bool + Send + 'static
+                    where F: Fn(#refaltargty) -> bool + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
