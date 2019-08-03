@@ -31,7 +31,7 @@ your `Cargo.toml`:
 [dev-dependencies]
 downcast = "0.10"
 fragile = "0.3"
-mockall = "0.1"
+mockall = "0.2"
 predicates-tree = "1.0"
 ```
 

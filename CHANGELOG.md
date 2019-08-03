@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2 August 2019
 ### Added
 
 - Support mocking generic specializing methods.
@@ -42,7 +42,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   Now `mock!` and `#[automock]` are the only way to use Mockall.
   ([#12](https://github.com/asomers/mockall/pull/12))
 
-## [0.1.1]
+## [0.1.1] - 3 July 2019
 ### Added
 ### Changed
 ### Fixed

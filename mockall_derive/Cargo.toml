@@ -1,6 +1,6 @@
 [package]
 name = "mockall_derive"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Alan Somers <asomers@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/asomers/mockall"
@@ -33,6 +33,8 @@ syn = { version = "0.15", features = ["extra-traits", "full"] }
 [dev-dependencies]
 downcast = "0.10"
 fragile = "0.3"
-mockall = { version = "=0.1.1", path = "../mockall" }
+# Mockall dev dependency should really be =0.2.0, but "cargo publish" won't
+# let us get away with that because it thinks there's a circular dependency.
+mockall = { version = ">=0.1", path = "../mockall" }
 predicates-tree = "1.0"
 pretty_assertions = "0.5"
