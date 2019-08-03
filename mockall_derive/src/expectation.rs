@@ -25,7 +25,7 @@ fn common_methods(
         argnames.iter().enumerate()
         .map(|(i, argname)| {
             let idx = syn::Index::from(i);
-            quote!(__pred.#idx.eval(#argname),)
+            quote!(__mockall_pred.#idx.eval(#argname),)
         })
     );
     let pred_verify = TokenStream::from_iter(
@@ -33,14 +33,14 @@ fn common_methods(
         .map(|(i, argname)| {
             let idx = Index::from(i);
             quote!(
-                if let Some(c) = __pred.#idx.find_case(false, #argname){
+                if let Some(c) = __mockall_pred.#idx.find_case(false, #argname){
                     panic!("Expectation didn't match arguments:\n{}", c.tree());
                 }
             )
         })
     );
     let with_generics_idents = (0..matchty.len())
-        .map(|i| Ident::new(&format!("__Matcher{}", i), Span::call_site()))
+        .map(|i| Ident::new(&format!("__mockall_Matcher{}", i), Span::call_site()))
         .collect::<Vec<_>>();
     let with_generics = TokenStream::from_iter(
         with_generics_idents.iter().zip(matchty.iter())
@@ -71,20 +71,20 @@ fn common_methods(
         impl #egenerics_ig Matcher #egenerics_tg #egenerics_wc {
             fn matches(&self, #args) -> bool {
                 match self {
-                    Matcher::Func(f) => f(#argnames),
-                    Matcher::Pred(__pred) =>
+                    Matcher::Func(__mockall_f) => __mockall_f(#argnames),
+                    Matcher::Pred(__mockall_pred) =>
                         [#pred_matches]
                         .into_iter()
-                        .all(|x| *x),
+                        .all(|__mockall_x| *__mockall_x),
                     _ => unreachable!()
                 }
             }
 
             fn verify(&self, #args ) {
                 match self {
-                    Matcher::Func(f) => assert!(f(#argnames),
+                    Matcher::Func(__mockall_f) => assert!(__mockall_f(#argnames),
                         "Expectation didn't match arguments"),
-                    Matcher::Pred(__pred) => { #pred_verify },
+                    Matcher::Pred(__mockall_pred) => { #pred_verify },
                     _ => unreachable!()
                 }
             }
@@ -125,12 +125,12 @@ fn common_methods(
                 }
             }
 
-            fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+            fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
                 -> &mut Self
             {
                 assert!(self.times.is_exact(),
                     "Only Expectations with an exact call count have sequences");
-                self.seq_handle = Some(seq.next_handle());
+                self.seq_handle = Some(__mockall_seq.next_handle());
                 self
             }
 
@@ -148,14 +148,14 @@ fn common_methods(
             }
 
             fn satisfy_sequence(&self) {
-                if let Some(handle) = &self.seq_handle {
-                    handle.satisfy()
+                if let Some(__mockall_handle) = &self.seq_handle {
+                    __mockall_handle.satisfy()
                 }
             }
 
             /// Expect this expectation to be called exactly `n` times.
-            fn times(&mut self, n: usize) {
-                self.times.n(n);
+            fn times(&mut self, __mockall_n: usize) {
+                self.times.n(__mockall_n);
             }
 
             /// Allow this expectation to be called any number of times
@@ -165,28 +165,27 @@ fn common_methods(
 
             /// Allow this expectation to be called any number of times within a
             /// given range
-            fn times_range(&mut self, range: Range<usize>) {
-                self.times.range(range);
+            fn times_range(&mut self, __mockall_range: Range<usize>) {
+                self.times.range(__mockall_range);
             }
 
             fn with<#with_generics>(&mut self, #with_args)
             {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Pred(Box::new((#boxed_withargs)));
-                mem::replace(guard.deref_mut(), m);
+                let mut __mockall_guard = self.matcher.lock().unwrap();
+                mem::replace(__mockall_guard.deref_mut(),
+                    Matcher::Pred(Box::new((#boxed_withargs))));
             }
 
-            fn withf<F>(&mut self, f: F)
-                where F: Fn(#refmatchty) -> bool + Send + 'static
+            fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F)
+                where __mockall_F: Fn(#refmatchty) -> bool + Send + 'static
             {
-                let mut guard = self.matcher.lock().unwrap();
-                let m = Matcher::Func(Box::new(f));
-                mem::replace(guard.deref_mut(), m);
+                let mut __mockall_guard = self.matcher.lock().unwrap();
+                mem::replace(__mockall_guard.deref_mut(), Matcher::Func(Box::new(__mockall_f)));
             }
 
             fn verify_sequence(&self) {
-                if let Some(handle) = &self.seq_handle {
-                    handle.verify()
+                if let Some(__mockall_handle) = &self.seq_handle {
+                    __mockall_handle.verify()
                 }
             }
         }
@@ -234,7 +233,7 @@ fn expectation_methods(v: &Visibility,
         .map(|(argname, mt)| quote!(#argname: &#mt, ))
     );
     let with_generics_idents = (0..matchty.len())
-        .map(|i| Ident::new(&format!("__Matcher{}", i), Span::call_site()))
+        .map(|i| Ident::new(&format!("__mockall_Matcher{}", i), Span::call_site()))
         .collect::<Vec<_>>();
     let with_generics = TokenStream::from_iter(
         with_generics_idents.iter().zip(matchty.iter())
@@ -252,10 +251,10 @@ fn expectation_methods(v: &Visibility,
     quote!(
         /// Add this expectation to a
         /// [`Sequence`](../../../mockall/struct.Sequence.html).
-        #v fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+        #v fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
             -> &mut Self
         {
-            self.common.in_sequence(seq);
+            self.common.in_sequence(__mockall_seq);
             self
         }
 
@@ -286,8 +285,8 @@ fn expectation_methods(v: &Visibility,
         }
 
         /// Expect this expectation to be called exactly `n` times.
-        #v fn times(&mut self, n: usize) -> &mut Self {
-            self.common.times(n);
+        #v fn times(&mut self, __mockall_n: usize) -> &mut Self {
+            self.common.times(__mockall_n);
             self
         }
 
@@ -302,10 +301,10 @@ fn expectation_methods(v: &Visibility,
 
         /// Allow this expectation to be called any number of times within a
         /// given range
-        #v fn times_range(&mut self, range: Range<usize>)
+        #v fn times_range(&mut self, __mockall_range: Range<usize>)
             -> &mut Self
         {
-            self.common.times_range(range);
+            self.common.times_range(__mockall_range);
             self
         }
 
@@ -324,10 +323,10 @@ fn expectation_methods(v: &Visibility,
         ///
         /// This is equivalent to calling [`with`](#method.with) with a function
         /// argument, like `with(predicate::function(f))`.
-        #v fn withf<F>(&mut self, f: F) -> &mut Self
-            where F: Fn(#refmatchty) -> bool + Send + 'static
+        #v fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+            where __mockall_F: Fn(#refmatchty) -> bool + Send + 'static
         {
-            self.common.withf(f);
+            self.common.withf(__mockall_f);
             self
         }
     )
@@ -355,10 +354,9 @@ fn expectations_methods(v: &Visibility,
             /// Create a new expectation for this method.
             #v fn expect(&mut self) -> &mut Expectation #egenerics_tg
             {
-                let e = Expectation::default();
-                self.0.push(e);
-                let l = self.0.len();
-                &mut self.0[l - 1]
+                self.0.push(Expectation::default());
+                let __mockall_l = self.0.len();
+                &mut self.0[__mockall_l - 1]
             }
 
             #v fn new() -> Self {
@@ -495,13 +493,13 @@ fn static_expectation(v: &Visibility,
                     Rfunc::Expired => {
                         panic!("Called a method twice that was expected only once")
                     },
-                    Rfunc::Mut(f) => {
-                        f( #argnames )
+                    Rfunc::Mut(__mockall_f) => {
+                        __mockall_f( #argnames )
                     },
                     Rfunc::Once(_) => {
-                        if let Rfunc::Once(mut f) =
+                        if let Rfunc::Once(mut __mockall_f) =
                             mem::replace(self, Rfunc::Expired) {
-                            f( #argnames )
+                            __mockall_f( #argnames )
                         } else {
                             unreachable!()
                         }
@@ -547,32 +545,32 @@ fn static_expectation(v: &Visibility,
             // clauses don't accept equality constraints.
             // https://github.com/rust-lang/rust/issues/20041
             #[allow(unused_variables)]
-            #v fn return_const<MockallOutput>(&mut self, c: MockallOutput)
+            #v fn return_const<MockallOutput>(&mut self, __mockall_c: MockallOutput)
                 -> &mut Self
                 where MockallOutput: Clone + Into<#output> + Send + 'static
             {
-                self.returning(move |#supersuper_args| c.clone().into())
+                self.returning(move |#supersuper_args| __mockall_c.clone().into())
             }
 
             /// Supply an `FnOnce` closure that will provide the return value
             /// for this Expectation.  This is useful for return types that
             /// aren't `Clone`.  It will be an error to call this method
             /// multiple times.
-            #v fn return_once<F>(&mut self, f: F) -> &mut Self
-                where F: FnOnce(#argty) -> #output + Send + 'static
+            #v fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+                where __mockall_F: FnOnce(#argty) -> #output + Send + 'static
             {
-                let mut fopt = Some(f);
-                let fmut = move |#supersuper_args| {
-                    if let Some(f) = fopt.take() {
-                        f(#argnames)
+                let mut __mockall_fopt = Some(__mockall_f);
+                let __mockall_fmut = move |#supersuper_args| {
+                    if let Some(__mockall_f) = __mockall_fopt.take() {
+                        __mockall_f(#argnames)
                     } else {
                         panic!("Called a method twice that was expected only once")
                     }
                 };
                 {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(),
-                                 Rfunc::Once(Box::new(fmut)));
+                    let mut __mockall_guard = self.rfunc.lock().unwrap();
+                    mem::replace(__mockall_guard.deref_mut(),
+                                 Rfunc::Once(Box::new(__mockall_fmut)));
                 }
                 self
             }
@@ -584,20 +582,20 @@ fn static_expectation(v: &Visibility,
             /// It is a runtime error to call the mock method from a different
             /// thread than the one that originally called this method.  It is
             /// also a runtime error to call the method more than once.
-            #v fn return_once_st<F>(&mut self, f: F) -> &mut Self
-                where F: FnOnce(#argty) -> #output + 'static
+            #v fn return_once_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+                where __mockall_F: FnOnce(#argty) -> #output + 'static
             {
-                let mut fragile = Some(::fragile::Fragile::new(f));
-                let fmut = Box::new(move |#supersuper_args| {
-                    match fragile.take() {
-                        Some(frag) => (frag.into_inner())(#argnames),
+                let mut __mockall_fragile = Some(::fragile::Fragile::new(__mockall_f));
+                let __mockall_fmut = Box::new(move |#supersuper_args| {
+                    match __mockall_fragile.take() {
+                        Some(__mockall_frag) => (__mockall_frag.into_inner())(#argnames),
                         None => panic!(
                             "Called a method twice that was expected only once")
                     }
                 });
                 {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Once(fmut));
+                    let mut __mockall_guard = self.rfunc.lock().unwrap();
+                    mem::replace(__mockall_guard.deref_mut(), Rfunc::Once(__mockall_fmut));
                 }
                 self
             }
@@ -605,12 +603,13 @@ fn static_expectation(v: &Visibility,
             /// Supply a closure that will provide the return value for this
             /// `Expectation`.  The method's arguments are passed to the closure
             /// by value.
-            #v fn returning<F>(&mut self, f: F) -> &mut Self
-                where F: FnMut(#argty) -> #output + Send + 'static
+            #v fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+                where __mockall_F: FnMut(#argty) -> #output + Send + 'static
             {
                 {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(f)));
+                    let mut __mockall_guard = self.rfunc.lock().unwrap();
+                    mem::replace(__mockall_guard.deref_mut(),
+                        Rfunc::Mut(Box::new(__mockall_f)));
                 }
                 self
             }
@@ -620,16 +619,17 @@ fn static_expectation(v: &Visibility,
             ///
             /// It is a runtime error to call the mock method from a different
             /// thread than the one that originally called this method.
-            #v fn returning_st<F>(&mut self, f: F) -> &mut Self
-                where F: FnMut(#argty) -> #output + 'static
+            #v fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+                where __mockall_F: FnMut(#argty) -> #output + 'static
             {
-                let mut fragile = Fragile::new(f);
-                let fmut = move |#supersuper_args| {
-                    (fragile.get_mut())(#argnames)
+                let mut __mockall_fragile = Fragile::new(__mockall_f);
+                let __mockall_fmut = move |#supersuper_args| {
+                    (__mockall_fragile.get_mut())(#argnames)
                 };
                 {
-                    let mut guard = self.rfunc.lock().unwrap();
-                    mem::replace(guard.deref_mut(), Rfunc::Mut(Box::new(fmut)));
+                    let mut __mockall_guard = self.rfunc.lock().unwrap();
+                    mem::replace(__mockall_guard.deref_mut(),
+                        Rfunc::Mut(Box::new(__mockall_fmut)));
                 }
                 self
             }
@@ -654,11 +654,11 @@ fn static_expectation(v: &Visibility,
             #v fn call(&self, #supersuper_args ) -> #output
             {
                 match self.0.iter()
-                    .find(|e| e.matches(#matchcall) &&
-                          (!e.is_done() || self.0.len() == 1))
+                    .find(|__mockall_e| __mockall_e.matches(#matchcall) &&
+                          (!__mockall_e.is_done() || self.0.len() == 1))
                 {
                     None => panic!("No matching expectation found"),
-                    Some(e) => e.call(#argnames)
+                    Some(__mockall_e) => __mockall_e.call(#argnames)
                 }
             }
 
@@ -855,11 +855,11 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// with matching arguments will be used.
                 #vis fn call(&self, #selfless_args ) -> &#output {
                     match self.0.iter()
-                        .find(|e| e.matches(#matchexprs) &&
-                              (!e.is_done() || self.0.len() == 1))
+                        .find(|__mockall_e| __mockall_e.matches(#matchexprs) &&
+                              (!__mockall_e.is_done() || self.0.len() == 1))
                     {
                         None => panic!("No matching expectation found"),
-                        Some(__e) => __e.call(#argnames)
+                        Some(__mockall_e) => __mockall_e.call(#argnames)
                     }
                 }
             }
@@ -934,8 +934,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Simulating calling the real method for this expectation
                 #vis fn call_mut(&mut self, #selfless_args) -> &mut #output {
                     self.common.call(#matchexprs);
-                    if let Some(ref mut __f) = self.rfunc {
-                        self.result = Some(__f(#argnames));
+                    if let Some(ref mut __mockall_f) = self.rfunc {
+                        self.result = Some(__mockall_f(#argnames));
                     }
                     self.result.as_mut()
                         .expect("Must first set return function with returning or return_var")
@@ -953,23 +953,23 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// Supply a closure that the `Expectation` will use to create its
                 /// return value.  The return value will be returned by mutable
                 /// reference.
-                #vis fn returning<F>(&mut self, f: F) -> &mut Self
-                    where F: FnMut(#argty) -> #output + Send + Sync + 'static
+                #vis fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+                    where __mockall_F: FnMut(#argty) -> #output + Send + Sync + 'static
                 {
-                    mem::replace(&mut self.rfunc, Some(Box::new(f)));
+                    mem::replace(&mut self.rfunc, Some(Box::new(__mockall_f)));
                     self
                 }
 
                 /// Single-threaded version of [`returning`](#method.returning).
                 /// Can be used when the argument or return type isn't `Send`.
-                #vis fn returning_st<F>(&mut self, f: F) -> &mut Self
-                    where F: FnMut(#argty) -> #output + 'static
+                #vis fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+                    where __mockall_F: FnMut(#argty) -> #output + 'static
                 {
-                    let mut __fragile = Fragile::new(f);
-                    let __fmut = move |#selfless_args| {
-                        (__fragile.get_mut())(#argnames)
+                    let mut __mockall_fragile = Fragile::new(__mockall_f);
+                    let __mockall_fmut = move |#selfless_args| {
+                        (__mockall_fragile.get_mut())(#argnames)
                     };
-                    mem::replace(&mut self.rfunc, Some(Box::new(__fmut)));
+                    mem::replace(&mut self.rfunc, Some(Box::new(__mockall_fmut)));
                     self
                 }
 
@@ -991,13 +991,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
                 #vis fn call_mut(&mut self, #selfless_args ) -> &mut #output {
-                    let __n = self.0.len();
+                    let __mockall_n = self.0.len();
                     match self.0.iter_mut()
-                        .find(|e| e.matches(#matchexprs) &&
-                              (!e.is_done() || __n == 1))
+                        .find(|__mockall_e| __mockall_e.matches(#matchexprs) &&
+                              (!__mockall_e.is_done() || __mockall_n == 1))
                     {
                         None => panic!("No matching expectation found"),
-                        Some(__e) => __e.call_mut(#argnames)
+                        Some(__mockall_e) => __mockall_e.call_mut(#argnames)
                     }
                 }
             }
@@ -1087,10 +1087,10 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
-                #vis fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+                #vis fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
                     -> &mut Expectation #egenerics_tg
                 {
-                    self.guard.0[self.i].in_sequence(seq)
+                    self.guard.0[self.i].in_sequence(__mockall_seq)
                 }
 
                 /// Just like
@@ -1101,12 +1101,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 // Should only be called from the mockall_derive generated code
                 #[doc(hidden)]
-                #vis fn new(mut guard: MutexGuard<'lt, Expectations #egenerics_tg>)
+                #vis fn new(mut __mockall_guard: MutexGuard<'lt, Expectations #egenerics_tg>)
                     -> Self
                 {
-                    guard.expect(); // Drop the &Expectation
-                    let i = guard.0.len() - 1;
-                    ExpectationGuard{guard, i}
+                    __mockall_guard.expect(); // Drop the &Expectation
+                    let __mockall_i = __mockall_guard.0.len() - 1;
+                    ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
                 }
 
                 /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
@@ -1116,36 +1116,36 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-                #vis fn returning<F>(&mut self, f: F)
+                #vis fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F)
                     -> &mut Expectation #egenerics_tg
-                    where F: FnMut(#argty) -> #output + Send + 'static
+                    where __mockall_F: FnMut(#argty) -> #output + Send + 'static
                 {
-                    self.guard.0[self.i].returning(f)
+                    self.guard.0[self.i].returning(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-                #vis fn return_once<F>(&mut self, f: F)
+                #vis fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F)
                     -> &mut Expectation #egenerics_tg
-                    where F: FnOnce(#argty) -> #output + Send + 'static
+                    where __mockall_F: FnOnce(#argty) -> #output + Send + 'static
                 {
-                    self.guard.0[self.i].return_once(f)
+                    self.guard.0[self.i].return_once(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-                #vis fn returning_st<F>(&mut self, f: F)
+                #vis fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F)
                     -> &mut Expectation #egenerics_tg
-                    where F: FnMut(#argty) -> #output + 'static
+                    where __mockall_F: FnMut(#argty) -> #output + 'static
                 {
-                    self.guard.0[self.i].returning_st(f)
+                    self.guard.0[self.i].returning_st(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #vis fn times(&mut self, n: usize)
+                #vis fn times(&mut self, __mockall_n: usize)
                     -> &mut Expectation #egenerics_tg {
-                    self.guard.0[self.i].times(n)
+                    self.guard.0[self.i].times(__mockall_n)
                 }
 
                 /// Just like
@@ -1156,10 +1156,10 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
-                #vis fn times_range(&mut self, range: Range<usize>)
+                #vis fn times_range(&mut self, __mockall_range: Range<usize>)
                     -> &mut Expectation #egenerics_tg
                 {
-                    self.guard.0[self.i].times_range(range)
+                    self.guard.0[self.i].times_range(__mockall_range)
                 }
 
                 /// Just like
@@ -1172,10 +1172,10 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #vis fn withf<F>(&mut self, f: F) -> &mut Expectation #egenerics_tg
-                    where F: Fn(#refaltargty) -> bool + Send + 'static
+                #vis fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
+                    where __mockall_F: Fn(#refaltargty) -> bool + Send + 'static
                 {
-                    self.guard.0[self.i].withf(f)
+                    self.guard.0[self.i].withf(__mockall_f)
                 }
             }
 
@@ -1192,7 +1192,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
             {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
-                #vis fn in_sequence(&mut self, seq: &mut ::mockall::Sequence)
+                #vis fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
                     -> &mut Expectation #egenerics_tg
                 {
                     self.guard.store.get_mut(
@@ -1201,7 +1201,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .in_sequence(seq)
+                        .in_sequence(__mockall_seq)
                 }
 
                 /// Just like
@@ -1220,15 +1220,16 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                 #vis fn new(mut guard: MutexGuard<'lt, GenericExpectations>)
                     -> Self
                 {
-                    let __ee: &mut Expectations #egenerics_tg =
+                    let __mockall_ee: &mut Expectations #egenerics_tg =
                         guard.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
                             Box::new(Expectations #egenerics_tbf ::new()))
                         .downcast_mut()
                         .unwrap();
-                    __ee.expect();    // Drop the &Expectation
-                    let i = __ee.0.len() - 1;
-                    GenericExpectationGuard{guard, i, _phantom: PhantomData}
+                    __mockall_ee.expect();    // Drop the &Expectation
+                    let __mockall_i = __mockall_ee.0.len() - 1;
+                    GenericExpectationGuard{guard, i: __mockall_i,
+                        _phantom: PhantomData}
                 }
 
                 /// Just like
@@ -1245,8 +1246,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-                #vis fn returning<F>(&mut self, f: F) -> &mut Expectation #egenerics_tg
-                    where F: FnMut(#argty) -> #output + Send + 'static
+                #vis fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
+                    where __mockall_F: FnMut(#argty) -> #output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1254,13 +1255,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .returning(f)
+                        .returning(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-                #vis fn return_once<F>(&mut self, f: F) -> &mut Expectation #egenerics_tg
-                    where F: FnOnce(#argty) -> #output + Send + 'static
+                #vis fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
+                    where __mockall_F: FnOnce(#argty) -> #output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1268,13 +1269,13 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .return_once(f)
+                        .return_once(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-                #vis fn returning_st<F>(&mut self, f: F) -> &mut Expectation #egenerics_tg
-                    where F: FnMut(#argty) -> #output + 'static
+                #vis fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
+                    where __mockall_F: FnMut(#argty) -> #output + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1282,19 +1283,19 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .returning_st(f)
+                        .returning_st(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #vis fn times(&mut self, n: usize) -> &mut Expectation #egenerics_tg {
+                #vis fn times(&mut self, __mockall_n: usize) -> &mut Expectation #egenerics_tg {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .times(n)
+                        .times(__mockall_n)
                 }
 
                 /// Just like
@@ -1311,7 +1312,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
-                #vis fn times_range(&mut self, range: Range<usize>)
+                #vis fn times_range(&mut self, __mockall_range: Range<usize>)
                     -> &mut Expectation #egenerics_tg
                 {
                     self.guard.store.get_mut(
@@ -1320,7 +1321,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .times_range(range)
+                        .times_range(__mockall_range)
                 }
 
                 /// Just like
@@ -1339,8 +1340,8 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #vis fn withf<F>(&mut self, f: F) -> &mut Expectation #egenerics_tg
-                    where F: Fn(#refaltargty) -> bool + Send + 'static
+                #vis fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
+                    where __mockall_F: Fn(#refaltargty) -> bool + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1348,7 +1349,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .withf(f)
+                        .withf(__mockall_f)
                 }
             }
             }
