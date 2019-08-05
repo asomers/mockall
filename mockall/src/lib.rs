@@ -292,11 +292,8 @@
 //! ```
 //!
 //! See also
-//! [`never`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.never),
-//! [`times`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times),
-//! [`times_any`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times_any),
-//! and
-//! [`times_range`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times_range).
+//! [`never`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.never) and
+//! [`times`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times).
 //!
 //! ## Sequences
 //!
@@ -1020,7 +1017,8 @@ use downcast::*;
 use std::{
     any,
     marker::PhantomData,
-    ops::Range,
+    ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+          RangeToInclusive},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering}
@@ -1073,63 +1071,122 @@ pub struct DefaultReturner<O: 'static>(PhantomData<O>);
     }
 }
 
+// Though it's not entirely correct, we treat usize::max_value() as
+// approximately infinity.
+#[derive(Debug)]
+#[doc(hidden)]
+pub struct TimesRange(Range<usize>);
+
+impl Default for TimesRange {
+    fn default() -> TimesRange {
+        TimesRange(0..usize::max_value())
+    }
+}
+
+impl From<usize> for TimesRange {
+    fn from(n: usize) -> TimesRange {
+        TimesRange(n..(n+1))
+    }
+}
+
+impl From<Range<usize>> for TimesRange {
+    fn from(r: Range<usize>) -> TimesRange {
+        assert!(r.end > r.start, "Backwards range");
+        TimesRange(r)
+    }
+}
+
+impl From<RangeFrom<usize>> for TimesRange {
+    fn from(r: RangeFrom<usize>) -> TimesRange {
+        TimesRange(r.start..usize::max_value())
+    }
+}
+
+impl From<RangeFull> for TimesRange {
+    fn from(_: RangeFull) -> TimesRange {
+        TimesRange(0..usize::max_value())
+    }
+}
+
+impl From<RangeInclusive<usize>> for TimesRange {
+    fn from(r: RangeInclusive<usize>) -> TimesRange {
+        assert!(r.end() >= r.start(), "Backwards range");
+        TimesRange(*r.start()..*r.end() + 1)
+    }
+}
+
+impl From<RangeTo<usize>> for TimesRange {
+    fn from(r: RangeTo<usize>) -> TimesRange {
+        TimesRange(0..r.end)
+    }
+}
+
+impl From<RangeToInclusive<usize>> for TimesRange {
+    fn from(r: RangeToInclusive<usize>) -> TimesRange {
+        TimesRange(0..r.end + 1)
+    }
+}
 
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct Times{
     /// How many times has the expectation already been called?
     count: AtomicUsize,
-    range: Range<usize>
+    range: TimesRange
 }
 
 impl Times {
     pub fn call(&self) {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
-        if count >= self.range.end {
-            if self.range.end == 1 {
+        if count >= self.range.0.end {
+            if self.range.0.end == 1 {
                 panic!("Expectation should not have been called");
             } else {
-                let lim = self.range.end - 1;
+                let lim = self.range.0.end - 1;
                 panic!("Expectation called more than {} times", lim);
             }
         }
     }
 
     pub fn any(&mut self) {
-        self.range = 0..usize::max_value();
+        self.range.0 = 0..usize::max_value();
     }
 
     /// Has this expectation already been called the maximum allowed number of
     /// times?
     pub fn is_done(&self) -> bool {
-        self.count.load(Ordering::Relaxed) >= self.range.end - 1
+        self.count.load(Ordering::Relaxed) >= self.range.0.end - 1
     }
 
     /// Is it required that this expectation be called an exact number of times,
     /// or may it be satisfied by a range of call counts?
     pub fn is_exact(&self) -> bool {
-        (self.range.end - self.range.start) == 1
+        (self.range.0.end - self.range.0.start) == 1
     }
 
     /// Has this expectation already been called the minimum required number of
     /// times?
     pub fn is_satisfied(&self) -> bool {
-        self.count.load(Ordering::Relaxed) >= self.range.start
+        self.count.load(Ordering::Relaxed) >= self.range.0.start
     }
 
     // https://github.com/rust-lang/rust-clippy/issues/3307
     #[allow(clippy::range_plus_one)]
     pub fn n(&mut self, n: usize) {
-        self.range = n..(n+1);
+        self.range.0 = n..(n+1);
     }
 
     pub fn never(&mut self) {
-        self.range = 0..1;
+        self.range.0 = 0..1;
     }
 
     pub fn range(&mut self, range: Range<usize>) {
         assert!(range.end > range.start, "Backwards range");
-        self.range = range;
+        self.range.0 = range;
+    }
+
+    pub fn times<T: Into<TimesRange>>(&mut self, t: T) {
+        self.range = t.into();
     }
 }
 
@@ -1137,7 +1194,7 @@ impl Default for Times {
     fn default() -> Self {
         // By default, allow any number of calls
         let count = AtomicUsize::default();
-        let range = 0..usize::max_value();
+        let range = TimesRange::default();
         Times{count, range}
     }
 }
@@ -1145,8 +1202,9 @@ impl Default for Times {
 impl Drop for Times {
     fn drop(&mut self) {
         let count = self.count.load(Ordering::Relaxed);
-        if !thread::panicking() && (count < self.range.start) {
-            panic!("Expectation called fewer than {} times", self.range.start);
+        if !thread::panicking() && (count < self.range.0.start) {
+            panic!("Expectation called fewer than {} times",
+                   self.range.0.start);
         }
     }
 }

@@ -48,7 +48,7 @@ mod sequence {
         let mut seq = Sequence::new();
         let mut mock = MockFoo::new();
         mock.expect_foo()
-            .times_range(1..3)
+            .times(1..3)
             .in_sequence(&mut seq);
         mock.foo();
     }

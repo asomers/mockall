@@ -15,7 +15,7 @@ fn checkpoint() {
     let mut mock = MockFoo::new();
     MockFoo::expect_bar()
         .returning(|_| 32)
-        .times_range(1..3);
+        .times(1..3);
     mock.checkpoint();
     panic!("Shouldn't get here!");
 }
