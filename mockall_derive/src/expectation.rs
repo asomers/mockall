@@ -153,20 +153,11 @@ fn common_methods(
                 }
             }
 
-            /// Expect this expectation to be called exactly `n` times.
-            fn times(&mut self, __mockall_n: usize) {
-                self.times.n(__mockall_n);
-            }
-
-            /// Allow this expectation to be called any number of times
-            fn times_any(&mut self) {
-                self.times.any();
-            }
-
-            /// Allow this expectation to be called any number of times within a
-            /// given range
-            fn times_range(&mut self, __mockall_range: Range<usize>) {
-                self.times.range(__mockall_range);
+            /// Expect this expectation to be called any number of times
+            /// contained with the given range.
+            fn times<R: Into<::mockall::TimesRange>>(&mut self, __mockall_r: R)
+            {
+                self.times.times(__mockall_r)
             }
 
             fn with<#with_generics>(&mut self, #with_args)
@@ -284,9 +275,21 @@ fn expectation_methods(v: &Visibility,
             self.times(1)
         }
 
-        /// Expect this expectation to be called exactly `n` times.
-        #v fn times(&mut self, __mockall_n: usize) -> &mut Self {
-            self.common.times(__mockall_n);
+        /// Restrict the number of times that that this method may be called.
+        ///
+        /// The argument may be:
+        /// * A fixed number: `.times(4)`
+        /// * Various types of range:
+        ///   - `.times(5..10)`
+        ///   - `.times(..10)`
+        ///   - `.times(5..)`
+        ///   - `.times(5..=10)`
+        ///   - `.times(..=10)`
+        /// * The wildcard: `.times(..)`
+        #v fn times<R>(&mut self, __mockall_r: R) -> &mut Self
+            where R: Into<::mockall::TimesRange>
+        {
+            self.common.times(__mockall_r);
             self
         }
 
@@ -294,17 +297,19 @@ fn expectation_methods(v: &Visibility,
         ///
         /// This behavior is the default, but the method is provided in case the
         /// default behavior changes.
+        #[deprecated(since = "0.3.0", note = "Use times instead")]
         #v fn times_any(&mut self) -> &mut Self {
-            self.common.times_any();
+            self.common.times(..);
             self
         }
 
         /// Allow this expectation to be called any number of times within a
         /// given range
+        #[deprecated(since = "0.3.0", note = "Use times instead")]
         #v fn times_range(&mut self, __mockall_range: Range<usize>)
             -> &mut Self
         {
-            self.common.times_range(__mockall_range);
+            self.common.times(__mockall_range);
             self
         }
 
@@ -1143,23 +1148,27 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #vis fn times(&mut self, __mockall_n: usize)
-                    -> &mut Expectation #egenerics_tg {
-                    self.guard.0[self.i].times(__mockall_n)
+                #vis fn times<R>(&mut self, __mockall_r: R)
+                    -> &mut Expectation #egenerics_tg
+                    where R: Into<::mockall::TimesRange>
+                {
+                    self.guard.0[self.i].times(__mockall_r)
                 }
 
                 /// Just like
                 /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
+                #[deprecated(since = "0.3.0", note = "Use times instead")]
                 #vis fn times_any(&mut self) -> &mut Expectation #egenerics_tg {
-                    self.guard.0[self.i].times_any()
+                    self.guard.0[self.i].times(..)
                 }
 
                 /// Just like
                 /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
+                #[deprecated(since = "0.3.0", note = "Use times instead")]
                 #vis fn times_range(&mut self, __mockall_range: Range<usize>)
                     -> &mut Expectation #egenerics_tg
                 {
-                    self.guard.0[self.i].times_range(__mockall_range)
+                    self.guard.0[self.i].times(__mockall_range)
                 }
 
                 /// Just like
@@ -1288,18 +1297,22 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
 
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #vis fn times(&mut self, __mockall_n: usize) -> &mut Expectation #egenerics_tg {
+                #vis fn times<R>(&mut self, __mockall_r: R)
+                    -> &mut Expectation #egenerics_tg
+                    where R: Into<::mockall::TimesRange>
+                {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .times(__mockall_n)
+                        .times(__mockall_r)
                 }
 
                 /// Just like
                 /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
+                #[deprecated(since = "0.3.0", note = "Use times instead")]
                 #vis fn times_any(&mut self) -> &mut Expectation #egenerics_tg {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1307,11 +1320,12 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .times_any()
+                        .times(..)
                 }
 
                 /// Just like
                 /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
+                #[deprecated(since = "0.3.0", note = "Use times instead")]
                 #vis fn times_range(&mut self, __mockall_range: Range<usize>)
                     -> &mut Expectation #egenerics_tg
                 {
@@ -1321,7 +1335,7 @@ pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
                         .0[self.i]
-                        .times_range(__mockall_range)
+                        .times(__mockall_range)
                 }
 
                 /// Just like

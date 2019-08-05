@@ -83,39 +83,34 @@ mod times {
         // Verify that we panic quickly and don't reach code below this point.
         panic!("Shouldn't get here!");
     }
-}
-
-mod times_range {
-    use super::*;
-    const X: u32 = 42;
 
     #[test]
-    fn ok() {
+    fn range_ok() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
             .returning(|_| 0)
-            .times_range(2..4);
+            .times(2..4);
         mock.foo(&X);
         mock.foo(&X);
     }
 
     #[test]
     #[should_panic(expected = "Expectation called fewer than 2 times")]
-    fn too_few() {
+    fn range_too_few() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
             .returning(|_| 0)
-            .times_range(2..4);
+            .times(2..4);
         mock.foo(&X);
     }
 
     #[test]
     #[should_panic(expected = "Expectation called more than 3 times")]
-    fn too_many() {
+    fn range_too_many() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
             .returning(|_| 0)
-            .times_range(2..4);
+            .times(2..4);
         mock.foo(&X);
         mock.foo(&X);
         mock.foo(&X);
@@ -126,13 +121,13 @@ mod times_range {
 }
 
 #[test]
-fn times_any() {
+fn times_full() {
     const X: u32 = 42;
     let mut mock = MockFoo::new();
     mock.expect_foo()
         .returning(|_| 0)
         .times(1)
-        .times_any();
+        .times(..);
     mock.foo(&X);
     mock.foo(&X);
 }

@@ -30,7 +30,7 @@ mod checkpoint {
         let mut mock = MockFoo::new();
         mock.expect_foo()
             .returning(|_| 5)
-            .times_range(1..3);
+            .times(1..3);
         mock.foo(0);
         mock.checkpoint();
 
@@ -56,7 +56,7 @@ mod checkpoint {
         let mut mock = MockFoo::new();
         mock.expect_foo()
             .returning(|_| 5)
-            .times_range(1..3);
+            .times(1..3);
         mock.foo(0);
         mock.checkpoint();
     }
@@ -67,7 +67,7 @@ mod checkpoint {
         let mut mock = MockFoo::new();
         mock.expect_foo()
             .returning(|_| 42)
-            .times_range(1..3);
+            .times(1..3);
         mock.foo(0);
         mock.checkpoint();
         mock.foo(0);
@@ -210,7 +210,7 @@ mod sequence {
         let mut seq = Sequence::new();
         let mut mock = MockFoo::new();
         mock.expect_baz()
-            .times_range(1..3)
+            .times(1..3)
             .in_sequence(&mut seq);
         mock.baz();
     }
@@ -315,23 +315,19 @@ mod times {
         // Verify that we panic quickly and don't reach code below this point.
         panic!("Shouldn't get here!");
     }
-}
-
-mod times_range {
-    use super::*;
 
     #[test]
-    fn ok() {
+    fn range_ok() {
         let mut mock = MockFoo::new();
         mock.expect_baz()
             .returning(|| ())
-            .times_range(2..4);
+            .times(2..4);
         mock.baz();
         mock.baz();
 
         mock.expect_bar()
             .returning(|_| ())
-            .times_range(2..4);
+            .times(2..4);
         mock.bar(0);
         mock.bar(0);
         mock.bar(0);
@@ -339,21 +335,21 @@ mod times_range {
 
     #[test]
     #[should_panic(expected = "Expectation called fewer than 2 times")]
-    fn too_few() {
+    fn range_too_few() {
         let mut mock = MockFoo::new();
         mock.expect_baz()
             .returning(|| ())
-            .times_range(2..4);
+            .times(2..4);
         mock.baz();
     }
 
     #[test]
     #[should_panic(expected = "Expectation called more than 3 times")]
-    fn too_many() {
+    fn range_too_many() {
         let mut mock = MockFoo::new();
         mock.expect_baz()
             .returning(|| ())
-            .times_range(2..4);
+            .times(2..4);
         mock.baz();
         mock.baz();
         mock.baz();
@@ -361,15 +357,78 @@ mod times_range {
         // Verify that we panic quickly and don't reach code below this point.
         panic!("Shouldn't get here!");
     }
+
+    #[test]
+    fn rangeto_ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .returning(|_| ())
+            .times(..4);
+        mock.bar(0);
+        mock.bar(0);
+        mock.bar(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called more than 3 times")]
+    fn rangeto_too_many() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times(..4);
+        mock.baz();
+        mock.baz();
+        mock.baz();
+        mock.baz();
+    }
+
+    #[test]
+    fn rangeinclusive_ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .returning(|_| ())
+            .times(2..=4);
+        mock.bar(0);
+        mock.bar(0);
+        mock.bar(0);
+        mock.bar(0);
+    }
+
+    #[test]
+    fn rangefrom_ok() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times(2..);
+        mock.baz();
+        mock.baz();
+
+        mock.expect_bar()
+            .returning(|_| ())
+            .times(2..);
+        mock.bar(0);
+        mock.bar(0);
+        mock.bar(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expectation called fewer than 2 times")]
+    fn rangefrom_too_few() {
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .returning(|| ())
+            .times(2..);
+        mock.baz();
+    }
 }
 
 #[test]
-fn times_any() {
+fn times_full() {
     let mut mock = MockFoo::new();
     mock.expect_baz()
         .returning(|| ())
         .times(1)
-        .times_any();
+        .times(..);
     mock.baz();
     mock.baz();
 }
