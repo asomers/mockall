@@ -479,9 +479,7 @@ fn static_expectation(v: &Visibility,
             // Indicates that a `return_once` expectation has already returned
             Expired,
             Mut(Box<dyn FnMut(#argty) -> #output + Send>),
-            // Should be Box<dyn FnOnce> once that feature is stabilized
-            // https://github.com/rust-lang/rust/issues/28796
-            Once(Box<dyn FnMut(#argty) -> #output + Send>),
+            Once(Box<dyn FnOnce(#argty) -> #output + Send>),
             // Prevent "unused type parameter" errors
             // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
             // are not, unlike PhantomData<generics>
@@ -561,21 +559,14 @@ fn static_expectation(v: &Visibility,
             /// for this Expectation.  This is useful for return types that
             /// aren't `Clone`.  It will be an error to call this method
             /// multiple times.
-            #v fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+            #v fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F)
+                -> &mut Self
                 where __mockall_F: FnOnce(#argty) -> #output + Send + 'static
             {
-                let mut __mockall_fopt = Some(__mockall_f);
-                let __mockall_fmut = move |#supersuper_args| {
-                    if let Some(__mockall_f) = __mockall_fopt.take() {
-                        __mockall_f(#argnames)
-                    } else {
-                        panic!("Called a method twice that was expected only once")
-                    }
-                };
                 {
                     let mut __mockall_guard = self.rfunc.lock().unwrap();
                     mem::replace(__mockall_guard.deref_mut(),
-                                 Rfunc::Once(Box::new(__mockall_fmut)));
+                        Rfunc::Once(Box::new(__mockall_f)));
                 }
                 self
             }
@@ -587,20 +578,17 @@ fn static_expectation(v: &Visibility,
             /// It is a runtime error to call the mock method from a different
             /// thread than the one that originally called this method.  It is
             /// also a runtime error to call the method more than once.
-            #v fn return_once_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
+            #v fn return_once_st<__mockall_F>(&mut self, __mockall_f:
+                                              __mockall_F) -> &mut Self
                 where __mockall_F: FnOnce(#argty) -> #output + 'static
             {
-                let mut __mockall_fragile = Some(::fragile::Fragile::new(__mockall_f));
-                let __mockall_fmut = Box::new(move |#supersuper_args| {
-                    match __mockall_fragile.take() {
-                        Some(__mockall_frag) => (__mockall_frag.into_inner())(#argnames),
-                        None => panic!(
-                            "Called a method twice that was expected only once")
-                    }
+                let __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
+                let __mockall_fonce = Box::new(move |#supersuper_args| {
+                    (__mockall_fragile.into_inner())(#argnames)
                 });
                 {
                     let mut __mockall_guard = self.rfunc.lock().unwrap();
-                    mem::replace(__mockall_guard.deref_mut(), Rfunc::Once(__mockall_fmut));
+                    mem::replace(__mockall_guard.deref_mut(), Rfunc::Once(__mockall_fonce));
                 }
                 self
             }
