@@ -39,6 +39,9 @@ struct MethodTypes {
     call: Ident,
     /// Method's argument list
     inputs: Punctuated<FnArg, Token![,]>,
+    /// Output type of the Expectation, which may be a little bit more general
+    /// than the output type of the original method
+    output: ReturnType,
     /// Types of the arguments used for the Predicates
     altargs: Punctuated<Type, Token![,]>,
     /// Expressions producing references from the arguments
@@ -524,9 +527,11 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     };
     let expect_ts = quote!(#ident::#expectation_ident #tg);
     let expectation: Type = parse2(expect_ts).unwrap();
+    let mut output = sig.decl.output.clone();
+    deimplify(&mut output);
 
     MethodTypes{is_static, expectation, expectations,
-                call, expect_obj, inputs, altargs, matchexprs}
+                call, expect_obj, inputs, output, altargs, matchexprs}
 }
 
 /// Manually mock a structure.
