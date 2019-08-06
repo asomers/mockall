@@ -12,6 +12,10 @@ extern crate proc_macro;
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
+use std::{
+    collections::HashMap,
+    iter::FromIterator
+};
 use syn::{
     *,
     punctuated::Pair,
@@ -29,6 +33,10 @@ struct MethodTypes {
     is_static: bool,
     /// Type of Expectation returned by the expect method
     expectation: Type,
+    /// Generics applicable to the Expectation object
+    expectation_generics: Generics,
+    /// Input types for the Expectation object
+    expectation_inputs: Punctuated<FnArg, Token![,]>,
     /// Type of Expectations container used by the expect method, without its
     /// generics fields
     expectations: Type,
@@ -65,6 +73,96 @@ cfg_if! {
             panic!("{}.  More information may be available when mockall is built with the \"nightly\" feature.", msg);
         }
     }
+}
+
+// If there are any closures in the argument list, turn them into boxed
+// functions
+fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) -> 
+    (Generics, Punctuated<FnArg, Token![,]>, Punctuated<TokenStream, Token![,]>)
+{
+    let mut hm = HashMap::new();
+
+    // First remove any Fn types from the Generics
+    let params = Punctuated::from_iter(gen.params.iter().filter_map(|g|
+        if let GenericParam::Type(tp) = g {
+            if tp.bounds.iter().all(|tpb| {
+                if let TypeParamBound::Trait(tb) = tpb {
+                    let ident = &tb.path.segments.last().unwrap().value().ident;
+                    if ["Fn", "FnMut", "FnOnce"].iter().any(|s| ident == *s) {
+                        let newty: Type = parse2(quote!(Box<dyn #tb>)).unwrap();
+                        let ident = &tp.ident;
+                        let subst_ty: Type = parse2(quote!(#ident)).unwrap();
+                        assert!(hm.insert(subst_ty, newty).is_none(),
+                            "A generic parameter had two Fn bounds?");
+                        assert!(gen.where_clause.is_none(),
+                            "Methods with both closures and where clauses are TODO");
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                }
+            }) {
+                Some(g)
+            } else {
+                None
+            }
+        } else {
+            Some(g)
+        }
+    ).cloned());
+    let outg = Generics {
+        lt_token: if params.is_empty() { None } else { gen.lt_token.clone() },
+        gt_token: if params.is_empty() { None } else { gen.gt_token.clone() },
+        params,
+        where_clause: gen.where_clause.clone()
+    };
+
+    // Next substitute Box<Fn> into the arguments
+    let outargs = Punctuated::from_iter(args.iter().map(|arg| {
+        if let FnArg::Captured(ac) = arg {
+            let mut immutable_ac = ac.clone();
+            demutify_arg(&mut immutable_ac);
+            if let Some(newty) = hm.get(&ac.ty) {
+                FnArg::Captured(ArgCaptured {
+                    pat: immutable_ac.pat,
+                    colon_token: ac.colon_token.clone(),
+                    ty: newty.clone()
+                })
+            } else {
+                FnArg::Captured(ArgCaptured {
+                    pat: immutable_ac.pat,
+                    colon_token: ac.colon_token.clone(),
+                    ty: ac.ty.clone()
+                })
+            }
+        } else {
+            arg.clone()
+        }
+    }));
+
+    // Finally, Box any closure arguments
+    // use filter_map to remove the &self argument
+    let callargs = Punctuated::from_iter(args.iter().filter_map(|arg| {
+        match arg {
+            FnArg::Captured(ac) => {
+                let mut ac2 = ac.clone();
+                demutify_arg(&mut ac2);
+                let pat = &ac2.pat;
+                if hm.contains_key(&ac.ty) {
+                    Some(quote!(Box::new(#pat)))
+                } else {
+                    Some(quote!(#pat))
+                }
+            },
+            FnArg::SelfRef(_) | FnArg::SelfValue(_) => None,
+            _ => {
+                Some(quote!(#arg))
+            }
+        }
+    }));
+    (outg, outargs, callargs)
 }
 
 /// Replace any "impl trait" types with "Box<dyn trait>" equivalents
@@ -439,22 +537,21 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let mut is_static = true;
     let mut altargs = Punctuated::new();
     let mut matchexprs = Punctuated::new();
-    let mut call_exprs = Punctuated::new();
     let ident = &sig.ident;
+    let (expectation_generics, expectation_inputs, call_exprs) =
+        declosurefy(&sig.decl.generics, &sig.decl.inputs);
     let is_generic = !sig.decl.generics.params.is_empty();
     let merged_g = if let Some(g) = generics {
-        merge_generics(&g, &sig.decl.generics)
+        merge_generics(&g, &expectation_generics)
     } else {
         sig.decl.generics.clone()
     };
     let inputs = demutify(&sig.decl.inputs);
     let (_ig, tg, _wc) = merged_g.split_for_impl();
-    for fn_arg in sig.decl.inputs.iter() {
+    for fn_arg in expectation_inputs.iter() {
         match fn_arg {
             FnArg::Captured(arg) => {
                 let mep = if let Pat::Ident(arg_ident) = &arg.pat {
-                    let ident = &arg_ident.ident;
-                    call_exprs.push(quote!(#ident));
                     Expr::Path(ExprPath{
                         attrs: Vec::new(),
                         qself: None,
@@ -466,7 +563,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
                     break;
                 };
                 let alt_ty = if let Type::Reference(tr) = &arg.ty {
-                    // /* Remove any "mut" */
+                    /* Remove any "mut" */
                     matchexprs.push(mep);
                     (*tr.elem).clone()
                 } else {
@@ -535,8 +632,9 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let mut output = sig.decl.output.clone();
     deimplify(&mut output);
 
-    MethodTypes{is_static, expectation, expectations, call, expect_obj,
-                call_exprs, inputs, output, altargs, matchexprs}
+    MethodTypes{is_static, expectation, expectation_generics,
+                expectation_inputs, expectations, call, expect_obj, call_exprs,
+                inputs, output, altargs, matchexprs}
 }
 
 /// Manually mock a structure.

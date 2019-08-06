@@ -690,7 +690,8 @@ fn static_expectation(v: &Visibility,
 }
 
 /// Generate the code that implements an expectation for a single method
-pub(crate) fn expectation(attrs: &TokenStream, vis: &Visibility,
+pub(crate) fn expectation(attrs: &TokenStream,
+    vis: &Visibility,
     self_ident: Option<&Ident>,
     ident: &Ident,
     generics: &Generics,

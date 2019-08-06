@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+
+- Methods with closure arguments can now be mocked.  Technically they always
+  could be, but until now it wasn't possible to call the closure argument from
+  `withf` or `returning`.  No special tricks are required by the user.
+  ([#15](https://github.com/asomers/mockall/pull/15))
+
 ### Changed
 
 - The MSRV is now Rust 1.35.0
