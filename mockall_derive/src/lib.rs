@@ -14,7 +14,8 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::{
     collections::HashMap,
-    iter::FromIterator
+    iter::FromIterator,
+    mem
 };
 use syn::{
     *,
@@ -230,9 +231,6 @@ fn deselfify(literal_type: &mut Type, actual: &Ident) {
         Type::Reference(r) => {
             deselfify(r.elem.as_mut(), actual);
         },
-        Type::BareFn(_bfn) => {
-            unimplemented!()
-        },
         Type::Tuple(tuple) => {
             for elem in tuple.elems.iter_mut() {
                 deselfify(elem, actual);
@@ -288,6 +286,9 @@ fn deselfify(literal_type: &mut Type, actual: &Ident) {
                 }
             }
         },
+        Type::BareFn(_) => {
+            /* Bare functions can't have Self arguments.  Nothing to do */
+        },
         Type::Infer(_) | Type::Never(_) =>
         {
             /* Nothing to do */
@@ -325,8 +326,14 @@ fn supersuperfy(original: &Type) -> Type {
             Type::Reference(r) => {
                 supersuperfy(r.elem.as_mut());
             },
-            Type::BareFn(_bfn) => {
-                unimplemented!()
+            Type::BareFn(bfn) => {
+                if let ReturnType::Type(_, ref mut bt) = bfn.output {
+                    let new_bt = Box::new(supersuperfy(bt.as_ref()));
+                    mem::replace(bt, new_bt);
+                }
+                for input in bfn.inputs.iter_mut() {
+                    input.ty = supersuperfy(&input.ty);
+                }
             },
             Type::Tuple(tuple) => {
                 for elem in tuple.elems.iter_mut() {
