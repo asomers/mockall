@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 ### Changed
 
+- The MSRV is now Rust 1.35.0
+  ([#15](https://github.com/asomers/mockall/pull/15))
+
 - The `times` method now accepts ranges as arguments.  `types_any` and
   `times_range` are deprecated.
   ([#14](https://github.com/asomers/mockall/pull/14))
