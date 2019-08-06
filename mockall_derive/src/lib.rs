@@ -37,6 +37,8 @@ struct MethodTypes {
     expect_obj: Type,
     /// Method to call when invoking the expectation
     call: Ident,
+    /// Expressions that should be used for Expectation::call's arguments
+    call_exprs: Punctuated<TokenStream, Token![,]>,
     /// Method's argument list
     inputs: Punctuated<FnArg, Token![,]>,
     /// Output type of the Expectation, which may be a little bit more general
@@ -437,6 +439,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let mut is_static = true;
     let mut altargs = Punctuated::new();
     let mut matchexprs = Punctuated::new();
+    let mut call_exprs = Punctuated::new();
     let ident = &sig.ident;
     let is_generic = !sig.decl.generics.params.is_empty();
     let merged_g = if let Some(g) = generics {
@@ -450,6 +453,8 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
         match fn_arg {
             FnArg::Captured(arg) => {
                 let mep = if let Pat::Ident(arg_ident) = &arg.pat {
+                    let ident = &arg_ident.ident;
+                    call_exprs.push(quote!(#ident));
                     Expr::Path(ExprPath{
                         attrs: Vec::new(),
                         qself: None,
@@ -530,8 +535,8 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let mut output = sig.decl.output.clone();
     deimplify(&mut output);
 
-    MethodTypes{is_static, expectation, expectations,
-                call, expect_obj, inputs, output, altargs, matchexprs}
+    MethodTypes{is_static, expectation, expectations, call, expect_obj,
+                call_exprs, inputs, output, altargs, matchexprs}
 }
 
 /// Manually mock a structure.
