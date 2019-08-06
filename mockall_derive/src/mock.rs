@@ -240,6 +240,7 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     };
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
+    let call_exprs = &meth_types.call_exprs;
     let mut args = Vec::new();
     let expect_obj_name = if meth_types.is_static {
         let name = syn::Ident::new(
@@ -276,11 +277,11 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let call_turbofish = tg.as_turbofish();
     if meth_types.is_static {
         quote!({
-            #expect_obj_name.lock().unwrap().#call#call_turbofish(#(#args),*)
+            #expect_obj_name.lock().unwrap().#call#call_turbofish(#call_exprs)
         })
     } else {
         quote!({
-            #expect_obj_name.#call#call_turbofish(#(#args),*)
+            #expect_obj_name.#call#call_turbofish(#call_exprs)
         })
     }.to_tokens(&mut mock_output);
 
