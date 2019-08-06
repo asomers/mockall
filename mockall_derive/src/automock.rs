@@ -373,7 +373,6 @@ fn mock_function(vis: &Visibility,
 {
     let fn_token = &decl.fn_token;
     let generics = &decl.generics;
-    let inputs = demutify(&decl.inputs);
     let output = match &decl.output{
         ReturnType::Default => quote!(-> ()),
         _ => {
@@ -389,6 +388,18 @@ fn mock_function(vis: &Visibility,
         return TokenStream::new();
     }
 
+    let mod_ident = Ident::new(&format!("__{}", &ident), ident.span());
+    let sig = MethodSig {
+        constness,
+        unsafety,
+        asyncness,
+        abi: None,
+        ident: mod_ident.clone(),
+        decl: (*decl).clone()
+    };
+    let meth_types = method_types(&sig, None);
+    let inputs = &meth_types.inputs;
+
     for p in inputs.iter() {
         match p {
             FnArg::Captured(arg) => {
@@ -400,16 +411,6 @@ fn mock_function(vis: &Visibility,
     }
 
     let meth_vis = expectation_visibility(&vis, 1);
-    let mod_ident = Ident::new(&format!("__{}", &ident), ident.span());
-    let sig = MethodSig {
-        constness,
-        unsafety,
-        asyncness,
-        abi: None,
-        ident: mod_ident.clone(),
-        decl: (*decl).clone()
-    };
-    let meth_types = method_types(&sig, None);
     let altargs = &meth_types.altargs;
     let matchexprs = &meth_types.matchexprs;
     let expect_obj = &meth_types.expect_obj;
