@@ -401,7 +401,9 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             let name = syn::Ident::new(
                 &format!("{}_{}_expectation", ident, method_ident),
                 Span::call_site());
-            quote!(#attrs ::mockall::lazy_static! {
+            quote!(
+                #attrs ::mockall::lazy_static! {
+                #[allow(non_upper_case_globals)]
                 static ref #name: ::std::sync::Mutex<#mod_ident::#expect_obj> =
                    ::std::sync::Mutex::new(#mod_ident::#expectations::new());
             }).to_tokens(&mut statics);
@@ -447,6 +449,8 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             use super::*;
             #mod_body
         }
+        #[allow(non_camel_case_types)]
+        #[allow(non_snake_case)]
         #vis struct #ident #ig #wc {
             #body
         }

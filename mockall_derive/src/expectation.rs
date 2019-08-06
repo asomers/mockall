@@ -40,7 +40,7 @@ fn common_methods(
         })
     );
     let with_generics_idents = (0..matchty.len())
-        .map(|i| Ident::new(&format!("__mockall_Matcher{}", i), Span::call_site()))
+        .map(|i| Ident::new(&format!("MockallMatcher{}", i), Span::call_site()))
         .collect::<Vec<_>>();
     let with_generics = TokenStream::from_iter(
         with_generics_idents.iter().zip(matchty.iter())
@@ -167,8 +167,8 @@ fn common_methods(
                     Matcher::Pred(Box::new((#boxed_withargs))));
             }
 
-            fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F)
-                where __mockall_F: Fn(#refmatchty) -> bool + Send + 'static
+            fn withf<MockallF>(&mut self, __mockall_f: MockallF)
+                where MockallF: Fn(#refmatchty) -> bool + Send + 'static
             {
                 let mut __mockall_guard = self.matcher.lock().unwrap();
                 mem::replace(__mockall_guard.deref_mut(), Matcher::Func(Box::new(__mockall_f)));
@@ -224,7 +224,7 @@ fn expectation_methods(v: &Visibility,
         .map(|(argname, mt)| quote!(#argname: &#mt, ))
     );
     let with_generics_idents = (0..matchty.len())
-        .map(|i| Ident::new(&format!("__mockall_Matcher{}", i), Span::call_site()))
+        .map(|i| Ident::new(&format!("MockallMatcher{}", i), Span::call_site()))
         .collect::<Vec<_>>();
     let with_generics = TokenStream::from_iter(
         with_generics_idents.iter().zip(matchty.iter())
@@ -328,8 +328,8 @@ fn expectation_methods(v: &Visibility,
         ///
         /// This is equivalent to calling [`with`](#method.with) with a function
         /// argument, like `with(predicate::function(f))`.
-        #v fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
-            where __mockall_F: Fn(#refmatchty) -> bool + Send + 'static
+        #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+            where MockallF: Fn(#refmatchty) -> bool + Send + 'static
         {
             self.common.withf(__mockall_f);
             self
@@ -462,15 +462,13 @@ fn static_expectation(v: &Visibility,
         egenerics.type_params().map(|tp| tp.ident.clone())
     );
     quote!(
-        use ::downcast::*;
         use ::fragile::Fragile;
         use ::predicates_tree::CaseTreeExt;
         use ::std::{
             collections::hash_map::HashMap,
-            marker::PhantomData,
             mem,
             ops::{DerefMut, Range},
-            sync::{Mutex, MutexGuard}
+            sync::Mutex
         };
         use super::*;   // Import types from the calling environment
 
@@ -559,9 +557,9 @@ fn static_expectation(v: &Visibility,
             /// for this Expectation.  This is useful for return types that
             /// aren't `Clone`.  It will be an error to call this method
             /// multiple times.
-            #v fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F)
+            #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
                 -> &mut Self
-                where __mockall_F: FnOnce(#argty) -> #output + Send + 'static
+                where MockallF: FnOnce(#argty) -> #output + Send + 'static
             {
                 {
                     let mut __mockall_guard = self.rfunc.lock().unwrap();
@@ -578,9 +576,9 @@ fn static_expectation(v: &Visibility,
             /// It is a runtime error to call the mock method from a different
             /// thread than the one that originally called this method.  It is
             /// also a runtime error to call the method more than once.
-            #v fn return_once_st<__mockall_F>(&mut self, __mockall_f:
-                                              __mockall_F) -> &mut Self
-                where __mockall_F: FnOnce(#argty) -> #output + 'static
+            #v fn return_once_st<MockallF>(&mut self, __mockall_f:
+                                              MockallF) -> &mut Self
+                where MockallF: FnOnce(#argty) -> #output + 'static
             {
                 let __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
                 let __mockall_fonce = Box::new(move |#supersuper_args| {
@@ -596,8 +594,8 @@ fn static_expectation(v: &Visibility,
             /// Supply a closure that will provide the return value for this
             /// `Expectation`.  The method's arguments are passed to the closure
             /// by value.
-            #v fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
-                where __mockall_F: FnMut(#argty) -> #output + Send + 'static
+            #v fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                where MockallF: FnMut(#argty) -> #output + Send + 'static
             {
                 {
                     let mut __mockall_guard = self.rfunc.lock().unwrap();
@@ -612,8 +610,8 @@ fn static_expectation(v: &Visibility,
             ///
             /// It is a runtime error to call the mock method from a different
             /// thread than the one that originally called this method.
-            #v fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
-                where __mockall_F: FnMut(#argty) -> #output + 'static
+            #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                where MockallF: FnMut(#argty) -> #output + 'static
             {
                 let mut __mockall_fragile = Fragile::new(__mockall_f);
                 let __mockall_fmut = move |#supersuper_args| {
@@ -794,12 +792,9 @@ pub(crate) fn expectation(attrs: &TokenStream,
         quote!(
             #attrs
             pub mod #ident {
-            use ::downcast::*;
-            use ::fragile::Fragile;
             use ::predicates_tree::CaseTreeExt;
             use ::std::{
                 collections::hash_map::HashMap,
-                marker::PhantomData,
                 mem,
                 ops::{DerefMut, Range},
                 sync::Mutex
@@ -901,15 +896,13 @@ pub(crate) fn expectation(attrs: &TokenStream,
         quote!(
             #attrs
             pub mod #ident {
-            use ::downcast::*;
             use ::predicates_tree::CaseTreeExt;
             use ::fragile::Fragile;
             use ::std::{
                 collections::hash_map::HashMap,
-                marker::PhantomData,
                 mem,
                 ops::{DerefMut, Range},
-                sync::{Mutex, MutexGuard}
+                sync::Mutex
             };
             use super::*;
 
@@ -947,8 +940,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Supply a closure that the `Expectation` will use to create its
                 /// return value.  The return value will be returned by mutable
                 /// reference.
-                #vis fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
-                    where __mockall_F: FnMut(#argty) -> #output + Send + Sync + 'static
+                #vis fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                    where MockallF: FnMut(#argty) -> #output + Send + Sync + 'static
                 {
                     mem::replace(&mut self.rfunc, Some(Box::new(__mockall_f)));
                     self
@@ -956,8 +949,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Single-threaded version of [`returning`](#method.returning).
                 /// Can be used when the argument or return type isn't `Send`.
-                #vis fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Self
-                    where __mockall_F: FnMut(#argty) -> #output + 'static
+                #vis fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                    where MockallF: FnMut(#argty) -> #output + 'static
                 {
                     let mut __mockall_fragile = Fragile::new(__mockall_f);
                     let __mockall_fmut = move |#selfless_args| {
@@ -1056,6 +1049,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                                     &supersuper_argty, &supersuper_altargty,
                                     &matchexprs, &supersuper_output);
         quote!(
+            use std::sync::MutexGuard;
             #attrs
             pub mod #ident {
             #ts
@@ -1110,27 +1104,27 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-                #vis fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F)
+                #vis fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Expectation #egenerics_tg
-                    where __mockall_F: FnMut(#argty) -> #output + Send + 'static
+                    where MockallF: FnMut(#argty) -> #output + Send + 'static
                 {
                     self.guard.0[self.i].returning(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-                #vis fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F)
+                #vis fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Expectation #egenerics_tg
-                    where __mockall_F: FnOnce(#argty) -> #output + Send + 'static
+                    where MockallF: FnOnce(#argty) -> #output + Send + 'static
                 {
                     self.guard.0[self.i].return_once(__mockall_f)
                 }
 
                 /// Just like
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-                #vis fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F)
+                #vis fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Expectation #egenerics_tg
-                    where __mockall_F: FnMut(#argty) -> #output + 'static
+                    where MockallF: FnMut(#argty) -> #output + 'static
                 {
                     self.guard.0[self.i].returning_st(__mockall_f)
                 }
@@ -1170,8 +1164,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #vis fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
-                    where __mockall_F: Fn(#refaltargty) -> bool + Send + 'static
+                #vis fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
+                    where MockallF: Fn(#refaltargty) -> bool + Send + 'static
                 {
                     self.guard.0[self.i].withf(__mockall_f)
                 }
@@ -1182,7 +1176,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
             #vis struct GenericExpectationGuard #eltgenerics_ig #eltgenerics_wc{
                 guard: MutexGuard<'lt, GenericExpectations>,
                 i: usize,
-                _phantom: PhantomData<(#fn_params)>,
+                _phantom: ::std::marker::PhantomData<(#fn_params)>,
             }
 
             impl #eltgenerics_ig GenericExpectationGuard #eltgenerics_tg
@@ -1227,7 +1221,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     __mockall_ee.expect();    // Drop the &Expectation
                     let __mockall_i = __mockall_ee.0.len() - 1;
                     GenericExpectationGuard{guard, i: __mockall_i,
-                        _phantom: PhantomData}
+                        _phantom: ::std::marker::PhantomData}
                 }
 
                 /// Just like
@@ -1244,8 +1238,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-                #vis fn returning<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
-                    where __mockall_F: FnMut(#argty) -> #output + Send + 'static
+                #vis fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
+                    where MockallF: FnMut(#argty) -> #output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1258,8 +1252,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-                #vis fn return_once<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
-                    where __mockall_F: FnOnce(#argty) -> #output + Send + 'static
+                #vis fn return_once<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
+                    where MockallF: FnOnce(#argty) -> #output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1272,8 +1266,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-                #vis fn returning_st<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
-                    where __mockall_F: FnMut(#argty) -> #output + 'static
+                #vis fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
+                    where MockallF: FnMut(#argty) -> #output + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1343,8 +1337,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #vis fn withf<__mockall_F>(&mut self, __mockall_f: __mockall_F) -> &mut Expectation #egenerics_tg
-                    where __mockall_F: Fn(#refaltargty) -> bool + Send + 'static
+                #vis fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
+                    where MockallF: Fn(#refaltargty) -> bool + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
