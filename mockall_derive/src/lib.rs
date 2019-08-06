@@ -37,6 +37,8 @@ struct MethodTypes {
     expect_obj: Type,
     /// Method to call when invoking the expectation
     call: Ident,
+    /// Method's argument list
+    inputs: Punctuated<FnArg, Token![,]>,
     /// Types of the arguments used for the Predicates
     altargs: Punctuated<Type, Token![,]>,
     /// Expressions producing references from the arguments
@@ -71,10 +73,10 @@ fn deimplify(rt: &mut ReturnType) {
 }
 
 /// Remove any mutability qualifiers from a method's argument list
-fn demutify(args: &Punctuated<FnArg, token::Comma>)
+fn demutify(inputs: &Punctuated<FnArg, token::Comma>)
     -> Punctuated<FnArg, token::Comma>
 {
-    let mut output = args.clone();
+    let mut output = inputs.clone();
     for arg in output.iter_mut() {
         match arg {
             FnArg::SelfValue(arg_self) => arg_self.mutability = None,
@@ -432,7 +434,6 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let mut is_static = true;
     let mut altargs = Punctuated::new();
     let mut matchexprs = Punctuated::new();
-    let mut args = Punctuated::<Type, Token![,]>::new();
     let ident = &sig.ident;
     let is_generic = !sig.decl.generics.params.is_empty();
     let merged_g = if let Some(g) = generics {
@@ -440,11 +441,11 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     } else {
         sig.decl.generics.clone()
     };
+    let inputs = demutify(&sig.decl.inputs);
     let (_ig, tg, _wc) = merged_g.split_for_impl();
     for fn_arg in sig.decl.inputs.iter() {
         match fn_arg {
             FnArg::Captured(arg) => {
-                args.push(arg.ty.clone());
                 let mep = if let Pat::Ident(arg_ident) = &arg.pat {
                     Expr::Path(ExprPath{
                         attrs: Vec::new(),
@@ -525,7 +526,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let expectation: Type = parse2(expect_ts).unwrap();
 
     MethodTypes{is_static, expectation, expectations,
-                call, expect_obj, altargs, matchexprs}
+                call, expect_obj, inputs, altargs, matchexprs}
 }
 
 /// Manually mock a structure.
