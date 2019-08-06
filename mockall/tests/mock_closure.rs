@@ -12,11 +12,21 @@ mock!{
         fn bar<F: FnMut(u32) -> u32 + 'static>(&self, f: F) -> u32;
         fn baz<F: FnOnce(u32) -> NonCopy + 'static>(&self, f: F) -> NonCopy;
         fn bean<F: Fn(u32) -> u32 + 'static>(f: F) -> u32;
+        // Not technically a closure, but it should work too
+        fn bang(&self, f: fn(u32) -> u32) -> u32;
     }
 }
 
 mod returning {
     use super::*;
+
+    #[test]
+    fn bare_fn() {
+        let mut mock = MockFoo::new();
+        mock.expect_bang()
+            .returning(|f| f(42));
+        assert_eq!(84, mock.bang(|x| 2 * x));
+    }
 
     #[test]
     fn immutable() {
