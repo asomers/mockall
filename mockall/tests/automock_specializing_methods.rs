@@ -10,10 +10,9 @@ struct G<T: Copy + Default + 'static>(T);
 #[derive(Clone, Copy)]
 struct NonDefault(u32);
 
-mock!{
-    Foo<T> where T: Copy + 'static {
-        fn foo(&self, t: T) -> G<T> where T: Default;
-    }
+#[automock]
+trait Foo<T> where T: Copy + 'static {
+    fn foo(&self, t: T) -> G<T> where T: Default;
 }
 
 #[test]
