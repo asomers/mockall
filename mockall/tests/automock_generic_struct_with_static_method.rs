@@ -5,10 +5,9 @@
 
 use mockall::*;
 
-mock! {
-    Foo<T: 'static> {
-        fn foo(t: T);
-    }
+#[automock]
+trait Foo<T: 'static> {
+    fn foo(t: T);
 }
 
 #[test]
