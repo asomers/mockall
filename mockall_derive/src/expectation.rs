@@ -33,8 +33,11 @@ fn common_methods(
         .map(|(i, argname)| {
             let idx = Index::from(i);
             quote!(
-                if let Some(c) = __mockall_pred.#idx.find_case(false, #argname){
-                    panic!("Expectation didn't match arguments:\n{}", c.tree());
+                if let Some(__mockall_c) =
+                    __mockall_pred.#idx.find_case(false, #argname)
+                {
+                    panic!("Expectation didn't match arguments:\n{}",
+                           __mockall_c.tree());
                 }
             )
         })
@@ -155,7 +158,8 @@ fn common_methods(
 
             /// Expect this expectation to be called any number of times
             /// contained with the given range.
-            fn times<R: Into<::mockall::TimesRange>>(&mut self, __mockall_r: R)
+            fn times<MockallR>(&mut self, __mockall_r: MockallR)
+                where MockallR: Into<::mockall::TimesRange>
             {
                 self.times.times(__mockall_r)
             }
@@ -286,8 +290,8 @@ fn expectation_methods(v: &Visibility,
         ///   - `.times(5..=10)`
         ///   - `.times(..=10)`
         /// * The wildcard: `.times(..)`
-        #v fn times<R>(&mut self, __mockall_r: R) -> &mut Self
-            where R: Into<::mockall::TimesRange>
+        #v fn times<MockallR>(&mut self, __mockall_r: MockallR) -> &mut Self
+            where MockallR: Into<::mockall::TimesRange>
         {
             self.common.times(__mockall_r);
             self
@@ -819,8 +823,10 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 }
 
                 /// Return a reference to a constant value from the `Expectation`
-                #vis fn return_const(&mut self, o: #output) -> &mut Self {
-                    self.result = Some(o);
+                #vis fn return_const(&mut self, __mockall_o: #output)
+                    -> &mut Self
+                {
+                    self.result = Some(__mockall_o);
                     self
                 }
 
@@ -931,9 +937,9 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Convenience method that can be used to supply a return value
                 /// for a `Expectation`.  The value will be returned by mutable
                 /// reference.
-                #vis fn return_var(&mut self, o: #output) -> &mut Self
+                #vis fn return_var(&mut self, __mockall_o: #output) -> &mut Self
                 {
-                    self.result = Some(o);
+                    self.result = Some(__mockall_o);
                     self
                 }
 
@@ -1131,9 +1137,9 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #vis fn times<R>(&mut self, __mockall_r: R)
+                #vis fn times<MockallR>(&mut self, __mockall_r: MockallR)
                     -> &mut Expectation #egenerics_tg
-                    where R: Into<::mockall::TimesRange>
+                    where MockallR: Into<::mockall::TimesRange>
                 {
                     self.guard.0[self.i].times(__mockall_r)
                 }
@@ -1280,9 +1286,9 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
                 /// Just like
                 /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #vis fn times<R>(&mut self, __mockall_r: R)
+                #vis fn times<MockallR>(&mut self, __mockall_r: MockallR)
                     -> &mut Expectation #egenerics_tg
-                    where R: Into<::mockall::TimesRange>
+                    where MockallR: Into<::mockall::TimesRange>
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
