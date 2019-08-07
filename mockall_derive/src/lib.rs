@@ -625,6 +625,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     };
 
     let is_expectation_generic = !sig.decl.generics.params.is_empty() ||
+        sig.decl.generics.where_clause.is_some() ||
         (is_static && generics.filter(|g| !g.params.is_empty()).is_some());
 
     let expectation_ident = Ident::new("Expectation", span);
