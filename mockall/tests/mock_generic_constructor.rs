@@ -6,13 +6,13 @@ use mockall::*;
 
 mock! {
     pub Foo<T: Default +'static> {
-        fn build<T2: Default + 'static>() -> MockFoo<T2>;
+        fn build() -> MockFoo<T>;
     }
 }
 
 #[test]
 fn returning_once() {
-    MockFoo::<i16>::expect_build::<i16>()
+    MockFoo::<i16>::expect_build()
         .return_once(MockFoo::<i16>::default);
 
     let _mock: MockFoo<i16> = MockFoo::<i16>::build();

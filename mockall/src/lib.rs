@@ -679,11 +679,11 @@
 //!
 //! Without trait specialization, it probably won't be possible for Mockall
 //! to support all specializing methods.  However, most specializing methods can
-//! be mocked as generic methods with repeated type parameters, just like static
-//! methods of generic structs.
+//! be mocked as generic methods with repeated type parameters.
 //!
 //! ```
 //! # use mockall::*;
+//! // A struct like this
 //! struct Foo<T>(T);
 //! impl<T> Foo<T> {
 //!     fn foo(&self, t: T) where T: Copy {
@@ -691,6 +691,7 @@
 //!         # unimplemented!()
 //!     }
 //! }
+//! // Can be mocked like this
 //! mock! {
 //!     Foo<T: 'static> {
 //!         fn foo<T2: Copy + 'static>(&self, t: T2);
@@ -841,35 +842,19 @@
 //!
 //! ### Generic static methods
 //!
-//! Mocking static methods of generic structs is a little bit tricky.  If the
-//! static method uses any generic parameters, then those generic parameters
-//! must be duplicated as generic parameters of the static method itself.
-//! Here's an example:
+//! Mocking static methods of generic structs or traits, whether or not the
+//! methods themselves are generic, should work seamlessly.
 //!
 //! ```
 //! # use mockall::*;
-//! // A struct like this:
-//! struct Foo<T> {
-//!     // ...
-//!     # _t0: std::marker::PhantomData<T>
-//! }
-//! impl<T> Foo<T> {
-//!     fn new(t: T) -> Self {
-//!         // ...
-//!         # unimplemented!()
-//!     }
-//! }
-//!
-//! // Can be mocked like this:
 //! mock! {
 //!     Foo<T: 'static> {
-//!         fn new<T2: 'static>(t: T2) -> MockFoo<T2>;
+//!         fn new(t: T) -> MockFoo<T>;
 //!     }
 //! }
 //!
-//! // And used like this:
 //! # fn main() {
-//! MockFoo::<u32>::expect_new::<u32>()
+//! MockFoo::<u32>::expect_new()
 //!     .returning(|_| MockFoo::default());
 //! let mock = MockFoo::<u32>::new(42u32);
 //! # }

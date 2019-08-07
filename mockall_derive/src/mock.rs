@@ -270,9 +270,7 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     }
 
     let (ig, ex_tg, wc) = meth_types.expectation_generics.split_for_impl();
-    let is_generic_method = !meth_types.expectation_generics.params.is_empty();
-    //let tg = ex_tg;
-    let tg = if meth_types.is_static || is_generic_method {
+    let tg = if meth_types.is_static || meth_types.is_expectation_generic {
         // For generic and static methods only, the trait's generic parameters
         // become generic parameters of the method.
         merged_g.split_for_impl().1
@@ -309,10 +307,14 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         let ltd = syn::LifetimeDef::new(lt);
         let mut g = meth_types.expectation_generics.clone();
         g.params.push(syn::GenericParam::Lifetime(ltd.clone()));
+        if g.lt_token.is_none() {
+            g.lt_token = Some(Token![<](Span::call_site()));
+            g.gt_token = Some(Token![>](Span::call_site()));
+        }
         let merged_g = merge_generics(&generics, &g);
         let (ig, _, _) = g.split_for_impl();
         let (_, tg, _) = merged_g.split_for_impl();
-        let guard_name = if sig.decl.generics.params.is_empty() {
+        let guard_name = if !meth_types.is_expectation_generic {
             syn::Ident::new("ExpectationGuard", Span::call_site())
         } else {
             syn::Ident::new("GenericExpectationGuard", Span::call_site())

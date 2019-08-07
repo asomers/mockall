@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
+- Static methods of generic structs (and traits) can now be mocked without the
+  hack of duplicating the struct's (or trait's) generic parameters.
+  ([#18](https://github.com/asomers/mockall/pull/18))
+
 - Methods with closure arguments can now be mocked.  Technically they always
   could be, but until now it wasn't possible to call the closure argument from
   `withf` or `returning`.  No special tricks are required by the user.

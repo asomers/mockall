@@ -32,6 +32,9 @@ use crate::mock::{Mock, do_mock};
 
 struct MethodTypes {
     is_static: bool,
+    /// Is the Expectation type generic?  This can be true even if the method is
+    /// not generic
+    is_expectation_generic: bool,
     /// Type of Expectation returned by the expect method
     expectation: Type,
     /// Generics applicable to the Expectation object
@@ -396,6 +399,8 @@ fn gen_mod_ident(struct_: &Ident, trait_: Option<&Ident>)
 /// Combine two Generics structs, producing a new one that has the union of
 /// their parameters.
 fn merge_generics(x: &Generics, y: &Generics) -> Generics {
+    //dbg!(x);
+    //dbg!(y);
     /// Compare only the identifiers of two GenericParams
     fn cmp_gp_idents(x: &GenericParam, y: &GenericParam) -> bool {
         use GenericParam::*;
@@ -547,7 +552,6 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let ident = &sig.ident;
     let (expectation_generics, expectation_inputs, call_exprs) =
         declosurefy(&sig.decl.generics, &sig.decl.inputs);
-    let is_generic = !sig.decl.generics.params.is_empty();
     let merged_g = if let Some(g) = generics {
         merge_generics(&g, &expectation_generics)
     } else {
@@ -620,8 +624,11 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
         }
     };
 
+    let is_expectation_generic = !sig.decl.generics.params.is_empty() ||
+        (is_static && generics.filter(|g| !g.params.is_empty()).is_some());
+
     let expectation_ident = Ident::new("Expectation", span);
-    let expectations_ident = if is_generic {
+    let expectations_ident = if is_expectation_generic {
         Ident::new("GenericExpectations", span)
     } else {
         Ident::new("Expectations", span)
@@ -629,7 +636,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let expectations = parse2(
         quote!(#ident::#expectations_ident)
     ).unwrap();
-    let expect_obj = if is_generic {
+    let expect_obj = if is_expectation_generic {
         parse2(quote!(#expectations)).unwrap()
     } else {
         parse2(quote!(#expectations #tg)).unwrap()
@@ -639,9 +646,9 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let mut output = sig.decl.output.clone();
     deimplify(&mut output);
 
-    MethodTypes{is_static, expectation, expectation_generics,
-                expectation_inputs, expectations, call, expect_obj, call_exprs,
-                inputs, output, altargs, matchexprs}
+    MethodTypes{is_static, is_expectation_generic, expectation,
+                expectation_generics, expectation_inputs, expectations, call,
+                expect_obj, call_exprs, inputs, output, altargs, matchexprs}
 }
 
 /// Manually mock a structure.
