@@ -19,6 +19,9 @@ mod outer {
                 fn foo(&self, x: PubCrateT) -> PubCrateT;
                 fn bar(&self, x: PrivT) -> PrivT;
                 fn baz(&self, x: super::SuperT) -> super::SuperT;
+                fn refbaz(&self, x: super::SuperT) -> &super::SuperT;
+                fn refmutbaz(&mut self, x: super::SuperT) -> &mut super::SuperT;
+                fn staticbaz(x: super::SuperT) -> super::SuperT;
                 fn bang(&self, x: crate::outer::SuperT) -> crate::outer::SuperT;
                 fn bean(&self, x: self::PrivT) -> self::PrivT;
             }
