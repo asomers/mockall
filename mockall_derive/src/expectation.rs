@@ -698,13 +698,12 @@ pub(crate) fn expectation(attrs: &TokenStream,
 
     let static_bound = Lifetime::new("'static", Span::call_site());
 
-    let mut rt2 = return_type.clone();
-    let output = match rt2 {
+    let output = match return_type {
         ReturnType::Default => Box::new(Type::Tuple(TypeTuple {
             paren_token: token::Paren::default(),
             elems: Punctuated::new()
         })),
-        ReturnType::Type(_, ref mut ty) => {
+        ReturnType::Type(_, ref ty) => {
             let mut rt = ty.clone();
             destrify(&mut rt);
             if let Some(i) = self_ident {
