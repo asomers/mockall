@@ -743,6 +743,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
     let (eltgenerics_ig, eltgenerics_tg, eltgenerics_wc) =
         eltgenerics.split_for_impl();
     let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+        // XXX this will be incorrect if there are any lifetime params.
         egenerics.type_params().map(|tp| tp.ident.clone())
     );
     for fa in args {
@@ -764,23 +765,10 @@ pub(crate) fn expectation(attrs: &TokenStream,
         })
     );
     let (argnames, argty) = split_args(args);
-    let mut supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
+    let supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
         argty.iter()
         .map(|t| supersuperfy(&t))
     );
-    if !supersuper_argty.empty_or_trailing() {
-        // The non-proc macro static_expectation! always uses trailing
-        // punctuation.  Until we eliminate that macro, the proc macro must use
-        // trailing punctuation to match.
-        supersuper_argty.push_punct(Token![,](Span::call_site()));
-    }
-    let mut argty_tp = supersuper_argty.clone();
-    if !argty_tp.empty_or_trailing() {
-        // The non-proc macro static_expectation! always uses trailing
-        // punctuation.  Until we eliminate that macro, the proc macro must use
-        // trailing punctuation to match.
-        argty_tp.push_punct(Token![,](Span::call_site()));
-    }
     let supersuper_altargty = Punctuated::<Type, token::Comma>::from_iter(
         altargty.iter()
         .map(|t| supersuperfy(&t))
@@ -868,7 +856,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 #vis fn call #egenerics_ig
                     (&self, #supersuper_args ) -> &#supersuper_output
                 {
-                    self.store.get(&::mockall::Key::new::<(#argty_tp)>())
+                    self.store.get(&::mockall::Key::new::<(#supersuper_argty)>())
                         .expect("No matching expectation found")
                         .downcast_ref::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -881,7 +869,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     #eltgenerics_wc
                     where #supersuper_output: Send + Sync
                 {
-                    self.store.entry(::mockall::Key::new::<(#argty_tp)>())
+                    self.store.entry(::mockall::Key::new::<(#supersuper_argty)>())
                         .or_insert_with(||
                             Box::new(Expectations #egenerics_tbf ::new())
                         ).downcast_mut::<Expectations #egenerics_tg>()
@@ -1003,7 +991,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 #vis fn call_mut #egenerics_ig
                     (&mut self, #supersuper_args ) -> &mut #supersuper_output
                 {
-                    self.store.get_mut(&::mockall::Key::new::<(#argty_tp)>())
+                    self.store.get_mut(&::mockall::Key::new::<(#supersuper_argty)>())
                         .expect("No matching expectation found")
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1016,7 +1004,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     #eltgenerics_wc
                     where #supersuper_output: Send + Sync
                 {
-                    self.store.entry(::mockall::Key::new::<(#argty_tp)>())
+                    self.store.entry(::mockall::Key::new::<(#supersuper_argty)>())
                         .or_insert_with(||
                             Box::new(Expectations #egenerics_tbf ::new())
                         ).downcast_mut::<Expectations #egenerics_tg>()
@@ -1190,7 +1178,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     -> &mut Expectation #egenerics_tg
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1202,7 +1190,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// [`Expectation::never`](struct.Expectation.html#method.never)
                 #vis fn never(&mut self) -> &mut Expectation #egenerics_tg {
                         self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1215,7 +1203,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     -> Self
                 {
                     let __mockall_ee: &mut Expectations #egenerics_tg =
-                        guard.store.entry(::mockall::Key::new::<(#argty_tp)>())
+                        guard.store.entry(::mockall::Key::new::<(#supersuper_argty)>())
                         .or_insert_with(||
                             Box::new(Expectations #egenerics_tbf ::new()))
                         .downcast_mut()
@@ -1230,7 +1218,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// [`Expectation::once`](struct.Expectation.html#method.once)
                 #vis fn once(&mut self) -> &mut Expectation #egenerics_tg {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1244,7 +1232,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + Send + 'static
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1258,7 +1246,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     where MockallF: FnOnce(#supersuper_argty) -> #supersuper_output + Send + 'static
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1272,7 +1260,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + 'static
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1287,7 +1275,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     where MockallR: Into<::mockall::TimesRange>
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1300,7 +1288,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 #[deprecated(since = "0.3.0", note = "Use times instead")]
                 #vis fn times_any(&mut self) -> &mut Expectation #egenerics_tg {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1315,7 +1303,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     -> &mut Expectation #egenerics_tg
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1329,7 +1317,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     -> &mut Expectation #egenerics_tg
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
@@ -1343,7 +1331,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                     where MockallF: Fn(#refaltargty) -> bool + Send + 'static
                 {
                     self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#argty_tp)>()
+                            &::mockall::Key::new::<(#supersuper_argty)>()
                         ).unwrap()
                         .downcast_mut::<Expectations #egenerics_tg>()
                         .unwrap()
