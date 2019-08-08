@@ -466,7 +466,6 @@ fn static_expectation(v: &Visibility,
         egenerics.type_params().map(|tp| tp.ident.clone())
     );
     quote!(
-        use ::fragile::Fragile;
         use ::predicates_tree::CaseTreeExt;
         use ::std::{
             collections::hash_map::HashMap,
@@ -617,7 +616,7 @@ fn static_expectation(v: &Visibility,
             #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
                 where MockallF: FnMut(#argty) -> #output + 'static
             {
-                let mut __mockall_fragile = Fragile::new(__mockall_f);
+                let mut __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
                 let __mockall_fmut = move |#supersuper_args| {
                     (__mockall_fragile.get_mut())(#argnames)
                 };
@@ -903,7 +902,6 @@ pub(crate) fn expectation(attrs: &TokenStream,
             #attrs
             pub mod #ident {
             use ::predicates_tree::CaseTreeExt;
-            use ::fragile::Fragile;
             use ::std::{
                 collections::hash_map::HashMap,
                 mem,
@@ -958,7 +956,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 #vis fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
                     where MockallF: FnMut(#argty) -> #output + 'static
                 {
-                    let mut __mockall_fragile = Fragile::new(__mockall_f);
+                    let mut __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
                     let __mockall_fmut = move |#selfless_args| {
                         (__mockall_fragile.get_mut())(#argnames)
                     };
