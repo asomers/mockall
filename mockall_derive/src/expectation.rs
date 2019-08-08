@@ -1055,9 +1055,9 @@ pub(crate) fn expectation(attrs: &TokenStream,
                                     &supersuper_argty, &supersuper_altargty,
                                     &matchexprs, &supersuper_output);
         quote!(
-            use std::sync::MutexGuard;
             #attrs
             pub mod #ident {
+            use std::sync::MutexGuard;
             #ts
 
             /// Like an [`&Expectation`](struct.Expectation.html) but protected

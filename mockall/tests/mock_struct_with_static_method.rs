@@ -5,6 +5,7 @@ use mockall::*;
 mock!{
     Foo {
         fn bar(x: u32) -> u64;
+        fn baz(x: u16) -> u8;
     }
 }
 

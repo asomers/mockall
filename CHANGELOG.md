@@ -23,6 +23,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Fixed mocking structs and traits with more than one static method.
+  ([#22](https://github.com/asomers/mockall/pull/22))
+
 - Methods of generics structs and traits that reference `Self` (such as
   constructors or comparators) can now be mocked without any hacks.
   ([#20](https://github.com/asomers/mockall/pull/20))
