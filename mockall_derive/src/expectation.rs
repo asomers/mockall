@@ -439,7 +439,7 @@ fn strip_self(args: &Punctuated<FnArg, Token![,]>)
 /// * `egenerics` - The method's generic parameters, with `'static` bounds added
 fn static_expectation(v: &Visibility,
     egenerics: &Generics,
-    selfless_args: &Punctuated<ArgCaptured, Token![,]>,
+    supersuper_args: &Punctuated<ArgCaptured, Token![,]>,
     argnames: &Punctuated<Pat, Token![,]>,
     argty: &Punctuated<Type, Token![,]>,
     matchty: &Punctuated<Type, Token![,]>,
@@ -448,16 +448,6 @@ fn static_expectation(v: &Visibility,
 {
     let (egenerics_ig, egenerics_tg, egenerics_wc) = egenerics.split_for_impl();
     let egenerics_tbf = egenerics_tg.as_turbofish();
-    let supersuper_args = Punctuated::<ArgCaptured, Token![,]>::from_iter(
-        selfless_args.iter()
-        .map(|ac| {
-            ArgCaptured {
-                pat: ac.pat.clone(),
-                colon_token: ac.colon_token,
-                ty: supersuperfy(&ac.ty)
-            }
-        })
-    );
     let cm_ts = common_methods(egenerics, argnames, matchty);
     let em_ts = expectation_methods(v, argnames, matchty);
     let eem_ts = expectations_methods(v, egenerics);
@@ -739,7 +729,6 @@ pub(crate) fn expectation(attrs: &TokenStream,
         }
     };
     let supersuper_output = supersuperfy(&output);
-    let output = quote!(#output);
 
     let mut egenerics = generics.clone();
     for p in egenerics.params.iter_mut() {
@@ -765,6 +754,16 @@ pub(crate) fn expectation(attrs: &TokenStream,
     }
 
     let selfless_args = strip_self(args);
+    let supersuper_args = Punctuated::<ArgCaptured, Token![,]>::from_iter(
+        selfless_args.iter()
+        .map(|ac| {
+            ArgCaptured {
+                pat: ac.pat.clone(),
+                colon_token: ac.colon_token,
+                ty: supersuperfy(&ac.ty)
+            }
+        })
+    );
     let (argnames, argty) = split_args(args);
     let mut supersuper_argty = Punctuated::<Type, token::Comma>::from_iter(
         argty.iter()
@@ -776,7 +775,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
         // trailing punctuation to match.
         supersuper_argty.push_punct(Token![,](Span::call_site()));
     }
-    let mut argty_tp = argty.clone();
+    let mut argty_tp = supersuper_argty.clone();
     if !argty_tp.empty_or_trailing() {
         // The non-proc macro static_expectation! always uses trailing
         // punctuation.  Until we eliminate that macro, the proc macro must use
@@ -787,8 +786,8 @@ pub(crate) fn expectation(attrs: &TokenStream,
         altargty.iter()
         .map(|t| supersuperfy(&t))
     );
-    let cm_ts = common_methods(&egenerics, &argnames, &altargty);
-    let em_ts = expectation_methods(&vis, &argnames, &altargty);
+    let cm_ts = common_methods(&egenerics, &argnames, &supersuper_altargty);
+    let em_ts = expectation_methods(&vis, &argnames, &supersuper_altargty);
     let eem_ts = expectations_methods(&vis, &egenerics);
     let gem_ts = generic_expectation_methods(&vis);
     if ref_expectation {
@@ -811,18 +810,18 @@ pub(crate) fn expectation(attrs: &TokenStream,
             /// the `expect_*` methods.
             #vis struct Expectation #egenerics_ig {
                 common: Common #egenerics_tg,
-                result: Option<#output>,
+                result: Option<#supersuper_output>,
             }
 
             impl #egenerics_ig Expectation #egenerics_tg {
-                #vis fn call(&self, #selfless_args ) -> &#output {
+                #vis fn call(&self, #supersuper_args ) -> &#supersuper_output {
                     self.common.call(#matchexprs);
                     &self.result.as_ref()
                         .expect("Must set return value with return_const")
                 }
 
                 /// Return a reference to a constant value from the `Expectation`
-                #vis fn return_const(&mut self, __mockall_o: #output)
+                #vis fn return_const(&mut self, __mockall_o: #supersuper_output)
                     -> &mut Self
                 {
                     self.result = Some(__mockall_o);
@@ -847,7 +846,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
-                #vis fn call(&self, #selfless_args ) -> &#output {
+                #vis fn call(&self, #supersuper_args ) -> &#supersuper_output {
                     match self.0.iter()
                         .find(|__mockall_e| __mockall_e.matches(#matchexprs) &&
                               (!__mockall_e.is_done() || self.0.len() == 1))
@@ -858,17 +857,17 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 }
             }
             // The Senc + Sync are required for downcast, since Expectation
-            // stores an Option<#output>
+            // stores an Option<#supersuper_output>
             impl #egenerics_ig
                 ::mockall::AnyExpectations for Expectations #egenerics_tg
-                    where #output: Send + Sync
+                    where #supersuper_output: Send + Sync
             {}
 
             #gem_ts
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #vis fn call #egenerics_ig
-                    (&self, #selfless_args ) -> &#output
+                    (&self, #supersuper_args ) -> &#supersuper_output
                 {
                     self.store.get(&::mockall::Key::new::<(#argty_tp)>())
                         .expect("No matching expectation found")
@@ -881,7 +880,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 #vis fn expect #eltgenerics_ig (&'lt mut self)
                     -> &'lt mut Expectation #egenerics_tg
                     #eltgenerics_wc
-                    where #output: Send + Sync
+                    where #supersuper_output: Send + Sync
                 {
                     self.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
@@ -894,10 +893,10 @@ pub(crate) fn expectation(attrs: &TokenStream,
         }
         )
     } else if ref_mut_expectation {
-        let cm_ts = common_methods(&egenerics, &argnames, &altargty);
-        let em_ts = expectation_methods(&vis, &argnames, &altargty);
-        let eem_ts = expectations_methods(&vis, &egenerics);
-        let gem_ts = generic_expectation_methods(&vis);
+        //let cm_ts = common_methods(&egenerics, &argnames, &altargty);
+        //let em_ts = expectation_methods(&vis, &argnames, &altargty);
+        //let eem_ts = expectations_methods(&vis, &egenerics);
+        //let gem_ts = generic_expectation_methods(&vis);
         quote!(
             #attrs
             pub mod #ident {
@@ -917,13 +916,13 @@ pub(crate) fn expectation(attrs: &TokenStream,
             /// `expect_*` methods.
             #vis struct Expectation #egenerics_ig {
                 common: Common #egenerics_tg,
-                result: Option<#output>,
-                rfunc: Option<Box<dyn FnMut(#argty) -> #output + Send + Sync>>,
+                result: Option<#supersuper_output>,
+                rfunc: Option<Box<dyn FnMut(#supersuper_argty) -> #supersuper_output + Send + Sync>>,
             }
 
             impl #egenerics_ig Expectation #egenerics_tg {
                 /// Simulating calling the real method for this expectation
-                #vis fn call_mut(&mut self, #selfless_args) -> &mut #output {
+                #vis fn call_mut(&mut self, #supersuper_args) -> &mut #supersuper_output {
                     self.common.call(#matchexprs);
                     if let Some(ref mut __mockall_f) = self.rfunc {
                         self.result = Some(__mockall_f(#argnames));
@@ -935,7 +934,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Convenience method that can be used to supply a return value
                 /// for a `Expectation`.  The value will be returned by mutable
                 /// reference.
-                #vis fn return_var(&mut self, __mockall_o: #output) -> &mut Self
+                #vis fn return_var(&mut self, __mockall_o: #supersuper_output) -> &mut Self
                 {
                     self.result = Some(__mockall_o);
                     self
@@ -945,7 +944,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// return value.  The return value will be returned by mutable
                 /// reference.
                 #vis fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
-                    where MockallF: FnMut(#argty) -> #output + Send + Sync + 'static
+                    where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + Send + Sync + 'static
                 {
                     mem::replace(&mut self.rfunc, Some(Box::new(__mockall_f)));
                     self
@@ -954,10 +953,10 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Single-threaded version of [`returning`](#method.returning).
                 /// Can be used when the argument or return type isn't `Send`.
                 #vis fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
-                    where MockallF: FnMut(#argty) -> #output + 'static
+                    where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + 'static
                 {
                     let mut __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
-                    let __mockall_fmut = move |#selfless_args| {
+                    let __mockall_fmut = move |#supersuper_args| {
                         (__mockall_fragile.get_mut())(#argnames)
                     };
                     mem::replace(&mut self.rfunc, Some(Box::new(__mockall_fmut)));
@@ -981,7 +980,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Simulating calling the real method.  Every current
                 /// expectation will be checked in FIFO order and the first one
                 /// with matching arguments will be used.
-                #vis fn call_mut(&mut self, #selfless_args ) -> &mut #output {
+                #vis fn call_mut(&mut self, #supersuper_args ) -> &mut #supersuper_output {
                     let __mockall_n = self.0.len();
                     match self.0.iter_mut()
                         .find(|__mockall_e| __mockall_e.matches(#matchexprs) &&
@@ -993,17 +992,17 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 }
             }
             // The Senc + Sync are required for downcast, since Expectation
-            // stores an Option<#output>
+            // stores an Option<#supersuper_output>
             impl #egenerics_ig
                 ::mockall::AnyExpectations for Expectations #egenerics_tg
-                where #output: Send + Sync
+                where #supersuper_output: Send + Sync
             {}
 
             #gem_ts
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #vis fn call_mut #egenerics_ig
-                    (&mut self, #selfless_args ) -> &mut #output
+                    (&mut self, #supersuper_args ) -> &mut #supersuper_output
                 {
                     self.store.get_mut(&::mockall::Key::new::<(#argty_tp)>())
                         .expect("No matching expectation found")
@@ -1016,7 +1015,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 #vis fn expect #eltgenerics_ig (&'lt mut self)
                     -> &'lt mut Expectation #egenerics_tg
                     #eltgenerics_wc
-                    where #output: Send + Sync
+                    where #supersuper_output: Send + Sync
                 {
                     self.store.entry(::mockall::Key::new::<(#argty_tp)>())
                         .or_insert_with(||
@@ -1030,7 +1029,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
         )
     } else if static_method {
         let refaltargty = TokenStream::from_iter(
-            altargty.iter().map(|aaty| quote!(&#aaty,))
+            supersuper_altargty.iter().map(|aaty| quote!(&#aaty,))
         );
         let pred_argnames = Punctuated::<Ident, Token![,]>::from_iter(
             (0..altargty.len())
@@ -1040,7 +1039,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
             .map(|i| Ident::new(&format!("MockallG{}", i), Span::call_site()))
             .collect::<Vec<_>>();
         let pred_params = Punctuated::<TokenStream, Token![,]>::from_iter(
-            pred_arg_tys.iter().zip(altargty.iter()).map(|(ident, ty)|
+            pred_arg_tys.iter().zip(supersuper_altargty.iter()).map(|(ident, ty)|
                 quote!(#ident: ::mockall::Predicate<#ty> + Send + 'static)
             )
         );
@@ -1049,7 +1048,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
             .map(|(pred_arg_name, ident)| quote!(#pred_arg_name: #ident))
         );
         let pred_generics = quote!(< #pred_params >);
-        let ts = static_expectation(vis, &egenerics, &selfless_args, &argnames,
+        let ts = static_expectation(vis, &egenerics, &supersuper_args, &argnames,
                                     &supersuper_argty, &supersuper_altargty,
                                     &matchexprs, &supersuper_output);
         quote!(
@@ -1110,7 +1109,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
                 #vis fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Expectation #egenerics_tg
-                    where MockallF: FnMut(#argty) -> #output + Send + 'static
+                    where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + Send + 'static
                 {
                     self.guard.0[self.i].returning(__mockall_f)
                 }
@@ -1119,7 +1118,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
                 #vis fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Expectation #egenerics_tg
-                    where MockallF: FnOnce(#argty) -> #output + Send + 'static
+                    where MockallF: FnOnce(#supersuper_argty) -> #supersuper_output + Send + 'static
                 {
                     self.guard.0[self.i].return_once(__mockall_f)
                 }
@@ -1128,7 +1127,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
                 #vis fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Expectation #egenerics_tg
-                    where MockallF: FnMut(#argty) -> #output + 'static
+                    where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + 'static
                 {
                     self.guard.0[self.i].returning_st(__mockall_f)
                 }
@@ -1243,7 +1242,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Just like
                 /// [`Expectation::returning`](struct.Expectation.html#method.returning)
                 #vis fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
-                    where MockallF: FnMut(#argty) -> #output + Send + 'static
+                    where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1257,7 +1256,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Just like
                 /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
                 #vis fn return_once<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
-                    where MockallF: FnOnce(#argty) -> #output + Send + 'static
+                    where MockallF: FnOnce(#supersuper_argty) -> #supersuper_output + Send + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1271,7 +1270,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
                 /// Just like
                 /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
                 #vis fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #egenerics_tg
-                    where MockallF: FnMut(#argty) -> #output + 'static
+                    where MockallF: FnMut(#supersuper_argty) -> #supersuper_output + 'static
                 {
                     self.guard.store.get_mut(
                             &::mockall::Key::new::<(#argty_tp)>()
@@ -1356,7 +1355,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
             }
         )
     } else {
-        let ts = static_expectation(vis, &egenerics, &selfless_args, &argnames,
+        let ts = static_expectation(vis, &egenerics, &supersuper_args, &argnames,
                                     &supersuper_argty, &supersuper_altargty,
                                     &matchexprs, &supersuper_output);
         quote!(
