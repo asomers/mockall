@@ -719,7 +719,7 @@ pub(crate) fn expectation(attrs: &TokenStream,
             let mut rt = ty.clone();
             destrify(&mut rt);
             if let Some(i) = self_ident {
-                crate::deselfify(&mut rt, i);
+                crate::deselfify(&mut rt, i, generics);
             }
             if let Type::Reference(ref tr) = rt.as_ref() {
                 if tr.lifetime.as_ref().map_or(false, |lt| lt.ident == "static")

@@ -218,25 +218,26 @@ fn demutify_arg(arg: &mut ArgCaptured) {
     };
 }
 
-/// Replace any references to `Self` in `literal_type` with `actual`.  Useful
-/// for constructor methods
-fn deselfify(literal_type: &mut Type, actual: &Ident) {
+/// Replace any references to `Self` in `literal_type` with `actual`.
+/// `generics` is the Generics field of the parent struct.  Useful for
+/// constructor methods.
+fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
     match literal_type {
         Type::Slice(s) => {
-            deselfify(s.elem.as_mut(), actual);
+            deselfify(s.elem.as_mut(), actual, generics);
         },
         Type::Array(a) => {
-            deselfify(a.elem.as_mut(), actual);
+            deselfify(a.elem.as_mut(), actual, generics);
         },
         Type::Ptr(p) => {
-            deselfify(p.elem.as_mut(), actual);
+            deselfify(p.elem.as_mut(), actual, generics);
         },
         Type::Reference(r) => {
-            deselfify(r.elem.as_mut(), actual);
+            deselfify(r.elem.as_mut(), actual, generics);
         },
         Type::Tuple(tuple) => {
             for elem in tuple.elems.iter_mut() {
-                deselfify(elem, actual);
+                deselfify(elem, actual, generics);
             }
         }
         Type::Path(type_path) => {
@@ -246,16 +247,46 @@ fn deselfify(literal_type: &mut Type, actual: &Ident) {
             let p = &mut type_path.path;
             for seg in p.segments.iter_mut() {
                 if seg.ident == "Self" {
-                    seg.ident = actual.clone()
+                    seg.ident = actual.clone();
+                    if let PathArguments::None = seg.arguments {
+                        //let (_, tg, _) = generics.split_for_impl();
+                        if !generics.params.is_empty() {
+                            let args = Punctuated::from_iter(
+                                generics.params.iter().map(|gp| {
+                                    let ident = match gp {
+                                        GenericParam::Type(tp) => &tp.ident,
+                                        GenericParam::Lifetime(ld) =>
+                                            &ld.lifetime.ident,
+                                        GenericParam::Const(cp) => &cp.ident,
+                                    };
+                                    parse2::<GenericArgument>(
+                                        quote!(#ident)
+                                    ).unwrap()
+                                })
+                            );
+                            seg.arguments = PathArguments::AngleBracketed(
+                                AngleBracketedGenericArguments {
+                                    colon2_token: None,
+                                    lt_token: generics.lt_token.unwrap().clone(),
+                                    args,
+                                    gt_token: generics.gt_token.unwrap().clone(),
+
+                                }
+                            );
+                        }
+                    } else {
+                        compile_error(seg.arguments.span(),
+                            "Type arguments after Self are unexpected");
+                    }
                 }
                 if let PathArguments::AngleBracketed(abga) = &mut seg.arguments
                 {
                     for arg in abga.args.iter_mut() {
                         match arg {
                             GenericArgument::Type(ty) =>
-                                deselfify(ty, actual),
+                                deselfify(ty, actual, generics),
                             GenericArgument::Binding(b) =>
-                                deselfify(&mut b.ty, actual),
+                                deselfify(&mut b.ty, actual, generics),
                             _ => /* Nothing to do */(),
                         }
                     }
@@ -263,10 +294,10 @@ fn deselfify(literal_type: &mut Type, actual: &Ident) {
             }
         },
         Type::Paren(p) => {
-            deselfify(p.elem.as_mut(), actual);
+            deselfify(p.elem.as_mut(), actual, generics);
         },
         Type::Group(g) => {
-            deselfify(g.elem.as_mut(), actual);
+            deselfify(g.elem.as_mut(), actual, generics);
         },
         Type::Macro(_) | Type::Verbatim(_) => {
             compile_error(literal_type.span(),
