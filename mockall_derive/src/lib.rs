@@ -29,6 +29,7 @@ mod expectation;
 mod mock;
 use crate::automock::do_automock;
 use crate::mock::{Mock, do_mock};
+use crate::expectation::Expectation;
 
 struct MethodTypes {
     is_static: bool,
@@ -56,10 +57,6 @@ struct MethodTypes {
     /// Output type of the Expectation, which may be a little bit more general
     /// than the output type of the original method
     output: ReturnType,
-    /// Types of the arguments used for the Predicates
-    altargs: Punctuated<Type, Token![,]>,
-    /// Expressions producing references from the arguments
-    matchexprs: Punctuated<Expr, Token![,]>,
 }
 
 cfg_if! {
@@ -578,8 +575,6 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     -> MethodTypes
 {
     let mut is_static = true;
-    let mut altargs = Punctuated::new();
-    let mut matchexprs = Punctuated::new();
     let ident = &sig.ident;
     let (expectation_generics, expectation_inputs, call_exprs) =
         declosurefy(&sig.decl.generics, &sig.decl.inputs);
@@ -592,38 +587,8 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     let (_ig, tg, _wc) = merged_g.split_for_impl();
     for fn_arg in expectation_inputs.iter() {
         match fn_arg {
-            FnArg::Captured(arg) => {
-                let mep = if let Pat::Ident(arg_ident) = &arg.pat {
-                    Expr::Path(ExprPath{
-                        attrs: Vec::new(),
-                        qself: None,
-                        path: Path::from(arg_ident.ident.clone())
-                    })
-                } else {
-                    compile_error(arg.span(),
-                        "Unexpected argument pattern in function declaration");
-                    break;
-                };
-                let alt_ty = if let Type::Reference(tr) = &arg.ty {
-                    /* Remove any "mut" */
-                    matchexprs.push(mep);
-                    (*tr.elem).clone()
-                } else {
-                    let matchexpr = Expr::Reference(ExprReference {
-                        attrs: Vec::new(),
-                        and_token: Token![&](arg.span()),
-                        mutability: None,
-                        expr: Box::new(mep)
-                    });
-                    matchexprs.push(matchexpr);
-                    arg.ty.clone()
-                };
-                altargs.push(alt_ty);
-            },
-            FnArg::SelfRef(_) => {
-                is_static = false;
-            },
-            FnArg::SelfValue(_) => {
+            FnArg::Captured(_) => {},
+            FnArg::SelfRef(_) | FnArg::SelfValue(_) => {
                 is_static = false;
             },
             _ => compile_error(fn_arg.span(),
@@ -680,7 +645,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
 
     MethodTypes{is_static, is_expectation_generic, expectation,
                 expectation_generics, expectation_inputs, expectations, call,
-                expect_obj, call_exprs, inputs, output, altargs, matchexprs}
+                expect_obj, call_exprs, inputs, output}
 }
 
 /// Manually mock a structure.
