@@ -422,10 +422,9 @@ fn mock_function(vis: &Visibility,
     let obj = Ident::new(
         &format!("{}_expectation", ident),
         Span::call_site());
-    // TODO: strip bounds from generics
     let mut out = TokenStream::new();
-    Expectation::new(TokenStream::new(), &inputs, generics,
-        mod_ident.clone(), None, &decl.output, &expect_vis).to_tokens(&mut out);
+    Expectation::new(&TokenStream::new(), &inputs, generics,
+        &mod_ident, None, &decl.output, &expect_vis).to_tokens(&mut out);
     quote!(
         ::mockall::lazy_static! {
             static ref #obj: ::std::sync::Mutex<#expect_obj> = 
