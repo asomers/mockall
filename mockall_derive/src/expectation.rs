@@ -651,8 +651,7 @@ impl StaticExpectation {
                     -> &mut Self
                     where MockallOutput: Clone + Into<#output> + Send + 'static
                 {
-                    // TODO: here and in other closures, remove #argty
-                    self.returning(move |#(#argnames: #argty, )*| __mockall_c.clone().into())
+                    self.returning(move |#(#argnames, )*| __mockall_c.clone().into())
                 }
 
                 /// Supply an `FnOnce` closure that will provide the return value
@@ -1381,7 +1380,7 @@ impl RefMutExpectation {
                     where MockallF: FnMut(#(#argty, )*) -> #output + 'static
                 {
                     let mut __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
-                    let __mockall_fmut = move |#(#argnames: #argty, )*| {
+                    let __mockall_fmut = move |#(#argnames, )*| {
                         (__mockall_fragile.get_mut())(#(#argnames, )*)
                     };
                     mem::replace(&mut self.rfunc, Some(Box::new(__mockall_fmut)));
