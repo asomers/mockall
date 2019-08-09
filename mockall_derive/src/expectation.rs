@@ -880,12 +880,11 @@ impl StaticExpectation {
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
 
-        // TODO: can we eliminate 'lt from the signature?
-        let mut eltgenerics = self.common.generics.clone();
+        // Add a lifetime parameter, needed by MutexGuard
+        let mut ltgenerics = self.common.generics.clone();
         let ltdef = LifetimeDef::new(Lifetime::new("'lt", Span::call_site()));
-        eltgenerics.params.push(GenericParam::Lifetime(ltdef));
-        let (eltgenerics_ig, eltgenerics_tg, eltgenerics_wc) =
-            eltgenerics.split_for_impl();
+        ltgenerics.params.push(GenericParam::Lifetime(ltdef));
+        let (lt_ig, lt_tg, lt_wc) = ltgenerics.split_for_impl();
 
         quote!(
             /// Like an [`&Expectation`](struct.Expectation.html) but protected
@@ -899,13 +898,12 @@ impl StaticExpectation {
             //
             // ExpectationGuard is only defined for expectations that return
             // 'static return types.
-            #v struct ExpectationGuard #eltgenerics_ig #eltgenerics_wc {
+            #v struct ExpectationGuard #lt_ig #lt_wc {
                 guard: MutexGuard<'lt, Expectations #tg>,
                 i: usize
             }
 
-            impl #eltgenerics_ig ExpectationGuard #eltgenerics_tg
-                #eltgenerics_wc
+            impl #lt_ig ExpectationGuard #lt_tg #lt_wc
             {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
@@ -1008,14 +1006,13 @@ impl StaticExpectation {
 
             /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html) but for
             /// generic methods.
-            #v struct GenericExpectationGuard #eltgenerics_ig #eltgenerics_wc{
+            #v struct GenericExpectationGuard #lt_ig #lt_wc{
                 guard: MutexGuard<'lt, GenericExpectations>,
                 i: usize,
                 _phantom: ::std::marker::PhantomData<(#fn_params)>,
             }
 
-            impl #eltgenerics_ig GenericExpectationGuard #eltgenerics_tg
-                #eltgenerics_wc
+            impl #lt_ig GenericExpectationGuard #lt_tg #lt_wc
             {
                 /// Just like
                 /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
@@ -1277,17 +1274,10 @@ impl RefExpectation {
     fn generic_expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, _wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.generics.split_for_impl();
         let output = &self.common.output;
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
-
-        // TODO: can we eliminate 'lt from the signature?
-        let mut eltgenerics = self.common.generics.clone();
-        let ltdef = LifetimeDef::new(Lifetime::new("'lt", Span::call_site()));
-        eltgenerics.params.push(GenericParam::Lifetime(ltdef));
-        let (eltgenerics_ig, _eltgenerics_tg, eltgenerics_wc) =
-            eltgenerics.split_for_impl();
 
         quote!(
             impl GenericExpectations {
@@ -1302,9 +1292,9 @@ impl RefExpectation {
                 }
 
                 /// Create a new Expectation.
-                #v fn expect #eltgenerics_ig (&'lt mut self)
-                    -> &'lt mut Expectation #tg
-                    #eltgenerics_wc
+                #v fn expect #ig (&mut self)
+                    -> &mut Expectation #tg
+                    #wc
                     where #output: Send + Sync
                 {
                     self.store.entry(::mockall::Key::new::<(#(#argty, )*)>())
@@ -1450,17 +1440,10 @@ impl RefMutExpectation {
     fn generic_expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, _wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.generics.split_for_impl();
         let output = &self.common.output;
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
-
-        // TODO: can we eliminate 'lt from the signature?
-        let mut eltgenerics = self.common.generics.clone();
-        let ltdef = LifetimeDef::new(Lifetime::new("'lt", Span::call_site()));
-        eltgenerics.params.push(GenericParam::Lifetime(ltdef));
-        let (eltgenerics_ig, _eltgenerics_tg, eltgenerics_wc) =
-            eltgenerics.split_for_impl();
 
         quote!(
             impl GenericExpectations {
@@ -1476,9 +1459,7 @@ impl RefMutExpectation {
                 }
 
                 /// Create a new Expectation.
-                #v fn expect #eltgenerics_ig (&'lt mut self)
-                    -> &'lt mut Expectation #tg
-                    #eltgenerics_wc
+                #v fn expect #ig (&mut self) -> &mut Expectation #tg #wc
                     where #output: Send + Sync
                 {
                     self.store.entry(::mockall::Key::new::<(#(#argty, )*)>())
