@@ -34,12 +34,12 @@ fn destrify(ty: &mut Type) {
 }
 
 /// Stuff that's common between all Expectation types
-struct Common {
+struct Common<'a> {
     /// Names of the method arguments
     argnames: Vec<Pat>,
     /// Types of the method arguments
     argty: Vec<Type>,
-    attrs: TokenStream,
+    attrs: &'a TokenStream,
     /// The expectation's generic types as a list of types
     fn_params: Punctuated<Ident, Token![,]>,
     /// Generics of the Expectation object
@@ -52,7 +52,7 @@ struct Common {
     /// type will be a non-reference type.
     predty: Vec<Type>,
     /// name of the expectation's private module
-    meth_ident: Ident,
+    meth_ident: &'a Ident,
     /// Output type of the Method, supersuperfied.
     output: Type,
     /// Visibility of the expectation
@@ -60,7 +60,7 @@ struct Common {
     vis: Visibility
 }
 
-impl Common {
+impl<'a> Common<'a> {
     /// Methods of the Expectation structs that are common for static
     /// expectations, ref expectations, and ref mut expectations
     fn expectation_methods(&self, with_generics: &TokenStream,
@@ -233,10 +233,10 @@ impl Common {
     }
 }
 
-pub(crate) enum Expectation {
-    Ref(RefExpectation),
-    RefMut(RefMutExpectation),
-    Static(StaticExpectation)
+pub(crate) enum Expectation<'a> {
+    Ref(RefExpectation<'a>),
+    RefMut(RefMutExpectation<'a>),
+    Static(StaticExpectation<'a>)
 }
 
 macro_rules! dispatch {
@@ -249,7 +249,7 @@ macro_rules! dispatch {
     }
 }
 
-impl Expectation {
+impl<'a> Expectation<'a> {
     fn common(&self) -> &Common {dispatch!(self, common)}
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         dispatch!(self, expectation, em_ts)
@@ -487,10 +487,10 @@ impl Expectation {
     /// * `return_type`     - Return type of the mock method
     /// * `vis`             - Visibility of the expectation, *already supersuperfied*.
     pub(crate) fn new(
-        attrs: TokenStream,
+        attrs: &'a TokenStream,
         args: &Punctuated<FnArg, Token![,]>,
         generics: &Generics,
-        meth_ident: Ident,
+        meth_ident: &'a Ident,
         parent_ident: Option<&Ident>,
         return_type: &ReturnType,
         vis: &Visibility) -> Self
@@ -593,19 +593,19 @@ impl Expectation {
     }
 }
 
-impl ToTokens for Expectation {
+impl<'a> ToTokens for Expectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.gen().to_tokens(tokens)
     }
 }
 
 /// For methods that return a 'static value
-pub(crate) struct StaticExpectation {
-    common: Common,
+pub(crate) struct StaticExpectation<'a> {
+    common: Common<'a>,
 }
 
-impl StaticExpectation {
-    fn new(common: Common) -> Self {
+impl<'a> StaticExpectation<'a> {
+    fn new(common: Common<'a>) -> Self {
         StaticExpectation {
             common,
         }
@@ -1185,11 +1185,11 @@ impl StaticExpectation {
 }
 
 /// For methods that take &self and return a reference
-pub(crate) struct RefExpectation {
-    common: Common,
+pub(crate) struct RefExpectation<'a> {
+    common: Common<'a>,
 }
 
-impl RefExpectation {
+impl<'a> RefExpectation<'a> {
     fn common(&self) -> &Common {&self.common}
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let argnames = &self.common.argnames;
@@ -1307,7 +1307,7 @@ impl RefExpectation {
         )
     }
 
-    fn new(common: Common) -> Self {
+    fn new(common: Common<'a>) -> Self {
         RefExpectation { common, }
     }
 
@@ -1321,11 +1321,11 @@ impl RefExpectation {
 }
 
 /// For methods that take &mut self and return a reference
-pub(crate) struct RefMutExpectation {
-    common: Common,
+pub(crate) struct RefMutExpectation<'a> {
+    common: Common<'a>,
 }
 
-impl RefMutExpectation {
+impl<'a> RefMutExpectation<'a> {
     fn common(&self) -> &Common {&self.common}
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let argnames = &self.common.argnames;
@@ -1472,7 +1472,7 @@ impl RefMutExpectation {
         )
     }
 
-    fn new(common: Common) -> Self {
+    fn new(common: Common<'a>) -> Self {
         RefMutExpectation { common, }
     }
 
