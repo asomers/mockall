@@ -6,7 +6,6 @@ use std::{
     env
 };
 use syn::parse::{Parse, ParseStream};
-use crate::expectation::expectation;
 
 /// A single automock attribute
 // This enum is very short-lived, so it's fine not to box it.
@@ -411,8 +410,6 @@ fn mock_function(vis: &Visibility,
     }
 
     let meth_vis = expectation_visibility(&vis, 1);
-    let altargs = &meth_types.altargs;
-    let matchexprs = &meth_types.matchexprs;
     let expect_obj = &meth_types.expect_obj;
     let expect_ident = Ident::new(&format!("expect_{}", &ident),
                                        ident.span());
@@ -426,8 +423,9 @@ fn mock_function(vis: &Visibility,
         &format!("{}_expectation", ident),
         Span::call_site());
     // TODO: strip bounds from generics
-    let mut out = expectation(&TokenStream::new(), &expect_vis, None,
-        &mod_ident, generics, &inputs, &decl.output, &altargs, &matchexprs);
+    let mut out = TokenStream::new();
+    Expectation::new(TokenStream::new(), &inputs, generics,
+        mod_ident.clone(), None, &decl.output, &expect_vis).to_tokens(&mut out);
     quote!(
         ::mockall::lazy_static! {
             static ref #obj: ::std::sync::Mutex<#expect_obj> = 

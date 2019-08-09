@@ -6,7 +6,6 @@ use std::{
     env
 };
 use syn::parse::{Parse, ParseStream};
-use crate::expectation::expectation;
 
 pub(crate) struct Mock {
     pub(crate) vis: syn::Visibility,
@@ -375,16 +374,12 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         let attrs = format_attrs(&meth.borrow().attrs);
         let method_ident = &meth.borrow().sig.ident;
         let meth_types = method_types(&meth.borrow().sig, Some(generics));
-        //let inputs = &meth_types.inputs;
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
-        let altargs = &meth_types.altargs;
-        let matchexprs = &meth_types.matchexprs;
         let meth_ident = &meth.borrow().sig.ident;
         let output = &meth_types.output;
 
         let expect_vis = expectation_visibility(&meth.borrow().vis, 2);
-        //let meth_generics = &meth.borrow().sig.decl.generics;
         let mut macro_g = TokenStream::new();
         let merged_g = merge_generics(&generics, &meth_types.expectation_generics);
         if ! merged_g.params.is_empty() {
@@ -394,10 +389,10 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             quote!(<>).to_tokens(&mut macro_g);
         }
 
-        let ecode = expectation(&attrs, &expect_vis, Some(&mock_ident),
-            &meth_ident, &merged_g, &meth_types.expectation_inputs, output,
-            &altargs, &matchexprs);
-        ecode.to_tokens(&mut mod_body);
+        // TODO: remove the clone on attrs
+        Expectation::new(attrs.clone(),
+            &meth_types.expectation_inputs, &merged_g, meth_ident.clone(),
+            Some(&mock_ident), output, &expect_vis).to_tokens(&mut mod_body);
 
         if meth_types.is_static {
             let name = syn::Ident::new(
