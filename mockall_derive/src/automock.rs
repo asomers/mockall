@@ -331,8 +331,10 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
                 let obj = Ident::new(
                     &format!("{}_expectation", &f.ident),
                     Span::call_site());
-                quote!(#obj.lock().unwrap().checkpoint();)
-                    .to_tokens(&mut cp_body);
+                quote!(
+                    let _timeses = #obj.lock().unwrap().checkpoint()
+                    .collect::<Vec<_>>();
+                ).to_tokens(&mut cp_body);
                 mock_foreign_function(f).to_tokens(&mut body);
             },
             ForeignItem::Static(s) => {
@@ -350,7 +352,7 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
         }
     }
 
-    quote!( pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
+    quote!(pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
     quote!(pub mod #modname { #body })
 }
 
@@ -562,8 +564,10 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
                 let obj = Ident::new(
                     &format!("{}_expectation", &f.ident),
                     Span::call_site());
-                quote!(#obj.lock().unwrap().checkpoint();)
-                    .to_tokens(&mut cp_body);
+                quote!(
+                    let _timeses = #obj.lock().unwrap().checkpoint()
+                    .collect::<Vec<_>>();
+                ).to_tokens(&mut cp_body);
                 mock_native_function(&f).to_tokens(&mut body);
             },
             Item::Mod(_) | Item::ForeignMod(_)
