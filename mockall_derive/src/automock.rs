@@ -423,7 +423,7 @@ fn mock_function(vis: &Visibility,
         &format!("{}_expectation", ident),
         Span::call_site());
     let mut out = TokenStream::new();
-    Expectation::new(&TokenStream::new(), &inputs, generics,
+    Expectation::new(&TokenStream::new(), &inputs, None, generics,
         &mod_ident, None, &decl.output, &expect_vis).to_tokens(&mut out);
     quote!(
         ::mockall::lazy_static! {

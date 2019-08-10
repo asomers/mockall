@@ -26,9 +26,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed mocking structs and traits with more than one static method.
   ([#22](https://github.com/asomers/mockall/pull/22))
 
-- Methods of generics structs and traits that reference `Self` (such as
+- Methods of generic structs and traits that reference `Self` (such as
   constructors or comparators) can now be mocked without any hacks.
   ([#21](https://github.com/asomers/mockall/pull/21))
+  ([#25](https://github.com/asomers/mockall/pull/25))
 
 - Specializing methods of generic structs (and traits) can now be mocked
   without the hack of duplicating the struct's (or trait's) generic parameters.
