@@ -2,7 +2,8 @@
 //! Proc Macros for use with Mockall
 //!
 //! You probably don't want to use this crate directly.  Instead, you use use
-//! its reexports via the [`mockall`](../mockall/index.html) crate.
+//! its reexports via the [`mockall`](https://docs.rs/mockall/latest/mockall)
+//! crate.
 
 #![recursion_limit="512"]
 
