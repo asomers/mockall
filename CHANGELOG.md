@@ -23,6 +23,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Fixed mocking methods with arguments or return values that use `Self` as an
+  associated type of some other trait.
+  ([#28](https://github.com/asomers/mockall/pull/28))
+
 - Fixed mocking structs and traits with more than one static method.
   ([#22](https://github.com/asomers/mockall/pull/22))
 

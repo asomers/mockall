@@ -303,6 +303,7 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
             panic!("deimplify should've already been run on this output type");
         },
         Type::TraitObject(tto) => {
+            //dbg!(&tto);
             // Change types like `dyn Self` into `MockXXX`.  For now,
             // don't worry about multiple trait bounds, because they aren't very
             // useful in combination with Self.
@@ -310,7 +311,14 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
                 if let TypeParamBound::Trait(t)
                     = tto.bounds.first().unwrap().value()
                 {
-                    let path = &t.path;
+                    // No need to substitute Self for the full path, because
+                    // traits can't return "impl Trait", and structs can't
+                    // return "impl Self" (because Self, in that case, isn't a
+                    // trait).  However, we do need to recurse to deselfify any
+                    // generics and associated types.
+                    let tp = TypePath{qself: None, path: t.path.clone()};
+                    let mut path = Type::Path(tp);
+                    deselfify(&mut path, actual, generics);
                     let new_type: Type = parse2(quote!(dyn #path)).unwrap();
                     *literal_type = new_type;
                 }
