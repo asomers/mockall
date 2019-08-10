@@ -20,7 +20,4 @@ features = ["nightly-docs"]
 nightly-docs = []
 
 [dependencies]
-downcast = "0.10"
-fragile = "0.3"
 mockall = { version = "0.2.0", path = "../mockall" }
-predicates-tree = "1.0"
