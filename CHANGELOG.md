@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased] - ReleaseDate
+## [0.3.0] - 10 August 2019
 ### Added
 
 - Methods with closure arguments can now be mocked.  Technically they always
