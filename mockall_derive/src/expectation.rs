@@ -209,6 +209,9 @@ impl<'a> Common<'a> {
     fn generic_expectations_methods(&self) -> TokenStream
     {
         let v = &self.vis;
+        if !self.is_generic() {
+            return TokenStream::new();
+        }
         quote!(
             /// A collection of [`Expectation`](struct.Expectations.html)
             /// objects for a generic method.  Users will rarely if ever use
@@ -234,6 +237,11 @@ impl<'a> Common<'a> {
                 }
             }
         )
+    }
+
+    fn is_generic(&self) -> bool {
+        !self.egenerics.params.is_empty() ||
+            self.egenerics.where_clause.is_some()
     }
 }
 
@@ -263,6 +271,9 @@ impl<'a> Expectation<'a> {
     }
     fn extra_uses(&self) -> TokenStream {dispatch!(self, extra_uses)}
     fn generic_expectations_methods(&self) -> TokenStream {
+        if !self.common().is_generic() {
+            return TokenStream::new();
+        }
         dispatch!(self, generic_expectations_methods)
     }
 
@@ -897,7 +908,7 @@ impl<'a> StaticExpectation<'a> {
         ltgenerics.params.push(GenericParam::Lifetime(ltdef));
         let (lt_ig, lt_tg, lt_wc) = ltgenerics.split_for_impl();
 
-        quote!(
+        let mut ts = quote!(
             /// Like an [`&Expectation`](struct.Expectation.html) but protected
             /// by a Mutex guard.  Useful for mocking static methods.  Forwards
             /// accesses to an `Expectation` object.
@@ -1014,7 +1025,13 @@ impl<'a> StaticExpectation<'a> {
                     self.guard.0[self.i].withf(__mockall_f)
                 }
             }
+        );
 
+        if !self.common.is_generic() {
+            return ts;
+        }
+
+        quote!(
             /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html) but for
             /// generic methods.
             #v struct GenericExpectationGuard #lt_ig #lt_wc{
@@ -1192,7 +1209,8 @@ impl<'a> StaticExpectation<'a> {
                         .withf(__mockall_f)
                 }
             }
-        )
+        ).to_tokens(&mut ts);
+        ts
     }
 }
 
