@@ -471,7 +471,7 @@ impl<'a> Expectation<'a> {
             pub mod #ident {
                 #extra_uses
                 use super::*;   // Import types from the calling environment
-                use ::predicates_tree::CaseTreeExt;
+                use ::mockall::CaseTreeExt;
                 use ::std::{
                     mem,
                     ops::{DerefMut, Range},
@@ -701,7 +701,7 @@ impl<'a> StaticExpectation<'a> {
                                                   MockallF) -> &mut Self
                     where MockallF: FnOnce(#(#argty, )*) -> #output + 'static
                 {
-                    let __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
+                    let __mockall_fragile = ::mockall::Fragile::new(__mockall_f);
                     let __mockall_fonce = Box::new(move |#(#argnames: #argty, )*| {
                         (__mockall_fragile.into_inner())(#(#argnames, )*)
                     });
@@ -734,7 +734,7 @@ impl<'a> StaticExpectation<'a> {
                 #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + 'static
                 {
-                    let mut __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
+                    let mut __mockall_fragile = ::mockall::Fragile::new(__mockall_f);
                     let __mockall_fmut = move |#(#argnames: #argty, )*| {
                         (__mockall_fragile.get_mut())(#(#argnames, )*)
                     };
@@ -1408,7 +1408,7 @@ impl<'a> RefMutExpectation<'a> {
                 #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + 'static
                 {
-                    let mut __mockall_fragile = ::fragile::Fragile::new(__mockall_f);
+                    let mut __mockall_fragile = ::mockall::Fragile::new(__mockall_f);
                     let __mockall_fmut = move |#(#argnames, )*| {
                         (__mockall_fragile.get_mut())(#(#argnames, )*)
                     };

@@ -14,6 +14,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- It is no longer necessary for consuming crates to explicitly depend on
+  fragile, downcast, or predicates-tree.  Mockall now reexports them.
+  ([#29](https://github.com/asomers/mockall/pull/29))
+
 - The MSRV is now Rust 1.35.0
   ([#15](https://github.com/asomers/mockall/pull/15))
 

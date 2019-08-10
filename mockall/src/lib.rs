@@ -970,6 +970,11 @@ use std::{
     thread
 };
 
+#[doc(hidden)]
+pub use downcast::{Any, Downcast};
+#[doc(hidden)]
+pub use fragile::Fragile;
+
 /// For mocking static methods
 #[doc(hidden)]
 pub use lazy_static::lazy_static;
@@ -978,6 +983,8 @@ pub use predicates::{
     boolean::PredicateBooleanExt,
     prelude::{Predicate, predicate}
 };
+#[doc(hidden)]
+pub use predicates_tree::CaseTreeExt;
 
 ::cfg_if::cfg_if! {
     if #[cfg(any(not(feature = "nightly"), not(rustdoc)))] {
