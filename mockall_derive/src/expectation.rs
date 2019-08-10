@@ -219,7 +219,7 @@ impl<'a> Common<'a> {
             #[doc(hidden)]
             #[derive(Default)]
             #v struct GenericExpectations{
-                store: HashMap<::mockall::Key,
+                store: std::collections::hash_map::HashMap<::mockall::Key,
                                Box<dyn ::mockall::AnyExpectations>>
             }
             impl GenericExpectations {
@@ -288,7 +288,7 @@ impl<'a> Expectation<'a> {
         let (ig, tg, wc) = self.common().egenerics.split_for_impl();
         let preds = TokenStream::from_iter(
             self.common().predty.iter().map(|t|
-                quote!(Box<::mockall::Predicate<#t> + Send>,)
+                quote!(Box<dyn ::mockall::Predicate<#t> + Send>,)
             )
         );
         let pred_matches = TokenStream::from_iter(
@@ -334,12 +334,12 @@ impl<'a> Expectation<'a> {
         );
         let matcher_ts = quote!(
             enum Matcher #ig #wc {
-                Func(Box<Fn(#refpredty) -> bool + Send>),
+                Func(Box<dyn Fn(#refpredty) -> bool + Send>),
                 Pred(Box<(#preds)>),
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
                 // generics are not, unlike PhantomData<generics>
-                _Phantom(Box<Fn(#fn_params) -> () + Send>)
+                _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
             }
 
             impl #ig Matcher #tg #wc {
@@ -473,7 +473,6 @@ impl<'a> Expectation<'a> {
                 use super::*;   // Import types from the calling environment
                 use ::predicates_tree::CaseTreeExt;
                 use ::std::{
-                    collections::hash_map::HashMap,
                     mem,
                     ops::{DerefMut, Range},
                     sync::Mutex
@@ -846,7 +845,7 @@ impl<'a> StaticExpectation<'a> {
             // Prevent "unused type parameter" errors
             // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
             // are not, unlike PhantomData<generics>
-            _Phantom(Box<Fn(#fn_params) -> () + Send>)
+            _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
         }
 
         impl #ig  Rfunc #tg #wc {
