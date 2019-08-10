@@ -881,7 +881,9 @@ impl<'a> StaticExpectation<'a> {
 
         // Add a lifetime parameter, needed by MutexGuard
         let mut ltgenerics = self.common.generics.clone();
-        let ltdef = LifetimeDef::new(Lifetime::new("'lt", Span::call_site()));
+        let ltdef = LifetimeDef::new(
+            Lifetime::new("'__mockall_lt", Span::call_site())
+        );
         ltgenerics.params.push(GenericParam::Lifetime(ltdef));
         let (lt_ig, lt_tg, lt_wc) = ltgenerics.split_for_impl();
 
@@ -898,7 +900,7 @@ impl<'a> StaticExpectation<'a> {
             // ExpectationGuard is only defined for expectations that return
             // 'static return types.
             #v struct ExpectationGuard #lt_ig #lt_wc {
-                guard: MutexGuard<'lt, Expectations #tg>,
+                guard: MutexGuard<'__mockall_lt, Expectations #tg>,
                 i: usize
             }
 
@@ -920,7 +922,7 @@ impl<'a> StaticExpectation<'a> {
 
                 // Should only be called from the mockall_derive generated code
                 #[doc(hidden)]
-                #v fn new(mut __mockall_guard: MutexGuard<'lt, Expectations #tg>)
+                #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, Expectations #tg>)
                     -> Self
                 {
                     __mockall_guard.expect(); // Drop the &Expectation
@@ -1006,7 +1008,7 @@ impl<'a> StaticExpectation<'a> {
             /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html) but for
             /// generic methods.
             #v struct GenericExpectationGuard #lt_ig #lt_wc{
-                guard: MutexGuard<'lt, GenericExpectations>,
+                guard: MutexGuard<'__mockall_lt, GenericExpectations>,
                 i: usize,
                 _phantom: ::std::marker::PhantomData<(#fn_params)>,
             }
@@ -1040,7 +1042,7 @@ impl<'a> StaticExpectation<'a> {
                 }
 
                 #[doc(hidden)]
-                #v fn new(mut guard: MutexGuard<'lt, GenericExpectations>)
+                #v fn new(mut guard: MutexGuard<'__mockall_lt, GenericExpectations>)
                     -> Self
                 {
                     let __mockall_ee: &mut Expectations #tg =
