@@ -336,7 +336,10 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
 
     // Finally this method's contribution to the checkpoint method
     if meth_types.is_static {
-        quote!(#attrs { #expect_obj_name.lock().unwrap().checkpoint(); })
+        quote!(#attrs {
+            let _timeses = #expect_obj_name.lock().unwrap().checkpoint()
+                .collect::<Vec<_>>();
+        })
     } else {
         quote!(#attrs { #expect_obj_name.checkpoint(); })
     }.to_tokens(&mut cp_output);

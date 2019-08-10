@@ -180,8 +180,9 @@ impl<'a> Common<'a> {
             impl #ig Expectations #tg #wc {
                 /// Verify that all current expectations are satisfied and clear
                 /// them.
-                #v fn checkpoint(&mut self) {
-                    self.0.drain(..);
+                #v fn checkpoint(&mut self) -> std::vec::Drain<Expectation #tg>
+                {
+                    self.0.drain(..)
                 }
 
                 /// Create a new expectation for this method.
@@ -221,8 +222,11 @@ impl<'a> Common<'a> {
             impl GenericExpectations {
                 /// Verify that all current expectations are satisfied and clear
                 /// them.  This applies to all sets of generic parameters!
-                #v fn checkpoint(&mut self) {
-                    self.store.clear();
+                #v fn checkpoint(&mut self) ->
+                    std::collections::hash_map::Drain<::mockall::Key,
+                               Box<dyn ::mockall::AnyExpectations>>
+                {
+                    self.store.drain()
                 }
 
                 #v fn new() -> Self {

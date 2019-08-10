@@ -11,7 +11,6 @@ mock!{
 
 #[test]
 #[should_panic(expected = "Expectation called fewer than 1 times")]
-#[ignore = "https://github.com/asomers/mockall/issues/7"]
 fn checkpoint() {
     let mut mock = MockFoo::new();
     MockFoo::expect_bar()
