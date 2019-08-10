@@ -43,7 +43,7 @@ struct Common<'a> {
     /// The expectation's generic types as a list of types
     fn_params: Punctuated<Ident, Token![,]>,
     /// Generics of the Expectation object
-    generics: Generics,
+    egenerics: Generics,
     /// Is this for a static method or free function?
     is_static: bool,
     /// Expressions that create the predicate arguments from the call arguments
@@ -169,7 +169,7 @@ impl<'a> Common<'a> {
 
     /// Common methods of the Expectations structs
     fn expectations_methods(&self) -> TokenStream {
-        let (ig, tg, wc) = self.generics.split_for_impl();
+        let (ig, tg, wc) = self.egenerics.split_for_impl();
         let v = &self.vis;
         quote!(
             /// A collection of [`Expectation`](struct.Expectations.html)
@@ -270,7 +270,7 @@ impl<'a> Expectation<'a> {
         let fn_params = &self.common().fn_params;
         let predty = &self.common().predty;
         let rfunc_ts = self.rfunc();
-        let (ig, tg, wc) = self.common().generics.split_for_impl();
+        let (ig, tg, wc) = self.common().egenerics.split_for_impl();
         let preds = TokenStream::from_iter(
             self.common().predty.iter().map(|t|
                 quote!(Box<::mockall::Predicate<#t> + Send>,)
@@ -480,8 +480,8 @@ impl<'a> Expectation<'a> {
     ///                       `#[cfg()]`
     /// * `args`            - Arguments for the mock method, which may be
     ///                       slightly different than on the original method.
-    /// * `generics`        - Merged generics of the method and its parent
-    ///                       struct
+    /// * `struct_generics` - Generics of the parent struct, if any.
+    /// * `meth_generics`   - Generics of the method being mocked
     /// * `meth_ident`      - Name of the original method
     /// * `parent_ident`    - Name of the parent struct, if any.
     /// * `return_type`     - Return type of the mock method
@@ -489,7 +489,8 @@ impl<'a> Expectation<'a> {
     pub(crate) fn new(
         attrs: &'a TokenStream,
         args: &Punctuated<FnArg, Token![,]>,
-        generics: &Generics,
+        struct_generics: Option<&'a Generics>,
+        meth_generics: &'a Generics,
         meth_ident: &'a Ident,
         parent_ident: Option<&Ident>,
         return_type: &ReturnType,
@@ -519,6 +520,11 @@ impl<'a> Expectation<'a> {
                 ()    // Strip out the "&self" argument
             }
         }
+        let generics = if let Some(g) = struct_generics {
+            merge_generics(g, meth_generics)
+        } else {
+            meth_generics.clone()
+        };
         let mut egenerics = generics.clone();
         for p in egenerics.params.iter_mut() {
             if let GenericParam::Type(tp) = p {
@@ -540,7 +546,7 @@ impl<'a> Expectation<'a> {
                 let mut rt: Type = (**ty).clone();
                 destrify(&mut rt);
                 if let Some(i) = parent_ident {
-                    crate::deselfify(&mut rt, i, generics);
+                    crate::deselfify(&mut rt, i, &struct_generics.unwrap());
                 }
                 if let Type::Reference(ref tr) = rt {
                     if tr.lifetime.as_ref()
@@ -567,7 +573,7 @@ impl<'a> Expectation<'a> {
             argty,
             attrs,
             fn_params,
-            generics: egenerics,
+            egenerics,
             is_static,
             predexprs,
             predty,
@@ -616,7 +622,7 @@ impl<'a> StaticExpectation<'a> {
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -743,7 +749,7 @@ impl<'a> StaticExpectation<'a> {
     fn expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -780,7 +786,7 @@ impl<'a> StaticExpectation<'a> {
     fn generic_expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
@@ -810,7 +816,7 @@ impl<'a> StaticExpectation<'a> {
     }
 
     fn rfunc(&self) -> TokenStream {
-        let (ig, tg, wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let fn_params = &self.common.fn_params;
@@ -873,14 +879,14 @@ impl<'a> StaticExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let fn_params = &self.common.fn_params;
-        let (_ig, tg, _wc) = self.common.generics.split_for_impl();
+        let (_ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predty = &self.common.predty;
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
 
         // Add a lifetime parameter, needed by MutexGuard
-        let mut ltgenerics = self.common.generics.clone();
+        let mut ltgenerics = self.common.egenerics.clone();
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
@@ -1196,7 +1202,7 @@ impl<'a> RefExpectation<'a> {
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, _wc) = self.common.generics.split_for_impl();
+        let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1242,7 +1248,7 @@ impl<'a> RefExpectation<'a> {
     fn expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, _wc) = self.common.generics.split_for_impl();
+        let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1275,7 +1281,7 @@ impl<'a> RefExpectation<'a> {
     fn generic_expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
@@ -1332,7 +1338,7 @@ impl<'a> RefMutExpectation<'a> {
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, _wc) = self.common.generics.split_for_impl();
+        let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1407,7 +1413,7 @@ impl<'a> RefMutExpectation<'a> {
     fn expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, _wc) = self.common.generics.split_for_impl();
+        let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1441,7 +1447,7 @@ impl<'a> RefMutExpectation<'a> {
     fn generic_expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, wc) = self.common.generics.split_for_impl();
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;

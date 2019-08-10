@@ -389,9 +389,10 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             quote!(<>).to_tokens(&mut macro_g);
         }
 
-        Expectation::new(&attrs,
-            &meth_types.expectation_inputs, &merged_g, meth_ident,
-            Some(&mock_ident), output, &expect_vis).to_tokens(&mut mod_body);
+        Expectation::new(&attrs, &meth_types.expectation_inputs,
+                         Some(&generics), &meth_types.expectation_generics,
+                         meth_ident, Some(&mock_ident), output,
+                         &expect_vis).to_tokens(&mut mod_body);
 
         if meth_types.is_static {
             let name = syn::Ident::new(

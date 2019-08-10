@@ -246,7 +246,6 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
                 if seg.ident == "Self" {
                     seg.ident = actual.clone();
                     if let PathArguments::None = seg.arguments {
-                        //let (_, tg, _) = generics.split_for_impl();
                         if !generics.params.is_empty() {
                             let args = Punctuated::from_iter(
                                 generics.params.iter().map(|gp| {
@@ -427,8 +426,6 @@ fn gen_mod_ident(struct_: &Ident, trait_: Option<&Ident>)
 /// Combine two Generics structs, producing a new one that has the union of
 /// their parameters.
 fn merge_generics(x: &Generics, y: &Generics) -> Generics {
-    //dbg!(x);
-    //dbg!(y);
     /// Compare only the identifiers of two GenericParams
     fn cmp_gp_idents(x: &GenericParam, y: &GenericParam) -> bool {
         use GenericParam::*;
