@@ -806,10 +806,9 @@
 //!
 //! ```
 //! # use mockall::*;
-//! mock! {
-//!     Foo<T: 'static> {
-//!         fn new(t: T) -> MockFoo<T>;
-//!     }
+//! #[automock]
+//! trait Foo<T: 'static> {
+//!     fn new(t: T) -> MockFoo<T>;
 //! }
 //!
 //! # fn main() {
