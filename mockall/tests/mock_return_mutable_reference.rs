@@ -10,6 +10,16 @@ mock! {
 }
 
 #[test]
+#[cfg_attr(not(feature = "nightly"),
+           should_panic(expected = "Returning default values requires"))]
+fn return_default() {
+    let mut mock = MockFoo::new();
+    mock.expect_foo();
+    let r = mock.foo(0);
+    assert_eq!(u32::default(), *r);
+}
+
+#[test]
 fn return_var() {
     let mut mock = MockFoo::new();
     mock.expect_foo()

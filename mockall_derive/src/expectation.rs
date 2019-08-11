@@ -836,50 +836,52 @@ impl<'a> StaticExpectation<'a> {
         let fn_params = &self.common.fn_params;
         let output = &self.common.output;
         quote!(
-        enum Rfunc #ig #wc {
-            Default,
-            // Indicates that a `return_once` expectation has already returned
-            Expired,
-            Mut(Box<dyn FnMut(#(#argty, )*) -> #output + Send>),
-            Once(Box<dyn FnOnce(#(#argty, )*) -> #output + Send>),
-            // Prevent "unused type parameter" errors
-            // Surprisingly, PhantomData<Fn(generics)> is Send even if generics
-            // are not, unlike PhantomData<generics>
-            _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
-        }
+            enum Rfunc #ig #wc {
+                Default,
+                // Indicates that a `return_once` expectation has already
+                // returned
+                Expired,
+                Mut(Box<dyn FnMut(#(#argty, )*) -> #output + Send>),
+                Once(Box<dyn FnOnce(#(#argty, )*) -> #output + Send>),
+                // Prevent "unused type parameter" errors Surprisingly,
+                // PhantomData<Fn(generics)> is Send even if generics are not,
+                // unlike PhantomData<generics>
+                _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
+            }
 
-        impl #ig  Rfunc #tg #wc {
-            fn call_mut(&mut self, #( #argnames: #argty, )* ) -> #output {
-                match self {
-                    Rfunc::Default => {
-                        use ::mockall::ReturnDefault;
-                        ::mockall::DefaultReturner::<#output>::return_default()
-                    },
-                    Rfunc::Expired => {
-                        panic!("Called a method twice that was expected only once")
-                    },
-                    Rfunc::Mut(__mockall_f) => {
-                        __mockall_f( #(#argnames, )* )
-                    },
-                    Rfunc::Once(_) => {
-                        if let Rfunc::Once(mut __mockall_f) =
-                            mem::replace(self, Rfunc::Expired) {
+            impl #ig  Rfunc #tg #wc {
+                fn call_mut(&mut self, #( #argnames: #argty, )* ) -> #output {
+                    match self {
+                        Rfunc::Default => {
+                            use ::mockall::ReturnDefault;
+                            ::mockall::DefaultReturner::<#output>
+                                ::return_default()
+                        },
+                        Rfunc::Expired => {
+                            panic!("Called a method twice that was expected only once")
+                        },
+                        Rfunc::Mut(__mockall_f) => {
                             __mockall_f( #(#argnames, )* )
-                        } else {
-                            unreachable!()
-                        }
-                    },
-                    Rfunc::_Phantom(_) => unreachable!()
+                        },
+                        Rfunc::Once(_) => {
+                            if let Rfunc::Once(mut __mockall_f) =
+                                mem::replace(self, Rfunc::Expired) {
+                                __mockall_f( #(#argnames, )* )
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::_Phantom(_) => unreachable!()
+                    }
                 }
             }
-        }
 
-        impl #ig std::default::Default for Rfunc #tg #wc
-        {
-            fn default() -> Self {
-                Rfunc::Default
+            impl #ig std::default::Default for Rfunc #tg #wc
+            {
+                fn default() -> Self {
+                    Rfunc::Default
+                }
             }
-        }
         )
     }
 
@@ -1233,21 +1235,20 @@ impl<'a> RefExpectation<'a> {
             /// the `expect_*` methods.
             #v struct Expectation #ig {
                 common: Common #tg,
-                result: Option<#output>,
+                rfunc: Rfunc #tg,
             }
 
             impl #ig Expectation #tg {
                 #v fn call(&self, #(#argnames: #argty,)* ) -> &#output {
                     self.common.call(#(#predexprs, )*);
-                    &self.result.as_ref()
-                        .expect("Must set return value with return_const")
+                    self.rfunc.call()
                 }
 
                 /// Return a reference to a constant value from the `Expectation`
                 #v fn return_const(&mut self, __mockall_o: #output)
                     -> &mut Self
                 {
-                    self.result = Some(__mockall_o);
+                    mem::replace(&mut self.rfunc, Rfunc::Const(__mockall_o));
                     self
                 }
 
@@ -1259,7 +1260,7 @@ impl<'a> RefExpectation<'a> {
                 fn default() -> Self {
                     Expectation {
                         common: Common::default(),
-                        result: None
+                        rfunc:Rfunc::default()
                     }
                 }
             }
@@ -1340,7 +1341,52 @@ impl<'a> RefExpectation<'a> {
         RefExpectation { common, }
     }
 
-    fn rfunc(&self) -> TokenStream { TokenStream::new() }
+    fn rfunc(&self) -> TokenStream {
+        let fn_params = &self.common.fn_params;
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let output = &self.common.output;
+        quote!(
+            enum Rfunc #ig #wc {
+                Default(Option<#output>),
+                Const(#output),
+                // Prevent "unused type parameter" errors Surprisingly,
+                // PhantomData<Fn(generics)> is Send even if generics are not,
+                // unlike PhantomData<generics>
+                _Phantom(Mutex<Box<dyn Fn(#fn_params) -> () + Send>>)
+            }
+
+            impl #ig  Rfunc #tg #wc {
+                fn call(&self) -> &#output {
+                    match self {
+                        Rfunc::Default(Some(ref __mockall_o)) => {
+                            __mockall_o
+                        },
+                        #[cfg(feature = "nightly")]
+                        Rfunc::Default(None) => {
+                            panic!("Can only return default values for types that impl std::Default");
+                        },
+                        #[cfg(not(feature = "nightly"))]
+                        Rfunc::Default(None) => {
+                            panic!("Returning default values requires the \"nightly\" feature");
+                        },
+                        Rfunc::Const(ref __mockall_o) => {
+                            __mockall_o
+                        },
+                        Rfunc::_Phantom(_) => unreachable!()
+                    }
+                }
+            }
+
+            impl #ig std::default::Default for Rfunc #tg #wc
+            {
+                fn default() -> Self {
+                    use ::mockall::ReturnDefault;
+                    Rfunc::Default(::mockall::DefaultReturner::<#output>
+                                ::maybe_return_default())
+                }
+            }
+        )
+    }
 
     fn static_method_methods(&self, _with_generics: &TokenStream,
         _with_args: &TokenStream) -> TokenStream
@@ -1369,19 +1415,16 @@ impl<'a> RefMutExpectation<'a> {
             /// `expect_*` methods.
             #v struct Expectation #ig {
                 common: Common #tg,
-                result: Option<#output>,
-                rfunc: Option<Box<dyn FnMut(#(#argty, )*) -> #output + Send + Sync>>,
+                rfunc: Rfunc #tg
             }
 
             impl #ig Expectation #tg {
                 /// Simulating calling the real method for this expectation
-                #v fn call_mut(&mut self, #(#argnames: #argty, )*) -> &mut #output {
+                #v fn call_mut(&mut self, #(#argnames: #argty, )*)
+                    -> &mut #output
+                {
                     self.common.call(#(#predexprs, )*);
-                    if let Some(ref mut __mockall_f) = self.rfunc {
-                        self.result = Some(__mockall_f(#(#argnames, )*));
-                    }
-                    self.result.as_mut()
-                        .expect("Must first set return function with returning or return_var")
+                    self.rfunc.call_mut(#(#argnames, )*)
                 }
 
                 /// Convenience method that can be used to supply a return value
@@ -1389,30 +1432,34 @@ impl<'a> RefMutExpectation<'a> {
                 /// reference.
                 #v fn return_var(&mut self, __mockall_o: #output) -> &mut Self
                 {
-                    self.result = Some(__mockall_o);
+                    mem::replace(&mut self.rfunc, Rfunc::Var(__mockall_o));
                     self
                 }
 
                 /// Supply a closure that the `Expectation` will use to create its
                 /// return value.  The return value will be returned by mutable
                 /// reference.
-                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + Send + Sync + 'static
                 {
-                    mem::replace(&mut self.rfunc, Some(Box::new(__mockall_f)));
+                    mem::replace(&mut self.rfunc,
+                                 Rfunc::Mut(Box::new(__mockall_f), None));
                     self
                 }
 
                 /// Single-threaded version of [`returning`](#method.returning).
                 /// Can be used when the argument or return type isn't `Send`.
-                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + 'static
                 {
                     let mut __mockall_fragile = ::mockall::Fragile::new(__mockall_f);
                     let __mockall_fmut = move |#(#argnames, )*| {
                         (__mockall_fragile.get_mut())(#(#argnames, )*)
                     };
-                    mem::replace(&mut self.rfunc, Some(Box::new(__mockall_fmut)));
+                    mem::replace(&mut self.rfunc,
+                                 Rfunc::Mut(Box::new(__mockall_fmut), None));
                     self
                 }
 
@@ -1423,8 +1470,7 @@ impl<'a> RefMutExpectation<'a> {
                 fn default() -> Self {
                     Expectation {
                         common: Common::default(),
-                        result: None,
-                        rfunc: None
+                        rfunc: Rfunc::default()
                     }
                 }
             }
@@ -1505,7 +1551,65 @@ impl<'a> RefMutExpectation<'a> {
         RefMutExpectation { common, }
     }
 
-    fn rfunc(&self) -> TokenStream { TokenStream::new() }
+    fn rfunc(&self) -> TokenStream {
+        let argnames = &self.common.argnames;
+        let argty = &self.common.argty;
+        let fn_params = &self.common.fn_params;
+        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let output = &self.common.output;
+        quote!(
+            enum Rfunc #ig #wc {
+                Default(Option<#output>),
+                Mut((Box<dyn FnMut(#(#argty, )*) -> #output + Send + Sync>),
+                    Option<#output>),
+                Var(#output),
+                // Prevent "unused type parameter" errors Surprisingly,
+                // PhantomData<Fn(generics)> is Send even if generics are not,
+                // unlike PhantomData<generics>
+                _Phantom(Mutex<Box<dyn Fn(#fn_params) -> () + Send>>)
+            }
+
+            impl #ig  Rfunc #tg #wc {
+                fn call_mut(&mut self, #(#argnames: #argty, )*) -> &mut #output {
+                    match self {
+                        Rfunc::Default(Some(ref mut __mockall_o)) => {
+                            __mockall_o
+                        },
+                        #[cfg(feature = "nightly")]
+                        Rfunc::Default(None) => {
+                            panic!("Can only return default values for types that impl std::Default");
+                        },
+                        #[cfg(not(feature = "nightly"))]
+                        Rfunc::Default(None) => {
+                            panic!("Returning default values requires the \"nightly\" feature");
+                        },
+                        Rfunc::Mut(ref mut __mockall_f, ref mut __mockall_o) =>
+                        {
+                            *__mockall_o = Some(__mockall_f(#(#argnames, )*));
+                            if let Some(ref mut __mockall_o2) = __mockall_o {
+                                __mockall_o2
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::Var(ref mut __mockall_o) => {
+                            __mockall_o
+                        },
+                        Rfunc::_Phantom(_) => unreachable!()
+                    }
+                }
+            }
+
+            impl #ig std::default::Default for Rfunc #tg #wc
+            {
+                fn default() -> Self {
+                    use ::mockall::ReturnDefault;
+                    Rfunc::Default(::mockall::DefaultReturner::<#output>
+                                ::maybe_return_default())
+                }
+            }
+        )
+    }
 
     fn static_method_methods(&self, _with_generics: &TokenStream,
         _with_args: &TokenStream) -> TokenStream
