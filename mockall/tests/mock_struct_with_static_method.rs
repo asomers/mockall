@@ -20,6 +20,18 @@ fn checkpoint() {
     panic!("Shouldn't get here!");
 }
 
+// Until we get some kind of context for free functions, the return_default
+// feature won't work if there are any other tests that mock the same function.
+// https://github.com/asomers/mockall/issues/30
+#[cfg_attr(not(feature = "nightly"),
+           should_panic(expected = "Returning default values requires"))]
+#[test]
+fn return_default() {
+    MockFoo::expect_baz();
+    let r = MockFoo::baz(5);
+    assert_eq!(u8::default(), r);
+}
+
 #[test]
 fn returning() {
     MockFoo::expect_bar()

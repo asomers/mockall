@@ -184,8 +184,9 @@ fn return_const() {
     assert_eq!(42, mock.foo(5));
 }
 
+#[cfg_attr(not(feature = "nightly"),
+           should_panic(expected = "Returning default values requires"))]
 #[test]
-#[cfg_attr(not(feature = "nightly"), ignore)]
 fn return_default() {
     let mut mock = MockFoo::new();
     mock.expect_foo();

@@ -929,7 +929,7 @@
 //!
 //! With **nightly** enabled, you can omit the return value like this:
 #![cfg_attr(feature = "nightly", doc = "```")]
-#![cfg_attr(not(feature = "nightly"), doc = "```ignore")]
+#![cfg_attr(not(feature = "nightly"), doc = "```should_panic")]
 //! # use mockall::*;
 //! #[automock]
 //! trait Foo {
@@ -1169,6 +1169,7 @@ downcast!(dyn AnyExpectations);
 
 #[doc(hidden)]
 pub trait ReturnDefault<O> {
+    fn maybe_return_default() -> Option<O>;
     fn return_default() -> O;
 }
 
@@ -1179,18 +1180,30 @@ pub struct DefaultReturner<O: 'static>(PhantomData<O>);
 ::cfg_if::cfg_if! {
     if #[cfg(feature = "nightly")] {
         impl<O> ReturnDefault<O> for DefaultReturner<O> {
+            default fn maybe_return_default() -> Option<O> {
+                None
+            }
+
             default fn return_default() -> O {
                 panic!("Can only return default values for types that impl std::Default");
             }
         }
 
         impl<O: Default> ReturnDefault<O> for DefaultReturner<O> {
+            fn maybe_return_default() -> Option<O> {
+                Some(O::default())
+            }
+
             fn return_default() -> O {
                 O::default()
             }
         }
     } else {
         impl<O> ReturnDefault<O> for DefaultReturner<O> {
+            fn maybe_return_default() -> Option<O> {
+                None
+            }
+
             fn return_default() -> O {
                 panic!("Returning default values requires the \"nightly\" feature");
             }

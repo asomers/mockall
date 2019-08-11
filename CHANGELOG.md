@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased] - ReleaseDate
+### Added
+### Changed
+### Fixed
+
+- Methods returning non-`'static` references (mutable or otherwise) will now
+  return a default value if no return value is set, if the output type
+  implements `Default` and the `nightly` feature is enabled.  This more closely
+  matches existing behavior for methods returning non-reference types.
+  ([#32](https://github.com/asomers/mockall/pull/32))
+
+### Removed
+
 ## [0.3.0] - 10 August 2019
 ### Added
 
