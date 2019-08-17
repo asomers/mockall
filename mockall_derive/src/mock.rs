@@ -394,7 +394,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
 
         Expectation::new(&attrs, &meth_types.expectation_inputs,
                          Some(&generics), &meth_types.expectation_generics,
-                         meth_ident, Some(&mock_ident), output,
+                         meth_ident, meth_ident, Some(&mock_ident), output,
                          &expect_vis).to_tokens(&mut mod_body);
 
         if meth_types.is_static {

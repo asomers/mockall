@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 ### Changed
+
+- Better panic messages when an expectation fails its expected call count.
+  ([#33](https://github.com/asomers/mockall/pull/33))
+
 ### Fixed
 
 - Methods returning non-`'static` references (mutable or otherwise) will now

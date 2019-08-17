@@ -10,7 +10,8 @@ mock!{
 }
 
 #[test]
-#[should_panic(expected = "Expectation called fewer than 1 times")]
+#[should_panic(expected =
+    "MockFoo::bar: Expectation called fewer than 1 times")]
 fn checkpoint() {
     let mut mock = MockFoo::new();
     MockFoo::expect_bar()
