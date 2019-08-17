@@ -426,7 +426,8 @@ fn mock_function(vis: &Visibility,
         Span::call_site());
     let mut out = TokenStream::new();
     Expectation::new(&TokenStream::new(), &inputs, None, generics,
-        &mod_ident, None, &decl.output, &expect_vis).to_tokens(&mut out);
+        &ident, &mod_ident, None, &decl.output, &expect_vis)
+        .to_tokens(&mut out);
     quote!(
         ::mockall::lazy_static! {
             static ref #obj: ::std::sync::Mutex<#expect_obj> = 

@@ -1272,6 +1272,7 @@ impl From<RangeToInclusive<usize>> for TimesRange {
 pub struct Times{
     /// How many times has the expectation already been called?
     count: AtomicUsize,
+    name: String,
     range: TimesRange
 }
 
@@ -1280,10 +1281,12 @@ impl Times {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
         if count >= self.range.0.end {
             if self.range.0.end == 1 {
-                panic!("Expectation should not have been called");
+                panic!("{}: Expectation should not have been called",
+                       self.name);
             } else {
                 let lim = self.range.0.end - 1;
-                panic!("Expectation called more than {} times", lim);
+                panic!("{}: Expectation called more than {} times", self.name,
+                       lim);
             }
         }
     }
@@ -1320,6 +1323,15 @@ impl Times {
         self.range.0 = 0..1;
     }
 
+    pub fn new<S: Into<String>>(name: S) -> Times {
+        // By default, allow any number of calls
+        Times {
+            count: AtomicUsize::default(),
+            name: name.into(),
+            range: TimesRange::default(),
+        }
+    }
+
     pub fn range(&mut self, range: Range<usize>) {
         assert!(range.end > range.start, "Backwards range");
         self.range.0 = range;
@@ -1330,20 +1342,12 @@ impl Times {
     }
 }
 
-impl Default for Times {
-    fn default() -> Self {
-        // By default, allow any number of calls
-        let count = AtomicUsize::default();
-        let range = TimesRange::default();
-        Times{count, range}
-    }
-}
-
 impl Drop for Times {
     fn drop(&mut self) {
         let count = self.count.load(Ordering::Relaxed);
         if !thread::panicking() && (count < self.range.0.start) {
-            panic!("Expectation called fewer than {} times",
+            panic!("{}: Expectation called fewer than {} times",
+                   self.name,
                    self.range.0.start);
         }
     }

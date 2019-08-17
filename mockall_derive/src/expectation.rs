@@ -51,10 +51,14 @@ struct Common<'a> {
     /// Types used for Predicates.  Will be almost the same as args, but every
     /// type will be a non-reference type.
     predty: Vec<Type>,
-    /// name of the expectation's private module
+    /// name of the original method
     meth_ident: &'a Ident,
+    /// name of the expectation's private module
+    mod_ident: &'a Ident,
     /// Output type of the Method, supersuperfied.
     output: Type,
+    /// Identifier of the parent structure, if any
+    parent_ident: Option<&'a Ident>,
     /// Visibility of the expectation
     /// TODO: supersuperfy it here rather than in the caller
     vis: Visibility
@@ -280,7 +284,12 @@ impl<'a> Expectation<'a> {
     pub(crate) fn gen(&self) -> TokenStream {
         let argnames = &self.common().argnames;
         let attrs = &self.common().attrs;
-        let ident = &self.common().meth_ident;
+        let ident = &self.common().mod_ident;
+        let ident_str = if let Some(pi) = self.common().parent_ident {
+            format!("{}::{}", pi, self.common().meth_ident)
+        } else {
+            format!("{}", self.common().meth_ident)
+        };
         let extra_uses = self.extra_uses();
         let fn_params = &self.common().fn_params;
         let predty = &self.common().predty;
@@ -385,7 +394,7 @@ impl<'a> Expectation<'a> {
                     Common {
                         matcher: Mutex::new(Matcher::default()),
                         seq_handle: None,
-                        times: ::mockall::Times::default()
+                        times: ::mockall::Times::new(#ident_str)
                     }
                 }
             }
@@ -496,6 +505,7 @@ impl<'a> Expectation<'a> {
     ///                       slightly different than on the original method.
     /// * `struct_generics` - Generics of the parent struct, if any.
     /// * `meth_generics`   - Generics of the method being mocked
+    /// * `mod_ident`       - Name of the expectaton's private module
     /// * `meth_ident`      - Name of the original method
     /// * `parent_ident`    - Name of the parent struct, if any.
     /// * `return_type`     - Return type of the mock method
@@ -506,7 +516,8 @@ impl<'a> Expectation<'a> {
         struct_generics: Option<&'a Generics>,
         meth_generics: &'a Generics,
         meth_ident: &'a Ident,
-        parent_ident: Option<&Ident>,
+        mod_ident: &'a Ident,
+        parent_ident: Option<&'a Ident>,
         return_type: &ReturnType,
         vis: &Visibility) -> Self
     {
@@ -592,7 +603,9 @@ impl<'a> Expectation<'a> {
             predexprs,
             predty,
             meth_ident,
+            mod_ident,
             output,
+            parent_ident,
             vis: vis.clone()
         };
         if ref_mut_expectation {
