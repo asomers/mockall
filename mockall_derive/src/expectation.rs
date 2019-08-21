@@ -921,309 +921,317 @@ impl<'a> StaticExpectation<'a> {
         ltgenerics.params.push(GenericParam::Lifetime(ltdef));
         let (lt_ig, lt_tg, lt_wc) = ltgenerics.split_for_impl();
 
-        let mut ts = quote!(
-            /// Like an [`&Expectation`](struct.Expectation.html) but protected
-            /// by a Mutex guard.  Useful for mocking static methods.  Forwards
-            /// accesses to an `Expectation` object.
-            // We must return the MutexGuard to the caller so he can configure
-            // the expectation.  But we can't bundle both the guard and the
-            // &Expectation into the same structure; the borrow checker won't
-            // let us.  Instead we'll record the expectation's position within
-            // the Expectations vector so we can proxy its methods.
-            //
-            // ExpectationGuard is only defined for expectations that return
-            // 'static return types.
-            #v struct ExpectationGuard #lt_ig #lt_wc {
-                guard: MutexGuard<'__mockall_lt, Expectations #tg>,
-                i: usize
-            }
-
-            impl #lt_ig ExpectationGuard #lt_tg #lt_wc
-            {
-                /// Just like
-                /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
-                #v fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
-                    -> &mut Expectation #tg
-                {
-                    self.guard.0[self.i].in_sequence(__mockall_seq)
-                }
-
-                /// Just like
-                /// [`Expectation::never`](struct.Expectation.html#method.never)
-                #v fn never(&mut self) -> &mut Expectation #tg {
-                    self.guard.0[self.i].never()
-                }
-
-                // Should only be called from the mockall_derive generated code
-                #[doc(hidden)]
-                #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, Expectations #tg>)
-                    -> Self
-                {
-                    __mockall_guard.expect(); // Drop the &Expectation
-                    let __mockall_i = __mockall_guard.0.len() - 1;
-                    ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
-                }
-
-                /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
-                #v fn once(&mut self) -> &mut Expectation #tg {
-                    self.guard.0[self.i].once()
-                }
-
-                /// Just like
-                /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
-                    -> &mut Expectation #tg
-                    where MockallF: FnMut(#(#argty, )*) -> #output + Send + 'static
-                {
-                    self.guard.0[self.i].returning(__mockall_f)
-                }
-
-                /// Just like
-                /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-                #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
-                    -> &mut Expectation #tg
-                    where MockallF: FnOnce(#(#argty, )*) -> #output + Send + 'static
-                {
-                    self.guard.0[self.i].return_once(__mockall_f)
-                }
-
-                /// Just like
-                /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
-                    -> &mut Expectation #tg
-                    where MockallF: FnMut(#(#argty, )*) -> #output + 'static
-                {
-                    self.guard.0[self.i].returning_st(__mockall_f)
-                }
-
-                /// Just like
-                /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #v fn times<MockallR>(&mut self, __mockall_r: MockallR)
-                    -> &mut Expectation #tg
-                    where MockallR: Into<::mockall::TimesRange>
-                {
-                    self.guard.0[self.i].times(__mockall_r)
-                }
-
-                /// Just like
-                /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
-                #[deprecated(since = "0.3.0", note = "Use times instead")]
-                #v fn times_any(&mut self) -> &mut Expectation #tg {
-                    self.guard.0[self.i].times(..)
-                }
-
-                /// Just like
-                /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
-                #[deprecated(since = "0.3.0", note = "Use times instead")]
-                #v fn times_range(&mut self, __mockall_range: Range<usize>)
-                    -> &mut Expectation #tg
-                {
-                    self.guard.0[self.i].times(__mockall_range)
-                }
-
-                /// Just like
-                /// [`Expectation::with`](struct.Expectation.html#method.with)
-                #v fn with<#with_generics> (&mut self, #with_args)
-                    -> &mut Expectation #tg
-                {
-                    self.guard.0[self.i].with(#(#argnames, )*)
-                }
-
-                /// Just like
-                /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #v fn withf<MockallF>(&mut self, __mockall_f: MockallF)
-                    -> &mut Expectation #tg
-                    where MockallF: Fn(#(&#predty, )*) -> bool + Send + 'static
-                {
-                    self.guard.0[self.i].withf(__mockall_f)
-                }
-            }
-        );
-
         if !self.common.is_generic() {
-            return ts;
-        }
-
-        quote!(
-            /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html) but for
-            /// generic methods.
-            #v struct GenericExpectationGuard #lt_ig #lt_wc{
-                guard: MutexGuard<'__mockall_lt, GenericExpectations>,
-                i: usize,
-                _phantom: ::std::marker::PhantomData<(#fn_params)>,
-            }
-
-            impl #lt_ig GenericExpectationGuard #lt_tg #lt_wc
-            {
-                /// Just like
-                /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
-                #v fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
-                    -> &mut Expectation #tg
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .in_sequence(__mockall_seq)
+            quote!(
+                /// Like an [`&Expectation`](struct.Expectation.html) but
+                /// protected by a Mutex guard.  Useful for mocking static
+                /// methods.  Forwards accesses to an `Expectation` object.
+                // We must return the MutexGuard to the caller so he can
+                // configure the expectation.  But we can't bundle both the
+                // guard and the &Expectation into the same structure; the
+                // borrow checker won't let us.  Instead we'll record the
+                // expectation's position within the Expectations vector so we
+                // can proxy its methods.
+                //
+                // ExpectationGuard is only defined for expectations that return
+                // 'static return types.
+                #v struct ExpectationGuard #lt_ig #lt_wc {
+                    guard: MutexGuard<'__mockall_lt, Expectations #tg>,
+                    i: usize
                 }
 
-                /// Just like
-                /// [`Expectation::never`](struct.Expectation.html#method.never)
-                #v fn never(&mut self) -> &mut Expectation #tg {
+                impl #lt_ig ExpectationGuard #lt_tg #lt_wc
+                {
+                    /// Just like
+                    /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
+                    #v fn in_sequence(&mut self,
+                        __mockall_seq: &mut ::mockall::Sequence)
+                        -> &mut Expectation #tg
+                    {
+                        self.guard.0[self.i].in_sequence(__mockall_seq)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::never`](struct.Expectation.html#method.never)
+                    #v fn never(&mut self) -> &mut Expectation #tg {
+                        self.guard.0[self.i].never()
+                    }
+
+                    // Should only be called from the mockall_derive generated
+                    // code
+                    #[doc(hidden)]
+                    #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, Expectations #tg>)
+                        -> Self
+                    {
+                        __mockall_guard.expect(); // Drop the &Expectation
+                        let __mockall_i = __mockall_guard.0.len() - 1;
+                        ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
+                    }
+
+                    /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
+                    #v fn once(&mut self) -> &mut Expectation #tg {
+                        self.guard.0[self.i].once()
+                    }
+
+                    /// Just like
+                    /// [`Expectation::returning`](struct.Expectation.html#method.returning)
+                    #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
+                        -> &mut Expectation #tg
+                        where MockallF: FnMut(#(#argty, )*)
+                            -> #output + Send + 'static
+                    {
+                        self.guard.0[self.i].returning(__mockall_f)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
+                    #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
+                        -> &mut Expectation #tg
+                        where MockallF: FnOnce(#(#argty, )*) -> #output + Send + 'static
+                    {
+                        self.guard.0[self.i].return_once(__mockall_f)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
+                    #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
+                        -> &mut Expectation #tg
+                        where MockallF: FnMut(#(#argty, )*) -> #output + 'static
+                    {
+                        self.guard.0[self.i].returning_st(__mockall_f)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::times`](struct.Expectation.html#method.times)
+                    #v fn times<MockallR>(&mut self, __mockall_r: MockallR)
+                        -> &mut Expectation #tg
+                        where MockallR: Into<::mockall::TimesRange>
+                    {
+                        self.guard.0[self.i].times(__mockall_r)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
+                    #[deprecated(since = "0.3.0", note = "Use times instead")]
+                    #v fn times_any(&mut self) -> &mut Expectation #tg {
+                        self.guard.0[self.i].times(..)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
+                    #[deprecated(since = "0.3.0", note = "Use times instead")]
+                    #v fn times_range(&mut self, __mockall_range: Range<usize>)
+                        -> &mut Expectation #tg
+                    {
+                        self.guard.0[self.i].times(__mockall_range)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::with`](struct.Expectation.html#method.with)
+                    #v fn with<#with_generics> (&mut self, #with_args)
+                        -> &mut Expectation #tg
+                    {
+                        self.guard.0[self.i].with(#(#argnames, )*)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::withf`](struct.Expectation.html#method.withf)
+                    #v fn withf<MockallF>(&mut self, __mockall_f: MockallF)
+                        -> &mut Expectation #tg
+                        where MockallF: Fn(#(&#predty, )*) -> bool + Send + 'static
+                    {
+                        self.guard.0[self.i].withf(__mockall_f)
+                    }
+                }
+            )
+        } else {
+            quote!(
+                /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html)
+                /// but for generic methods.
+                #v struct ExpectationGuard #lt_ig #lt_wc{
+                    guard: MutexGuard<'__mockall_lt, GenericExpectations>,
+                    i: usize,
+                    _phantom: ::std::marker::PhantomData<(#fn_params)>,
+                }
+
+                impl #lt_ig ExpectationGuard #lt_tg #lt_wc
+                {
+                    /// Just like
+                    /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
+                    #v fn in_sequence(&mut self,
+                        __mockall_seq: &mut ::mockall::Sequence)
+                        -> &mut Expectation #tg
+                    {
                         self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .never()
-                }
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .in_sequence(__mockall_seq)
+                    }
 
-                #[doc(hidden)]
-                #v fn new(mut guard: MutexGuard<'__mockall_lt, GenericExpectations>)
-                    -> Self
-                {
-                    let __mockall_ee: &mut Expectations #tg =
-                        guard.store.entry(::mockall::Key::new::<(#(#argty, )*)>())
-                        .or_insert_with(||
-                            Box::new(Expectations #tbf ::new()))
-                        .downcast_mut()
-                        .unwrap();
-                    __mockall_ee.expect();    // Drop the &Expectation
-                    let __mockall_i = __mockall_ee.0.len() - 1;
-                    GenericExpectationGuard{guard, i: __mockall_i,
-                        _phantom: ::std::marker::PhantomData}
-                }
+                    /// Just like
+                    /// [`Expectation::never`](struct.Expectation.html#method.never)
+                    #v fn never(&mut self) -> &mut Expectation #tg {
+                            self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .never()
+                    }
 
-                /// Just like
-                /// [`Expectation::once`](struct.Expectation.html#method.once)
-                #v fn once(&mut self) -> &mut Expectation #tg {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .once()
-                }
+                    #[doc(hidden)]
+                    #v fn new(mut guard: MutexGuard<'__mockall_lt, GenericExpectations>)
+                        -> Self
+                    {
+                        let __mockall_ee: &mut Expectations #tg =
+                            guard.store.entry(
+                                ::mockall::Key::new::<(#(#argty, )*)>()
+                            ).or_insert_with(||
+                                Box::new(Expectations #tbf ::new()))
+                            .downcast_mut()
+                            .unwrap();
+                        __mockall_ee.expect();    // Drop the &Expectation
+                        let __mockall_i = __mockall_ee.0.len() - 1;
+                        ExpectationGuard{guard, i: __mockall_i,
+                            _phantom: ::std::marker::PhantomData}
+                    }
 
-                /// Just like
-                /// [`Expectation::returning`](struct.Expectation.html#method.returning)
-                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #tg
-                    where MockallF: FnMut(#(#argty, )*) -> #output + Send + 'static
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .returning(__mockall_f)
-                }
+                    /// Just like
+                    /// [`Expectation::once`](struct.Expectation.html#method.once)
+                    #v fn once(&mut self) -> &mut Expectation #tg {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .once()
+                    }
 
-                /// Just like
-                /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
-                #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #tg
-                    where MockallF: FnOnce(#(#argty, )*) -> #output + Send + 'static
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .return_once(__mockall_f)
-                }
+                    /// Just like
+                    /// [`Expectation::returning`](struct.Expectation.html#method.returning)
+                    #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
+                        -> &mut Expectation #tg
+                        where MockallF: FnMut(#(#argty, )*)
+                            -> #output + Send + 'static
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .returning(__mockall_f)
+                    }
 
-                /// Just like
-                /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
-                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #tg
-                    where MockallF: FnMut(#(#argty, )*) -> #output + 'static
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .returning_st(__mockall_f)
-                }
+                    /// Just like
+                    /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
+                    #v fn return_once<MockallF>(&mut self,
+                        __mockall_f: MockallF) -> &mut Expectation #tg
+                        where MockallF: FnOnce(#(#argty, )*)
+                            -> #output + Send + 'static
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .return_once(__mockall_f)
+                    }
 
-                /// Just like
-                /// [`Expectation::times`](struct.Expectation.html#method.times)
-                #v fn times<MockallR>(&mut self, __mockall_r: MockallR)
-                    -> &mut Expectation #tg
-                    where MockallR: Into<::mockall::TimesRange>
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .times(__mockall_r)
-                }
+                    /// Just like
+                    /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
+                    #v fn returning_st<MockallF>(&mut self,
+                        __mockall_f: MockallF) -> &mut Expectation #tg
+                        where MockallF: FnMut(#(#argty, )*) -> #output + 'static
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .returning_st(__mockall_f)
+                    }
 
-                /// Just like
-                /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
-                #[deprecated(since = "0.3.0", note = "Use times instead")]
-                #v fn times_any(&mut self) -> &mut Expectation #tg {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .times(..)
-                }
+                    /// Just like
+                    /// [`Expectation::times`](struct.Expectation.html#method.times)
+                    #v fn times<MockallR>(&mut self, __mockall_r: MockallR)
+                        -> &mut Expectation #tg
+                        where MockallR: Into<::mockall::TimesRange>
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .times(__mockall_r)
+                    }
 
-                /// Just like
-                /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
-                #[deprecated(since = "0.3.0", note = "Use times instead")]
-                #v fn times_range(&mut self, __mockall_range: Range<usize>)
-                    -> &mut Expectation #tg
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .times(__mockall_range)
-                }
+                    /// Just like
+                    /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
+                    #[deprecated(since = "0.3.0", note = "Use times instead")]
+                    #v fn times_any(&mut self) -> &mut Expectation #tg {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .times(..)
+                    }
 
-                /// Just like
-                /// [`Expectation::with`](struct.Expectation.html#method.with)
-                #v fn with<#with_generics> (&mut self, #with_args)
-                    -> &mut Expectation #tg
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .with(#(#argnames, )*)
-                }
+                    /// Just like
+                    /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
+                    #[deprecated(since = "0.3.0", note = "Use times instead")]
+                    #v fn times_range(&mut self, __mockall_range: Range<usize>)
+                        -> &mut Expectation #tg
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .times(__mockall_range)
+                    }
 
-                /// Just like
-                /// [`Expectation::withf`](struct.Expectation.html#method.withf)
-                #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #tg
-                    where MockallF: Fn(#(&#predty, )*) -> bool + Send + 'static
-                {
-                    self.guard.store.get_mut(
-                            &::mockall::Key::new::<(#(#argty, )*)>()
-                        ).unwrap()
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .0[self.i]
-                        .withf(__mockall_f)
+                    /// Just like
+                    /// [`Expectation::with`](struct.Expectation.html#method.with)
+                    #v fn with<#with_generics> (&mut self, #with_args)
+                        -> &mut Expectation #tg
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .with(#(#argnames, )*)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::withf`](struct.Expectation.html#method.withf)
+                    #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #tg
+                        where MockallF: Fn(#(&#predty, )*) -> bool + Send + 'static
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .withf(__mockall_f)
+                    }
                 }
-            }
-        ).to_tokens(&mut ts);
-        ts
+            )
+        }
     }
 }
 
