@@ -300,16 +300,10 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         let merged_g = merge_generics(&generics, &g);
         let (ig, _, _) = g.split_for_impl();
         let (_, tg, _) = merged_g.split_for_impl();
-        let guard_name = if !meth_types.is_expectation_generic {
-            format_ident!("ExpectationGuard")
-        } else {
-            format_ident!("GenericExpectationGuard")
-        };
         quote!(#attrs #docstr #expect_vis fn #expect_ident #ig()
-               -> #mod_ident::#ident::#guard_name #tg
-               #wc
+               -> #mod_ident::#ident::ExpectationGuard #tg #wc
             {
-                #mod_ident::#ident::#guard_name::new(#name.lock().unwrap())
+                #mod_ident::#ident::ExpectationGuard::new(#name.lock().unwrap())
             }
         )
     } else {
