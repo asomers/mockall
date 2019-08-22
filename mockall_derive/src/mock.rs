@@ -36,6 +36,7 @@ impl Mock {
             let mut sub_cp_body = TokenStream::new();
             let sub_mock = format_ident!("{}_{}", &self.name, &trait_.ident);
             let sub_struct = format_ident!("{}_expectations", &trait_.ident);
+            let mod_ident = gen_mod_ident(&self.name, Some(&trait_.ident));
             let methods = trait_.items.iter().filter_map(|item| {
                 if let syn::TraitItem::Method(m) = item {
                     Some(tim2iim(m, &self.vis))
@@ -51,8 +52,7 @@ impl Mock {
             for meth in methods {
                 has_new |= meth.borrow().sig.ident == "new";
                 let generics = merge_generics(&self.generics, &trait_.generics);
-                let (_, _, cp) = gen_mock_method(Some(&mock_mod_ident),
-                                                 &mock_sub_name,
+                let (_, _, cp) = gen_mock_method(Some(&mod_ident),
                                                  &meth.attrs[..],
                                                  &meth.vis, &meth.vis,
                                                  &meth.borrow().sig, None,
@@ -71,7 +71,6 @@ impl Mock {
         for meth in self.methods.iter() {
             has_new |= meth.sig.ident == "new";
             let (mm, em, cp) = gen_mock_method(Some(&mock_mod_ident),
-                                               &mock_struct_name,
                                                &meth.attrs[..],
                                                &meth.vis, &meth.vis,
                                                &meth.sig, None,
@@ -183,7 +182,6 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
 ///
 /// * `mod_ident`:      Name of the module that contains the expectation! macro,
 ///                     like __mock_Foo
-/// * `mock_ident`:     Name of the mock structure, like MockFoo
 /// * `meth_attrs`:     Any attributes on the original method, like #[inline]
 /// * `meth_vis`:       Visibility of the original method
 /// * `expect_vis`:     Desired visiblity of the expect_XXX method
@@ -193,7 +191,6 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
 /// * `generics`:       Generics of the method's parent trait or structure,
 ///                     _not_ the method itself.
 fn gen_mock_method(mod_ident: Option<&syn::Ident>,
-                   mock_ident: &syn::Ident,
                    meth_attrs: &[syn::Attribute],
                    meth_vis: &syn::Visibility,
                    expect_vis: &syn::Visibility,
@@ -227,20 +224,11 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
             .to_tokens(&mut mock_output);
     }
 
-    let sub_name = if let Some(s) = sub {
-        format!("{}_", s)
-    } else {
-        "".to_string()
-    };
     let expectation = &meth_types.expectation;
     let call = &meth_types.call;
     let call_exprs = &meth_types.call_exprs;
     let mut args = Vec::new();
-    let expect_obj_name = if meth_types.is_static {
-        let name = format_ident!("{}_{}{}_expectation", mock_ident, sub_name,
-                                 ident);
-        quote!(#name)
-    } else if let Some(s) = sub {
+    let expect_obj_name = if let Some(s) = sub {
         let sub_struct = format_ident!("{}_expectations", s);
         quote!(self.#sub_struct.#ident)
     } else {
@@ -268,7 +256,8 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let call_turbofish = tg.as_turbofish();
     if meth_types.is_static {
         quote!({
-            #expect_obj_name.lock().unwrap().#call#call_turbofish(#call_exprs)
+            #mod_ident::#ident::EXPECTATIONS.lock().unwrap()
+            .#call#call_turbofish(#call_exprs)
         })
     } else {
         quote!({
@@ -287,8 +276,6 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     #[cfg(any(test, not(feature = "extra-docs")))]
     let docstr: Option<syn::Attribute> = None;
     if meth_types.is_static {
-        let name = format_ident!("{}_{}{}_expectation", mock_ident, sub_name,
-                                 sig.ident);
         let lt = syn::Lifetime::new("'guard", Span::call_site());
         let ltd = syn::LifetimeDef::new(lt);
         let mut g = meth_types.expectation_generics.clone();
@@ -303,7 +290,8 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         quote!(#attrs #docstr #expect_vis fn #expect_ident #ig()
                -> #mod_ident::#ident::ExpectationGuard #tg #wc
             {
-                #mod_ident::#ident::ExpectationGuard::new(#name.lock().unwrap())
+                #mod_ident::#ident::ExpectationGuard::new(
+                    #mod_ident::#ident::EXPECTATIONS.lock().unwrap())
             }
         )
     } else {
@@ -318,7 +306,8 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     // Finally this method's contribution to the checkpoint method
     if meth_types.is_static {
         quote!(#attrs {
-            let _timeses = #expect_obj_name.lock().unwrap().checkpoint()
+            let _timeses = #mod_ident::#ident::EXPECTATIONS.lock().unwrap()
+                .checkpoint()
                 .collect::<Vec<_>>();
         })
     } else {
@@ -341,7 +330,6 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
     let ident = gen_mock_ident(&ident);
     let mut body = TokenStream::new();
     let mut mod_body = TokenStream::new();
-    let mut statics = TokenStream::new();
     let mut default_body = TokenStream::new();
 
     // Make Expectation fields for each method
@@ -377,20 +365,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
                          meth_ident, meth_ident, Some(&mock_ident), output,
                          &expect_vis).to_tokens(&mut mod_body);
 
-        if meth_types.is_static {
-            // lazy_static doesn't work with #[allow(non_upper_case_globals)],
-            // so we need to generate the name with a bogus span, which
-            // suppresses that warning.
-            // https://github.com/rust-lang-nursery/lazy-static.rs/issues/153
-            let mut name = format_ident!("{}_{}_expectation", ident,
-                                         method_ident);
-            name.set_span(Span::call_site());
-            quote!(
-                #attrs ::mockall::lazy_static! {
-                static ref #name: ::std::sync::Mutex<#mod_ident::#expect_obj> =
-                   ::std::sync::Mutex::new(#mod_ident::#expectations::new());
-            }).to_tokens(&mut statics);
-        } else {
+        if !meth_types.is_static {
             quote!(#attrs #method_ident: #mod_ident::#expect_obj,)
                 .to_tokens(&mut body);
             quote!(#attrs #method_ident: #mod_ident::#expectations::default(),)
@@ -437,7 +412,6 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             #body
         }
     ).to_tokens(&mut output);
-    statics.to_tokens(&mut output);
     quote!(impl #ig ::std::default::Default for #ident #tg #wc {
         fn default() -> Self {
             Self {
@@ -479,7 +453,6 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
                 let generics = merge_generics(&struct_generics, &item.generics);
                 let (mock_meth, expect_meth, _cp) = gen_mock_method(
                     Some(&mod_ident),
-                    &mock_ident,
                     &meth.attrs[..],
                     &syn::Visibility::Inherited,
                     vis,

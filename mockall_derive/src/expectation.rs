@@ -923,6 +923,11 @@ impl<'a> StaticExpectation<'a> {
 
         if !self.common.is_generic() {
             quote!(
+                ::mockall::lazy_static! {
+                    #v static ref EXPECTATIONS:
+                        ::std::sync::Mutex<Expectations> =
+                        ::std::sync::Mutex::new(Expectations::new());
+                }
                 /// Like an [`&Expectation`](struct.Expectation.html) but
                 /// protected by a Mutex guard.  Useful for mocking static
                 /// methods.  Forwards accesses to an `Expectation` object.
@@ -1046,6 +1051,11 @@ impl<'a> StaticExpectation<'a> {
             )
         } else {
             quote!(
+                ::mockall::lazy_static! {
+                    #v static ref EXPECTATIONS:
+                        ::std::sync::Mutex<GenericExpectations> =
+                        ::std::sync::Mutex::new(GenericExpectations::new());
+                }
                 /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html)
                 /// but for generic methods.
                 #v struct ExpectationGuard #lt_ig #lt_wc{
