@@ -818,7 +818,7 @@
 //! # fn main() {
 //! let ctx = MockFoo::<u32>::new_context();
 //! ctx.expect()
-//!     .returning(|_: u32| MockFoo::default());
+//!     .returning(|_| MockFoo::default());
 //! let mock = MockFoo::<u32>::new(42u32);
 //! # }
 //! ```

@@ -432,7 +432,7 @@ fn mock_function(vis: &Visibility, sig: &Signature) -> TokenStream {
         }
         #meth_vis fn #context_ident() -> #mod_ident::Context
         {
-            #mod_ident::Context{}
+            #mod_ident::Context::default()
         }
     ).to_tokens(&mut out);
     out

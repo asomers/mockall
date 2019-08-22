@@ -288,10 +288,11 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         #[cfg(any(test, not(feature = "extra-docs")))]
         let docstr: Option<syn::Attribute> = None;
         let context_ident = format_ident!("{}_context", ident);
+        let (_, ctx_tg, _) = generics.split_for_impl();
         quote!(#attrs #docstr #expect_vis fn #context_ident()
-               -> #mod_ident::#ident::Context
+               -> #mod_ident::#ident::Context #ctx_tg
             {
-                #mod_ident::#ident::Context{}
+                #mod_ident::#ident::Context::default()
             }
         )
     } else {

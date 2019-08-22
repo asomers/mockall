@@ -42,6 +42,10 @@ struct Common<'a> {
     attrs: &'a TokenStream,
     /// The expectation's generic types as a list of types
     fn_params: Punctuated<Ident, Token![,]>,
+    /// Generics of the parent struct
+    struct_generics: Option<&'a Generics>,
+    /// Generics of the method
+    meth_generics: &'a Generics,
     /// Generics of the Expectation object
     egenerics: Generics,
     /// Is this for a static method or free function?
@@ -597,6 +601,8 @@ impl<'a> Expectation<'a> {
             argty,
             attrs,
             fn_params,
+            struct_generics,
+            meth_generics,
             egenerics,
             is_static,
             predexprs,
@@ -916,17 +922,42 @@ impl<'a> StaticExpectation<'a> {
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
 
+        let gd = Generics::default();
+        let (s_ig, s_tg, s_wc) = self.common.struct_generics.unwrap_or(&gd)
+            .split_for_impl();
+
         // Add a lifetime parameter, needed by MutexGuard
-        let mut ltgenerics = self.common.egenerics.clone();
+        let mut meth_generics = self.common.meth_generics.clone();
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
-        ltgenerics.params.push(GenericParam::Lifetime(ltdef));
-        let (lt_ig, lt_tg, lt_wc) = ltgenerics.split_for_impl();
+        meth_generics.params.push(GenericParam::Lifetime(ltdef));
+        let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
+
+        let mut e_generics = self.common.egenerics.clone();
+        let ltdef = LifetimeDef::new(
+            Lifetime::new("'__mockall_lt", Span::call_site())
+        );
+        e_generics.params.push(GenericParam::Lifetime(ltdef));
+        let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
+
+        let ctx_fn_params = match self.common.struct_generics {
+            None => Punctuated::new(),
+            Some(g) => Punctuated::<Ident, Token![,]>::from_iter(
+                g.type_params().map(|tp| tp.ident.clone())
+            )
+        };
 
         let context_ts = quote!(
-            #v struct Context {}
-            impl Context {
+            #v struct Context #s_ig #s_wc {
+                // Prevent "unused type parameter" errors
+                // Surprisingly, PhantomData<Fn(generics)> is Send even if
+                // generics are not, unlike PhantomData<generics>
+                _phantom: ::std::marker::PhantomData<
+                    Box<dyn Fn(#ctx_fn_params) -> () + Send>
+                >
+            }
+            impl #s_ig Context #s_tg #s_wc {
                 #v fn checkpoint(&self) {
                     Self::do_checkpoint()
                 }
@@ -939,14 +970,18 @@ impl<'a> StaticExpectation<'a> {
                         .collect::<Vec<_>>();
                 }
 
-                // TODO: separate struct generics from method generics, so this
-                // method can be invoked with the turbofish of the method
-                // generics alone.
-                #v fn expect #lt_ig ( &self,) -> ExpectationGuard #lt_tg #lt_wc{
+                #v fn expect #meth_ig ( &self,) -> ExpectationGuard #e_tg
+                    #meth_wc
+                {
                     ExpectationGuard::new(EXPECTATIONS.lock().unwrap())
                 }
             }
-            impl Drop for Context {
+            impl #s_ig Default for Context #s_tg #s_wc {
+                fn default() -> Self {
+                    Context {_phantom: std::marker::PhantomData}
+                }
+            }
+            impl #s_ig Drop for Context #s_tg #s_wc {
                 fn drop(&mut self) {
                     if !std::thread::panicking() {
                         Self::do_checkpoint()
@@ -973,12 +1008,12 @@ impl<'a> StaticExpectation<'a> {
                 //
                 // ExpectationGuard is only defined for expectations that return
                 // 'static return types.
-                #v struct ExpectationGuard #lt_ig #lt_wc {
+                #v struct ExpectationGuard #e_ig #e_wc {
                     guard: MutexGuard<'__mockall_lt, Expectations #tg>,
                     i: usize
                 }
 
-                impl #lt_ig ExpectationGuard #lt_tg #lt_wc
+                impl #e_ig ExpectationGuard #e_tg #e_wc
                 {
                     /// Just like
                     /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
@@ -1094,13 +1129,13 @@ impl<'a> StaticExpectation<'a> {
                 /// [`&GenericExpectation`](struct.GenericExpectation.html) but
                 /// protected by a Mutex guard.  Useful for mocking static
                 /// methods.  Forwards accesses to an `Expectation` object.
-                #v struct ExpectationGuard #lt_ig #lt_wc{
+                #v struct ExpectationGuard #e_ig #e_wc{
                     guard: MutexGuard<'__mockall_lt, GenericExpectations>,
                     i: usize,
                     _phantom: ::std::marker::PhantomData<(#fn_params)>,
                 }
 
-                impl #lt_ig ExpectationGuard #lt_tg #lt_wc
+                impl #e_ig ExpectationGuard #e_tg #e_wc
                 {
                     /// Just like
                     /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
