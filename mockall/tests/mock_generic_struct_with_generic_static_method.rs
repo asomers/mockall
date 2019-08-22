@@ -23,8 +23,8 @@ fn checkpoint() {
 
     let mut mock = MockFoo::<u32>::new();
     let ctx = MockFoo::<u32>::foo_context();
-    ctx.expect()
-        .returning(|_: u32, _: i16| 0)
+    ctx.expect::<i16>()
+        .returning(|_, _| 0)
         .times(1..3);
     mock.checkpoint();
     panic!("Shouldn't get here!");
@@ -38,8 +38,8 @@ fn ctx_checkpoint() {
     let _m = BAR_MTX.lock();
 
     let ctx = MockFoo::<u32>::foo_context();
-    ctx.expect()
-        .returning(|_: u32, _: i16| 0)
+    ctx.expect::<i16>()
+        .returning(|_, _| 0)
         .times(1..3);
     ctx.checkpoint();
     panic!("Shouldn't get here!");
@@ -53,8 +53,8 @@ fn ctx_hygiene() {
 
     {
         let ctx0 = MockFoo::<u32>::foo_context();
-        ctx0.expect()
-            .returning(|_: u32, _: i16| 0);
+        ctx0.expect::<i16>()
+            .returning(|_, _| 0);
     }
     MockFoo::foo(42, 69);
 }
@@ -65,7 +65,7 @@ fn return_default() {
     let _m = BAR_MTX.lock();
 
     let ctx = MockFoo::<u32>::foo_context();
-    ctx.expect::<u32, i16>();
+    ctx.expect::<i16>();
     MockFoo::foo(5u32, 6i16);
 }
 
@@ -74,8 +74,8 @@ fn returning() {
     let _m = BAR_MTX.lock();
 
     let ctx = MockFoo::<u32>::foo_context();
-    ctx.expect()
-        .returning(|_: u32, _: i16| 0);
+    ctx.expect::<i16>()
+        .returning(|_, _| 0);
     MockFoo::foo(41u32, 42i16);
 }
 
@@ -84,10 +84,10 @@ fn two_matches() {
     let _m = BAR_MTX.lock();
 
     let ctx = MockFoo::<u32>::foo_context();
-    ctx.expect()
+    ctx.expect::<i16>()
         .with(predicate::eq(42u32), predicate::eq(0i16))
         .return_const(99u64);
-    ctx.expect()
+    ctx.expect::<i16>()
         .with(predicate::eq(69u32), predicate::eq(0i16))
         .return_const(101u64);
     assert_eq!(101, MockFoo::foo(69u32, 0i16));
@@ -99,8 +99,8 @@ fn with() {
     let _m = BAR_MTX.lock();
 
     let ctx = MockFoo::<u32>::foo_context();
-    ctx.expect()
+    ctx.expect::<i16>()
         .with(predicate::eq(42u32), predicate::eq(99i16))
-        .returning(|_: u32, _: i16| 0);
+        .returning(|_, _| 0);
     MockFoo::foo(42u32, 99i16);
 }
