@@ -16,7 +16,8 @@ mock! {
 
 #[test]
 fn returning() {
-    MockFoo::expect_make_g::<i16>()
+    let ctx = MockFoo::make_g_context();
+    ctx.expect::<i16>()
         .returning(|t| G{t});
     let g = MockFoo::make_g(42i16);
     assert_eq!(g.t, 42i16);

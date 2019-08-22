@@ -26,7 +26,8 @@ impl Foo {
 
 #[test]
 fn returning() {
-    MockFoo::expect_open().returning(|| {
+    let ctx = MockFoo::open_context();
+    ctx.expect().returning(|| {
         struct Baz {}
         impl Future for Baz {
             type Item=MockFoo;

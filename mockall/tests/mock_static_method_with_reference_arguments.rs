@@ -10,7 +10,8 @@ mock!{
 
 #[test]
 fn with() {
-    MockFoo::expect_bar()
+    let ctx = MockFoo::bar_context();
+    ctx.expect()
         .with(predicate::eq(42))
         .return_const(99u64);
     assert_eq!(99, MockFoo::bar(&42));

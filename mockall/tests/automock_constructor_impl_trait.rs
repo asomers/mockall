@@ -22,7 +22,8 @@ impl A {
 
 #[test]
 fn returning() {
-    MockA::expect_build().returning(|| {
+    let ctx = MockA::build_context();
+    ctx.expect().returning(|| {
         struct Baz {}
         impl Foo for Baz {}
         Box::new(Baz{})

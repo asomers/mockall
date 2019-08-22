@@ -14,8 +14,8 @@ mock! {
 
 #[test]
 fn returning() {
-    MockFoo::expect_bar::<i16>()
-        .returning(|x| vec![x]);
+    let ctx = MockFoo::bar_context();
+    ctx.expect::<i16>().returning(|x| vec![x]);
     let v = MockFoo::bar(42i16);
     assert_eq!(v[0], 42i16);
 }

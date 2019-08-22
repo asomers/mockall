@@ -10,7 +10,8 @@ trait Foo {
 
 #[test]
 fn returning_once() {
-    MockFoo::expect_build::<i16>()
+    let ctx = MockFoo::build_context();
+    ctx.expect::<i16>()
         .return_once(|_| MockFoo::default());
 
     let _mock: MockFoo = MockFoo::build::<i16>(-1);

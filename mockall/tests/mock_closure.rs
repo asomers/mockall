@@ -58,7 +58,8 @@ mod returning {
 
     #[test]
     fn static_method() {
-        MockFoo::expect_bean()
+        let ctx = MockFoo::bean_context();
+        ctx.expect()
             .returning(|f| f(42));
         assert_eq!(84, MockFoo::bean(|x| 2 * x));
     }

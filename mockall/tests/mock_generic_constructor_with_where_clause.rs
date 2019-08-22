@@ -12,7 +12,8 @@ mock! {
 
 #[test]
 fn returning_once() {
-    MockFoo::<i16>::expect_build()
+    let ctx = MockFoo::<i16>::build_context();
+    ctx.expect()
         .return_once(MockFoo::<i16>::default);
 
     let _mock: MockFoo<i16> = MockFoo::<i16>::build();

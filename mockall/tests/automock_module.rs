@@ -20,7 +20,8 @@ cfg_if! {
 
             #[test]
             fn returning() {
-                mock_foo::expect_bar()
+                let ctx = mock_foo::bar_context();
+                ctx.expect()
                     .returning(|x| i64::from(x) + 1);
                 assert_eq!(5, mock_foo::bar(4));
             }

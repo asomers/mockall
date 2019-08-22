@@ -784,16 +784,15 @@ impl<'a> StaticExpectation<'a> {
                 /// Simulate calling the real method.  Every current expectation
                 /// will be checked in FIFO order and the first one with
                 /// matching arguments will be used.
-                #v fn call(&self, #(#argnames: #argty, )* ) -> #output
+                #v fn call(&self, #(#argnames: #argty, )* ) -> Option<#output>
                 {
-                    match self.0.iter()
+                    self.0.iter()
                         .find(|__mockall_e|
                               __mockall_e.matches(#(#predexprs, )*) &&
                               (!__mockall_e.is_done() || self.0.len() == 1))
-                    {
-                        None => panic!("No matching expectation found"),
-                        Some(__mockall_e) => __mockall_e.call(#(#argnames, )*)
-                    }
+                        .map(move |__mockall_e|
+                             __mockall_e.call(#(#argnames, )*)
+                        )
                 }
 
             }
@@ -819,13 +818,17 @@ impl<'a> StaticExpectation<'a> {
         quote!(
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #v fn call #ig (&self, #(#argnames: #argty, )* ) -> #output #wc
+                #v fn call #ig (&self, #(#argnames: #argty, )* )
+                    -> Option<#output> #wc
                 {
                     self.store.get(&::mockall::Key::new::<(#(#argty, )*)>())
-                        .expect("No matching expectation found")
-                        .downcast_ref::<Expectations #tg>()
-                        .unwrap()
-                        .call(#(#argnames, )*)
+                        .map(|__mockall_e| {
+                            __mockall_e.downcast_ref::<Expectations #tg>()
+                            .unwrap()
+                            .call(#(#argnames, )*)
+                        // TODO: use Option::flatten once it stabilizes
+                        // https://github.com/rust-lang/rust/issues/60258
+                        }).and_then(std::convert::identity)
                 }
 
                 /// Create a new Expectation.
@@ -921,6 +924,36 @@ impl<'a> StaticExpectation<'a> {
         ltgenerics.params.push(GenericParam::Lifetime(ltdef));
         let (lt_ig, lt_tg, lt_wc) = ltgenerics.split_for_impl();
 
+        let context_ts = quote!(
+            #v struct Context {}
+            impl Context {
+                #v fn checkpoint(&self) {
+                    Self::do_checkpoint()
+                }
+                #[doc(hidden)]
+                #v fn do_checkpoint() {
+                    let __mockall_timeses = EXPECTATIONS
+                        .lock()
+                        .unwrap()
+                        .checkpoint()
+                        .collect::<Vec<_>>();
+                }
+
+                // TODO: separate struct generics from method generics, so this
+                // method can be invoked with the turbofish of the method
+                // generics alone.
+                #v fn expect #lt_ig ( &self,) -> ExpectationGuard #lt_tg #lt_wc{
+                    ExpectationGuard::new(EXPECTATIONS.lock().unwrap())
+                }
+            }
+            impl Drop for Context {
+                fn drop(&mut self) {
+                    if !std::thread::panicking() {
+                        Self::do_checkpoint()
+                    }
+                }
+            }
+        );
         if !self.common.is_generic() {
             quote!(
                 ::mockall::lazy_static! {
@@ -1048,6 +1081,7 @@ impl<'a> StaticExpectation<'a> {
                         self.guard.0[self.i].withf(__mockall_f)
                     }
                 }
+                #context_ts
             )
         } else {
             quote!(
@@ -1056,8 +1090,10 @@ impl<'a> StaticExpectation<'a> {
                         ::std::sync::Mutex<GenericExpectations> =
                         ::std::sync::Mutex::new(GenericExpectations::new());
                 }
-                /// Like a [`ExpectationGuard`](struct.ExpectationGuard.html)
-                /// but for generic methods.
+                /// Like an
+                /// [`&GenericExpectation`](struct.GenericExpectation.html) but
+                /// protected by a Mutex guard.  Useful for mocking static
+                /// methods.  Forwards accesses to an `Expectation` object.
                 #v struct ExpectationGuard #lt_ig #lt_wc{
                     guard: MutexGuard<'__mockall_lt, GenericExpectations>,
                     i: usize,
@@ -1240,6 +1276,7 @@ impl<'a> StaticExpectation<'a> {
                             .withf(__mockall_f)
                     }
                 }
+                #context_ts
             )
         }
     }
@@ -1309,15 +1346,14 @@ impl<'a> RefExpectation<'a> {
                 /// Simulate calling the real method.  Every current expectation
                 /// will be checked in FIFO order and the first one with
                 /// matching arguments will be used.
-                #v fn call(&self, #(#argnames: #argty,)* ) -> &#output {
-                    match self.0.iter()
+                #v fn call(&self, #(#argnames: #argty,)* ) -> Option<&#output> {
+                    self.0.iter()
                         .find(|__mockall_e|
                               __mockall_e.matches(#(#predexprs, )*) &&
                               (!__mockall_e.is_done() || self.0.len() == 1))
-                    {
-                        None => panic!("No matching expectation found"),
-                        Some(__mockall_e) => __mockall_e.call(#(#argnames, )*)
-                    }
+                        .map(move |__mockall_e|
+                             __mockall_e.call(#(#argnames, )*)
+                        )
                 }
             }
             // The Senc + Sync are required for downcast, since Expectation
@@ -1341,13 +1377,17 @@ impl<'a> RefExpectation<'a> {
         quote!(
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #v fn call #ig (&self, #(#argnames: #argty,)*) -> &#output
+                #v fn call #ig (&self, #(#argnames: #argty,)*)
+                    -> Option<&#output>
                 {
                     self.store.get(&::mockall::Key::new::<(#(#argty, )*)>())
-                        .expect("No matching expectation found")
-                        .downcast_ref::<Expectations #tg>()
-                        .unwrap()
-                        .call(#(#argnames, )*)
+                        .map(|__mockall_e| {
+                            __mockall_e.downcast_ref::<Expectations #tg>()
+                            .unwrap()
+                            .call(#(#argnames, )*)
+                        // TODO: use Option::flatten once it stabilizes
+                        // https://github.com/rust-lang/rust/issues/60258
+                        }).and_then(std::convert::identity)
                 }
 
                 /// Create a new Expectation.
@@ -1519,16 +1559,17 @@ impl<'a> RefMutExpectation<'a> {
                 /// Simulate calling the real method.  Every current expectation
                 /// will be checked in FIFO order and the first one with
                 /// matching arguments will be used.
-                #v fn call_mut(&mut self, #(#argnames: #argty, )* ) -> &mut #output {
+                #v fn call_mut(&mut self, #(#argnames: #argty, )* )
+                    -> Option<&mut #output>
+                {
                     let __mockall_n = self.0.len();
-                    match self.0.iter_mut()
+                    self.0.iter_mut()
                         .find(|__mockall_e|
                               __mockall_e.matches(#(#predexprs, )*) &&
                               (!__mockall_e.is_done() || __mockall_n == 1))
-                    {
-                        None => panic!("No matching expectation found"),
-                        Some(__mockall_e) => __mockall_e.call_mut(#(#argnames, )*)
-                    }
+                        .map(move |__mockall_e|
+                             __mockall_e.call_mut(#(#argnames, )*)
+                        )
                 }
             }
             // The Senc + Sync are required for downcast, since Expectation
@@ -1552,14 +1593,17 @@ impl<'a> RefMutExpectation<'a> {
         quote!(
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #v fn call_mut #ig
-                    (&mut self, #(#argnames: #argty, )* ) -> &mut #output
+                #v fn call_mut #ig (&mut self, #(#argnames: #argty, )* )
+                    -> Option<&mut #output>
                 {
                     self.store.get_mut(&::mockall::Key::new::<(#(#argty, )*)>())
-                        .expect("No matching expectation found")
-                        .downcast_mut::<Expectations #tg>()
-                        .unwrap()
-                        .call_mut(#(#argnames, )*)
+                        .map(|__mockall_e| {
+                            __mockall_e.downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .call_mut(#(#argnames, )*)
+                        // TODO: use Option::flatten once it stabilizes
+                        // https://github.com/rust-lang/rust/issues/60258
+                        }).and_then(std::convert::identity)
                 }
 
                 /// Create a new Expectation.

@@ -12,6 +12,7 @@ extern "C" {
 
 #[test]
 fn returning() {
-    mock_ffi::expect_foo().returning(|| ());
+    let ctx = mock_ffi::foo_context();
+    ctx.expect().returning(|| ());
     unsafe{mock_ffi::foo()};
 }

@@ -12,7 +12,8 @@ trait Foo<T: 'static> {
 fn return_once() {
     let mock = MockFoo::<u32>::default();
 
-    MockFoo::<u32>::expect_new()
+    let ctx = MockFoo::<u32>::new_context();
+    ctx.expect()
         .return_once(move |_| mock);
 
     let _mock = MockFoo::new(5u32);

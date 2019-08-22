@@ -10,6 +10,7 @@ extern "C" {
 
 #[test]
 fn returning() {
-    mock_ffi::expect_foo().returning(i64::from);
+    let ctx = mock_ffi::foo_context();
+    ctx.expect().returning(i64::from);
     assert_eq!(42, unsafe{mock_ffi::foo(42)});
 }

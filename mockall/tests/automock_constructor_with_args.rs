@@ -16,8 +16,9 @@ impl Foo {
 #[test]
 fn return_once() {
     let mock = MockFoo::default();
+    let ctx = MockFoo::new_context();
 
-    MockFoo::expect_new()
+    ctx.expect()
         .return_once(|_| mock);
 
     let _mock = MockFoo::new(5);

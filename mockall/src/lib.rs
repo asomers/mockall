@@ -755,7 +755,9 @@
 //!
 //! Mockall can also mock static methods.  But be careful!  The expectations are
 //! global.  If you want to use a static method in multiple tests, you must
-//! provide your own synchronization.
+//! provide your own synchronization.  For ordinary methods, expectations are
+//! set on the mock object.  But static methods don't have any mock object.
+//! Instead, you must create a `Context` object just to set their expectations.
 //!
 //! ```
 //! # use mockall::*;
@@ -764,7 +766,8 @@
 //!     fn foo() -> u32;
 //! }
 //!
-//! MockA::expect_foo().returning(|| 99);
+//! let ctx = MockA::foo_context();
+//! ctx.expect().returning(|| 99);
 //! assert_eq!(99, MockA::foo());
 //! ```
 //!
@@ -787,7 +790,8 @@
 //! }
 //!
 //! # fn main() {
-//! MockFoo::expect_from_i32()
+//! let ctx = MockFoo::from_i32_context();
+//! ctx.expect()
 //!     .returning(|x| {
 //!         let mut mock = MockFoo::default();
 //!         mock.expect_foo()
@@ -812,10 +816,48 @@
 //! }
 //!
 //! # fn main() {
-//! MockFoo::<u32>::expect_new()
-//!     .returning(|_| MockFoo::default());
+//! let ctx = MockFoo::<u32>::new_context();
+//! ctx.expect()
+//!     .returning(|_: u32| MockFoo::default());
 //! let mock = MockFoo::<u32>::new(42u32);
 //! # }
+//! ```
+//!
+//! ### Context checkpoints
+//!
+//! The context object cleans up all expectations when it leaves scope.  It also
+//! has a `checkpoint` method that functions just like a mock object's
+//! `checkpoint` method.
+//!
+//! ```should_panic
+//! # use mockall::*;
+//! #[automock]
+//! pub trait A {
+//!     fn foo() -> u32;
+//! }
+//!
+//! let ctx = MockA::foo_context();
+//! ctx.expect()
+//!     .times(1)
+//!     .returning(|| 99);
+//! ctx.checkpoint();   // Panics!
+//! ```
+//!
+//! A mock object's checkpoint method works for static methods, too.
+//!
+//! ```should_panic
+//! # use mockall::*;
+//! #[automock]
+//! pub trait A {
+//!     fn foo() -> u32;
+//! }
+//!
+//! let mut mock = MockA::new();
+//! let ctx = MockA::foo_context();
+//! ctx.expect()
+//!     .times(1)
+//!     .returning(|| 99);
+//! mock.checkpoint();  // Also panics!
 //! ```
 //!
 //! One more thing: Mockall normally creates a zero-argument `new` method for
@@ -860,7 +902,8 @@
 //!
 //!     #[test]
 //!     fn test_foo() {
-//!         ffi::mock::expect_foo()
+//!         let ctx = ffi::mock::foo_context();
+//!         ctx.expect()
 //!             .returning(|x| i64::from(x + 1));
 //!         assert_eq!(43, do_stuff());
 //!     }
