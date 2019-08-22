@@ -13,7 +13,8 @@ mock! {
 
 #[test]
 fn returning() {
-    MockFoo::<u32>::expect_foo()
-        .returning(|_| ());
+    let ctx = MockFoo::<u32>::foo_context();
+    ctx.expect()
+        .returning(|_: u32| ());
     MockFoo::foo(42u32);
 }

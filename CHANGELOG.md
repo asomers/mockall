@@ -9,6 +9,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Methods with closure arguments and where clauses can now be mocked.
   ([#35](https://github.com/asomers/mockall/pull/35))
 
+- Mocked static methods and free functions now use a Context object to manage
+  their expectations.  The context object will validate call counts when it
+  drops, and clean up any leftover expectations.  This makes it practical to
+  use mocked free functions from multiple test cases.  The user still will most
+  likely need to provide his own synchronization to prevent such test cases
+  from running concurrently.
+  ([#34](https://github.com/asomers/mockall/pull/34))
+
 ### Changed
 
 - Better panic messages when an expectation fails its expected call count.

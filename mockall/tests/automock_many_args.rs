@@ -47,7 +47,8 @@ fn return_var() {
 
 #[test]
 fn static_method_returning() {
-    MockManyArgs::expect_bean()
+    let ctx = MockManyArgs::bean_context();
+    ctx.expect()
         .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
     MockManyArgs::bean(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }

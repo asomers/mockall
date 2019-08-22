@@ -10,6 +10,7 @@ pub trait A {
 
 #[test]
 fn returning() {
-    MockA::expect_new().returning(|| Box::new(MockA::default()));
+    let ctx = MockA::new_context();
+    ctx.expect().returning(|| Box::new(MockA::default()));
     let _a: Box<MockA> = <MockA as A>::new();
 }

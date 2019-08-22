@@ -16,7 +16,8 @@ mock! {
 fn returning_once() {
     let mock = MockFoo::default();
 
-    MockFoo::expect_new()
+    let ctx = MockFoo::new_context();
+    ctx.expect()
         .return_once(|_| mock);
 
     let _mock = MockFoo::new(5);

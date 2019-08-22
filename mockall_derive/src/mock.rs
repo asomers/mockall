@@ -256,45 +256,54 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let call_turbofish = tg.as_turbofish();
     if meth_types.is_static {
         quote!({
-            #mod_ident::#ident::EXPECTATIONS.lock().unwrap()
-            .#call#call_turbofish(#call_exprs)
+            {
+                let __mockall_guard = #mod_ident::#ident::EXPECTATIONS
+                    .lock().unwrap();
+                /*
+                 * TODO: catch panics, then gracefully release the mutex so it
+                 * won't be poisoned.  This requires bounding any generic
+                 * parameters with UnwindSafe
+                 */
+                /* std::panic::catch_unwind(|| */
+                __mockall_guard.#call #call_turbofish(#call_exprs)
+                /*)*/
+            }.expect("No matching expectation found")
+            /*}.unwrap()*/
         })
     } else {
         quote!({
             #expect_obj_name.#call#call_turbofish(#call_exprs)
+            .expect("No matching expectation found")
         })
     }.to_tokens(&mut mock_output);
 
     // Then the expectation method
-    let expect_ident = format_ident!("expect_{}", ident);
-    #[cfg(all(not(test),feature = "extra-docs"))]
-    let docstr = {
-        let inner_ds = format!("Create an [`Expectation`]({}/{}/struct.Expectation.html) for the `{}` method",
-            quote!(#mod_ident), ident, ident);
-        quote!( #[doc = #inner_ds])
-    };
-    #[cfg(any(test, not(feature = "extra-docs")))]
-    let docstr: Option<syn::Attribute> = None;
     if meth_types.is_static {
-        let lt = syn::Lifetime::new("'guard", Span::call_site());
-        let ltd = syn::LifetimeDef::new(lt);
-        let mut g = meth_types.expectation_generics.clone();
-        g.params.push(syn::GenericParam::Lifetime(ltd.clone()));
-        if g.lt_token.is_none() {
-            g.lt_token = Some(Token![<](Span::call_site()));
-            g.gt_token = Some(Token![>](Span::call_site()));
-        }
-        let merged_g = merge_generics(&generics, &g);
-        let (ig, _, _) = g.split_for_impl();
-        let (_, tg, _) = merged_g.split_for_impl();
-        quote!(#attrs #docstr #expect_vis fn #expect_ident #ig()
-               -> #mod_ident::#ident::ExpectationGuard #tg #wc
+        #[cfg(all(not(test),feature = "extra-docs"))]
+        let docstr = {
+            let inner_ds = format!("Create a [`Context`]({}/{}/struct.Context.html) for mocking the `{}` method",
+                quote!(#mod_ident), ident, ident);
+            quote!( #[doc = #inner_ds])
+        };
+        #[cfg(any(test, not(feature = "extra-docs")))]
+        let docstr: Option<syn::Attribute> = None;
+        let context_ident = format_ident!("{}_context", ident);
+        quote!(#attrs #docstr #expect_vis fn #context_ident()
+               -> #mod_ident::#ident::Context
             {
-                #mod_ident::#ident::ExpectationGuard::new(
-                    #mod_ident::#ident::EXPECTATIONS.lock().unwrap())
+                #mod_ident::#ident::Context{}
             }
         )
     } else {
+        #[cfg(all(not(test),feature = "extra-docs"))]
+        let docstr = {
+            let inner_ds = format!("Create an [`Expectation`]({}/{}/struct.Expectation.html) for mocking the `{}` method",
+                quote!(#mod_ident), ident, ident);
+            quote!( #[doc = #inner_ds])
+        };
+        #[cfg(any(test, not(feature = "extra-docs")))]
+        let docstr: Option<syn::Attribute> = None;
+        let expect_ident = format_ident!("expect_{}", ident);
         quote!(#attrs #docstr #expect_vis fn #expect_ident #ig(&mut self)
                -> &mut #mod_ident::#expectation
                #wc

@@ -15,7 +15,8 @@ mock!{
 
 #[test]
 fn returning() {
-    MockFoo::expect_baz()
+    let ctx = MockFoo::baz_context();
+    ctx.expect()
         .returning(|x| u64::from(x + 1));
     assert_eq!(42, MockFoo::baz(41));
 }

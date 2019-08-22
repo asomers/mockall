@@ -14,6 +14,7 @@ mock! {
 
 #[test]
 fn returning() {
-    MockFoo::expect_bar::<i16>().returning(|_| ());
+    let ctx = MockFoo::bar_context();
+    ctx.expect::<i16>().returning(|_| ());
     MockFoo::bar(0i16)
 }

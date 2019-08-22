@@ -10,7 +10,8 @@ trait A {
 
 #[test]
 fn returning() {
-    MockA::expect_bar::<i16>()
+    let ctx = MockA::bar_context();
+    ctx.expect::<i16>()
         .returning(|_| 42);
     assert_eq!(42, MockA::bar(-1i16));
 }

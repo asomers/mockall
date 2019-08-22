@@ -329,10 +329,12 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
     for item in foreign_mod.items {
         match item {
             ForeignItem::Fn(f) => {
-                let obj = format_ident!("{}_expectation", &f.sig.ident);
+                let mod_ident = format_ident!("__{}", &f.sig.ident);
                 quote!(
-                    let _timeses = #obj.lock().unwrap().checkpoint()
-                    .collect::<Vec<_>>();
+                    let __mockall_timeses = #mod_ident::EXPECTATIONS.lock()
+                        .unwrap()
+                        .checkpoint()
+                        .collect::<Vec<_>>();
                 ).to_tokens(&mut cp_body);
                 mock_foreign_function(f).to_tokens(&mut body);
             },
@@ -401,37 +403,36 @@ fn mock_function(vis: &Visibility, sig: &Signature) -> TokenStream {
     }
 
     let meth_vis = expectation_visibility(&vis, 1);
-    let expect_obj = &meth_types.expect_obj;
-    let expect_ident = format_ident!("expect_{}", &ident);
+    let context_ident = format_ident!("{}_context", &ident);
     let expect_vis = expectation_visibility(&vis, 2);
     let mut g = generics.clone();
     let lt = Lifetime::new("'guard", Span::call_site());
     let ltd = LifetimeDef::new(lt);
     g.params.push(GenericParam::Lifetime(ltd.clone()));
 
-    // lazy_static doesn't work with #[allow(non_upper_case_globals)], so we
-    // need to generate the name with a bogus span, which suppresses that
-    // warning.
-    // https://github.com/rust-lang-nursery/lazy-static.rs/issues/153
-    let mut obj = format_ident!("{}_expectation", ident);
-    obj.set_span(Span::call_site());
     let mut out = TokenStream::new();
     Expectation::new(&TokenStream::new(), &inputs, None, generics,
         &ident, &mod_ident, None, &sig.output, &expect_vis)
         .to_tokens(&mut out);
     quote!(
-        ::mockall::lazy_static! {
-            static ref #obj: ::std::sync::Mutex<#expect_obj> = 
-                ::std::sync::Mutex::new(#mod_ident::Expectations::<#generics>::new());
-        }
         #meth_vis #constness #unsafety #asyncness
         #fn_token #ident #generics (#inputs) #output {
-            #obj.lock().unwrap().call(#(#args),*)
+            {
+                let __mockall_guard = #mod_ident::EXPECTATIONS
+                    .lock().unwrap();
+                /*
+                 * TODO: catch panics, then gracefully release the mutex so it
+                 * won't be poisoned.  This requires bounding any generic
+                 * parameters with UnwindSafe
+                 */
+                /* std::panic::catch_unwind(|| */
+                __mockall_guard.call(#(#args),*)
+                /*)*/
+            }.expect("No matching expectation found")
         }
-        #meth_vis fn #expect_ident #g()
-               -> #mod_ident::ExpectationGuard<#ltd, #generics>
+        #meth_vis fn #context_ident() -> #mod_ident::Context
         {
-            #mod_ident::ExpectationGuard::<#generics>::new(#obj.lock().unwrap())
+            #mod_ident::Context{}
         }
     ).to_tokens(&mut out);
     out
@@ -552,10 +553,12 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
             },
             Item::Const(ic) => ic.to_tokens(&mut body),
             Item::Fn(f) => {
-                let obj = format_ident!("{}_expectation", &f.sig.ident);
+                let mod_ident = format_ident!("__{}", &f.sig.ident);
                 quote!(
-                    let _timeses = #obj.lock().unwrap().checkpoint()
-                    .collect::<Vec<_>>();
+                    let __mockall_timeses = #mod_ident::EXPECTATIONS.lock()
+                        .unwrap()
+                        .checkpoint()
+                        .collect::<Vec<_>>();
                 ).to_tokens(&mut cp_body);
                 mock_native_function(&f).to_tokens(&mut body);
             },
