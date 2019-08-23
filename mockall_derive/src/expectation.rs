@@ -353,6 +353,12 @@ impl<'a> Expectation<'a> {
         let boxed_withargs = TokenStream::from_iter(
             argnames.iter().map(|aa| quote!(Box::new(#aa), ))
         );
+        let braces = argnames.iter().map(|_| "{}").collect::<Vec<_>>();
+        let indices = (0..argnames.len())
+            .map(|i| {
+                let idx = syn::Index::from(i);
+                idx
+            }).collect::<Vec<_>>();
         let matcher_ts = quote!(
             enum Matcher #ig #wc {
                 Func(Box<dyn Fn(#refpredty) -> bool + Send>),
@@ -393,6 +399,22 @@ impl<'a> Expectation<'a> {
                     Matcher::Func(Box::new(|#(#argnames, )*| true))
                 }
             }
+
+            impl #ig ::std::fmt::Display for Matcher #tg #wc {
+                fn fmt(&self, __mockall_fmt: &mut ::std::fmt::Formatter<'_>)
+                    -> ::std::fmt::Result
+                {
+                    match self {
+                        Matcher::Func(_) => write!(__mockall_fmt, "TODO"),
+                        Matcher::Pred(__mockall_p) => {
+                            write!(__mockall_fmt, concat!(#(#braces,)*),
+                                #(__mockall_p.#indices,)*)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+
             /// Holds the stuff that is independent of the output type
             struct Common #ig #wc {
                 matcher: Mutex<Matcher #tg>,
