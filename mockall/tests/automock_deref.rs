@@ -13,6 +13,7 @@ trait Foo {
     fn alias(&self) -> &str;
     fn desc(&self) -> &OsStr;
     fn path(&self) -> &Path;
+    fn text(&self) -> &'static str;
 }
 
 mod return_const {
@@ -50,5 +51,13 @@ mod return_const {
         let mut mock = MockFoo::new();
         mock.expect_alias().return_const("abcd".to_owned());
         assert_eq!("abcd", mock.alias());
+    }
+
+    #[test]
+    fn static_str() {
+        const TEXT: &'static str = "abcd";
+        let mut mock = MockFoo::new();
+        mock.expect_text().return_const(TEXT);
+        assert_eq!("abcd", mock.text());
     }
 }

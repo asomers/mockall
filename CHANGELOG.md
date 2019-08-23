@@ -24,6 +24,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Fixed mocking methods that return `'static` deref types, like `&'static str`
+  ([#39](https://github.com/asomers/mockall/pull/39))
+
 - Methods returning non-`'static` references (mutable or otherwise) will now
   return a default value if no return value is set, if the output type
   implements `Default` and the `nightly` feature is enabled.  This more closely
