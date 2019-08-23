@@ -84,41 +84,78 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
 {
     let mut hm = HashMap::new();
 
-    // First remove any Fn types from the Generics
-    let params = Punctuated::from_iter(gen.params.iter().filter_map(|g|
+    let mut save_fn_types = |ident: &Ident, tpb: &TypeParamBound| {
+        if let TypeParamBound::Trait(tb) = tpb {
+            let fident = &tb.path.segments.last().unwrap().value().ident;
+            if ["Fn", "FnMut", "FnOnce"].iter().any(|s| fident == *s) {
+                let newty: Type = parse2(quote!(Box<dyn #tb>)).unwrap();
+                let subst_ty: Type = parse2(quote!(#ident)).unwrap();
+                assert!(hm.insert(subst_ty, newty).is_none(),
+                    "A generic parameter had two Fn bounds?");
+            }
+        }
+    };
+
+    // First, build a HashMap of all Fn generic types
+    for g in gen.params.iter() {
         if let GenericParam::Type(tp) = g {
-            if tp.bounds.iter().all(|tpb| {
-                if let TypeParamBound::Trait(tb) = tpb {
-                    let ident = &tb.path.segments.last().unwrap().value().ident;
-                    if ["Fn", "FnMut", "FnOnce"].iter().any(|s| ident == *s) {
-                        let newty: Type = parse2(quote!(Box<dyn #tb>)).unwrap();
-                        let ident = &tp.ident;
-                        let subst_ty: Type = parse2(quote!(#ident)).unwrap();
-                        assert!(hm.insert(subst_ty, newty).is_none(),
-                            "A generic parameter had two Fn bounds?");
-                        assert!(gen.where_clause.is_none(),
-                            "Methods with both closures and where clauses are TODO");
-                        false
-                    } else {
-                        true
+            for tpb in tp.bounds.iter() {
+                save_fn_types(&tp.ident, tpb);
+            }
+        }
+    }
+    if let Some(wc) = &gen.where_clause {
+        for pred in wc.predicates.iter() {
+            if let WherePredicate::Type(pt) = pred {
+                let bounded_ty = &pt.bounded_ty;
+                if let Ok(ident) = parse2::<Ident>(quote!(#bounded_ty)) {
+                    for tpb in pt.bounds.iter() {
+                        save_fn_types(&ident, tpb);
                     }
                 } else {
+                    // We can't yet handle where clauses this complicated
+                }
+            }
+        }
+    }
+
+    // Then remove those types from both the Generics' params and where clause
+    let should_remove = |ident: &Ident| {
+            let ty: Type = parse2(quote!(#ident)).unwrap();
+            if hm.contains_key(&ty) {
+                true
+            } else {
+                false
+            }
+    };
+    let params = Punctuated::from_iter(gen.params.iter().filter(|g| {
+        if let GenericParam::Type(tp) = g {
+            !should_remove(&tp.ident)
+        } else {
+            true
+        }
+    }).cloned());
+    let mut wc2 = gen.where_clause.clone();
+    if let Some(wc) = &mut wc2 {
+        wc.predicates = Punctuated::from_iter(wc.predicates.iter().filter(|wp| {
+            if let WherePredicate::Type(pt) = wp {
+                let bounded_ty = &pt.bounded_ty;
+                if let Ok(ident) = parse2::<Ident>(quote!(#bounded_ty)) {
+                    !should_remove(&ident)
+                } else {
+                    // We can't yet handle where clauses this complicated
                     true
                 }
-            }) {
-                Some(g)
             } else {
-                None
+                true
             }
-        } else {
-            Some(g)
-        }
-    ).cloned());
+        }).cloned());
+    }
     let outg = Generics {
         lt_token: if params.is_empty() { None } else { gen.lt_token.clone() },
         gt_token: if params.is_empty() { None } else { gen.gt_token.clone() },
         params,
-        where_clause: gen.where_clause.clone()
+        where_clause: wc2
     };
 
     // Next substitute Box<Fn> into the arguments

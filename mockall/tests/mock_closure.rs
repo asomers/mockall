@@ -14,6 +14,8 @@ mock!{
         fn bean<F: Fn(u32) -> u32 + 'static>(f: F) -> u32;
         // Not technically a closure, but it should work too
         fn bang(&self, f: fn(u32) -> u32) -> u32;
+        // Identical to foo, but it uses a where clause
+        fn food<F>(&self, f: F) -> u32 where F: Fn(u32) -> u32 + 'static;
     }
 }
 
@@ -60,4 +62,13 @@ mod returning {
             .returning(|f| f(42));
         assert_eq!(84, MockFoo::bean(|x| 2 * x));
     }
+
+    #[test]
+    fn where_clause() {
+        let mut mock = MockFoo::new();
+        mock.expect_food()
+            .returning(|f| f(42));
+        assert_eq!(84, mock.food(|x| 2 * x));
+    }
+
 }
