@@ -528,9 +528,9 @@ impl<'a> Expectation<'a> {
         let mut predexprs = Vec::new();
         let mut predty = Vec::new();
         for fa in args.iter() {
-            if let FnArg::Captured(ac) = fa {
-                let argname = ac.pat.clone();
-                let aty = supersuperfy(&ac.ty);
+            if let FnArg::Typed(pt) = fa {
+                let argname = (*pt.pat).clone();
+                let aty = supersuperfy(&pt.ty);
                 if let Type::Reference(ref tr) = aty {
                     predexprs.push(quote!(#argname));
                     predty.push((*tr.elem).clone());

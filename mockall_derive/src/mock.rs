@@ -58,7 +58,7 @@ impl Mock {
                 let generics = merge_generics(&self.generics, &trait_.generics);
                 let (_, _, cp) = gen_mock_method(Some(&mock_mod_ident),
                                                  &mock_sub_name,
-                                                 &meth.borrow().attrs[..],
+                                                 &meth.attrs[..],
                                                  &meth.vis, &meth.vis,
                                                  &meth.borrow().sig, None,
                                                  &generics);
@@ -77,7 +77,7 @@ impl Mock {
             has_new |= meth.sig.ident == "new";
             let (mm, em, cp) = gen_mock_method(Some(&mock_mod_ident),
                                                &mock_struct_name,
-                                               &meth.borrow().attrs[..],
+                                               &meth.attrs[..],
                                                &meth.vis, &meth.vis,
                                                &meth.sig, None,
                                                &self.generics);
@@ -173,7 +173,7 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
     let mut out = TokenStream::new();
     for attr in attrs {
         if attr.path.segments.len() == 1 &&
-           attr.path.segments.first().unwrap().value().ident == "doc"
+           attr.path.segments.first().unwrap().ident == "doc"
         {
             // Discard doc attributes from the mock object.  They cause a bunch
             // of warnings.
@@ -204,12 +204,12 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
                    meth_attrs: &[syn::Attribute],
                    meth_vis: &syn::Visibility,
                    expect_vis: &syn::Visibility,
-                   sig: &syn::MethodSig,
+                   sig: &syn::Signature,
                    sub: Option<&syn::Ident>,
                    generics: &syn::Generics)
     -> (TokenStream, TokenStream, TokenStream)
 {
-    assert!(sig.decl.variadic.is_none(),
+    assert!(sig.variadic.is_none(),
         "MockAll does not yet support variadic functions");
     let mut mock_output = TokenStream::new();
     let mut expect_output = TokenStream::new();
@@ -218,7 +218,7 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let unsafety = sig.unsafety;
     let asyncness = sig.asyncness;
     let abi = &sig.abi;
-    let fn_token = &sig.decl.fn_token;
+    let fn_token = &sig.fn_token;
     let ident = &sig.ident;
     let meth_types = method_types(sig, Some(generics));
     let merged_g = merge_generics(&generics, &meth_types.expectation_generics);
@@ -228,7 +228,7 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
 
     // First the mock method
     {
-        let (ig, _, wc) = sig.decl.generics.split_for_impl();
+        let (ig, _, wc) = sig.generics.split_for_impl();
         quote!(#attrs #meth_vis #constness #unsafety #asyncness #abi
                #fn_token #ident #ig (#inputs) #output #wc)
             .to_tokens(&mut mock_output);
@@ -257,14 +257,12 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     };
     for p in inputs.iter() {
         match p {
-            syn::FnArg::SelfRef(_) | syn::FnArg::SelfValue(_) => {
+            syn::FnArg::Receiver(_) => {
                 // Don't output the "self" argument
             },
-            syn::FnArg::Captured(arg) => {
+            syn::FnArg::Typed(arg) => {
                 args.push(arg.pat.clone());
             },
-            _ => compile_error(p.span(),
-                "Should be unreachable for normal Rust code")
         }
     }
 

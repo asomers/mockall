@@ -1,6 +1,6 @@
 // vim: tw=80
 use super::*;
-use quote::ToTokens;
+use quote::{ToTokens, format_ident};
 use std::{
     collections::HashMap,
     env
@@ -38,8 +38,8 @@ struct Attrs {
 impl Attrs {
     fn get_path(&self, path: &Path) -> Option<Type> {
         if path.leading_colon.is_none() & (path.segments.len() == 2) {
-            if path.segments.first().unwrap().value().ident == "Self" {
-                let ident = &path.segments.last().unwrap().value().ident;
+            if path.segments.first().unwrap().ident == "Self" {
+                let ident = &path.segments.last().unwrap().ident;
                 self.attrs.get(ident).cloned()
             } else {
                 None
@@ -110,7 +110,7 @@ impl Attrs {
                     } else {
                         panic!("QSelf's type isn't a path?")
                     };
-                    let qident = &qp.segments.first().unwrap().value().ident;
+                    let qident = &qp.segments.first().unwrap().ident;
                     if qself.position != 1
                         || qp.segments.len() != 1
                         || path.path.segments.len() != 2
@@ -155,7 +155,8 @@ impl Attrs {
             },
             Type::Infer(_) | Type::Never(_) => {
                 /* Nothing to do */
-            }
+            },
+            _ => compile_error(ty.span(), "Unsupported type"),
         }
     }
 
@@ -195,13 +196,13 @@ impl Attrs {
                     }
                 },
                 TraitItem::Method(method) => {
-                    let decl = &mut method.sig.decl;
-                    for fn_arg in decl.inputs.iter_mut() {
-                        if let FnArg::Captured(arg) = fn_arg {
+                    let sig = &mut method.sig;
+                    for fn_arg in sig.inputs.iter_mut() {
+                        if let FnArg::Typed(arg) = fn_arg {
                             self.substitute_type(&mut arg.ty);
                         }
                     }
-                    if let ReturnType::Type(_, ref mut ty) = &mut decl.output {
+                    if let ReturnType::Type(_, ref mut ty) = &mut sig.output {
                         self.substitute_type(ty);
                     }
                 },
@@ -269,7 +270,7 @@ fn filter_generics(g: &Generics, path_args: &PathArguments)
                             if let GenericArgument::Type(
                                 Type::Path(type_path)) = ga
                             {
-                                type_path.path.is_ident(tp.ident.clone())
+                                type_path.path.is_ident(&tp.ident)
                             } else {
                                 false
                             }
@@ -314,7 +315,7 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
             return (Ident::new("", path.span()), PathArguments::None);
         }
         let last_seg = path.segments.last().unwrap();
-        (last_seg.value().ident.clone(), last_seg.value().arguments.clone())
+        (last_seg.ident.clone(), last_seg.arguments.clone())
 }
 
 fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
@@ -328,9 +329,7 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
     for item in foreign_mod.items {
         match item {
             ForeignItem::Fn(f) => {
-                let obj = Ident::new(
-                    &format!("{}_expectation", &f.ident),
-                    Span::call_site());
+                let obj = format_ident!("{}_expectation", &f.sig.ident);
                 quote!(
                     let _timeses = #obj.lock().unwrap().checkpoint()
                     .collect::<Vec<_>>();
@@ -345,10 +344,7 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
                 // Copy verbatim
                 ty.to_tokens(&mut body)
             },
-            ForeignItem::Macro(m) => compile_error(m.span(),
-                "Mockall does not support macros in this context"),
-            ForeignItem::Verbatim(v) => compile_error(v.span(),
-                "Content unrecognized by Mockall"),
+            _ => compile_error(item.span(), "Unsupported foreign item type"),
         }
     }
 
@@ -361,49 +357,42 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
 fn mock_foreign_function(f: ForeignItemFn) -> TokenStream {
     // Foreign functions are always unsafe.  Mock foreign functions should be
     // unsafe too, to prevent "warning: unused unsafe" messages.
-    let unsafety = Some(Token![unsafe](f.span()));
-    mock_function(&f.vis, None, unsafety, None, &f.ident, &f.decl)
+    let mut sig = f.sig.clone();
+    sig.unsafety = Some(Token![unsafe](f.sig.span()));
+    mock_function(&f.vis, &sig)
 }
 
-fn mock_function(vis: &Visibility,
-                 constness: Option<token::Const>,
-                 unsafety: Option<token::Unsafe>,
-                 asyncness: Option<token::Async>,
-                 ident: &Ident,
-                 decl: &FnDecl) -> TokenStream
-{
-    let fn_token = &decl.fn_token;
-    let generics = &decl.generics;
-    let output = match &decl.output{
+fn mock_function(vis: &Visibility, sig: &Signature) -> TokenStream {
+    let asyncness = &sig.asyncness;
+    let constness = &sig.constness;
+    let fn_token = &sig.fn_token;
+    let generics = &sig.generics;
+    let ident = &sig.ident;
+    let unsafety = &sig.unsafety;
+    let output = match &sig.output{
         ReturnType::Default => quote!(-> ()),
         _ => {
-            let decl_output = &decl.output;
+            let decl_output = &sig.output;
             quote!(#decl_output)
         }
     };
     let mut args = Vec::new();
 
-    if decl.variadic.is_some() {
-        compile_error(decl.variadic.span(),
+    if sig.variadic.is_some() {
+        compile_error(sig.variadic.span(),
             "Mockall does not support variadic extern functions");
         return TokenStream::new();
     }
 
-    let mod_ident = Ident::new(&format!("__{}", &ident), ident.span());
-    let sig = MethodSig {
-        constness,
-        unsafety,
-        asyncness,
-        abi: None,
-        ident: mod_ident.clone(),
-        decl: (*decl).clone()
-    };
-    let meth_types = method_types(&sig, None);
+    let mod_ident = format_ident!("__{}", &ident);
+    let mut mock_sig = sig.clone();
+    mock_sig.ident = mod_ident.clone();
+    let meth_types = method_types(&mock_sig, None);
     let inputs = &meth_types.inputs;
 
     for p in inputs.iter() {
         match p {
-            FnArg::Captured(arg) => {
+            FnArg::Typed(arg) => {
                 args.push(arg.pat.clone());
             },
             _ => compile_error(p.span(),
@@ -426,7 +415,7 @@ fn mock_function(vis: &Visibility,
         Span::call_site());
     let mut out = TokenStream::new();
     Expectation::new(&TokenStream::new(), &inputs, None, generics,
-        &ident, &mod_ident, None, &decl.output, &expect_vis)
+        &ident, &mod_ident, None, &sig.output, &expect_vis)
         .to_tokens(&mut out);
     quote!(
         ::mockall::lazy_static! {
@@ -508,7 +497,7 @@ fn mock_impl(item_impl: ItemImpl) -> TokenStream {
             };
             items.push(TraitItem::Method(tim));
         }
-        let path_args = &path.segments.last().unwrap().value().arguments;
+        let path_args = &path.segments.last().unwrap().arguments;
         let trait_ = ItemTrait {
             attrs: item_impl.attrs.clone(),
             vis: vis.clone(),
@@ -562,9 +551,7 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
             },
             Item::Const(ic) => ic.to_tokens(&mut body),
             Item::Fn(f) => {
-                let obj = Ident::new(
-                    &format!("{}_expectation", &f.ident),
-                    Span::call_site());
+                let obj = format_ident!("{}_expectation", &f.sig.ident);
                 quote!(
                     let _timeses = #obj.lock().unwrap().checkpoint()
                     .collect::<Vec<_>>();
@@ -582,20 +569,11 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
                 // Copy verbatim
                 ty.to_tokens(&mut body)
             },
-            Item::Existential(_) => {
-                compile_error(item.span(),
-                    "Mockall does not yet support named existential types");
-            },
             Item::TraitAlias(ta) => {
                 // Copy verbatim
                 ta.to_tokens(&mut body)
             },
-            Item::Macro(m) => compile_error(m.span(),
-                "Mockall does not support macros in this context"),
-            Item::Macro2(m) => compile_error(m.span(),
-                "Mockall does not support macros in this context"),
-            Item::Verbatim(v) => compile_error(v.span(),
-                "Content unrecognized by Mockall"),
+            _ => compile_error(item.span(), "Unsupported item"),
         }
     }
 
@@ -606,8 +584,7 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
 /// Mock a function the same way we mock static trait methods: with a
 /// global Expectations object
 fn mock_native_function(f: &ItemFn) -> TokenStream {
-    mock_function(&f.vis, f.constness, f.unsafety, f.asyncness, &f.ident,
-                  &f.decl)
+    mock_function(&f.vis, &f.sig)
 }
 
 /// Generate a mock struct that implements a trait
