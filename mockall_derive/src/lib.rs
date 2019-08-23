@@ -5,8 +5,6 @@
 //! its reexports via the [`mockall`](https://docs.rs/mockall/latest/mockall)
 //! crate.
 
-#![recursion_limit="512"]
-
 #![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
 extern crate proc_macro;
 
@@ -20,7 +18,6 @@ use std::{
 };
 use syn::{
     *,
-    punctuated::Pair,
     punctuated::Punctuated,
     spanned::Spanned
 };
@@ -86,7 +83,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
 
     let mut save_fn_types = |ident: &Ident, tpb: &TypeParamBound| {
         if let TypeParamBound::Trait(tb) = tpb {
-            let fident = &tb.path.segments.last().unwrap().value().ident;
+            let fident = &tb.path.segments.last().unwrap().ident;
             if ["Fn", "FnMut", "FnOnce"].iter().any(|s| fident == *s) {
                 let newty: Type = parse2(quote!(Box<dyn #tb>)).unwrap();
                 let subst_ty: Type = parse2(quote!(#ident)).unwrap();
@@ -160,20 +157,22 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
 
     // Next substitute Box<Fn> into the arguments
     let outargs = Punctuated::from_iter(args.iter().map(|arg| {
-        if let FnArg::Captured(ac) = arg {
-            let mut immutable_ac = ac.clone();
-            demutify_arg(&mut immutable_ac);
-            if let Some(newty) = hm.get(&ac.ty) {
-                FnArg::Captured(ArgCaptured {
-                    pat: immutable_ac.pat,
-                    colon_token: ac.colon_token.clone(),
-                    ty: newty.clone()
+        if let FnArg::Typed(pt) = arg {
+            let mut immutable_pt = pt.clone();
+            demutify_arg(&mut immutable_pt);
+            if let Some(newty) = hm.get(&pt.ty) {
+                FnArg::Typed(PatType {
+                    attrs: Vec::default(),
+                    pat: immutable_pt.pat,
+                    colon_token: pt.colon_token.clone(),
+                    ty: Box::new(newty.clone())
                 })
             } else {
-                FnArg::Captured(ArgCaptured {
-                    pat: immutable_ac.pat,
-                    colon_token: ac.colon_token.clone(),
-                    ty: ac.ty.clone()
+                FnArg::Typed(PatType {
+                    attrs: Vec::default(),
+                    pat: immutable_pt.pat,
+                    colon_token: pt.colon_token.clone(),
+                    ty: pt.ty.clone()
                 })
             }
         } else {
@@ -185,20 +184,17 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     // use filter_map to remove the &self argument
     let callargs = Punctuated::from_iter(args.iter().filter_map(|arg| {
         match arg {
-            FnArg::Captured(ac) => {
-                let mut ac2 = ac.clone();
-                demutify_arg(&mut ac2);
-                let pat = &ac2.pat;
-                if hm.contains_key(&ac.ty) {
+            FnArg::Typed(pt) => {
+                let mut pt2 = pt.clone();
+                demutify_arg(&mut pt2);
+                let pat = &pt2.pat;
+                if hm.contains_key(&pt.ty) {
                     Some(quote!(Box::new(#pat)))
                 } else {
                     Some(quote!(#pat))
                 }
             },
-            FnArg::SelfRef(_) | FnArg::SelfValue(_) => None,
-            _ => {
-                Some(quote!(#arg))
-            }
+            FnArg::Receiver(_) => None,
         }
     }));
     (outg, outargs, callargs)
@@ -221,17 +217,18 @@ fn demutify(inputs: &Punctuated<FnArg, token::Comma>)
     let mut output = inputs.clone();
     for arg in output.iter_mut() {
         match arg {
-            FnArg::SelfValue(arg_self) => arg_self.mutability = None,
-            FnArg::Captured(arg_captured) => demutify_arg(arg_captured),
-            _ => (),    // Nothing to do
+            FnArg::Receiver(r) => if r.reference.is_none() {
+                r.mutability = None
+            },
+            FnArg::Typed(pt) => demutify_arg(pt),
         }
     }
     output
 }
 
 /// Remove any "mut" from a method argument's binding.
-fn demutify_arg(arg: &mut ArgCaptured) {
-    match arg.pat {
+fn demutify_arg(arg: &mut PatType) {
+    match *arg.pat {
         Pat::Wild(_) => {
             compile_error(arg.span(),
                 "Mocked methods must have named arguments");
@@ -341,14 +338,11 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
             panic!("deimplify should've already been run on this output type");
         },
         Type::TraitObject(tto) => {
-            //dbg!(&tto);
             // Change types like `dyn Self` into `MockXXX`.  For now,
             // don't worry about multiple trait bounds, because they aren't very
             // useful in combination with Self.
             if tto.bounds.len() == 1 {
-                if let TypeParamBound::Trait(t)
-                    = tto.bounds.first().unwrap().value()
-                {
+                if let TypeParamBound::Trait(t) = tto.bounds.first().unwrap() {
                     // No need to substitute Self for the full path, because
                     // traits can't return "impl Trait", and structs can't
                     // return "impl Self" (because Self, in that case, isn't a
@@ -368,12 +362,13 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
         Type::Infer(_) | Type::Never(_) =>
         {
             /* Nothing to do */
-        }
+        },
+        _ => compile_error(literal_type.span(), "Unsupported type"),
     }
 }
 
 fn supersuperfy_path(path: &mut Path) {
-        if let Some(Pair::Punctuated(t, _)) = path.segments.first() {
+        if let Some(t) = path.segments.first() {
             if t.ident == "super" {
                 let ps = PathSegment {
                     ident: Ident::new("super", path.segments.span()),
@@ -445,7 +440,8 @@ fn supersuperfy(original: &Type) -> Type {
             Type::Infer(_) | Type::Never(_) =>
             {
                 /* Nothing to do */
-            }
+            },
+            _ => compile_error(t.span(), "Unsupported type"),
         }
     }
     recurse(&mut output);
@@ -592,7 +588,7 @@ fn expectation_visibility(vis: &Visibility, levels: u32)
             // super => in super::super::super
             // self => in super::super
             // in anything_else => super::super::anything_else
-            if vr.path.segments.first().unwrap().value().ident == "crate" {
+            if vr.path.segments.first().unwrap().ident == "crate" {
                 vr.clone().into()
             } else {
                 let mut out = vr.clone();
@@ -614,33 +610,29 @@ fn expectation_visibility(vis: &Visibility, levels: u32)
 /// * `sig`:            Signature of the original method
 /// * `generics`:       Generics of the method's parent trait or structure,
 ///                     _not_ the method itself.
-fn method_types(sig: &MethodSig, generics: Option<&Generics>)
-    -> MethodTypes
-{
+fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     let mut is_static = true;
     let ident = &sig.ident;
     let (expectation_generics, expectation_inputs, call_exprs) =
-        declosurefy(&sig.decl.generics, &sig.decl.inputs);
+        declosurefy(&sig.generics, &sig.inputs);
     let merged_g = if let Some(g) = generics {
         merge_generics(&g, &expectation_generics)
     } else {
-        sig.decl.generics.clone()
+        sig.generics.clone()
     };
-    let inputs = demutify(&sig.decl.inputs);
+    let inputs = demutify(&sig.inputs);
     let (_ig, tg, _wc) = merged_g.split_for_impl();
     for fn_arg in expectation_inputs.iter() {
         match fn_arg {
-            FnArg::Captured(_) => {},
-            FnArg::SelfRef(_) | FnArg::SelfValue(_) => {
+            FnArg::Typed(_) => {},
+            FnArg::Receiver(_) => {
                 is_static = false;
             },
-            _ => compile_error(fn_arg.span(),
-                "Should be unreachable for normal Rust code")
         }
     }
 
     let span = Span::call_site();
-    let call = match &sig.decl.output {
+    let call = match &sig.output {
         ReturnType::Default => {
             Ident::new("call", span)
         },
@@ -683,7 +675,7 @@ fn method_types(sig: &MethodSig, generics: Option<&Generics>)
     };
     let expect_ts = quote!(#ident::#expectation_ident #tg);
     let expectation: Type = parse2(expect_ts).unwrap();
-    let mut output = sig.decl.output.clone();
+    let mut output = sig.output.clone();
     deimplify(&mut output);
 
     MethodTypes{is_static, is_expectation_generic, expectation,
