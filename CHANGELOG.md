@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+
+- Methods with closure arguments and where clauses can now be mocked.
+  ([#35](https://github.com/asomers/mockall/pull/35))
+
 ### Changed
 
 - Better panic messages when an expectation fails its expected call count.
