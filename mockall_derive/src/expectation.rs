@@ -7,6 +7,15 @@ use quote::ToTokens;
 /// type like "&String".
 fn destrify(ty: &mut Type) {
     if let Type::Reference(ref mut tr) = ty {
+        if let Some(lt) = &tr.lifetime {
+            if lt.ident == "static" {
+                // For methods that return 'static references, the user can
+                // usually actually supply one, unlike nonstatic references.
+                // destrify is unneeded and harmful in such cases.
+                return;
+            }
+        }
+
         let path_ty: TypePath = parse2(quote!(Path)).unwrap();
         let pathbuf_ty: Type = parse2(quote!(::std::path::PathBuf)).unwrap();
 
