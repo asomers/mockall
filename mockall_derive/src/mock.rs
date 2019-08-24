@@ -167,9 +167,7 @@ impl Parse for Mock {
 fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
     let mut out = TokenStream::new();
     for attr in attrs {
-        if attr.path.segments.len() == 1 &&
-           attr.path.segments.first().unwrap().ident == "doc"
-        {
+        if attr.path.get_ident().map(|i| i == "doc").unwrap_or(false) {
             // Discard doc attributes from the mock object.  They cause a bunch
             // of warnings.
             continue;
