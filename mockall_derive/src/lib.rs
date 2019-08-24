@@ -10,7 +10,7 @@ extern crate proc_macro;
 
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use std::{
     collections::HashMap,
     iter::FromIterator,
@@ -370,8 +370,10 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
 fn supersuperfy_path(path: &mut Path) {
         if let Some(t) = path.segments.first() {
             if t.ident == "super" {
+                let mut ident = format_ident!("super");
+                ident.set_span(path.segments.span());
                 let ps = PathSegment {
-                    ident: Ident::new("super", path.segments.span()),
+                    ident,
                     arguments: PathArguments::None
                 };
                 path.segments.insert(0, ps.clone());
@@ -450,18 +452,16 @@ fn supersuperfy(original: &Type) -> Type {
 
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
 fn gen_mock_ident(ident: &Ident) -> Ident {
-    Ident::new(&format!("Mock{}", ident), ident.span())
+    format_ident!("Mock{}", ident)
 }
 
 /// Generate an identifier for the mock struct's private module: eg "Foo" =>
 /// "__mock_Foo"
-fn gen_mod_ident(struct_: &Ident, trait_: Option<&Ident>)
-    -> Ident
-{
+fn gen_mod_ident(struct_: &Ident, trait_: Option<&Ident>) -> Ident {
     if let Some(t) = trait_ {
-        Ident::new(&format!("__mock_{}_{}", struct_, t), struct_.span())
+        format_ident!("__mock_{}_{}", struct_, t)
     } else {
-        Ident::new(&format!("__mock_{}", struct_), struct_.span())
+        format_ident!("__mock_{}", struct_)
     }
 }
 
@@ -631,10 +631,9 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
         }
     }
 
-    let span = Span::call_site();
     let call = match &sig.output {
         ReturnType::Default => {
-            Ident::new("call", span)
+            format_ident!("call")
         },
         ReturnType::Type(_, ty) => {
             match ty.as_ref() {
@@ -645,12 +644,12 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
                         }
                     }
                     if r.mutability.is_some() {
-                        Ident::new("call_mut", span)
+                        format_ident!("call_mut")
                     } else {
-                        Ident::new("call", span)
+                        format_ident!("call")
                     }
                 },
-                _ => Ident::new("call", span)
+                _ => format_ident!("call")
             }
         }
     };
@@ -659,11 +658,11 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
         expectation_generics.where_clause.is_some() ||
         (is_static && generics.filter(|g| !g.params.is_empty()).is_some());
 
-    let expectation_ident = Ident::new("Expectation", span);
+    let expectation_ident = format_ident!("Expectation");
     let expectations_ident = if is_expectation_generic {
-        Ident::new("GenericExpectations", span)
+        format_ident!("GenericExpectations")
     } else {
-        Ident::new("Expectations", span)
+        format_ident!("Expectations")
     };
     let expectations = parse2(
         quote!(#ident::#expectations_ident)
