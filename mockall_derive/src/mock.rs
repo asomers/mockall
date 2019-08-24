@@ -34,13 +34,8 @@ impl Mock {
         // generate sub structures
         for trait_ in self.traits.iter() {
             let mut sub_cp_body = TokenStream::new();
-            let span = Span::call_site();
-            let sub_mock = syn::Ident::new(
-                &format!("{}_{}", &self.name, &trait_.ident),
-                span);
-            let sub_struct = syn::Ident::new(
-                &format!("{}_expectations", &trait_.ident),
-                span);
+            let sub_mock = format_ident!("{}_{}", &self.name, &trait_.ident);
+            let sub_struct = format_ident!("{}_expectations", &trait_.ident);
             let methods = trait_.items.iter().filter_map(|item| {
                 if let syn::TraitItem::Method(m) = item {
                     Some(tim2iim(m, &self.vis))
@@ -244,13 +239,11 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     let call_exprs = &meth_types.call_exprs;
     let mut args = Vec::new();
     let expect_obj_name = if meth_types.is_static {
-        let name = syn::Ident::new(
-            &format!("{}_{}{}_expectation", mock_ident, sub_name, ident),
-            Span::call_site());
+        let name = format_ident!("{}_{}{}_expectation", mock_ident, sub_name,
+                                 ident);
         quote!(#name)
     } else if let Some(s) = sub {
-        let sub_struct = syn::Ident::new(&format!("{}_expectations", s),
-            Span::call_site());
+        let sub_struct = format_ident!("{}_expectations", s);
         quote!(self.#sub_struct.#ident)
     } else {
         quote!(self.#ident)
@@ -286,8 +279,7 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     }.to_tokens(&mut mock_output);
 
     // Then the expectation method
-    let expect_ident = syn::Ident::new(&format!("expect_{}", ident),
-                                       ident.span());
+    let expect_ident = format_ident!("expect_{}", ident);
     #[cfg(all(not(test),feature = "extra-docs"))]
     let docstr = {
         let inner_ds = format!("Create an [`Expectation`]({}/{}/struct.Expectation.html) for the `{}` method",
@@ -297,9 +289,8 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
     #[cfg(any(test, not(feature = "extra-docs")))]
     let docstr: Option<syn::Attribute> = None;
     if meth_types.is_static {
-        let name = syn::Ident::new(
-            &format!("{}_{}{}_expectation", mock_ident, sub_name, sig.ident),
-            Span::call_site());
+        let name = format_ident!("{}_{}{}_expectation", mock_ident, sub_name,
+                                 sig.ident);
         let lt = syn::Lifetime::new("'guard", Span::call_site());
         let ltd = syn::LifetimeDef::new(lt);
         let mut g = meth_types.expectation_generics.clone();
@@ -312,9 +303,9 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         let (ig, _, _) = g.split_for_impl();
         let (_, tg, _) = merged_g.split_for_impl();
         let guard_name = if !meth_types.is_expectation_generic {
-            syn::Ident::new("ExpectationGuard", Span::call_site())
+            format_ident!("ExpectationGuard")
         } else {
-            syn::Ident::new("GenericExpectationGuard", Span::call_site())
+            format_ident!("GenericExpectationGuard")
         };
         quote!(#attrs #docstr #expect_vis fn #expect_ident #ig()
                -> #mod_ident::#ident::#guard_name #tg
@@ -363,10 +354,9 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
 
     // Make Expectation fields for each method
     for (sub, sub_generics) in subs.iter() {
-        let spn = Span::call_site();
         let (_, tg, _) = sub_generics.split_for_impl();
-        let sub_struct = syn::Ident::new(&format!("{}_expectations", sub), spn);
-        let sub_mock = syn::Ident::new(&format!("{}_{}", ident, sub), spn);
+        let sub_struct = format_ident!("{}_expectations", sub);
+        let sub_mock = format_ident!("{}_{}", ident, sub);
         quote!(#sub_struct: #sub_mock #tg,).to_tokens(&mut body);
         quote!(#sub_struct: #sub_mock::default(),)
             .to_tokens(&mut default_body)
@@ -396,12 +386,15 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
                          &expect_vis).to_tokens(&mut mod_body);
 
         if meth_types.is_static {
-            let name = syn::Ident::new(
-                &format!("{}_{}_expectation", ident, method_ident),
-                Span::call_site());
+            // lazy_static doesn't work with #[allow(non_upper_case_globals)],
+            // so we need to generate the name with a bogus span, which
+            // suppresses that warning.
+            // https://github.com/rust-lang-nursery/lazy-static.rs/issues/153
+            let mut name = format_ident!("{}_{}_expectation", ident,
+                                         method_ident);
+            name.set_span(Span::call_site());
             quote!(
                 #attrs ::mockall::lazy_static! {
-                #[allow(non_upper_case_globals)]
                 static ref #name: ::std::sync::Mutex<#mod_ident::#expect_obj> =
                    ::std::sync::Mutex::new(#mod_ident::#expectations::new());
             }).to_tokens(&mut statics);
@@ -415,8 +408,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
 
     // Make PhantomData fields, if necessary
     for (count, param) in generics.params.iter().enumerate() {
-        let phname = format!("_t{}", count);
-        let phident = syn::Ident::new(&phname, Span::call_site());
+        let phident = format_ident!("_t{}", count);
         match param {
             syn::GenericParam::Lifetime(l) => {
                 if !l.bounds.is_empty() {

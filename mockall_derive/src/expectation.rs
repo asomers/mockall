@@ -325,9 +325,8 @@ impl<'a> Expectation<'a> {
             self.common().predty.iter().map(|mt| quote!(&#mt,))
         );
         let with_generics_idents = (0..self.common().predty.len())
-            .map(|i| Ident::new(&format!("MockallMatcher{}", i),
-                 Span::call_site())
-            ).collect::<Vec<_>>();
+            .map(|i| format_ident!("MockallMatcher{}", i))
+            .collect::<Vec<_>>();
         let with_generics = TokenStream::from_iter(
             with_generics_idents.iter().zip(self.common().predty.iter())
             .map(|(id, mt)|

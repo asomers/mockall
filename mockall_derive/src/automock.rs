@@ -1,6 +1,6 @@
 // vim: tw=80
 use super::*;
-use quote::{ToTokens, format_ident};
+use quote::ToTokens;
 use std::{
     collections::HashMap,
     env
@@ -402,17 +402,19 @@ fn mock_function(vis: &Visibility, sig: &Signature) -> TokenStream {
 
     let meth_vis = expectation_visibility(&vis, 1);
     let expect_obj = &meth_types.expect_obj;
-    let expect_ident = Ident::new(&format!("expect_{}", &ident),
-                                       ident.span());
+    let expect_ident = format_ident!("expect_{}", &ident);
     let expect_vis = expectation_visibility(&vis, 2);
     let mut g = generics.clone();
     let lt = Lifetime::new("'guard", Span::call_site());
     let ltd = LifetimeDef::new(lt);
     g.params.push(GenericParam::Lifetime(ltd.clone()));
 
-    let obj = Ident::new(
-        &format!("{}_expectation", ident),
-        Span::call_site());
+    // lazy_static doesn't work with #[allow(non_upper_case_globals)], so we
+    // need to generate the name with a bogus span, which suppresses that
+    // warning.
+    // https://github.com/rust-lang-nursery/lazy-static.rs/issues/153
+    let mut obj = format_ident!("{}_expectation", ident);
+    obj.set_span(Span::call_site());
     let mut out = TokenStream::new();
     Expectation::new(&TokenStream::new(), &inputs, None, generics,
         &ident, &mod_ident, None, &sig.output, &expect_vis)
@@ -531,8 +533,7 @@ fn mock_impl(item_impl: ItemImpl) -> TokenStream {
 fn mock_module(mod_: ItemMod) -> TokenStream {
     let mut body = TokenStream::new();
     let mut cp_body = TokenStream::new();
-    let modname = Ident::new(&format!("mock_{}", mod_.ident),
-        mod_.ident.span());
+    let modname = format_ident!("mock_{}", mod_.ident);
 
     let items = if let Some((_, items)) = mod_.content {
         items
