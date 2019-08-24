@@ -305,12 +305,17 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         #[cfg(any(test, not(feature = "extra-docs")))]
         let docstr: Option<syn::Attribute> = None;
         let expect_ident = format_ident!("expect_{}", ident);
-        quote!(#attrs #docstr #expect_vis fn #expect_ident #ig(&mut self)
+        quote!(
+            #[cfg_attr(not(feature = "nightly"), must_use =
+                "Must set return value when not using the \"nightly\" feature")
+            ]
+            #attrs #docstr #expect_vis fn #expect_ident #ig(&mut self)
                -> &mut #mod_ident::#expectation
                #wc
-        {
-            #expect_obj_name.expect#call_turbofish()
-        })
+            {
+                #expect_obj_name.expect#call_turbofish()
+            }
+        )
     }.to_tokens(&mut expect_output);
 
     // Finally this method's contribution to the checkpoint method

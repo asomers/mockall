@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
+- Warnings for misued expectations and context objects
+  ([#37](https://github.com/asomers/mockall/pull/37))
+
 - Methods with closure arguments and where clauses can now be mocked.
   ([#35](https://github.com/asomers/mockall/pull/35))
 

@@ -12,6 +12,7 @@ mock! {
 #[test]
 #[cfg_attr(not(feature = "nightly"),
            should_panic(expected = "Returning default values requires"))]
+#[cfg_attr(not(feature = "nightly"), allow(unused_must_use))]
 fn return_default() {
     let mut mock = MockFoo::new();
     mock.expect_foo();
