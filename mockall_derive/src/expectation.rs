@@ -949,6 +949,7 @@ impl<'a> StaticExpectation<'a> {
         };
 
         let context_ts = quote!(
+            #[must_use = "Context only serves to create expectations" ]
             #v struct Context #s_ig #s_wc {
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
@@ -970,6 +971,9 @@ impl<'a> StaticExpectation<'a> {
                         .collect::<Vec<_>>();
                 }
 
+                #[cfg_attr(not(feature = "nightly"), must_use =
+                    "Must set return value when not using the \"nightly\" feature")
+                ]
                 #v fn expect #meth_ig ( &self,) -> ExpectationGuard #e_tg
                     #meth_wc
                 {

@@ -59,6 +59,7 @@ fn ctx_hygiene() {
 }
 
 #[cfg_attr(not(feature = "nightly"), ignore)]
+#[cfg_attr(not(feature = "nightly"), allow(unused_must_use))]
 #[test]
 fn return_default() {
     let _m = BAR_MTX.lock();
