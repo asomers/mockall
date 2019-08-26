@@ -500,6 +500,19 @@ impl<'a> Expectation<'a> {
                     }
                 }
             }
+
+            impl #ig Drop for Common #tg #wc {
+                fn drop(&mut self) {
+                    if !::std::thread::panicking() && !self.times.is_satisfied()
+                    {
+                        let desc = format!("{}", self.matcher.lock().unwrap());
+                        panic!("{}: Expectation called fewer than {} times: {}",
+                               #ident_str,
+                               self.times.minimum(),
+                               desc);
+                    }
+                }
+            }
         );
         let em_ts = self.common().expectation_methods(&with_generics,
                                                       &with_args);
