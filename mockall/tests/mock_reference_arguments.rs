@@ -62,7 +62,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::foo: Expectation called fewer than 2 times")]
+                   "MockFoo::foo: Expectation(<anything>) called fewer than 2 times")]
     fn too_few() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -98,7 +98,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::foo: Expectation called fewer than 2 times")]
+                   "MockFoo::foo: Expectation(<anything>) called fewer than 2 times")]
     fn range_too_few() {
         let mut mock = MockFoo::new();
         mock.expect_foo()

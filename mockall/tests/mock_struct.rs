@@ -41,7 +41,7 @@ mod checkpoint {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::foo: Expectation called fewer than 1 times")]
+        "MockFoo::foo: Expectation(<anything>) called fewer than 1 times")]
     fn not_yet_satisfied() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -298,16 +298,14 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::baz: Expectation called fewer than 2 times")]
+        "MockFoo::bar: Expectation(var == 5) called fewer than 2 times")]
     fn too_few() {
-        println!("Always predicate: {}", predicate::always());
-        println!("eq(5) predicate: {}", predicate::eq(5u32));
         let mut mock = MockFoo::new();
         mock.expect_bar()
-            .with(predicate::eq(0))
+            .with(predicate::eq(5))
             .returning(|_| ())
             .times(2);
-        mock.bar(0);
+        mock.bar(5);
     }
 
     #[test]
@@ -344,7 +342,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::baz: Expectation called fewer than 2 times")]
+        "MockFoo::baz: Expectation(<anything>) called fewer than 2 times")]
     fn range_too_few() {
         let mut mock = MockFoo::new();
         mock.expect_baz()
@@ -425,7 +423,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::baz: Expectation called fewer than 2 times")]
+        "MockFoo::baz: Expectation(<anything>) called fewer than 2 times")]
     fn rangefrom_too_few() {
         let mut mock = MockFoo::new();
         mock.expect_baz()

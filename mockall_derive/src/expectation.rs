@@ -359,11 +359,9 @@ impl<'a> Expectation<'a> {
                 let idx = syn::Index::from(i);
                 idx
             }).collect::<Vec<_>>();
-        let default_preds = argnames.iter()
-            .map(|_| quote!(Box::new(::mockall::predicate::always())))
-            .collect::<Vec<_>>();
         let matcher_ts = quote!(
             enum Matcher #ig #wc {
+                Always,
                 Func(Box<dyn Fn(#refpredty) -> bool + Send>),
                 Pred(Box<(#preds)>),
                 // Prevent "unused type parameter" errors
@@ -375,6 +373,7 @@ impl<'a> Expectation<'a> {
             impl #ig Matcher #tg #wc {
                 fn matches(&self, #( #argnames: &#predty, )*) -> bool {
                     match self {
+                        Matcher::Always => true,
                         Matcher::Func(__mockall_f) =>
                             __mockall_f(#(#argnames, )*),
                         Matcher::Pred(__mockall_pred) =>
@@ -387,6 +386,7 @@ impl<'a> Expectation<'a> {
 
                 fn verify(&self, #( #argnames: &#predty, )* ) {
                     match self {
+                        Matcher::Always => (),
                         Matcher::Func(__mockall_f) =>
                             assert!(__mockall_f(#(#argnames, )*),
                             "Expectation didn't match arguments"),
@@ -399,7 +399,7 @@ impl<'a> Expectation<'a> {
             impl #ig Default for Matcher #tg #wc {
                 #[allow(unused_variables)]
                 fn default() -> Self {
-                    Matcher::Pred(Box::new((#(#default_preds,)*)))
+                    Matcher::Always
                 }
             }
 
@@ -408,7 +408,8 @@ impl<'a> Expectation<'a> {
                     -> ::std::fmt::Result
                 {
                     match self {
-                        Matcher::Func(_) => write!(__mockall_fmt, "TODO"),
+                        Matcher::Always => write!(__mockall_fmt, "<anything>"),
+                        Matcher::Func(_) => write!(__mockall_fmt, "<function>"),
                         Matcher::Pred(__mockall_p) => {
                             write!(__mockall_fmt, concat!(#(#braces,)*),
                                 #(__mockall_p.#indices,)*)
