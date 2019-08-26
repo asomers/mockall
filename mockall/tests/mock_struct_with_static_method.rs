@@ -16,7 +16,7 @@ lazy_static! {
 // Checkpointing the mock object should check static methods
 #[test]
 #[should_panic(expected =
-    "MockFoo::bar: Expectation called fewer than 1 times")]
+    "MockFoo::bar: Expectation(<anything>) called fewer than 1 times")]
 fn checkpoint() {
     let _m = BAR_MTX.lock();
 
@@ -32,7 +32,7 @@ fn checkpoint() {
 // It should also be possible to checkpoint just the context object
 #[test]
 #[should_panic(expected =
-    "MockFoo::bar: Expectation called fewer than 1 times")]
+    "MockFoo::bar: Expectation(<anything>) called fewer than 1 times")]
 fn ctx_checkpoint() {
     let _m = BAR_MTX.lock();
 
