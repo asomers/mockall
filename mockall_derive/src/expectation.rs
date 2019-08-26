@@ -359,6 +359,9 @@ impl<'a> Expectation<'a> {
                 let idx = syn::Index::from(i);
                 idx
             }).collect::<Vec<_>>();
+        let default_preds = argnames.iter()
+            .map(|_| quote!(Box::new(::mockall::predicate::always())))
+            .collect::<Vec<_>>();
         let matcher_ts = quote!(
             enum Matcher #ig #wc {
                 Func(Box<dyn Fn(#refpredty) -> bool + Send>),
@@ -396,7 +399,7 @@ impl<'a> Expectation<'a> {
             impl #ig Default for Matcher #tg #wc {
                 #[allow(unused_variables)]
                 fn default() -> Self {
-                    Matcher::Func(Box::new(|#(#argnames, )*| true))
+                    Matcher::Pred(Box::new((#(#default_preds,)*)))
                 }
             }
 
@@ -506,10 +509,10 @@ impl<'a> Expectation<'a> {
                     if !::std::thread::panicking() && !self.times.is_satisfied()
                     {
                         let desc = format!("{}", self.matcher.lock().unwrap());
-                        panic!("{}: Expectation called fewer than {} times: {}",
+                        panic!("{}: Expectation({}) called fewer than {} times",
                                #ident_str,
-                               self.times.minimum(),
-                               desc);
+                               desc,
+                               self.times.minimum());
                     }
                 }
             }

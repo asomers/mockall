@@ -300,11 +300,14 @@ mod times {
     #[should_panic(expected =
                    "MockFoo::baz: Expectation called fewer than 2 times")]
     fn too_few() {
+        println!("Always predicate: {}", predicate::always());
+        println!("eq(5) predicate: {}", predicate::eq(5u32));
         let mut mock = MockFoo::new();
-        mock.expect_baz()
-            .returning(|| ())
+        mock.expect_bar()
+            .with(predicate::eq(0))
+            .returning(|_| ())
             .times(2);
-        mock.baz();
+        mock.bar(0);
     }
 
     #[test]
