@@ -1010,7 +1010,6 @@ use std::{
         Arc,
         atomic::{AtomicUsize, Ordering}
     },
-    thread
 };
 
 #[doc(hidden)]
@@ -1356,6 +1355,11 @@ impl Times {
         self.count.load(Ordering::Relaxed) >= self.range.0.start
     }
 
+    /// The minimum number of times that this expectation must be called
+    pub fn minimum(&self) -> usize {
+        self.range.0.start
+    }
+
     // https://github.com/rust-lang/rust-clippy/issues/3307
     #[allow(clippy::range_plus_one)]
     pub fn n(&mut self, n: usize) {
@@ -1382,17 +1386,6 @@ impl Times {
 
     pub fn times<T: Into<TimesRange>>(&mut self, t: T) {
         self.range = t.into();
-    }
-}
-
-impl Drop for Times {
-    fn drop(&mut self) {
-        let count = self.count.load(Ordering::Relaxed);
-        if !thread::panicking() && (count < self.range.0.start) {
-            panic!("{}: Expectation called fewer than {} times",
-                   self.name,
-                   self.range.0.start);
-        }
     }
 }
 
