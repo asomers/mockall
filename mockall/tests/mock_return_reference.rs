@@ -15,7 +15,7 @@ mod never {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::bar: Expectation should not have been called")]
+        "MockFoo::bar: Expectation(<anything>) should not have been called")]
     fn fail() {
         let mut mock = MockFoo::new();
         mock.expect_bar()

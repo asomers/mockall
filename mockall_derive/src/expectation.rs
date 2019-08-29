@@ -444,7 +444,13 @@ impl<'a> Expectation<'a> {
             impl #ig Common #tg #wc {
                 fn call(&self, #( #argnames: &#predty, )* ) {
                     self.matcher.lock().unwrap().verify(#(#argnames, )*);
-                    self.times.call();
+                    self.times.call()
+                        .unwrap_or_else(|m| {
+                            let desc = format!("{}",
+                                               self.matcher.lock().unwrap());
+                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                                m);
+                        });
                     self.verify_sequence();
                     if self.times.is_satisfied() {
                         self.satisfy_sequence()

@@ -73,7 +73,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::foo: Expectation called more than 2 times")]
+        "MockFoo::foo: Expectation(<anything>) called more than 2 times")]
     fn too_many() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -109,7 +109,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-                   "MockFoo::foo: Expectation called more than 3 times")]
+        "MockFoo::foo: Expectation(<anything>) called more than 3 times")]
     fn range_too_many() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
