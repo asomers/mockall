@@ -25,10 +25,10 @@ nightly = ["proc-macro2/nightly"]
 extra-docs = []
 
 [dependencies]
-cfg-if = "0.1"
+cfg-if = "0.1.6"
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = { version = "1.0", features = ["extra-traits", "full"] }
+syn = { version = "1.0.3", features = ["extra-traits", "full"] }
 
 [dev-dependencies]
 pretty_assertions = "0.5"

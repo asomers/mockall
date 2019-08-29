@@ -21,10 +21,10 @@ features = ["nightly"]
 nightly = ["mockall_derive/nightly"]
 
 [dependencies]
-cfg-if = "0.1"
+cfg-if = "0.1.6"
 downcast = "0.10"
 fragile = "0.3"
-lazy_static = "1.0"
+lazy_static = "1.1"
 predicates = "1.0.1"
 predicates-tree = "1.0"
 mockall_derive = { version = "=0.3.0", path = "../mockall_derive" }
