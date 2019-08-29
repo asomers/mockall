@@ -989,6 +989,12 @@ impl<'a> StaticExpectation<'a> {
         };
 
         let context_ts = quote!(
+            /// Manages the context for expectations of static methods.
+            ///
+            /// Expectations on this method will be validated and cleared when
+            /// the `Context` object drops.  The `Context` object does *not*
+            /// provide any form of synchronization, so multiple tests that set
+            /// expectations on the same static method must provide their own.
             #[must_use = "Context only serves to create expectations" ]
             #v struct Context #s_ig #s_wc {
                 // Prevent "unused type parameter" errors
@@ -999,6 +1005,8 @@ impl<'a> StaticExpectation<'a> {
                 >
             }
             impl #s_ig Context #s_tg #s_wc {
+                /// Verify that all current expectations for this method are
+                /// satisfied and clear them.
                 #v fn checkpoint(&self) {
                     Self::do_checkpoint()
                 }
@@ -1011,6 +1019,7 @@ impl<'a> StaticExpectation<'a> {
                         .collect::<Vec<_>>();
                 }
 
+                /// Create a new expectation for this method.
                 #[cfg_attr(not(feature = "nightly"), must_use =
                     "Must set return value when not using the \"nightly\" feature")
                 ]
