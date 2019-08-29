@@ -1023,7 +1023,10 @@ pub use lazy_static::lazy_static;
 
 pub use predicates::{
     boolean::PredicateBooleanExt,
-    prelude::{Predicate, predicate}
+    prelude::{
+        Predicate, PredicateBoxExt, PredicateFileContentExt, PredicateStrExt,
+        predicate
+    }
 };
 #[doc(hidden)]
 pub use predicates_tree::CaseTreeExt;

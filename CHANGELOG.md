@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased] - ReleaseDate
+
+### Added
+
+- Reexport more traits from the predicates crate
+  ([#42](https://github.com/asomers/mockall/pull/42))
+
+### Changed
+### Fixed
+### Removed
+
 ## [0.4.0] - 29 August 2019
 ### Added
 
