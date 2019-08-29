@@ -256,6 +256,14 @@ impl<'a> Common<'a> {
         )
     }
 
+    fn ident_str(&self) -> String {
+        if let Some(pi) = self.parent_ident {
+            format!("{}::{}", pi, self.meth_ident)
+        } else {
+            format!("{}", self.meth_ident)
+        }
+    }
+
     fn is_generic(&self) -> bool {
         !self.egenerics.params.is_empty() ||
             self.egenerics.where_clause.is_some()
@@ -298,11 +306,7 @@ impl<'a> Expectation<'a> {
         let argnames = &self.common().argnames;
         let attrs = &self.common().attrs;
         let ident = &self.common().mod_ident;
-        let ident_str = if let Some(pi) = self.common().parent_ident {
-            format!("{}::{}", pi, self.common().meth_ident)
-        } else {
-            format!("{}", self.common().meth_ident)
-        };
+        let ident_str = self.common().ident_str();
         let extra_uses = self.extra_uses();
         let fn_params = &self.common().fn_params;
         let predty = &self.common().predty;
@@ -702,6 +706,7 @@ impl<'a> StaticExpectation<'a> {
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
+        let ident_str = self.common().ident_str();
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
@@ -720,7 +725,13 @@ impl<'a> StaticExpectation<'a> {
                 #v fn call(&self, #(#argnames: #argty, )* ) -> #output
                 {
                     self.common.call(#(#predexprs, )*);
+                    let desc = format!("{}",
+                                       self.common.matcher.lock().unwrap());
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)
+                        .unwrap_or_else(|message| {
+                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                                   message);
+                        })
                 }
 
                 /// Return a constant value from the `Expectation`
@@ -919,23 +930,25 @@ impl<'a> StaticExpectation<'a> {
             }
 
             impl #ig  Rfunc #tg #wc {
-                fn call_mut(&mut self, #( #argnames: #argty, )* ) -> #output {
+                fn call_mut(&mut self, #( #argnames: #argty, )* )
+                    -> Result<#output, &'static str>
+                {
                     match self {
                         Rfunc::Default => {
                             use ::mockall::ReturnDefault;
-                            ::mockall::DefaultReturner::<#output>
-                                ::return_default()
+                            Ok(::mockall::DefaultReturner::<#output>
+                                ::return_default())
                         },
                         Rfunc::Expired => {
-                            panic!("Called a method twice that was expected only once")
+                            Err("called twice, but it returns by move")
                         },
                         Rfunc::Mut(__mockall_f) => {
-                            __mockall_f( #(#argnames, )* )
+                            Ok(__mockall_f( #(#argnames, )* ))
                         },
                         Rfunc::Once(_) => {
                             if let Rfunc::Once(mut __mockall_f) =
                                 mem::replace(self, Rfunc::Expired) {
-                                __mockall_f( #(#argnames, )* )
+                                Ok(__mockall_f( #(#argnames, )* ))
                             } else {
                                 unreachable!()
                             }
