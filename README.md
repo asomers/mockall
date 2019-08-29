@@ -3,7 +3,7 @@
 A powerful mock object library for Rust.
 
 [![Build Status](https://api.cirrus-ci.com/github/asomers/mockall.svg)](https://cirrus-ci.com/github/asomers/mockall)
-[![Crates.io](https://img.shields.io/crates/v/mockall.svg?maxAge=2592000)](https://crates.io/crates/mockall)
+[![Crates.io](https://img.shields.io/crates/v/mockall.svg)](https://crates.io/crates/mockall)
 [![Documentation](https://docs.rs/mockall/badge.svg)](https://docs.rs/mockall)
 
 ## Overview
