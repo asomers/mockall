@@ -8,7 +8,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - Reexport more traits from the predicates crate
-  ([#42](https://github.com/asomers/mockall/pull/42))
+  ([09746e9](https://github.com/asomers/mockall/commit/09746e92d4a7a904b1911babbe65cc1043e237d4))
 
 ### Changed
 ### Fixed
