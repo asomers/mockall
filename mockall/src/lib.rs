@@ -1319,17 +1319,16 @@ pub struct Times{
 }
 
 impl Times {
-    pub fn call(&self) {
+    pub fn call(&self) -> Result<(), String> {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
         if count >= self.range.0.end {
             if self.range.0.end == 1 {
-                panic!("{}: Expectation should not have been called",
-                       self.name);
+                Err("should not have been called".to_owned())
             } else {
-                let lim = self.range.0.end - 1;
-                panic!("{}: Expectation called more than {} times", self.name,
-                       lim);
+                Err(format!("called more than {} times", self.range.0.end - 1))
             }
+        } else {
+            Ok(())
         }
     }
 
