@@ -324,20 +324,6 @@ impl<'a> Expectation<'a> {
                 quote!(__mockall_pred.#idx.eval(#argname),)
             })
         );
-        let pred_verify = TokenStream::from_iter(
-            argnames.iter().enumerate()
-            .map(|(i, argname)| {
-                let idx = Index::from(i);
-                quote!(
-                    if let Some(__mockall_c) =
-                        __mockall_pred.#idx.find_case(false, #argname)
-                    {
-                        panic!("Expectation didn't match arguments:\n{}",
-                               __mockall_c.tree());
-                    }
-                )
-            })
-        );
         let refpredty = TokenStream::from_iter(
             self.common().predty.iter().map(|mt| quote!(&#mt,))
         );
@@ -387,17 +373,6 @@ impl<'a> Expectation<'a> {
                         _ => unreachable!()
                     }
                 }
-
-                fn verify(&self, #( #argnames: &#predty, )* ) {
-                    match self {
-                        Matcher::Always => (),
-                        Matcher::Func(__mockall_f) =>
-                            assert!(__mockall_f(#(#argnames, )*),
-                            "Expectation didn't match arguments"),
-                        Matcher::Pred(__mockall_pred) => { #pred_verify },
-                        _ => unreachable!()
-                    }
-                }
             }
 
             impl #ig Default for Matcher #tg #wc {
@@ -442,8 +417,7 @@ impl<'a> Expectation<'a> {
             }
 
             impl #ig Common #tg #wc {
-                fn call(&self, #( #argnames: &#predty, )* ) {
-                    self.matcher.lock().unwrap().verify(#(#argnames, )*);
+                fn call(&self) {
                     self.times.call()
                         .unwrap_or_else(|m| {
                             let desc = format!("{}",
@@ -715,7 +689,6 @@ impl<'a> StaticExpectation<'a> {
         let ident_str = self.common().ident_str();
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
-        let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
         quote!(
             /// Expectation type for methods that return a `'static` type.
@@ -730,7 +703,7 @@ impl<'a> StaticExpectation<'a> {
                 #[doc(hidden)]
                 #v fn call(&self, #(#argnames: #argty, )* ) -> #output
                 {
-                    self.common.call(#(#predexprs, )*);
+                    self.common.call();
                     let desc = format!("{}",
                                        self.common.matcher.lock().unwrap());
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)
@@ -1396,11 +1369,8 @@ pub(crate) struct RefExpectation<'a> {
 impl<'a> RefExpectation<'a> {
     fn common(&self) -> &Common {&self.common}
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
-        let argnames = &self.common.argnames;
-        let argty = &self.common.argty;
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
-        let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
         quote!(
             /// Expectation type for methods taking a `&self` argument and
@@ -1412,8 +1382,8 @@ impl<'a> RefExpectation<'a> {
             }
 
             impl #ig Expectation #tg {
-                #v fn call(&self, #(#argnames: #argty,)* ) -> &#output {
-                    self.common.call(#(#predexprs, )*);
+                #v fn call(&self) -> &#output {
+                    self.common.call();
                     self.rfunc.call()
                 }
 
@@ -1458,7 +1428,7 @@ impl<'a> RefExpectation<'a> {
                               __mockall_e.matches(#(#predexprs, )*) &&
                               (!__mockall_e.is_done() || self.0.len() == 1))
                         .map(move |__mockall_e|
-                             __mockall_e.call(#(#argnames, )*)
+                             __mockall_e.call()
                         )
                 }
             }
@@ -1583,7 +1553,6 @@ impl<'a> RefMutExpectation<'a> {
         let argty = &self.common.argty;
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
-        let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
         quote!(
             /// Expectation type for methods taking a `&mut self` argument and
@@ -1599,7 +1568,7 @@ impl<'a> RefMutExpectation<'a> {
                 #v fn call_mut(&mut self, #(#argnames: #argty, )*)
                     -> &mut #output
                 {
-                    self.common.call(#(#predexprs, )*);
+                    self.common.call();
                     self.rfunc.call_mut(#(#argnames, )*)
                 }
 
