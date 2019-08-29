@@ -20,7 +20,7 @@ fn return_once() {
 }
 
 #[test]
-#[should_panic(expected = "expected only once")]
+#[should_panic(expected = "MockT::foo: Expectation(<anything>) called twice, but it returns by move")]
 fn return_once_too_many_times() {
     let mut mock = MockT::new();
     let r = NonCopy{};
