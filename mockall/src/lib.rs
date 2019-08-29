@@ -1212,7 +1212,7 @@ downcast!(dyn AnyExpectations);
 #[doc(hidden)]
 pub trait ReturnDefault<O> {
     fn maybe_return_default() -> Option<O>;
-    fn return_default() -> O;
+    fn return_default() -> Result<O, &'static str>;
 }
 
 #[derive(Default)]
@@ -1226,8 +1226,8 @@ pub struct DefaultReturner<O: 'static>(PhantomData<O>);
                 None
             }
 
-            default fn return_default() -> O {
-                panic!("Can only return default values for types that impl std::Default");
+            default fn return_default() -> Result<O, &'static str> {
+                Err("Can only return default values for types that impl std::Default")
             }
         }
 
@@ -1236,8 +1236,8 @@ pub struct DefaultReturner<O: 'static>(PhantomData<O>);
                 Some(O::default())
             }
 
-            fn return_default() -> O {
-                O::default()
+            fn return_default() -> Result<O, &'static str> {
+                Ok(O::default())
             }
         }
     } else {
@@ -1246,8 +1246,8 @@ pub struct DefaultReturner<O: 'static>(PhantomData<O>);
                 None
             }
 
-            fn return_default() -> O {
-                panic!("Returning default values requires the \"nightly\" feature");
+            fn return_default() -> Result<O, &'static str> {
+                Err("Returning default values requires the \"nightly\" feature")
             }
         }
     }

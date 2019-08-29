@@ -704,10 +704,10 @@ impl<'a> StaticExpectation<'a> {
                 #v fn call(&self, #(#argnames: #argty, )* ) -> #output
                 {
                     self.common.call();
-                    let desc = format!("{}",
-                                       self.common.matcher.lock().unwrap());
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)
                         .unwrap_or_else(|message| {
+                            let desc = format!("{}",
+                                self.common.matcher.lock().unwrap());
                             panic!("{}: Expectation({}) {}", #ident_str, desc,
                                    message);
                         })
@@ -915,8 +915,8 @@ impl<'a> StaticExpectation<'a> {
                     match self {
                         Rfunc::Default => {
                             use ::mockall::ReturnDefault;
-                            Ok(::mockall::DefaultReturner::<#output>
-                                ::return_default())
+                            ::mockall::DefaultReturner::<#output>
+                                ::return_default()
                         },
                         Rfunc::Expired => {
                             Err("called twice, but it returns by move")
@@ -1369,6 +1369,7 @@ pub(crate) struct RefExpectation<'a> {
 impl<'a> RefExpectation<'a> {
     fn common(&self) -> &Common {&self.common}
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
+        let ident_str = self.common().ident_str();
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let v = &self.common.vis;
@@ -1384,7 +1385,12 @@ impl<'a> RefExpectation<'a> {
             impl #ig Expectation #tg {
                 #v fn call(&self) -> &#output {
                     self.common.call();
-                    self.rfunc.call()
+                    self.rfunc.call().unwrap_or_else(|m| {
+                        let desc = format!("{}",
+                                           self.common.matcher.lock().unwrap());
+                        panic!("{}: Expectation({}) {}", #ident_str, desc,
+                            m);
+                    })
                 }
 
                 /// Return a reference to a constant value from the `Expectation`
@@ -1502,21 +1508,21 @@ impl<'a> RefExpectation<'a> {
             }
 
             impl #ig  Rfunc #tg #wc {
-                fn call(&self) -> &#output {
+                fn call(&self) -> Result<&#output, &'static str> {
                     match self {
                         Rfunc::Default(Some(ref __mockall_o)) => {
-                            __mockall_o
+                            Ok(__mockall_o)
                         },
                         #[cfg(feature = "nightly")]
                         Rfunc::Default(None) => {
-                            panic!("Can only return default values for types that impl std::Default");
+                            Err("Can only return default values for types that impl std::Default")
                         },
                         #[cfg(not(feature = "nightly"))]
                         Rfunc::Default(None) => {
-                            panic!("Returning default values requires the \"nightly\" feature");
+                            Err("Returning default values requires the \"nightly\" feature")
                         },
                         Rfunc::Const(ref __mockall_o) => {
-                            __mockall_o
+                            Ok(__mockall_o)
                         },
                         Rfunc::_Phantom(_) => unreachable!()
                     }
@@ -1551,6 +1557,7 @@ impl<'a> RefMutExpectation<'a> {
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
+        let ident_str = self.common().ident_str();
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let output = &self.common.output;
         let v = &self.common.vis;
@@ -1569,7 +1576,12 @@ impl<'a> RefMutExpectation<'a> {
                     -> &mut #output
                 {
                     self.common.call();
-                    self.rfunc.call_mut(#(#argnames, )*)
+                    let desc = format!("{}",
+                        self.common.matcher.lock().unwrap());
+                    self.rfunc.call_mut(#(#argnames, )*).unwrap_or_else(|m| {
+                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                                   m);
+                    })
                 }
 
                 /// Convenience method that can be used to supply a return value
@@ -1719,30 +1731,32 @@ impl<'a> RefMutExpectation<'a> {
             }
 
             impl #ig  Rfunc #tg #wc {
-                fn call_mut(&mut self, #(#argnames: #argty, )*) -> &mut #output {
+                fn call_mut(&mut self, #(#argnames: #argty, )*)
+                    -> Result<&mut #output, &'static str>
+                {
                     match self {
                         Rfunc::Default(Some(ref mut __mockall_o)) => {
-                            __mockall_o
+                            Ok(__mockall_o)
                         },
                         #[cfg(feature = "nightly")]
                         Rfunc::Default(None) => {
-                            panic!("Can only return default values for types that impl std::Default");
+                            Err("Can only return default values for types that impl std::Default")
                         },
                         #[cfg(not(feature = "nightly"))]
                         Rfunc::Default(None) => {
-                            panic!("Returning default values requires the \"nightly\" feature");
+                            Err("Returning default values requires the \"nightly\" feature")
                         },
                         Rfunc::Mut(ref mut __mockall_f, ref mut __mockall_o) =>
                         {
                             *__mockall_o = Some(__mockall_f(#(#argnames, )*));
                             if let Some(ref mut __mockall_o2) = __mockall_o {
-                                __mockall_o2
+                                Ok(__mockall_o2)
                             } else {
                                 unreachable!()
                             }
                         },
                         Rfunc::Var(ref mut __mockall_o) => {
-                            __mockall_o
+                            Ok(__mockall_o)
                         },
                         Rfunc::_Phantom(_) => unreachable!()
                     }
