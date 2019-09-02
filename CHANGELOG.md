@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- Many generic methods with lifetime parameters can now be mocked.  The
+  condition is that they may not also have generic type parameters, and their
+  return values must be `'static`.
+  ([#48](https://github.com/asomers/mockall/pull/48))
+
 - Reexport more traits from the predicates crate
   ([09746e9](https://github.com/asomers/mockall/commit/09746e92d4a7a904b1911babbe65cc1043e237d4))
 

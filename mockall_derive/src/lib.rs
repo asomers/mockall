@@ -13,6 +13,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::{
     collections::HashMap,
+    convert::identity,
     iter::FromIterator,
     mem
 };
@@ -556,6 +557,50 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
     out
 }
 
+/// Split a generics list into two: one for types, the other for lifetimes
+fn split_lifetimes(generics: Generics) -> (Generics, Generics) {
+    if generics.lt_token.is_none() {
+        return (generics, Generics::default());
+    }
+
+    let (ogv, olv): (Vec<_>, Vec<_>) = generics.params.into_iter()
+        .map(|p| {
+            if let GenericParam::Lifetime(_) = p {
+                (None, Some(p))
+            } else {
+                (Some(p), None)
+            }
+        }).unzip();
+    let gv = ogv.into_iter().filter_map(identity).collect::<Vec<_>>();
+    let lv = olv.into_iter().filter_map(identity).collect::<Vec<_>>();
+    let lg = if lv.is_empty() {
+        Generics::default()
+    } else {
+        Generics {
+            lt_token: generics.lt_token.clone(),
+            gt_token: generics.gt_token.clone(),
+            params: Punctuated::from_iter(lv.into_iter()),
+            // XXX this assumes that none of the lifetimes are referenced by the
+            // where clause
+            where_clause: None
+        }
+    };
+    let tg = if gv.is_empty() {
+        Generics::default()
+    } else {
+        Generics {
+            lt_token: generics.lt_token,
+            gt_token: generics.gt_token,
+            params: Punctuated::from_iter(gv.into_iter()),
+            // XXX this assumes that none of the lifetimes are referenced by the
+            // where clause
+            where_clause: generics.where_clause
+        }
+    };
+
+    (tg, lg)
+}
+
 /// Return the visibility that should be used for expectation!, given the
 /// original method's visibility.
 ///
@@ -615,11 +660,11 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     let ident = &sig.ident;
     let (expectation_generics, expectation_inputs, call_exprs) =
         declosurefy(&sig.generics, &sig.inputs);
-    let merged_g = if let Some(g) = generics {
+    let (merged_g, _) = split_lifetimes(if let Some(g) = generics {
         merge_generics(&g, &expectation_generics)
     } else {
         sig.generics.clone()
-    };
+    });
     let inputs = demutify(&sig.inputs);
     let (_ig, tg, _wc) = merged_g.split_for_impl();
     for fn_arg in expectation_inputs.iter() {
@@ -654,8 +699,13 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
         }
     };
 
-    let is_expectation_generic = !expectation_generics.params.is_empty() ||
-        expectation_generics.where_clause.is_some() ||
+    let is_expectation_generic = expectation_generics.params.iter().any(|p| {
+            if let GenericParam::Type(_) = p {
+                true
+            } else {
+                false
+            }
+        }) || expectation_generics.where_clause.is_some() ||
         (is_static && generics.filter(|g| !g.params.is_empty()).is_some());
 
     let expectation_ident = format_ident!("Expectation");

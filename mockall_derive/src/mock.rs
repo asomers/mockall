@@ -250,14 +250,16 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
         }
     }
 
-    let (ig, ex_tg, wc) = meth_types.expectation_generics.split_for_impl();
-    let tg = if meth_types.is_static || meth_types.is_expectation_generic {
+    let (ig, _, wc) = meth_types.expectation_generics.split_for_impl();
+    let tbf_g = if meth_types.is_static || meth_types.is_expectation_generic {
         // For generic and static methods only, the trait's generic parameters
         // become generic parameters of the method.
-        merged_g.split_for_impl().1
+        &merged_g
     } else {
-        ex_tg
-    };
+        &meth_types.expectation_generics
+    }.clone();
+    let (tbf_tg, _) = split_lifetimes(tbf_g);
+    let (_, tg, _) = tbf_tg.split_for_impl();
     let call_turbofish = tg.as_turbofish();
     let no_match_msg = format!("{}::{}: No matching expectation found",
         mock_struct_name, ident);
@@ -272,7 +274,7 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
                  * parameters with UnwindSafe
                  */
                 /* std::panic::catch_unwind(|| */
-                __mockall_guard.#call #call_turbofish(#call_exprs)
+                __mockall_guard.#call#call_turbofish(#call_exprs)
                 /*)*/
             }.expect(#no_match_msg)
             /*}.unwrap()*/
