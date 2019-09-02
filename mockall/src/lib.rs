@@ -1264,6 +1264,7 @@ pub struct TimesRange(Range<usize>);
 
 impl Default for TimesRange {
     fn default() -> TimesRange {
+        // By default, allow any number of calls
         TimesRange(0..usize::max_value())
     }
 }
@@ -1312,12 +1313,11 @@ impl From<RangeToInclusive<usize>> for TimesRange {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[doc(hidden)]
 pub struct Times{
     /// How many times has the expectation already been called?
     count: AtomicUsize,
-    name: String,
     range: TimesRange
 }
 
@@ -1370,15 +1370,6 @@ impl Times {
 
     pub fn never(&mut self) {
         self.range.0 = 0..1;
-    }
-
-    pub fn new<S: Into<String>>(name: S) -> Times {
-        // By default, allow any number of calls
-        Times {
-            count: AtomicUsize::default(),
-            name: name.into(),
-            range: TimesRange::default(),
-        }
     }
 
     pub fn range(&mut self, range: Range<usize>) {
