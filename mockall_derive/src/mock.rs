@@ -52,7 +52,8 @@ impl Mock {
             for meth in methods {
                 has_new |= meth.borrow().sig.ident == "new";
                 let generics = merge_generics(&self.generics, &trait_.generics);
-                let (_, _, cp) = gen_mock_method(Some(&mod_ident),
+                let (_, _, cp) = gen_mock_method(&mock_struct_name,
+                                                 Some(&mod_ident),
                                                  &meth.attrs[..],
                                                  &meth.vis, &meth.vis,
                                                  &meth.borrow().sig, None,
@@ -70,7 +71,8 @@ impl Mock {
         // generate methods on the mock structure itself
         for meth in self.methods.iter() {
             has_new |= meth.sig.ident == "new";
-            let (mm, em, cp) = gen_mock_method(Some(&mock_mod_ident),
+            let (mm, em, cp) = gen_mock_method(&mock_struct_name,
+                                               Some(&mock_mod_ident),
                                                &meth.attrs[..],
                                                &meth.vis, &meth.vis,
                                                &meth.sig, None,
@@ -180,6 +182,8 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
 ///
 /// # Arguments
 ///
+/// * `mock_struct_name: Name of the mock structure, not the original one, like
+///                     "MockFoo".
 /// * `mod_ident`:      Name of the module that contains the expectation! macro,
 ///                     like __mock_Foo
 /// * `meth_attrs`:     Any attributes on the original method, like #[inline]
@@ -190,7 +194,8 @@ fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
 ///                     object, if any.
 /// * `generics`:       Generics of the method's parent trait or structure,
 ///                     _not_ the method itself.
-fn gen_mock_method(mod_ident: Option<&syn::Ident>,
+fn gen_mock_method(mock_struct_name: &syn::Ident,
+                   mod_ident: Option<&syn::Ident>,
                    meth_attrs: &[syn::Attribute],
                    meth_vis: &syn::Visibility,
                    expect_vis: &syn::Visibility,
@@ -254,6 +259,8 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
         ex_tg
     };
     let call_turbofish = tg.as_turbofish();
+    let no_match_msg = format!("{}::{}: No matching expectation found",
+        mock_struct_name, ident);
     if meth_types.is_static {
         quote!({
             {
@@ -267,13 +274,13 @@ fn gen_mock_method(mod_ident: Option<&syn::Ident>,
                 /* std::panic::catch_unwind(|| */
                 __mockall_guard.#call #call_turbofish(#call_exprs)
                 /*)*/
-            }.expect("No matching expectation found")
+            }.expect(#no_match_msg)
             /*}.unwrap()*/
         })
     } else {
         quote!({
             #expect_obj_name.#call#call_turbofish(#call_exprs)
-            .expect("No matching expectation found")
+            .expect(#no_match_msg)
         })
     }.to_tokens(&mut mock_output);
 
@@ -467,6 +474,7 @@ fn mock_trait_methods(struct_ident: &syn::Ident,
                 let mod_ident = gen_mod_ident(&struct_ident, Some(&item.ident));
                 let generics = merge_generics(&struct_generics, &item.generics);
                 let (mock_meth, expect_meth, _cp) = gen_mock_method(
+                    &mock_ident,
                     Some(&mod_ident),
                     &meth.attrs[..],
                     &syn::Visibility::Inherited,

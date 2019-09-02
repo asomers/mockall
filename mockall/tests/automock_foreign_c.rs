@@ -9,6 +9,16 @@ extern "C" {
 }
 
 #[test]
+#[should_panic(expected = "mock_ffi::foo: No matching expectation found")]
+fn with_no_matches() {
+    let ctx = mock_ffi::foo_context();
+    ctx.expect()
+        .with(predicate::eq(4))
+        .returning(i64::from);
+    unsafe{ mock_ffi::foo(5) };
+}
+
+#[test]
 fn returning() {
     let ctx = mock_ffi::foo_context();
     ctx.expect().returning(i64::from);

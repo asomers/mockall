@@ -63,7 +63,7 @@ mod checkpoint {
     }
 
     #[test]
-    #[should_panic(expected = "No matching expectation found")]
+    #[should_panic(expected = "MockFoo::foo: No matching expectation found")]
     fn removes_old_expectations() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -117,7 +117,7 @@ mod r#match {
     }
 
     #[test]
-    #[should_panic(expected = "No matching expectation found")]
+    #[should_panic(expected = "MockFoo::bar: No matching expectation found")]
     fn with_no_matches() {
         let mut mock = MockFoo::new();
         mock.expect_bar()
@@ -145,7 +145,7 @@ mod r#match {
     }
 
     #[test]
-    #[should_panic(expected = "No matching expectation found")]
+    #[should_panic(expected = "MockFoo::bar: No matching expectation found")]
     fn withf_no_matches() {
         let mut mock = MockFoo::new();
         mock.expect_bar()

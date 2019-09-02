@@ -51,7 +51,7 @@ mod with {
     }
 
     #[test]
-    #[should_panic(expected = "No matching expectation found")]
+    #[should_panic(expected = "MockFoo::foo: No matching expectation found")]
     fn wrong_generic_type() {
         let mut mock = MockFoo::new();
         mock.expect_foo::<i16>()

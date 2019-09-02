@@ -12,7 +12,7 @@ mod withf {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "No matching expectation found")]
+    #[should_panic(expected = "MockFoo::foo: No matching expectation found")]
     fn fail() {
         let mut mock = MockFoo::new();
         mock.expect_foo()

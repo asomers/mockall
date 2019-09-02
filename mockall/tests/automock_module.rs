@@ -19,6 +19,16 @@ cfg_if! {
             }
 
             #[test]
+            #[should_panic(expected = "mock_foo::bar: No matching expectation found")]
+            fn with_no_matches() {
+                let ctx = mock_foo::bar_context();
+                ctx.expect()
+                    .with(predicate::eq(4))
+                    .return_const(0);
+                mock_foo::bar(5);
+            }
+
+            #[test]
             fn returning() {
                 let ctx = mock_foo::bar_context();
                 ctx.expect()
