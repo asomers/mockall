@@ -16,16 +16,18 @@ cfg_if! {
             #[allow(unused)]
             mod foo {
                 pub fn bar(_x: u32) -> i64 {unimplemented!()}
+                // We must have a separate method for every should_panic test
+                pub fn bar1(_x: u32) -> i64 {unimplemented!()}
             }
 
             #[test]
-            #[should_panic(expected = "mock_foo::bar: No matching expectation found")]
+            #[should_panic(expected = "mock_foo::bar1: No matching expectation found")]
             fn with_no_matches() {
-                let ctx = mock_foo::bar_context();
+                let ctx = mock_foo::bar1_context();
                 ctx.expect()
                     .with(predicate::eq(4))
                     .return_const(0);
-                mock_foo::bar(5);
+                mock_foo::bar1(5);
             }
 
             #[test]
