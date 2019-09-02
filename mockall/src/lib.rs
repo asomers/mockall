@@ -37,6 +37,7 @@
 //! * [`impl Trait`](#impl-trait)
 //! * [`Mocking structs`](#mocking-structs)
 //! * [`Generic methods`](#generic-methods)
+//! * [`Methods with generic lifetimes`](#methods-with-generic-lifetimes)
 //! * [`Generic traits and structs`](#generic-traits-and-structs)
 //! * [`Associated types`](#associated-types-1)
 //! * [`Multiple and inherited traits`](#multiple-and-inherited-traits)
@@ -626,7 +627,7 @@
 //! infinite set of regular methods, and each of those works just like any other
 //! regular method.  The expect_* method is generic, too, and usually must be
 //! called with a turbofish.  The only restrictions on mocking generic methods
-//! are that each generic parameter must be `'static`, and generic lifetime
+//! are that all generic parameters must be `'static`, and generic lifetime
 //! parameters are not allowed.
 //!
 //! ```
@@ -644,6 +645,36 @@
 //!
 //! assert_eq!(5, mock.foo(5i16));
 //! assert_eq!(-5, mock.foo(5i8));
+//! ```
+//!
+//! ## Methods with generic lifetimes
+//!
+//! A method with a lifetime parameter is technically a generic method, but
+//! Mockall treats it like a non-generic method that must work for all possible
+//! lifetimes.  Mocking such a method is similar to mocking a non-generic
+//! method, with a few additional restrictions.  One restriction is that you
+//! can't match calls with `with`, you must use `withf` instead.  Another is
+//! that the generic lifetime may not appear as part of the return type.
+//! Finally, no method may have both generic lifetime parameters *and* generic
+//! type parameters.
+//!
+//! ```
+//! # use mockall::*;
+//! struct X<'a>(&'a i32);
+//!
+//! #[automock]
+//! trait Foo {
+//!     fn foo<'a>(&self, x: X<'a>) -> i32;
+//! }
+//!
+//! # fn main() {
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .withf(|f| *f.0 == 5)
+//!     .return_const(42);
+//! let x = X(&5);
+//! assert_eq!(42, mock.foo(x));
+//! # }
 //! ```
 //!
 //! ## Generic traits and structs

@@ -55,8 +55,10 @@ struct Common<'a> {
     struct_generics: Option<&'a Generics>,
     /// Generics of the method
     meth_generics: &'a Generics,
-    /// Generics of the Expectation object
+    /// Type generics of the Expectation object
     egenerics: Generics,
+    /// Lifetime generics of the mocked method
+    elifetimes: Generics,
     /// Is this for a static method or free function?
     is_static: bool,
     /// Expressions that create the predicate arguments from the call arguments
@@ -86,6 +88,8 @@ impl<'a> Common<'a> {
         let v = &self.vis;
         let argnames = &self.argnames;
         let predty = &self.predty;
+        let lg = &self.elifetimes;
+        let hrtb = self.hrtb();
         quote!(
             /// Add this expectation to a
             /// [`Sequence`](../../../mockall/struct.Sequence.html).
@@ -101,7 +105,7 @@ impl<'a> Common<'a> {
             }
 
             /// Validate this expectation's matcher.
-            fn matches(&self, #(#argnames: &#predty, )*) -> bool {
+            fn matches #lg (&self, #(#argnames: &#predty, )*) -> bool {
                 self.common.matches(#(#argnames, )*)
             }
 
@@ -173,10 +177,11 @@ impl<'a> Common<'a> {
 
             /// Set a matching function for this Expectation.
             ///
-            /// This is equivalent to calling [`with`](#method.with) with a function
-            /// argument, like `with(predicate::function(f))`.
+            /// This is equivalent to calling [`with`](#method.with) with a
+            /// function argument, like `with(predicate::function(f))`.
             #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
-                where MockallF: Fn(#(&#predty, )*) -> bool + Send + 'static
+                where MockallF: #hrtb Fn(#(&#predty, )*)
+                                -> bool + Send + 'static
             {
                 self.common.withf(__mockall_f);
                 self
@@ -256,6 +261,15 @@ impl<'a> Common<'a> {
         )
     }
 
+    fn hrtb(&self) -> TokenStream {
+        if self.elifetimes.params.is_empty() {
+            TokenStream::default()
+        } else {
+            let ig = &self.elifetimes;
+            quote!(for #ig)
+        }
+    }
+
     fn ident_str(&self) -> String {
         if let Some(pi) = self.parent_ident {
             format!("{}::{}", pi, self.meth_ident)
@@ -264,9 +278,16 @@ impl<'a> Common<'a> {
         }
     }
 
+    /// The Expectation is generic if there are any non-lifetime generic
+    /// parameters.
     fn is_generic(&self) -> bool {
-        !self.egenerics.params.is_empty() ||
-            self.egenerics.where_clause.is_some()
+        self.egenerics.params.iter().any(|p| {
+            if let GenericParam::Type(_) = p {
+                true
+            } else {
+                false
+            }
+        }) || self.egenerics.where_clause.is_some()
     }
 }
 
@@ -312,9 +333,11 @@ impl<'a> Expectation<'a> {
         let predty = &self.common().predty;
         let rfunc_ts = self.rfunc();
         let (ig, tg, wc) = self.common().egenerics.split_for_impl();
+        let hrtb = self.common().hrtb();
+        let lg = &self.common().elifetimes;
         let preds = TokenStream::from_iter(
             self.common().predty.iter().map(|t|
-                quote!(Box<dyn ::mockall::Predicate<#t> + Send>,)
+                quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + Send>,)
             )
         );
         let pred_matches = TokenStream::from_iter(
@@ -333,7 +356,7 @@ impl<'a> Expectation<'a> {
         let with_generics = TokenStream::from_iter(
             with_generics_idents.iter().zip(self.common().predty.iter())
             .map(|(id, mt)|
-                quote!(#id: ::mockall::Predicate<#mt> + Send + 'static, )
+                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
             )
         );
         let with_args = TokenStream::from_iter(
@@ -352,7 +375,7 @@ impl<'a> Expectation<'a> {
         let matcher_ts = quote!(
             enum Matcher #ig #wc {
                 Always,
-                Func(Box<dyn Fn(#refpredty) -> bool + Send>),
+                Func(Box<dyn #hrtb Fn(#refpredty) -> bool + Send>),
                 Pred(Box<(#preds)>),
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
@@ -361,7 +384,7 @@ impl<'a> Expectation<'a> {
             }
 
             impl #ig Matcher #tg #wc {
-                fn matches(&self, #( #argnames: &#predty, )*) -> bool {
+                fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
                     match self {
                         Matcher::Always => true,
                         Matcher::Func(__mockall_f) =>
@@ -444,7 +467,7 @@ impl<'a> Expectation<'a> {
                     self.times.is_done()
                 }
 
-                fn matches(&self, #( #argnames: &#predty, )*) -> bool {
+                fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
                     self.matcher.lock().unwrap().matches(#(#argnames, )*)
                 }
 
@@ -475,7 +498,8 @@ impl<'a> Expectation<'a> {
                 }
 
                 fn withf<MockallF>(&mut self, __mockall_f: MockallF)
-                    where MockallF: Fn(#refpredty) -> bool + Send + 'static
+                    where MockallF: #hrtb Fn(#refpredty)
+                                    -> bool + Send + 'static
                 {
                     let mut __mockall_guard = self.matcher.lock().unwrap();
                     mem::replace(__mockall_guard.deref_mut(),
@@ -585,7 +609,7 @@ impl<'a> Expectation<'a> {
         } else {
             meth_generics.clone()
         };
-        let mut egenerics = generics.clone();
+        let (mut egenerics, elifetimes) = split_lifetimes(generics);
         for p in egenerics.params.iter_mut() {
             if let GenericParam::Type(tp) = p {
                 let static_bound = Lifetime::new("'static", Span::call_site());
@@ -636,6 +660,7 @@ impl<'a> Expectation<'a> {
             struct_generics,
             meth_generics,
             egenerics,
+            elifetimes,
             is_static,
             predexprs,
             predty,
@@ -688,6 +713,8 @@ impl<'a> StaticExpectation<'a> {
         let argty = &self.common.argty;
         let ident_str = self.common().ident_str();
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let hrtb = self.common.hrtb();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         let v = &self.common.vis;
         quote!(
@@ -701,7 +728,7 @@ impl<'a> StaticExpectation<'a> {
             impl #ig Expectation #tg #wc {
                 /// Call this [`Expectation`] as if it were the real method.
                 #[doc(hidden)]
-                #v fn call(&self, #(#argnames: #argty, )* ) -> #output
+                #v fn call #lg (&self, #(#argnames: #argty, )* ) -> #output
                 {
                     self.common.call();
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)
@@ -730,13 +757,14 @@ impl<'a> StaticExpectation<'a> {
                     self.returning(move |#(#argnames, )*| __mockall_c.clone().into())
                 }
 
-                /// Supply an `FnOnce` closure that will provide the return value
-                /// for this Expectation.  This is useful for return types that
-                /// aren't `Clone`.  It will be an error to call this method
-                /// multiple times.
+                /// Supply an `FnOnce` closure that will provide the return
+                /// value for this Expectation.  This is useful for return types
+                /// that aren't `Clone`.  It will be an error to call this
+                /// method multiple times.
                 #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Self
-                    where MockallF: FnOnce(#(#argty, )*) -> #output + Send + 'static
+                    where MockallF: #hrtb FnOnce(#(#argty, )*)
+                                    -> #output + Send + 'static
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
@@ -746,16 +774,18 @@ impl<'a> StaticExpectation<'a> {
                     self
                 }
 
-                /// Single-threaded version of [`return_once`](#method.return_once).
-                /// This is useful for return types that are neither `Send` nor
-                /// `Clone`.
+                /// Single-threaded version of
+                /// [`return_once`](#method.return_once).  This is useful for
+                /// return types that are neither `Send` nor `Clone`.
                 ///
-                /// It is a runtime error to call the mock method from a different
-                /// thread than the one that originally called this method.  It is
-                /// also a runtime error to call the method more than once.
+                /// It is a runtime error to call the mock method from a
+                /// different thread than the one that originally called this
+                /// method.  It is also a runtime error to call the method more
+                /// than once.
                 #v fn return_once_st<MockallF>(&mut self, __mockall_f:
                                                   MockallF) -> &mut Self
-                    where MockallF: FnOnce(#(#argty, )*) -> #output + 'static
+                    where MockallF: #hrtb FnOnce(#(#argty, )*)
+                                    -> #output + 'static
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
@@ -766,10 +796,12 @@ impl<'a> StaticExpectation<'a> {
                 }
 
                 /// Supply a closure that will provide the return value for this
-                /// `Expectation`.  The method's arguments are passed to the closure
-                /// by value.
-                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
-                    where MockallF: FnMut(#(#argty, )*) -> #output + Send + 'static
+                /// `Expectation`.  The method's arguments are passed to the
+                /// closure by value.
+                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Self
+                    where MockallF: #hrtb FnMut(#(#argty, )*)
+                                    -> #output + Send + 'static
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
@@ -782,10 +814,13 @@ impl<'a> StaticExpectation<'a> {
                 /// Single-threaded version of [`returning`](#method.returning).
                 /// Can be used when the argument or return type isn't `Send`.
                 ///
-                /// It is a runtime error to call the mock method from a different
-                /// thread than the one that originally called this method.
-                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
-                    where MockallF: FnMut(#(#argty, )*) -> #output + 'static
+                /// It is a runtime error to call the mock method from a
+                /// different thread than the one that originally called this
+                /// method.
+                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Self
+                    where MockallF: #hrtb FnMut(#(#argty, )*)
+                                    -> #output + 'static
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
@@ -814,6 +849,7 @@ impl<'a> StaticExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -822,7 +858,8 @@ impl<'a> StaticExpectation<'a> {
                 /// Simulate calling the real method.  Every current expectation
                 /// will be checked in FIFO order and the first one with
                 /// matching arguments will be used.
-                #v fn call(&self, #(#argnames: #argty, )* ) -> Option<#output>
+                #v fn call #lg (&self, #(#argnames: #argty, )* )
+                    -> Option<#output>
                 {
                     self.0.iter()
                         .find(|__mockall_e|
@@ -884,6 +921,8 @@ impl<'a> StaticExpectation<'a> {
 
     fn rfunc(&self) -> TokenStream {
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let hrtb = self.common.hrtb();
+        let lg = &self.common.elifetimes;
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let fn_params = &self.common.fn_params;
@@ -894,15 +933,15 @@ impl<'a> StaticExpectation<'a> {
                 // Indicates that a `return_once` expectation has already
                 // returned
                 Expired,
-                Mut(Box<dyn FnMut(#(#argty, )*) -> #output + Send>),
+                Mut(Box<dyn #hrtb FnMut(#(#argty, )*) -> #output + Send>),
                 // Version of Rfunc::Mut for closures that aren't Send
                 MutST(::mockall::Fragile<
-                    Box<dyn FnMut(#(#argty, )*) -> #output >>
+                    Box<dyn #hrtb FnMut(#(#argty, )*) -> #output >>
                 ),
-                Once(Box<dyn FnOnce(#(#argty, )*) -> #output + Send>),
+                Once(Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output + Send>),
                 // Version of Rfunc::Once for closure that aren't Send
                 OnceST(::mockall::Fragile<
-                    Box<dyn FnOnce(#(#argty, )*) -> #output>>
+                    Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output>>
                 ),
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
@@ -911,7 +950,7 @@ impl<'a> StaticExpectation<'a> {
             }
 
             impl #ig  Rfunc #tg #wc {
-                fn call_mut(&mut self, #( #argnames: #argty, )* )
+                fn call_mut #lg (&mut self, #( #argnames: #argty, )* )
                     -> Result<#output, &'static str>
                 {
                     match self {
@@ -970,6 +1009,7 @@ impl<'a> StaticExpectation<'a> {
         let argty = &self.common.argty;
         let fn_params = &self.common.fn_params;
         let (_ig, tg, _wc) = self.common.egenerics.split_for_impl();
+        let hrtb = self.common.hrtb();
         let output = &self.common.output;
         let predty = &self.common.predty;
         let tbf = tg.as_turbofish();
@@ -1126,7 +1166,7 @@ impl<'a> StaticExpectation<'a> {
                     /// [`Expectation::returning`](struct.Expectation.html#method.returning)
                     #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                         -> &mut Expectation #tg
-                        where MockallF: FnMut(#(#argty, )*)
+                        where MockallF: #hrtb FnMut(#(#argty, )*)
                             -> #output + Send + 'static
                     {
                         self.guard.0[self.i].returning(__mockall_f)
@@ -1136,7 +1176,8 @@ impl<'a> StaticExpectation<'a> {
                     /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
                     #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
                         -> &mut Expectation #tg
-                        where MockallF: FnOnce(#(#argty, )*) -> #output + Send + 'static
+                        where MockallF: #hrtb FnOnce(#(#argty, )*)
+                                        -> #output + Send + 'static
                     {
                         self.guard.0[self.i].return_once(__mockall_f)
                     }
@@ -1145,7 +1186,8 @@ impl<'a> StaticExpectation<'a> {
                     /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
                     #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
                         -> &mut Expectation #tg
-                        where MockallF: FnMut(#(#argty, )*) -> #output + 'static
+                        where MockallF: #hrtb FnMut(#(#argty, )*)
+                                        -> #output + 'static
                     {
                         self.guard.0[self.i].returning_st(__mockall_f)
                     }
@@ -1187,7 +1229,8 @@ impl<'a> StaticExpectation<'a> {
                     /// [`Expectation::withf`](struct.Expectation.html#method.withf)
                     #v fn withf<MockallF>(&mut self, __mockall_f: MockallF)
                         -> &mut Expectation #tg
-                        where MockallF: Fn(#(&#predty, )*) -> bool + Send + 'static
+                        where MockallF: #hrtb Fn(#(&#predty, )*)
+                                        -> bool + Send + 'static
                     {
                         self.guard.0[self.i].withf(__mockall_f)
                     }
@@ -1376,7 +1419,8 @@ impl<'a> StaticExpectation<'a> {
                     /// Just like
                     /// [`Expectation::withf`](struct.Expectation.html#method.withf)
                     #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #tg
-                        where MockallF: Fn(#(&#predty, )*) -> bool + Send + 'static
+                        where MockallF: #hrtb Fn(#(&#predty, )*)
+                                        -> bool + Send + 'static
                     {
                         self.guard.store.get_mut(
                                 &::mockall::Key::new::<(#(#argty, )*)>()
@@ -1403,6 +1447,7 @@ impl<'a> RefExpectation<'a> {
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let ident_str = self.common().ident_str();
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         let v = &self.common.vis;
         quote!(
@@ -1415,7 +1460,7 @@ impl<'a> RefExpectation<'a> {
             }
 
             impl #ig Expectation #tg {
-                #v fn call(&self) -> &#output {
+                #v fn call #lg (&self) -> &#output {
                     self.common.call();
                     self.rfunc.call().unwrap_or_else(|m| {
                         let desc = format!("{}",
@@ -1452,6 +1497,7 @@ impl<'a> RefExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1460,7 +1506,9 @@ impl<'a> RefExpectation<'a> {
                 /// Simulate calling the real method.  Every current expectation
                 /// will be checked in FIFO order and the first one with
                 /// matching arguments will be used.
-                #v fn call(&self, #(#argnames: #argty,)* ) -> Option<&#output> {
+                #v fn call #lg (&self, #(#argnames: #argty,)* )
+                    -> Option<&#output>
+                {
                     self.0.iter()
                         .find(|__mockall_e|
                               __mockall_e.matches(#(#predexprs, )*) &&
@@ -1528,6 +1576,7 @@ impl<'a> RefExpectation<'a> {
     fn rfunc(&self) -> TokenStream {
         let fn_params = &self.common.fn_params;
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         quote!(
             enum Rfunc #ig #wc {
@@ -1540,7 +1589,7 @@ impl<'a> RefExpectation<'a> {
             }
 
             impl #ig  Rfunc #tg #wc {
-                fn call(&self) -> Result<&#output, &'static str> {
+                fn call #lg (&self) -> Result<&#output, &'static str> {
                     match self {
                         Rfunc::Default(Some(ref __mockall_o)) => {
                             Ok(__mockall_o)
@@ -1591,6 +1640,7 @@ impl<'a> RefMutExpectation<'a> {
         let argty = &self.common.argty;
         let ident_str = self.common().ident_str();
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         let v = &self.common.vis;
         quote!(
@@ -1604,7 +1654,7 @@ impl<'a> RefMutExpectation<'a> {
 
             impl #ig Expectation #tg {
                 /// Simulating calling the real method for this expectation
-                #v fn call_mut(&mut self, #(#argnames: #argty, )*)
+                #v fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
                     -> &mut #output
                 {
                     self.common.call();
@@ -1667,6 +1717,7 @@ impl<'a> RefMutExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1675,7 +1726,7 @@ impl<'a> RefMutExpectation<'a> {
                 /// Simulate calling the real method.  Every current expectation
                 /// will be checked in FIFO order and the first one with
                 /// matching arguments will be used.
-                #v fn call_mut(&mut self, #(#argnames: #argty, )* )
+                #v fn call_mut #lg (&mut self, #(#argnames: #argty, )* )
                     -> Option<&mut #output>
                 {
                     let __mockall_n = self.0.len();
@@ -1746,6 +1797,7 @@ impl<'a> RefMutExpectation<'a> {
         let argty = &self.common.argty;
         let fn_params = &self.common.fn_params;
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let lg = &self.common.elifetimes;
         let output = &self.common.output;
         quote!(
             enum Rfunc #ig #wc {
@@ -1765,7 +1817,7 @@ impl<'a> RefMutExpectation<'a> {
             }
 
             impl #ig  Rfunc #tg #wc {
-                fn call_mut(&mut self, #(#argnames: #argty, )*)
+                fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
                     -> Result<&mut #output, &'static str>
                 {
                     match self {

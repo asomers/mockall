@@ -66,8 +66,10 @@ impl Attrs {
                             self.substitute_type(&mut binding.ty);
                         },
                         _ => {
-                            compile_error(arg.span(),
-                                "Mockall does not yet support this argument type in this position");
+                            /*
+                             * Nothing to do, as long as lifetimes can't be
+                             * associated types
+                             */
                         }
                     }
                 }
