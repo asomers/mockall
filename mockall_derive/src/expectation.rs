@@ -757,13 +757,10 @@ impl<'a> StaticExpectation<'a> {
                                                   MockallF) -> &mut Self
                     where MockallF: FnOnce(#(#argty, )*) -> #output + 'static
                 {
-                    let __mockall_fragile = ::mockall::Fragile::new(__mockall_f);
-                    let __mockall_fonce = Box::new(move |#(#argnames: #argty, )*| {
-                        (__mockall_fragile.into_inner())(#(#argnames, )*)
-                    });
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        mem::replace(__mockall_guard.deref_mut(), Rfunc::Once(__mockall_fonce));
+                        mem::replace(__mockall_guard.deref_mut(), Rfunc::OnceST(
+                            ::mockall::Fragile::new(Box::new(__mockall_f))));
                     }
                     self
                 }
@@ -790,14 +787,11 @@ impl<'a> StaticExpectation<'a> {
                 #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + 'static
                 {
-                    let mut __mockall_fragile = ::mockall::Fragile::new(__mockall_f);
-                    let __mockall_fmut = move |#(#argnames: #argty, )*| {
-                        (__mockall_fragile.get_mut())(#(#argnames, )*)
-                    };
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        mem::replace(__mockall_guard.deref_mut(),
-                            Rfunc::Mut(Box::new(__mockall_fmut)));
+                        mem::replace(__mockall_guard.deref_mut(), Rfunc::MutST(
+                            ::mockall::Fragile::new(Box::new(__mockall_f)))
+                        );
                     }
                     self
                 }
@@ -901,7 +895,15 @@ impl<'a> StaticExpectation<'a> {
                 // returned
                 Expired,
                 Mut(Box<dyn FnMut(#(#argty, )*) -> #output + Send>),
+                // Version of Rfunc::Mut for closures that aren't Send
+                MutST(::mockall::Fragile<
+                    Box<dyn FnMut(#(#argty, )*) -> #output >>
+                ),
                 Once(Box<dyn FnOnce(#(#argty, )*) -> #output + Send>),
+                // Version of Rfunc::Once for closure that aren't Send
+                OnceST(::mockall::Fragile<
+                    Box<dyn FnOnce(#(#argty, )*) -> #output>>
+                ),
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
@@ -924,10 +926,21 @@ impl<'a> StaticExpectation<'a> {
                         Rfunc::Mut(__mockall_f) => {
                             Ok(__mockall_f( #(#argnames, )* ))
                         },
+                        Rfunc::MutST(__mockall_f) => {
+                            Ok((__mockall_f.get_mut())(#(#argnames,)*))
+                        },
                         Rfunc::Once(_) => {
                             if let Rfunc::Once(mut __mockall_f) =
                                 mem::replace(self, Rfunc::Expired) {
                                 Ok(__mockall_f( #(#argnames, )* ))
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::OnceST(_) => {
+                            if let Rfunc::OnceST(mut __mockall_f) =
+                                mem::replace(self, Rfunc::Expired) {
+                                Ok((__mockall_f.into_inner())(#(#argnames,)*))
                             } else {
                                 unreachable!()
                             }
@@ -1630,12 +1643,9 @@ impl<'a> RefMutExpectation<'a> {
                     -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + 'static
                 {
-                    let mut __mockall_fragile = ::mockall::Fragile::new(__mockall_f);
-                    let __mockall_fmut = move |#(#argnames, )*| {
-                        (__mockall_fragile.get_mut())(#(#argnames, )*)
-                    };
-                    mem::replace(&mut self.rfunc,
-                                 Rfunc::Mut(Box::new(__mockall_fmut), None));
+                    mem::replace(&mut self.rfunc, Rfunc::MutST(
+                        ::mockall::Fragile::new(Box::new(__mockall_f)), None)
+                    );
                     self
                 }
 
@@ -1742,6 +1752,11 @@ impl<'a> RefMutExpectation<'a> {
                 Default(Option<#output>),
                 Mut((Box<dyn FnMut(#(#argty, )*) -> #output + Send + Sync>),
                     Option<#output>),
+                // Version of Rfunc::Mut for closures that aren't Send
+                MutST((::mockall::Fragile<
+                           Box<dyn FnMut(#(#argty, )*) -> #output >>
+                       ), Option<#output>
+                ),
                 Var(#output),
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
@@ -1768,6 +1783,17 @@ impl<'a> RefMutExpectation<'a> {
                         Rfunc::Mut(ref mut __mockall_f, ref mut __mockall_o) =>
                         {
                             *__mockall_o = Some(__mockall_f(#(#argnames, )*));
+                            if let Some(ref mut __mockall_o2) = __mockall_o {
+                                Ok(__mockall_o2)
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::MutST(ref mut __mockall_f, ref mut __mockall_o)=>
+                        {
+                            *__mockall_o = Some((__mockall_f.get_mut())(
+                                    #(#argnames, )*)
+                            );
                             if let Some(ref mut __mockall_o2) = __mockall_o {
                                 Ok(__mockall_o2)
                             } else {
