@@ -46,7 +46,7 @@ fn ctx_checkpoint() {
 
 // Expectations should be cleared when a context object drops
 #[test]
-#[should_panic(expected = "No matching expectation found")]
+#[should_panic(expected = "MockFoo::bar: No matching expectation found")]
 fn ctx_hygiene() {
     let _m = BAR_MTX.lock();
 

@@ -336,7 +336,7 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
                         .checkpoint()
                         .collect::<Vec<_>>();
                 ).to_tokens(&mut cp_body);
-                mock_foreign_function(f).to_tokens(&mut body);
+                mock_foreign_function(&modname, f).to_tokens(&mut body);
             },
             ForeignItem::Static(s) => {
                 // Copy verbatim so a mock method can mutate it
@@ -356,15 +356,17 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
 
 /// Mock a foreign function the same way we mock static trait methods: with a
 /// global Expectations object
-fn mock_foreign_function(f: ForeignItemFn) -> TokenStream {
+fn mock_foreign_function(modname: &Ident, f: ForeignItemFn) -> TokenStream {
     // Foreign functions are always unsafe.  Mock foreign functions should be
     // unsafe too, to prevent "warning: unused unsafe" messages.
     let mut sig = f.sig.clone();
     sig.unsafety = Some(Token![unsafe](f.sig.span()));
-    mock_function(&f.vis, &sig)
+    mock_function(modname, &f.vis, &sig)
 }
 
-fn mock_function(vis: &Visibility, sig: &Signature) -> TokenStream {
+fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
+    -> TokenStream
+{
     let asyncness = &sig.asyncness;
     let constness = &sig.constness;
     let fn_token = &sig.fn_token;
@@ -414,6 +416,8 @@ fn mock_function(vis: &Visibility, sig: &Signature) -> TokenStream {
     Expectation::new(&TokenStream::new(), &inputs, None, generics,
         &ident, &mod_ident, None, &sig.output, &expect_vis)
         .to_tokens(&mut out);
+    let no_match_msg = format!("{}::{}: No matching expectation found",
+        modname, ident);
     quote!(
         #meth_vis #constness #unsafety #asyncness
         #fn_token #ident #generics (#inputs) #output {
@@ -428,7 +432,7 @@ fn mock_function(vis: &Visibility, sig: &Signature) -> TokenStream {
                 /* std::panic::catch_unwind(|| */
                 __mockall_guard.call(#(#args),*)
                 /*)*/
-            }.expect("No matching expectation found")
+            }.expect(#no_match_msg)
         }
         #meth_vis fn #context_ident() -> #mod_ident::Context
         {
@@ -560,7 +564,7 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
                         .checkpoint()
                         .collect::<Vec<_>>();
                 ).to_tokens(&mut cp_body);
-                mock_native_function(&f).to_tokens(&mut body);
+                mock_native_function(&modname, &f).to_tokens(&mut body);
             },
             Item::Mod(_) | Item::ForeignMod(_)
                 | Item::Struct(_) | Item::Enum(_)
@@ -587,8 +591,8 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
 
 /// Mock a function the same way we mock static trait methods: with a
 /// global Expectations object
-fn mock_native_function(f: &ItemFn) -> TokenStream {
-    mock_function(&f.vis, &f.sig)
+fn mock_native_function(modname: &Ident, f: &ItemFn) -> TokenStream {
+    mock_function(modname, &f.vis, &f.sig)
 }
 
 /// Generate a mock struct that implements a trait
