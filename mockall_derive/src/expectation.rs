@@ -411,7 +411,7 @@ impl<'a> Expectation<'a> {
                     Common {
                         matcher: Mutex::new(Matcher::default()),
                         seq_handle: None,
-                        times: ::mockall::Times::new(#ident_str)
+                        times: ::mockall::Times::default()
                     }
                 }
             }
