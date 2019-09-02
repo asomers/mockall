@@ -840,7 +840,6 @@ impl<'a> StaticExpectation<'a> {
                 }
 
             }
-            impl #ig ::mockall::AnyExpectations for Expectations #tg #wc {}
         )
     }
 
@@ -860,6 +859,7 @@ impl<'a> StaticExpectation<'a> {
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
         quote!(
+            impl #ig ::mockall::AnyExpectations for Expectations #tg #wc {}
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #v fn call #ig (&self, #(#argnames: #argty, )* )
@@ -1457,11 +1457,6 @@ impl<'a> RefExpectation<'a> {
                         )
                 }
             }
-            // The Senc + Sync are required for downcast, since Expectation
-            // stores an Option<#output>
-            impl #ig ::mockall::AnyExpectations for Expectations #tg
-                    where #output: Send + Sync
-            {}
         )
     }
 
@@ -1476,6 +1471,11 @@ impl<'a> RefExpectation<'a> {
         let v = &self.common.vis;
 
         quote!(
+            // The Senc + Sync are required for downcast, since Expectation
+            // stores an Option<#output>
+            impl #ig ::mockall::AnyExpectations for Expectations #tg
+                    where #output: Send + Sync
+            {}
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #v fn call #ig (&self, #(#argnames: #argty,)*)
