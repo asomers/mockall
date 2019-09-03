@@ -56,6 +56,16 @@ fn ctx_hygiene() {
     MockFoo::bar3(42);
 }
 
+#[test]
+fn return_const() {
+    let _m = BAR_MTX.lock().unwrap();
+
+    let ctx = MockFoo::bar_context();
+    ctx.expect()
+        .return_const(42u64);
+    assert_eq!(42, MockFoo::bar(41));
+}
+
 #[cfg_attr(not(feature = "nightly"), ignore)]
 #[cfg_attr(not(feature = "nightly"), allow(unused_must_use))]
 #[test]
