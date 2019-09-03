@@ -12,6 +12,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 ### Fixed
+
+- `return_const` now works for static methods with no preceding `with` or
+  `withf`.
+  ([#47](https://github.com/asomers/mockall/pull/47))
+
 ### Removed
 
 ## [0.4.0] - 29 August 2019
