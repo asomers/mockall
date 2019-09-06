@@ -366,7 +366,15 @@ impl<'a> Expectation<'a> {
         let boxed_withargs = TokenStream::from_iter(
             argnames.iter().map(|aa| quote!(Box::new(#aa), ))
         );
-        let braces = argnames.iter().map(|_| "{}").collect::<Vec<_>>();
+        let braces = argnames.iter()
+            .fold(String::new(), |mut acc, _argname| {
+                if acc.is_empty() {
+                    acc.push_str("{}");
+                } else {
+                    acc.push_str(", {}");
+                }
+                acc
+            });
         let indices = (0..argnames.len())
             .map(|i| {
                 let idx = syn::Index::from(i);
@@ -413,7 +421,7 @@ impl<'a> Expectation<'a> {
                         Matcher::Always => write!(__mockall_fmt, "<anything>"),
                         Matcher::Func(_) => write!(__mockall_fmt, "<function>"),
                         Matcher::Pred(__mockall_p) => {
-                            write!(__mockall_fmt, concat!(#(#braces,)*),
+                            write!(__mockall_fmt, #braces,
                                 #(__mockall_p.#indices,)*)
                         }
                         _ => unreachable!(),

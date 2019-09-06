@@ -3,7 +3,7 @@
 #![allow(clippy::too_many_arguments)]    // Good job, Clippy!
 #![allow(clippy::type_complexity)]
 
-use mockall::*;
+use mockall::{automock, predicate::*};
 
 #[automock]
 trait ManyArgs {
@@ -19,6 +19,17 @@ trait ManyArgs {
     fn bean(_a0: u8, _a1: u8, _a2: u8, _a3: u8, _a4: u8, _a5: u8,
            _a6: u8, _a7: u8, _a8: u8, _a9: u8, _a10: u8, _a11: u8,
            _a12: u8, _a13: u8, _a14: u8, _a15: u8);
+}
+
+#[test]
+#[should_panic(expected =
+    "MockManyArgs::foo: Expectation(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true) called fewer than 1 times")]
+fn not_yet_satisfied() {
+    let mut mock = MockManyArgs::new();
+    mock.expect_foo()
+        .with(always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), )
+        .times(1)
+        .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
 }
 
 #[test]
@@ -52,3 +63,18 @@ fn static_method_returning() {
         .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
     MockManyArgs::bean(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
+
+#[test]
+#[should_panic(expected =
+    "MockManyArgs::foo: Expectation(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true) called more than 1 times")]
+fn too_many() {
+    let mut mock = MockManyArgs::new();
+    mock.expect_foo()
+        .with(always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), always(), )
+        .times(1)
+        .returning(|_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _|  ());
+    mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    mock.foo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+
