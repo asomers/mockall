@@ -32,7 +32,7 @@ test_task:
 minver_task:
   name: minver
   depends_on:
-    - test
+    - cargo test
   matrix:
     - container:
        image: rustlang/rust:nightly
