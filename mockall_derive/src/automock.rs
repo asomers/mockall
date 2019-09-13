@@ -545,6 +545,8 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
     let items = if let Some((_, items)) = mod_.content {
         items
     } else {
+        compile_error(mod_.span(),
+        "automock can only mock inline modules, not modules from another file");
         Vec::new()
     };
     for item in items.iter() {
@@ -689,6 +691,15 @@ mod t {
         assert!(output.contains("pub ( crate ) fn expect_bang"));
         assert!(output.contains("pub ( in super :: x ) fn bean"));
         assert!(output.contains("pub ( in super :: x ) fn expect_bean"));
+    }
+
+    #[test]
+    #[should_panic(expected = "can only mock inline modules")]
+    fn external_module() {
+        let code = r#"mod foo;"#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        do_automock(attrs_ts, ts).to_string();
     }
 
     #[test]
