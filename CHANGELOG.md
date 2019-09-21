@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased] - ReleaseDate
+### Added
+### Changed
+### Fixed
+
+- Fixed automocking modules that contain use statements importing types that
+  are used in function signatures.
+  ([#53](https://github.com/asomers/mockall/pull/53))
+
+### Removed
+
 ## [0.5.0] - 5 September 2019
 
 ### Added

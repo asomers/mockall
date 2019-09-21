@@ -11,13 +11,15 @@ cfg_if! {
     if #[cfg(feature = "nightly")] {
         mod m {
             use mockall::*;
+            type T = u32;
 
             #[automock]
             #[allow(unused)]
             mod foo {
-                pub fn bar(_x: u32) -> i64 {unimplemented!()}
+                use super::T;
+                pub fn bar(_x: T) -> i64 {unimplemented!()}
                 // We must have a separate method for every should_panic test
-                pub fn bar1(_x: u32) -> i64 {unimplemented!()}
+                pub fn bar1(_x: T) -> i64 {unimplemented!()}
             }
 
             #[test]
