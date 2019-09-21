@@ -551,8 +551,7 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
     };
     for item in items.iter() {
         match item {
-            Item::ExternCrate(_) | Item::Use(_)
-                | Item::Impl(_) =>
+            Item::ExternCrate(_) | Item::Impl(_) =>
             {
                 // Ignore
             },
@@ -584,6 +583,10 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
             Item::TraitAlias(ta) => {
                 // Copy verbatim
                 ta.to_tokens(&mut body)
+            },
+            Item::Use(u) => {
+                // Copy verbatim
+                u.to_tokens(&mut body)
             },
             _ => compile_error(item.span(), "Unsupported item"),
         }
