@@ -416,7 +416,7 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
 
     let mut out = TokenStream::new();
     Expectation::new(&TokenStream::new(), &inputs, None, generics,
-        &ident, &mod_ident, None, &sig.output, &expect_vis)
+        &ident, &mod_ident, None, &sig.output, &expect_vis, 1)
         .to_tokens(&mut out);
     let no_match_msg = format!("{}::{}: No matching expectation found",
         modname, ident);
