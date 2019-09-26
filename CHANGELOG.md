@@ -8,6 +8,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 ### Fixed
 
+- Fixed using super:: in the signature of a bare function
+  ([#54](https://github.com/asomers/mockall/pull/54))
+
 - Fixed automocking modules that contain use statements importing types that
   are used in function signatures.
   ([#53](https://github.com/asomers/mockall/pull/53))

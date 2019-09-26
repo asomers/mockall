@@ -577,6 +577,7 @@ impl<'a> Expectation<'a> {
     /// * `parent_ident`    - Name of the parent struct, if any.
     /// * `return_type`     - Return type of the mock method
     /// * `vis`             - Visibility of the expectation, *already supersuperfied*.
+    /// * `levels`          - Depth of modules added by the caller
     pub(crate) fn new(
         attrs: &'a TokenStream,
         args: &Punctuated<FnArg, Token![,]>,
@@ -586,7 +587,8 @@ impl<'a> Expectation<'a> {
         mod_ident: &'a Ident,
         parent_ident: Option<&'a Ident>,
         return_type: &ReturnType,
-        vis: &Visibility) -> Self
+        vis: &Visibility,
+        levels: i32) -> Self
     {
         // Too bad Iterator::unzip only works on 2-tuples
         let mut argnames = Vec::new();
@@ -597,7 +599,7 @@ impl<'a> Expectation<'a> {
         for fa in args.iter() {
             if let FnArg::Typed(pt) = fa {
                 let argname = (*pt.pat).clone();
-                let aty = supersuperfy(&pt.ty);
+                let aty = supersuperfy(&pt.ty, levels);
                 if let Type::Reference(ref tr) = aty {
                     predexprs.push(quote!(#argname));
                     predty.push((*tr.elem).clone());
@@ -658,7 +660,7 @@ impl<'a> Expectation<'a> {
                     rt
                 }
             }
-        });
+        }, levels);
 
         let common = Common {
             argnames,

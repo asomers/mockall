@@ -368,7 +368,7 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
     }
 }
 
-fn supersuperfy_path(path: &mut Path) {
+fn supersuperfy_path(path: &mut Path, levels: i32) {
         if let Some(t) = path.segments.first() {
             if t.ident == "super" {
                 let mut ident = format_ident!("super");
@@ -377,54 +377,55 @@ fn supersuperfy_path(path: &mut Path) {
                     ident,
                     arguments: PathArguments::None
                 };
-                path.segments.insert(0, ps.clone());
-                path.segments.insert(0, ps);
+                for _ in 0..levels {
+                    path.segments.insert(0, ps.clone());
+                }
             }
         }
 }
 
 /// Replace any references to `super::X` in `original` with `super::super::X`.
-fn supersuperfy(original: &Type) -> Type {
+fn supersuperfy(original: &Type, levels: i32) -> Type {
     let mut output = original.clone();
-    fn recurse(t: &mut Type) {
+    fn recurse(t: &mut Type, levels: i32) {
         match t {
             Type::Slice(s) => {
-                supersuperfy(s.elem.as_mut());
+                supersuperfy(s.elem.as_mut(), levels);
             },
             Type::Array(a) => {
-                supersuperfy(a.elem.as_mut());
+                supersuperfy(a.elem.as_mut(), levels);
             },
             Type::Ptr(p) => {
-                supersuperfy(p.elem.as_mut());
+                supersuperfy(p.elem.as_mut(), levels);
             },
             Type::Reference(r) => {
-                supersuperfy(r.elem.as_mut());
+                supersuperfy(r.elem.as_mut(), levels);
             },
             Type::BareFn(bfn) => {
                 if let ReturnType::Type(_, ref mut bt) = bfn.output {
-                    let new_bt = Box::new(supersuperfy(bt.as_ref()));
+                    let new_bt = Box::new(supersuperfy(bt.as_ref(), levels));
                     mem::replace(bt, new_bt);
                 }
                 for input in bfn.inputs.iter_mut() {
-                    input.ty = supersuperfy(&input.ty);
+                    input.ty = supersuperfy(&input.ty, levels);
                 }
             },
             Type::Tuple(tuple) => {
                 for elem in tuple.elems.iter_mut() {
-                    supersuperfy(elem);
+                    supersuperfy(elem, levels);
                 }
             }
             Type::Path(type_path) => {
                 if let Some(ref _qself) = type_path.qself {
                     compile_error(type_path.span(), "QSelf is TODO");
                 }
-                supersuperfy_path(&mut type_path.path)
+                supersuperfy_path(&mut type_path.path, levels)
             },
             Type::Paren(p) => {
-                supersuperfy(p.elem.as_mut());
+                supersuperfy(p.elem.as_mut(), levels);
             },
             Type::Group(g) => {
-                supersuperfy(g.elem.as_mut());
+                supersuperfy(g.elem.as_mut(), levels);
             },
             Type::Macro(_) | Type::Verbatim(_) => {
                 compile_error(t.span(),
@@ -436,7 +437,7 @@ fn supersuperfy(original: &Type) -> Type {
             Type::TraitObject(tto) => {
                 for bound in tto.bounds.iter_mut() {
                     if let TypeParamBound::Trait(tb) = bound {
-                        supersuperfy_path(&mut tb.path)
+                        supersuperfy_path(&mut tb.path, levels)
                     }
                 }
             },
@@ -447,7 +448,7 @@ fn supersuperfy(original: &Type) -> Type {
             _ => compile_error(t.span(), "Unsupported type"),
         }
     }
-    recurse(&mut output);
+    recurse(&mut output, levels);
     output
 }
 
