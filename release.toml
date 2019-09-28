@@ -1,0 +1,9 @@
+dev-version-ext = "pre"
+upload-doc = false
+
+# cargo-release can't yet update CHANGELOG.md
+# https://github.com/sunng87/cargo-release/issues/154
+#pre-release-replacements = [
+	#{ file="CHANGELOG.md", search="Unreleased", replace="{{version}}" },
+	#{ file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}" }
+#]
