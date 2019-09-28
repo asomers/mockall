@@ -8,7 +8,7 @@
 //! # Usage
 //!
 //! There are two ways to use Mockall.  The easiest is to use
-//! [`#[automock]`](macro.automock.html).  It can mock most traits, or structs
+//! [`#[automock]`](attr.automock.html).  It can mock most traits, or structs
 //! that only have a single `impl` block.  For things it can't handle, there is
 //! [`mock!`].
 //!
@@ -576,7 +576,7 @@
 //! because it has a different name.  The solution is to alter import paths
 //! during test.  The [`cfg-if`] crate helps.
 //!
-//! [`#[automock]`](macro.automock.html)
+//! [`#[automock]`](attr.automock.html)
 //! works for structs that have a single `impl` block:
 //! ```no_run
 //! # use mockall::*;
@@ -704,7 +704,7 @@
 //! Traits with associated types can be mocked too.  Unlike generic traits, the
 //! mock struct will not be generic.  Instead, you must specify the associated
 //! types when defining the mock struct.  They're specified as metaitems to the
-//! [`#[automock]`](macro.automock.html) attribute.
+//! [`#[automock]`](attr.automock.html) attribute.
 //!
 //! ```
 //! # use mockall::*;
@@ -762,7 +762,7 @@
 //!
 //! Mockall can mock traits and structs defined in external crates that are
 //! beyond your control, but you must use [`mock!`] instead of
-//! [`#[automock]`](macro.automock.html).  Mock an external trait like this:
+//! [`#[automock]`](attr.automock.html).  Mock an external trait like this:
 //!
 //! ```
 //! # use mockall::*;
@@ -901,7 +901,7 @@
 //! expectations are global.  And like mocking structs, you'll probably have to
 //! fiddle with your imports to make the mock function accessible.  Finally,
 //! like associated types, you'll need to provide some extra info to
-//! [`#[automock]`](macro.automock.html)
+//! [`#[automock]`](attr.automock.html)
 //! to make it work.
 //!
 //! ```no_run
@@ -1025,6 +1025,7 @@
 //! [`Sequence`]: Sequence
 //! [`cfg-if`]: https://crates.io/crates/cfg-if
 //! [`function`]: predicate/fn.function.html
+//! [`mock!`]: macro.mock.html
 //! [`predicates`]: predicate/index.html
 
 #![cfg_attr(feature = "nightly", feature(specialization))]
@@ -1062,182 +1063,165 @@ pub use predicates::{
 #[doc(hidden)]
 pub use predicates_tree::CaseTreeExt;
 
-::cfg_if::cfg_if! {
-    if #[cfg(any(not(feature = "nightly"), not(rustdoc)))] {
-        pub use mockall_derive::{mock, automock};
-    } else {
-        // mockall_derive can't use mockall in its doc tests, because that would
-        // create a circular dependency between the two crates.  And we can't
-        // add docs directly to the reexport item, for reasons I know not why.
-        // So, when building the docs, we create fake items to document in place
-        // of the reexports.
-        // https://github.com/rust-lang/rust/issues/49553
-        /// Automatically generate mock types for structs and traits.
-        ///
-        /// This is by far the easiest way to use Mockall.  It works on almost
-        /// all traits, and almost all structs that have a single `impl` block.
-        /// In either case, it will generate a mock struct whose name is the
-        /// name of the mocked struct/trait prepended with "Mock".  For each
-        /// method of the original, the mock struct will have a method named
-        /// `expect_whatever` that allows you to set expectations.  There will
-        /// also be one `checkpoint` method that calls
-        /// [`checkpoint`] for every single mocked method.
-        ///
-        /// # Examples
-        ///
-        /// The simplest use case is mocking a no-frills trait
-        /// ```
-        /// # use mockall_derive::*;
-        /// #[automock]
-        /// pub trait Foo {
-        ///     fn foo(&self, key: i16);
-        /// }
-        ///
-        /// let mock = MockFoo::new();
-        /// ```
-        ///
-        /// Mocking a structure:
-        /// ```
-        /// # use mockall_derive::*;
-        /// struct Foo {}
-        /// #[automock]
-        /// impl Foo {
-        ///     fn foo(&self) -> u32 {
-        ///         // ...
-        ///         # unimplemented!()
-        ///     }
-        /// }
-        /// ```
-        ///
-        /// Mocking a trait with associated types requires adding a metaitem to
-        /// the attribute:
-        /// ```
-        /// # use mockall_derive::*;
-        /// #[automock(type Item=u32;)]
-        /// trait Foo {
-        ///     type Item;
-        ///     fn foo(&self) -> Self::Item;
-        /// }
-        /// ```
-        ///
-        /// Finally, `#[automock]` can also mock foreign functions.  This
-        /// requires another metaitem to specify the mock module name.
-        ///
-        /// ```
-        /// # use mockall_derive::*;
-        /// #[automock(mod mock_ffi;)]
-        /// extern "C" {
-        ///     pub fn foo() -> u32;
-        /// }
-        /// ```
-        ///
-        /// [`checkpoint`]: ../mockall/index.html#checkpoints
-        ///
-        /// # Limitations
-        ///
-        /// `#[automock]` can't handle everything.  There are some cases where
-        /// you will need to use [`mock`] instead:
-        /// * Mocking a struct that has multiple `impl` blocks, including
-        ///   structs that implement traits.
-        /// * Mocking a struct or trait defined in another crate.
-        /// * Mocking a trait with trait bounds.
-        /// * If the autogenerated "MockFoo" name isn't acceptable, and you want
-        ///   to choose your own name for the mock structure.
-        #[macro_export]
-        macro_rules! automock {() => {}}
+/// Automatically generate mock types for structs and traits.
+///
+/// This is by far the easiest way to use Mockall.  It works on almost all
+/// traits, and almost all structs that have a single `impl` block.  In either
+/// case, it will generate a mock struct whose name is the name of the mocked
+/// struct/trait prepended with "Mock".  For each method of the original, the
+/// mock struct will have a method named `expect_whatever` that allows you to
+/// set expectations.  There will also be one `checkpoint` method that calls
+/// [`checkpoint`] for every single mocked method.
+///
+/// # Examples
+///
+/// The simplest use case is mocking a no-frills trait
+/// ```
+/// # use mockall_derive::*;
+/// #[automock]
+/// pub trait Foo {
+///     fn foo(&self, key: i16);
+/// }
+///
+/// let mock = MockFoo::new();
+/// ```
+///
+/// Mocking a structure:
+/// ```
+/// # use mockall_derive::*;
+/// struct Foo {}
+/// #[automock]
+/// impl Foo {
+///     fn foo(&self) -> u32 {
+///         // ...
+///         # unimplemented!()
+///     }
+/// }
+/// ```
+///
+/// Mocking a trait with associated types requires adding a metaitem to the
+/// attribute:
+/// ```
+/// # use mockall_derive::*;
+/// #[automock(type Item=u32;)]
+/// trait Foo {
+///     type Item;
+///     fn foo(&self) -> Self::Item;
+/// }
+/// ```
+///
+/// Finally, `#[automock]` can also mock foreign functions.  This requires
+/// another metaitem to specify the mock module name.
+///
+/// ```
+/// # use mockall_derive::*;
+/// #[automock(mod mock_ffi;)]
+/// extern "C" {
+///     pub fn foo() -> u32;
+/// }
+/// ```
+///
+/// [`checkpoint`]: ../mockall/index.html#checkpoints
+///
+/// # Limitations
+///
+/// `#[automock]` can't handle everything.  There are some cases where
+/// you will need to use [`mock`] instead:
+/// * Mocking a struct that has multiple `impl` blocks, including
+///   structs that implement traits.
+/// * Mocking a struct or trait defined in another crate.
+/// * Mocking a trait with trait bounds.
+/// * If the autogenerated "MockFoo" name isn't acceptable, and you want
+///   to choose your own name for the mock structure.
+pub use mockall_derive::automock;
 
-        /// Manually mock a structure.
-        ///
-        /// Sometimes `automock` can't be used.  In those cases you can use
-        /// `mock!`, which basically involves repeating the struct's or trait's
-        /// definitions.
-        ///
-        /// The format is:
-        ///
-        /// * Optional visibility specifier
-        /// * Real structure name and generics fields
-        /// * 0 or more methods of the structure, written without bodies,
-        ///   enclosed in a {} block
-        /// * 0 or more traits to implement for the structure, written like
-        ///   normal traits
-        ///
-        /// # Examples
-        ///
-        /// Mock a trait.  This is the simplest use case.
-        /// ```
-        /// # use mockall_derive::mock;
-        /// trait Foo {
-        ///     fn foo(&self, x: u32);
-        /// }
-        /// mock!{
-        ///     pub MyStruct<T: Clone + 'static> {
-        ///         fn bar(&self) -> u8;
-        ///     }
-        ///     trait Foo {
-        ///         fn foo(&self, x: u32);
-        ///     }
-        /// }
-        /// # fn main() {}
-        /// ```
-        ///
-        /// When mocking a generic struct's implementation of a generic trait,
-        /// use the same namespace for their generic parameters.  For example,
-        /// if you wanted to mock `Rc`, do
-        /// ```
-        /// # use mockall_derive::mock;
-        /// mock!{
-        ///     pub Rc<T: 'static> {}
-        ///     trait AsRef<T> {
-        ///         fn as_ref(&self) -> &T;
-        ///     }
-        /// }
-        /// # fn main() {}
-        /// ```
-        /// *not*
-        /// ```compile_fail
-        /// # use mockall_derive::mock;
-        /// mock!{
-        ///     pub Rc<Q: 'static> {}
-        ///     trait AsRef<T: 'static> {
-        ///         fn as_ref(&self) -> &T;
-        ///     }
-        /// }
-        /// # fn main() {}
-        /// ```
-        /// Associated types can easily be mocked by specifying a concrete type
-        /// in the `mock!{}` invocation.  But be careful not to reference the
-        /// associated type in the signatures of any of the trait's methods;
-        /// repeat the concrete type instead.  For example, do:
-        /// ```
-        /// # use mockall_derive::mock;
-        /// mock!{
-        ///     MyIter {}
-        ///     trait Iterator {
-        ///         type Item=u32;
-        ///
-        ///         fn next(&mut self) -> Option<u32>;
-        ///     }
-        /// }
-        /// # fn main() {}
-        /// ```
-        /// *not*
-        /// ```compile_fail
-        /// # use mockall_derive::mock;
-        /// mock!{
-        ///     MyIter {}
-        ///     trait Iterator {
-        ///         type Item=u32;
-        ///
-        ///         fn next(&mut self) -> Option<<Self as Iterator>::Item>;
-        ///     }
-        /// }
-        /// # fn main() {}
-        /// ```
-        #[macro_export]
-        macro_rules! mock {() => {}}
-    }
-}
-
+/// Manually mock a structure.
+///
+/// Sometimes `automock` can't be used.  In those cases you can use `mock!`,
+/// which basically involves repeating the struct's or trait's definitions.
+///
+/// The format is:
+///
+/// * Optional visibility specifier
+/// * Real structure name and generics fields
+/// * 0 or more methods of the structure, written without bodies, enclosed in a
+///   {} block
+/// * 0 or more traits to implement for the structure, written like normal
+///   traits
+///
+/// # Examples
+///
+/// Mock a trait.  This is the simplest use case.
+/// ```
+/// # use mockall_derive::mock;
+/// trait Foo {
+///     fn foo(&self, x: u32);
+/// }
+/// mock!{
+///     pub MyStruct<T: Clone + 'static> {
+///         fn bar(&self) -> u8;
+///     }
+///     trait Foo {
+///         fn foo(&self, x: u32);
+///     }
+/// }
+/// # fn main() {}
+/// ```
+///
+/// When mocking a generic struct's implementation of a generic trait, use the
+/// same namespace for their generic parameters.  For example, if you wanted to
+/// mock `Rc`, do
+/// ```
+/// # use mockall_derive::mock;
+/// mock!{
+///     pub Rc<T: 'static> {}
+///     trait AsRef<T> {
+///         fn as_ref(&self) -> &T;
+///     }
+/// }
+/// # fn main() {}
+/// ```
+/// *not*
+/// ```compile_fail
+/// # use mockall_derive::mock;
+/// mock!{
+///     pub Rc<Q: 'static> {}
+///     trait AsRef<T: 'static> {
+///         fn as_ref(&self) -> &T;
+///     }
+/// }
+/// # fn main() {}
+/// ```
+/// Associated types can easily be mocked by specifying a concrete type in the
+/// `mock!{}` invocation.  But be careful not to reference the associated type
+/// in the signatures of any of the trait's methods; repeat the concrete type
+/// instead.  For example, do:
+/// ```
+/// # use mockall_derive::mock;
+/// mock!{
+///     MyIter {}
+///     trait Iterator {
+///         type Item=u32;
+///
+///         fn next(&mut self) -> Option<u32>;
+///     }
+/// }
+/// # fn main() {}
+/// ```
+/// *not*
+/// ```compile_fail
+/// # use mockall_derive::mock;
+/// mock!{
+///     MyIter {}
+///     trait Iterator {
+///         type Item=u32;
+///
+///         fn next(&mut self) -> Option<<Self as Iterator>::Item>;
+///     }
+/// }
+/// # fn main() {}
+/// ```
+pub use mockall_derive::mock;
 
 #[doc(hidden)]
 pub trait AnyExpectations : Any + Send + Sync {}
