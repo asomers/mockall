@@ -1,5 +1,7 @@
 dev-version-ext = "pre"
 upload-doc = false
+# Adding a dev version breaks dependencies like {version = "=...", path = "..."}
+no-dev-version = true
 
 # cargo-release can't yet update CHANGELOG.md
 # https://github.com/sunng87/cargo-release/issues/154
