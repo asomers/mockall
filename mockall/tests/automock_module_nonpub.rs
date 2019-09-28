@@ -18,6 +18,7 @@ cfg_if::cfg_if! {
                 struct PrivT();
 
                 #[automock]
+                #[allow(unused)]
                 mod m {
                     use super::*;
 
