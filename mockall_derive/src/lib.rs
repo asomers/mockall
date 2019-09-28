@@ -733,17 +733,11 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
                 expect_obj, call_exprs, inputs, output}
 }
 
-/// Manually mock a structure.
-///
-/// See detailed docs in [`mock`](https://docs.rs/mockall/latest/mockall/macro.mock.html).
 #[proc_macro]
 pub fn mock(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_mock(item.into()).into()
 }
 
-/// Automatically generate mock types for structs and traits.
-///
-/// See detailed docs in [`automock`](https://docs.rs/mockall/latest/mockall/macro.automock.html).
 #[proc_macro_attribute]
 pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     -> proc_macro::TokenStream
