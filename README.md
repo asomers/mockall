@@ -35,8 +35,8 @@ mockall = "0.5.0"
 Then use it like this:
 
 ```rust
-use mockall::*
-use mockall::predicate::*
+use mockall::*;
+use mockall::predicate::*;
 #[automock]
 trait MyTrait {
     fn foo(&self, x: u32) -> u32;
