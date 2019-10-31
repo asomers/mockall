@@ -399,7 +399,7 @@ impl<'a> Expectation<'a> {
                             __mockall_f(#(#argnames, )*),
                         Matcher::Pred(__mockall_pred) =>
                             [#pred_matches]
-                            .into_iter()
+                            .iter()
                             .all(|__mockall_x| *__mockall_x),
                         _ => unreachable!()
                     }
