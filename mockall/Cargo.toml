@@ -27,4 +27,4 @@ fragile = "0.3"
 lazy_static = "1.1"
 predicates = "1.0.1"
 predicates-tree = "1.0"
-mockall_derive = { version = "= 0.5.1", path = "../mockall_derive" }
+mockall_derive = { version = "= 0.5.2", path = "../mockall_derive" }
