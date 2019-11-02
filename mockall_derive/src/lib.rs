@@ -5,7 +5,7 @@
 //! its reexports via the [`mockall`](https://docs.rs/mockall/latest/mockall)
 //! crate.
 
-#![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
+#![cfg_attr(feature = "nightly_derive", feature(proc_macro_diagnostic))]
 extern crate proc_macro;
 
 use cfg_if::cfg_if;
@@ -62,7 +62,7 @@ cfg_if! {
     // proc-macro2's Span::unstable method requires the nightly feature, and it
     // doesn't work in test mode.
     // https://github.com/alexcrichton/proc-macro2/issues/159
-    if #[cfg(all(feature = "nightly", not(test)))] {
+    if #[cfg(all(feature = "nightly_derive", not(test)))] {
         fn compile_error(span: Span, msg: &'static str) {
             span.unstable()
                 .error(msg)
