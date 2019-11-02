@@ -20,4 +20,4 @@ features = ["nightly-docs"]
 nightly-docs = []
 
 [dependencies]
-mockall = { version = "=0.5.1", path = "../mockall" }
+mockall = { version = "= 0.5.2", path = "../mockall" }
