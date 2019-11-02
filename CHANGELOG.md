@@ -3,13 +3,20 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [0.5.1] - 28 September 2019
+## [Unreleased] - ReleaseDate
 ### Added
 ### Changed
 ### Fixed
 
 - Fixed hygiene violations in some of mockall_derive's warnings.
   ([#63](https://github.com/asomers/mockall/pull/63))
+
+### Removed
+
+## [0.5.1] - 28 September 2019
+### Added
+### Changed
+### Fixed
 
 - Fixed using super:: in the signature of a bare function
   ([#54](https://github.com/asomers/mockall/pull/54))
