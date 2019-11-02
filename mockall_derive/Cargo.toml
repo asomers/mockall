@@ -20,7 +20,9 @@ proc-macro = true
 
 [features]
 # Extra features for the nightly compiler only
-nightly = ["proc-macro2/nightly"]
+# Must have a different name than the corresponding feature in mockall in order
+# to catch hygiene violations.
+nightly_derive = ["proc-macro2/nightly"]
 # For building documentation only; no functional change to the library.
 extra-docs = []
 

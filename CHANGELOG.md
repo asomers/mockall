@@ -8,6 +8,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 ### Fixed
 
+- Fixed hygiene violations in some of mockall_derive's warnings.
+  ([#63](https://github.com/asomers/mockall/pull/63))
+
 - Fixed using super:: in the signature of a bare function
   ([#54](https://github.com/asomers/mockall/pull/54))
 

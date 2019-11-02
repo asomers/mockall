@@ -1051,6 +1051,13 @@ impl<'a> StaticExpectation<'a> {
             )
         };
 
+        #[cfg(not(feature = "nightly_derive"))]
+        let must_use = quote!(#[must_use =
+                "Must set return value when not using the \"nightly\" feature"
+            ]);
+        #[cfg(feature = "nightly_derive")]
+        let must_use = quote!();
+
         let context_ts = quote!(
             /// Manages the context for expectations of static methods.
             ///
@@ -1083,9 +1090,7 @@ impl<'a> StaticExpectation<'a> {
                 }
 
                 /// Create a new expectation for this method.
-                #[cfg_attr(not(feature = "nightly"), must_use =
-                    "Must set return value when not using the \"nightly\" feature")
-                ]
+                #must_use
                 #v fn expect #meth_ig ( &self,) -> ExpectationGuard #e_tg
                     #meth_wc
                 {
@@ -1588,6 +1593,14 @@ impl<'a> RefExpectation<'a> {
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let lg = &self.common.elifetimes;
         let output = &self.common.output;
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let default_err_msg =
+            "Returning default values requires the \"nightly\" feature";
+        #[cfg(feature = "nightly_derive")]
+        let default_err_msg =
+            "Can only return default values for types that impl std::Default";
+
         quote!(
             enum Rfunc #ig #wc {
                 Default(Option<#output>),
@@ -1604,13 +1617,8 @@ impl<'a> RefExpectation<'a> {
                         Rfunc::Default(Some(ref __mockall_o)) => {
                             Ok(__mockall_o)
                         },
-                        #[cfg(feature = "nightly")]
                         Rfunc::Default(None) => {
-                            Err("Can only return default values for types that impl std::Default")
-                        },
-                        #[cfg(not(feature = "nightly"))]
-                        Rfunc::Default(None) => {
-                            Err("Returning default values requires the \"nightly\" feature")
+                            Err(#default_err_msg)
                         },
                         Rfunc::Const(ref __mockall_o) => {
                             Ok(__mockall_o)
@@ -1809,6 +1817,14 @@ impl<'a> RefMutExpectation<'a> {
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let lg = &self.common.elifetimes;
         let output = &self.common.output;
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let default_err_msg =
+            "Returning default values requires the \"nightly\" feature";
+        #[cfg(feature = "nightly_derive")]
+        let default_err_msg =
+            "Can only return default values for types that impl std::Default";
+
         quote!(
             enum Rfunc #ig #wc {
                 Default(Option<#output>),
@@ -1834,13 +1850,8 @@ impl<'a> RefMutExpectation<'a> {
                         Rfunc::Default(Some(ref mut __mockall_o)) => {
                             Ok(__mockall_o)
                         },
-                        #[cfg(feature = "nightly")]
                         Rfunc::Default(None) => {
-                            Err("Can only return default values for types that impl std::Default")
-                        },
-                        #[cfg(not(feature = "nightly"))]
-                        Rfunc::Default(None) => {
-                            Err("Returning default values requires the \"nightly\" feature")
+                            Err(#default_err_msg)
                         },
                         Rfunc::Mut(ref mut __mockall_f, ref mut __mockall_o) =>
                         {

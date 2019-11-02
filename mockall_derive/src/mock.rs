@@ -314,10 +314,16 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
         #[cfg(any(test, not(feature = "extra-docs")))]
         let docstr: Option<syn::Attribute> = None;
         let expect_ident = format_ident!("expect_{}", ident);
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let must_use = quote!(#[must_use =
+                "Must set return value when not using the \"nightly\" feature"
+            ]);
+        #[cfg(feature = "nightly_derive")]
+        let must_use = quote!();
+
         quote!(
-            #[cfg_attr(not(feature = "nightly"), must_use =
-                "Must set return value when not using the \"nightly\" feature")
-            ]
+            #must_use
             #attrs #docstr #expect_vis fn #expect_ident #ig(&mut self)
                -> &mut #mod_ident::#expectation
                #wc
