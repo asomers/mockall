@@ -335,11 +335,9 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
 
     // Finally this method's contribution to the checkpoint method
     if meth_types.is_static {
-        quote!(#attrs {
-            let _timeses = #mod_ident::#ident::EXPECTATIONS.lock().unwrap()
-                .checkpoint()
-                .collect::<Vec<_>>();
-        })
+        // Don't checkpoint static methods.  They get checkpointed by their
+        // context objects instead.
+        quote!()
     } else {
         quote!(#attrs { #expect_obj_name.checkpoint(); })
     }.to_tokens(&mut cp_output);
