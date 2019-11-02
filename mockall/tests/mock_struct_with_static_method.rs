@@ -7,7 +7,6 @@ mock!{
     Foo {
         fn bar(x: u32) -> u64;
         // We must have a separate method for every should_panic test
-        fn bar1(x: u32) -> u64;
         fn bar2(x: u32) -> u64;
         fn bar3(x: u32) -> u64;
     }
@@ -17,18 +16,18 @@ lazy_static! {
     static ref BAR_MTX: Mutex<()> = Mutex::new(());
 }
 
-// Checkpointing the mock object should check static methods
+// Checkpointing the mock object should not checkpoint static methods
 #[test]
-#[should_panic(expected =
-    "MockFoo::bar1: Expectation(<anything>) called fewer than 1 times")]
 fn checkpoint() {
+    let _m = BAR_MTX.lock().unwrap();
+
     let mut mock = MockFoo::new();
-    let ctx = MockFoo::bar1_context();
+    let ctx = MockFoo::bar_context();
     ctx.expect()
         .returning(|_| 32)
         .times(1..3);
     mock.checkpoint();
-    panic!("Shouldn't get here!");
+    MockFoo::bar(0);
 }
 
 // It should also be possible to checkpoint just the context object

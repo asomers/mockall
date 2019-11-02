@@ -6,6 +6,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 ### Changed
+
+- Mock objects' checkpoint methods will no longer check static expectations.
+  This behavior is more useful where static and regular methods are both used
+  in the same test.  The old behavior was a relic from release 0.3.0 and
+  before, when static methods did not yet have Context objects of their own.
+  ([#64](https://github.com/asomers/mockall/pull/64))
+
 ### Fixed
 
 - Fixed hygiene violations in some of mockall_derive's warnings.

@@ -874,21 +874,29 @@
 //! ctx.checkpoint();   // Panics!
 //! ```
 //!
-//! A mock object's checkpoint method works for static methods, too.
+//! A mock object's checkpoint method does *not* checkpoint static methods.
+//! This behavior is useful when using multiple mock objects at once.  For
+//! example:
 //!
-//! ```should_panic
+//! ```
 //! # use mockall::*;
 //! #[automock]
 //! pub trait A {
-//!     fn foo() -> u32;
+//!     fn build() -> Self;
+//!     fn bar(&self) -> i32;
 //! }
 //!
-//! let mut mock = MockA::new();
-//! let ctx = MockA::foo_context();
+//! # fn main() {
+//! let ctx = MockA::build_context();
 //! ctx.expect()
-//!     .times(1)
-//!     .returning(|| 99);
-//! mock.checkpoint();  // Also panics!
+//!     .times(2)
+//!     .returning(|| MockA::default());
+//! let mut mock0 = MockA::build();
+//! mock0.expect_bar().return_const(4);
+//! mock0.bar();
+//! mock0.checkpoint();     // Does not checkpoint the build method
+//! let mock1 = MockA::build();
+//! # }
 //! ```
 //!
 //! One more thing: Mockall normally creates a zero-argument `new` method for
