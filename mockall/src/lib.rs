@@ -571,7 +571,7 @@
 //!
 //! ## Mocking structs
 //!
-//! Mockall mock structs as well as traits.  The problem here is a namespace
+//! Mockall mocks structs as well as traits.  The problem here is a namespace
 //! problem: it's hard to supply the mock object to your code under test,
 //! because it has a different name.  The solution is to alter import paths
 //! during test.  The [`cfg-if`] crate helps.
@@ -680,7 +680,7 @@
 //! ## Generic traits and structs
 //!
 //! Mocking generic structs and generic traits is not a problem.  The mock
-//! struct will be generic, too.  The same restrictions apply as for mocking
+//! struct will be generic, too.  The same restrictions apply as with mocking
 //! generic methods: each generic parameter must be `'static`, and generic
 //! lifetime parameters are not allowed.
 //!
@@ -725,7 +725,7 @@
 //!
 //! Creating a mock struct that implements multiple traits, whether inherited or
 //! not, requires using the [`mock!`] macro.  But once created,
-//! using it is just the same as using any other mock object
+//! using it is just the same as using any other mock object:
 //!
 //! ```
 //! # use mockall::*;
@@ -802,7 +802,7 @@
 //! assert_eq!(99, MockA::foo());
 //! ```
 //!
-//! A common pattern is mocking a trait with a construtor method.  In this case,
+//! A common pattern is mocking a trait with a constructor method.  In this case,
 //! you can easily set the mock constructor method to return a mock object.
 //!
 //! ```
