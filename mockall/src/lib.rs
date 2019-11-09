@@ -74,7 +74,7 @@
 //! Every expectation must have an associated return value (though when the
 //! **nightly** feature is enabled expectations will automatically return the
 //! default values of their return types, if their return types implement
-//! `Default`.).  For methods that return a `static` value, the macros will
+//! `Default`).  For methods that return a `static` value, the macros will
 //! generate an `Expectation` struct like
 //! [`this`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html).
 //! There are two ways to set such an expectation's return value: with a
@@ -571,7 +571,7 @@
 //!
 //! ## Mocking structs
 //!
-//! Mockall mock structs as well as traits.  The problem here is a namespace
+//! Mockall mocks structs as well as traits.  The problem here is a namespace
 //! problem: it's hard to supply the mock object to your code under test,
 //! because it has a different name.  The solution is to alter import paths
 //! during test.  The [`cfg-if`] crate helps.
@@ -680,7 +680,7 @@
 //! ## Generic traits and structs
 //!
 //! Mocking generic structs and generic traits is not a problem.  The mock
-//! struct will be generic, too.  The same restrictions apply as for mocking
+//! struct will be generic, too.  The same restrictions apply as when mocking
 //! generic methods: each generic parameter must be `'static`, and generic
 //! lifetime parameters are not allowed.
 //!
@@ -1044,11 +1044,10 @@ use downcast::*;
 use std::{
     any,
     marker::PhantomData,
-    ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-          RangeToInclusive},
+    ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
     sync::{
+        atomic::{AtomicUsize, Ordering},
         Arc,
-        atomic::{AtomicUsize, Ordering}
     },
 };
 
@@ -1063,10 +1062,7 @@ pub use lazy_static::lazy_static;
 
 pub use predicates::{
     boolean::PredicateBooleanExt,
-    prelude::{
-        Predicate, PredicateBoxExt, PredicateFileContentExt, PredicateStrExt,
-        predicate
-    }
+    prelude::{predicate, Predicate, PredicateBoxExt, PredicateFileContentExt, PredicateStrExt},
 };
 #[doc(hidden)]
 pub use predicates_tree::CaseTreeExt;
@@ -1232,7 +1228,7 @@ pub use mockall_derive::automock;
 pub use mockall_derive::mock;
 
 #[doc(hidden)]
-pub trait AnyExpectations : Any + Send + Sync {}
+pub trait AnyExpectations: Any + Send + Sync {}
 downcast!(dyn AnyExpectations);
 
 #[doc(hidden)]
@@ -1294,7 +1290,7 @@ impl Default for TimesRange {
 
 impl From<usize> for TimesRange {
     fn from(n: usize) -> TimesRange {
-        TimesRange(n..(n+1))
+        TimesRange(n..(n + 1))
     }
 }
 
@@ -1338,10 +1334,10 @@ impl From<RangeToInclusive<usize>> for TimesRange {
 
 #[derive(Debug, Default)]
 #[doc(hidden)]
-pub struct Times{
+pub struct Times {
     /// How many times has the expectation already been called?
     count: AtomicUsize,
-    range: TimesRange
+    range: TimesRange,
 }
 
 impl Times {
@@ -1388,7 +1384,7 @@ impl Times {
     // https://github.com/rust-lang/rust-clippy/issues/3307
     #[allow(clippy::range_plus_one)]
     pub fn n(&mut self, n: usize) {
-        self.range.0 = n..(n+1);
+        self.range.0 = n..(n + 1);
     }
 
     pub fn never(&mut self) {
@@ -1419,7 +1415,7 @@ impl Key {
 #[doc(hidden)]
 pub struct SeqHandle {
     inner: Arc<SeqInner>,
-    seq: usize
+    seq: usize,
 }
 
 impl SeqHandle {
@@ -1443,13 +1439,19 @@ impl SeqInner {
     /// Record the call identified by `seq` as fully satisfied.
     fn satisfy(&self, seq: usize) {
         let old_sl = self.satisfaction_level.fetch_add(1, Ordering::Relaxed);
-        assert_eq!(old_sl, seq, "Method sequence violation.  Was an already-satisfied method called another time?");
+        assert_eq!(
+            old_sl, seq,
+            "Method sequence violation.  Was an already-satisfied method called another time?"
+        );
     }
 
     /// Verify that the call identified by `seq` was called in the correct order
     fn verify(&self, seq: usize) {
-        assert_eq!(seq, self.satisfaction_level.load(Ordering::Relaxed),
-            "Method sequence violation")
+        assert_eq!(
+            seq,
+            self.satisfaction_level.load(Ordering::Relaxed),
+            "Method sequence violation"
+        )
     }
 }
 
@@ -1515,7 +1517,10 @@ impl Sequence {
     /// can call it.
     #[doc(hidden)]
     pub fn next_handle(&mut self) -> SeqHandle {
-        let handle = SeqHandle{inner: self.inner.clone(), seq: self.next_seq};
+        let handle = SeqHandle {
+            inner: self.inner.clone(),
+            seq: self.next_seq,
+        };
         self.next_seq += 1;
         handle
     }
