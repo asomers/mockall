@@ -988,7 +988,8 @@
 //!
 //!     #[test]
 //!     fn test_foo_bar() {
-//!         inner::expect_bar()
+//!         let ctx = inner::bar_context();
+//!         ctx.expect()
 //!             .returning(|x| i64::from(x + 1));
 //!         assert_eq!(5, inner::bar(4));
 //!     }
