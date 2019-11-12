@@ -579,10 +579,9 @@
 //! [`#[automock]`](attr.automock.html)
 //! works for structs that have a single `impl` block:
 //! ```no_run
-//! # use mockall::*;
 //! # use cfg_if::cfg_if;
 //! mod thing {
-//!     # use mockall::automock;
+//!     use mockall::automock;
 //!     pub struct Thing{}
 //!     #[automock]
 //!     impl Thing {
@@ -916,7 +915,7 @@
 //! # use mockall::*;
 //! # use cfg_if::cfg_if;
 //! mod ffi {
-//!     # use mockall::automock;
+//!     use mockall::automock;
 //!     #[automock(mod mock;)]
 //!     extern "C" {
 //!         pub fn foo(x: u32) -> i64;
@@ -964,7 +963,7 @@
 //! # use mockall::*;
 //! # use cfg_if::cfg_if;
 //! mod outer {
-//!     # use mockall::automock;
+//!     use mockall::automock;
 //!     #[automock()]
 //!     pub(super) mod inner {
 //!         pub fn bar(x: u32) -> i64 {
