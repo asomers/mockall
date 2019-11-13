@@ -26,6 +26,7 @@ use syn::{
 mod automock;
 mod expectation;
 mod mock;
+mod test_double;
 use crate::automock::do_automock;
 use crate::mock::{Mock, do_mock};
 use crate::expectation::Expectation;
@@ -453,7 +454,7 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
 }
 
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
-fn gen_mock_ident(ident: &Ident) -> Ident {
+pub(crate) fn gen_mock_ident(ident: &Ident) -> Ident {
     format_ident!("Mock{}", ident)
 }
 
@@ -745,6 +746,16 @@ pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     let input: proc_macro2::TokenStream = input.into();
     let mut output = input.clone();
     output.extend(do_automock(attrs.into(), input));
+    output.into()
+}
+
+/// Can be used like `#[test_double]` to use `Mock____` in tests.
+#[proc_macro_attribute]
+pub fn test_double(metadata: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let mut output = TokenStream::new();
+
+    test_double::attribute_internal(&metadata.to_string(), &input.to_string(), &mut output);
+
     output.into()
 }
 
