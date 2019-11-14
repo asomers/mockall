@@ -961,7 +961,7 @@ impl<'a> StaticExpectation<'a> {
 
             impl #ig  Rfunc #tg #wc {
                 fn call_mut #lg (&mut self, #( #argnames: #argty, )* )
-                    -> Result<#output, &'static str>
+                    -> std::result::Result<#output, &'static str>
                 {
                     match self {
                         Rfunc::Default => {
@@ -1612,7 +1612,9 @@ impl<'a> RefExpectation<'a> {
             }
 
             impl #ig  Rfunc #tg #wc {
-                fn call #lg (&self) -> Result<&#output, &'static str> {
+                fn call #lg (&self)
+                    -> std::result::Result<&#output, &'static str>
+                {
                     match self {
                         Rfunc::Default(Some(ref __mockall_o)) => {
                             Ok(__mockall_o)
@@ -1844,7 +1846,7 @@ impl<'a> RefMutExpectation<'a> {
 
             impl #ig  Rfunc #tg #wc {
                 fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
-                    -> Result<&mut #output, &'static str>
+                    -> std::result::Result<&mut #output, &'static str>
                 {
                     match self {
                         Rfunc::Default(Some(ref mut __mockall_o)) => {

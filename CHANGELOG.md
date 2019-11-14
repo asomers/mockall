@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased] - ReleaseDate
+### Added
+### Changed
+### Fixed
+
+- Fixed mocking methods when a custom `Result` type is in-scope.
+  ([#74](https://github.com/asomers/mockall/pull/74))
+
+### Removed
+
 ## [0.5.2] - 2 November 2019
 ### Added
 ### Changed
