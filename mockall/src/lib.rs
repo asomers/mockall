@@ -1243,7 +1243,7 @@ pub trait ReturnDefault<O> {
 
 #[derive(Default)]
 #[doc(hidden)]
-pub struct DefaultReturner<O: 'static>(PhantomData<O>);
+pub struct DefaultReturner<O>(PhantomData<O>);
 
 ::cfg_if::cfg_if! {
     if #[cfg(feature = "nightly")] {
