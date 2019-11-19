@@ -15,12 +15,12 @@ middle layers of an application without instantiating the lower ones, or to
 inject edge and error cases that would be difficult or impossible to create
 when using the full stack.
 
-As a statically typed language, Rust is inherently more difficult to
-mock than a dynamically typed language such as Ruby.  So previous attempts at
-creating a mock object library for Rust have had mixed results.  Mockall has
-incorporated the best elements of previous designs.  As a result, it has a rich
-feature set yet still has a terse and ergonomic interface.  And it's written in
-100% *safe* and *stable* Rust.
+Statically typed languages are inherently more difficult to
+mock than dynamically typed languages. Since Rust is a statically typed language, 
+previous attempts at creating a mock object library have had mixed results. Mockall 
+incorporates the best elements of previous designs, resulting in it having a rich 
+feature set with a terse and ergonomic interface. Mockall is written in 100% *safe* 
+and *stable* Rust.
 
 ## Usage
 
