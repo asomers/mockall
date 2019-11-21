@@ -8,6 +8,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 ### Fixed
 
+- Fixed using `prediate::always` and `prediate::never` with `?Sized` types
+  ([#80](https://github.com/asomers/mockall/pull/80))
+
 - Fixed mocking methods when a custom `Result` type is in-scope.
   ([#74](https://github.com/asomers/mockall/pull/74))
 
