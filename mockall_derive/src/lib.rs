@@ -50,7 +50,6 @@ struct MethodTypes {
     /// Method to call when invoking the expectation
     call: Ident,
     /// Expressions that should be used for Expectation::call's arguments
-    // TODO: can this be a Vec instead?
     call_exprs: Punctuated<TokenStream, Token![,]>,
     /// Method's argument list
     inputs: Punctuated<FnArg, Token![,]>,
@@ -791,10 +790,10 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     } else {
         sig.generics.clone()
     };
-    let (no_lt_g, _, _) = split_lifetimes(merged_generics, &sig.inputs,
-                                          &sig.output);
     let inputs = demutify(&sig.inputs);
-    let (_ig, tg, _wc) = no_lt_g.split_for_impl();
+    let (no_lt_g, _, rlg) = split_lifetimes(merged_generics.clone(),
+                                            &sig.inputs, &sig.output);
+    let with_ret_lt_g = merge_generics(&no_lt_g, &rlg);
     for fn_arg in expectation_inputs.iter() {
         match fn_arg {
             FnArg::Typed(_) => {},
@@ -847,12 +846,18 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     let expectations = parse2(
         quote!(#ident::#expectations_ident)
     ).unwrap();
+
+    // Replace any generic lifetimes of the Expectation's type with 'static
+    // TODO: in the future, only replace those lifetimes that _don't_ appear
+    // in the original trait's or struct's signature.
+    let expectation_g = staticize(&with_ret_lt_g);
+    let (_, expectation_tg, _) = expectation_g.split_for_impl();
+    let expect_ts = quote!(#ident::#expectation_ident #expectation_tg);
     let expect_obj = if is_expectation_generic {
-        parse2(quote!(#expectations)).unwrap()
+        parse2(quote!(#expectations))
     } else {
-        parse2(quote!(#expectations #tg)).unwrap()
-    };
-    let expect_ts = quote!(#ident::#expectation_ident #tg);
+        parse2(quote!(#expectations #expectation_tg))
+    }.unwrap();
     let expectation: Type = parse2(expect_ts).unwrap();
     let mut output = sig.output.clone();
     deimplify(&mut output);
@@ -860,6 +865,14 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     MethodTypes{is_static, is_expectation_generic, expectation,
                 expectation_generics, expectation_inputs, expectations, call,
                 expect_obj, call_exprs, inputs, output}
+}
+
+fn staticize(generics: &Generics) -> Generics {
+    let mut ret = generics.clone();
+    for lt in ret.lifetimes_mut() {
+        lt.lifetime = Lifetime::new("'static", Span::call_site());
+    };
+    ret
 }
 
 #[proc_macro]
@@ -1014,6 +1027,26 @@ mod method_types{
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());
+    }
+
+    #[test]
+    fn generic_method_returning_nonstatic() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo<'a>(&self) -> X<'a>;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation<'static>)).unwrap());
+        assert_eq!(mt.expectation_generics,
+                   parse2(quote!(<'a>)).unwrap());
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::Expectations<'static>)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.output, parse2(quote!(-> X<'a>)).unwrap());
     }
 
     #[test]

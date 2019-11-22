@@ -49,6 +49,8 @@ struct Common<'a> {
     /// Types of the method arguments
     argty: Vec<Type>,
     attrs: &'a TokenStream,
+    /// Type of the Expectations object, with generics
+    expect_obj: &'a Type,
     /// The expectation's generic types as a list of types
     fn_params: Punctuated<Ident, Token![,]>,
     /// Generics of the parent struct
@@ -195,7 +197,8 @@ impl<'a> Common<'a> {
 
     /// Common methods of the Expectations structs
     fn expectations_methods(&self) -> TokenStream {
-        let (ig, tg, wc) = self.egenerics.split_for_impl();
+        let generics = merge_generics(&self.egenerics, &self.rlifetimes);
+        let (ig, tg, wc) = generics.split_for_impl();
         let v = &self.vis;
         quote!(
             /// A collection of [`Expectation`](struct.Expectations.html)
@@ -385,7 +388,7 @@ impl<'a> Expectation<'a> {
                 idx
             }).collect::<Vec<_>>();
         let matcher_ts = quote!(
-            enum Matcher #ig #wc {
+            enum Matcher #tg #wc {
                 Always,
                 Func(Box<dyn #hrtb Fn(#refpredty) -> bool + Send>),
                 Pred(Box<(#preds)>),
@@ -574,6 +577,8 @@ impl<'a> Expectation<'a> {
     ///                       `#[cfg()]`
     /// * `args`            - Arguments for the mock method, which may be
     ///                       slightly different than on the original method.
+    /// * `expect_obj       - Type of Expectations object stored in the mock
+    ///                       structure, with generics fields
     /// * `struct_generics` - Generics of the parent struct, if any.
     /// * `meth_generics`   - Generics of the method being mocked
     /// * `mod_ident`       - Name of the expectaton's private module
@@ -585,6 +590,7 @@ impl<'a> Expectation<'a> {
     pub(crate) fn new(
         attrs: &'a TokenStream,
         args: &Punctuated<FnArg, Token![,]>,
+        expect_obj: &'a Type,
         struct_generics: Option<&'a Generics>,
         meth_generics: &'a Generics,
         meth_ident: &'a Ident,
@@ -671,6 +677,7 @@ impl<'a> Expectation<'a> {
             argnames,
             argty,
             attrs,
+            expect_obj,
             fn_params,
             struct_generics,
             meth_generics,
@@ -728,7 +735,9 @@ impl<'a> StaticExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let ident_str = self.common().ident_str();
-        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let generics = merge_generics(&self.common.egenerics, &self.common.rlifetimes);
+        let (ig, tg, wc) = generics.split_for_impl();
+        let (_, common_tg, _) = self.common.egenerics.split_for_impl();
         let hrtb = self.common.hrtb();
         let lg = &self.common.alifetimes;
         let output = &self.common.output;
@@ -737,7 +746,7 @@ impl<'a> StaticExpectation<'a> {
             /// Expectation type for methods that return a `'static` type.
             /// This is the type returned by the `expect_*` methods.
             #v struct Expectation #ig #wc {
-                common: Common #tg,
+                common: Common #common_tg,
                 rfunc: Mutex<Rfunc #tg>,
             }
 
@@ -864,7 +873,9 @@ impl<'a> StaticExpectation<'a> {
     fn expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let generics = merge_generics(&self.common.egenerics,
+                                      &self.common.rlifetimes);
+        let (ig, tg, wc) = generics.split_for_impl();
         let lg = &self.common.alifetimes;
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
@@ -936,7 +947,9 @@ impl<'a> StaticExpectation<'a> {
     }
 
     fn rfunc(&self) -> TokenStream {
-        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let generics = merge_generics(&self.common.egenerics,
+                                      &self.common.rlifetimes);
+        let (ig, tg, wc) = generics.split_for_impl();
         let hrtb = self.common.hrtb();
         let lg = &self.common.alifetimes;
         let argnames = &self.common.argnames;
@@ -1023,6 +1036,7 @@ impl<'a> StaticExpectation<'a> {
 
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
+        let expect_obj = &self.common.expect_obj;
         let fn_params = &self.common.fn_params;
         let (_ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let hrtb = self.common.hrtb();
@@ -1117,7 +1131,7 @@ impl<'a> StaticExpectation<'a> {
             quote!(
                 ::mockall::lazy_static! {
                     #v static ref EXPECTATIONS:
-                        ::std::sync::Mutex<Expectations> =
+                        ::std::sync::Mutex<#expect_obj> =
                         ::std::sync::Mutex::new(Expectations::new());
                 }
                 /// Like an [`&Expectation`](struct.Expectation.html) but
@@ -1133,7 +1147,8 @@ impl<'a> StaticExpectation<'a> {
                 // ExpectationGuard is only defined for expectations that return
                 // 'static return types.
                 #v struct ExpectationGuard #e_ig #e_wc {
-                    guard: MutexGuard<'__mockall_lt, Expectations #tg>,
+                    guard: MutexGuard<'__mockall_lt, #expect_obj>,
+                    //guard: MutexGuard<'__mockall_lt, Expectations #tg>,
                     i: usize
                 }
 

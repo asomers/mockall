@@ -409,13 +409,15 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
     let meth_vis = expectation_visibility(&vis, 1);
     let context_ident = format_ident!("{}_context", &ident);
     let expect_vis = expectation_visibility(&vis, 2);
+    let (_, tg, _) = generics.split_for_impl();
+    let expect_obj = parse2(quote!(Expectations #tg)).unwrap();
     let mut g = generics.clone();
     let lt = Lifetime::new("'guard", Span::call_site());
     let ltd = LifetimeDef::new(lt);
     g.params.push(GenericParam::Lifetime(ltd.clone()));
 
     let mut out = TokenStream::new();
-    Expectation::new(&TokenStream::new(), &inputs, None, generics,
+    Expectation::new(&TokenStream::new(), &inputs, &expect_obj, None, generics,
         &ident, &mod_ident, None, &sig.output, &expect_vis, 1)
         .to_tokens(&mut out);
     let no_match_msg = format!("{}::{}: No matching expectation found",
