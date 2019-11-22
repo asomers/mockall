@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+
+- Added the ability to mock generic methods whose return values' lifetimes are
+  chosen by the caller.  Especially useful with `std::future::Future`
+  ([#86](https://github.com/asomers/mockall/pull/86))
+
 ### Changed
 ### Fixed
 
