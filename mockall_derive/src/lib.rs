@@ -12,8 +12,7 @@ use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::{
-    collections::HashMap,
-    convert::identity,
+    collections::{HashMap, HashSet},
     iter::FromIterator,
     mem
 };
@@ -370,6 +369,88 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
     }
 }
 
+fn find_lifetimes_in_tpb(bound: &TypeParamBound) -> HashSet<Lifetime> {
+    let mut ret = HashSet::default();
+    match bound {
+        TypeParamBound::Lifetime(lt) => {
+            ret.insert(lt.clone());
+        },
+        TypeParamBound::Trait(tb) => {
+            ret.extend(find_lifetimes_in_path(&tb.path));
+        },
+    };
+    ret
+}
+
+fn find_lifetimes_in_path(path: &Path) -> HashSet<Lifetime> {
+    let mut ret = HashSet::default();
+    for seg in path.segments.iter() {
+        if let PathArguments::AngleBracketed(abga) = &seg.arguments {
+            for arg in abga.args.iter() {
+                match arg {
+                    GenericArgument::Lifetime(lt) => {
+                        ret.insert(lt.clone());
+                    },
+                    GenericArgument::Type(ty) => {
+                        ret.extend(find_lifetimes(&ty));
+                    },
+                    GenericArgument::Binding(b) => {
+                        ret.extend(find_lifetimes(&b.ty));
+                    },
+                    GenericArgument::Constraint(c) => {
+                        for bound in c.bounds.iter() {
+                            ret.extend(find_lifetimes_in_tpb(bound));
+                        }
+                    },
+                    GenericArgument::Const(_) => ()
+                }
+            }
+        }
+    }
+    ret
+}
+
+fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
+    return match ty {
+        Type::Array(ta) => find_lifetimes(ta.elem.as_ref()),
+        Type::Group(tg) => find_lifetimes(tg.elem.as_ref()),
+        Type::Infer(_ti) => HashSet::default(),
+        Type::Never(_tn) => HashSet::default(),
+        Type::Paren(tp) => find_lifetimes(tp.elem.as_ref()),
+        Type::Path(tp) => {
+            let mut ret = find_lifetimes_in_path(&tp.path);
+            if let Some(qs) = &tp.qself {
+                ret.extend(find_lifetimes(qs.ty.as_ref()));
+            }
+            ret
+        },
+        Type::Ptr(tp) => find_lifetimes(tp.elem.as_ref()),
+        Type::Reference(tr) => {
+            let mut ret = find_lifetimes(tr.elem.as_ref());
+            if let Some(lt) = &tr.lifetime {
+                ret.insert(lt.clone());
+            }
+            ret
+        },
+        Type::Slice(ts) => find_lifetimes(ts.elem.as_ref()),
+        Type::TraitObject(tto) => {
+            let mut ret = HashSet::default();
+            for bound in tto.bounds.iter() {
+                ret.extend(find_lifetimes_in_tpb(bound));
+            }
+            ret
+        }
+        Type::Tuple(tt) => {
+            let mut ret = HashSet::default();
+            for ty in tt.elems.iter() {
+                ret.extend(find_lifetimes(ty));
+            }
+            ret
+        },
+        _ => unimplemented!()
+    }
+}
+
 fn supersuperfy_path(path: &mut Path, levels: i32) {
         if let Some(t) = path.segments.first() {
             if t.ident == "super" {
@@ -560,48 +641,90 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
     out
 }
 
-/// Split a generics list into two: one for types, the other for lifetimes
-fn split_lifetimes(generics: Generics) -> (Generics, Generics) {
-    if generics.lt_token.is_none() {
-        return (generics, Generics::default());
-    }
-
-    let (ogv, olv): (Vec<_>, Vec<_>) = generics.params.into_iter()
-        .map(|p| {
-            if let GenericParam::Lifetime(_) = p {
-                (None, Some(p))
-            } else {
-                (Some(p), None)
-            }
-        }).unzip();
-    let gv = ogv.into_iter().filter_map(identity).collect::<Vec<_>>();
-    let lv = olv.into_iter().filter_map(identity).collect::<Vec<_>>();
-    let lg = if lv.is_empty() {
-        Generics::default()
+/// Transform a Vec of lifetimes into a Generics
+fn lifetimes_to_generics(lv: Vec<GenericParam>) -> Generics {
+    if lv.is_empty() {
+            Generics::default()
     } else {
         Generics {
-            lt_token: generics.lt_token.clone(),
-            gt_token: generics.gt_token.clone(),
+            lt_token: Some(Token![<](lv[0].span())),
+            gt_token: Some(Token![>](lv[0].span())),
             params: Punctuated::from_iter(lv.into_iter()),
             // XXX this assumes that none of the lifetimes are referenced by the
             // where clause
             where_clause: None
         }
+    }
+}
+
+/// Split a generics list into three: one for type generics, one for lifetime
+/// generics that relate to the arguments, and one for lifetime generics that
+/// relate to the return type.
+fn split_lifetimes(
+    generics: Generics,
+    args: &Punctuated<FnArg, Token![,]>,
+    rt: &ReturnType)
+    -> (Generics, Generics, Generics)
+{
+    if generics.lt_token.is_none() {
+        return (generics, Generics::default(), Generics::default());
+    }
+
+    // Check which lifetimes are referenced by the arguments
+    let mut alts = HashSet::<Lifetime>::default();
+    for arg in args {
+        match arg {
+            FnArg::Typed(pt) => {
+                alts.extend(find_lifetimes(pt.ty.as_ref()))
+                //alts.extend(find_lifetimes(pt.ty.as_ref(), args, rt))
+            },
+            _ => ()
+        };
     };
-    let tg = if gv.is_empty() {
+
+    // Check which lifetimes are referenced by the return type
+    let rlts = match rt {
+        ReturnType::Default => HashSet::default(),
+        ReturnType::Type(_, ty) => find_lifetimes(ty)
+    };
+
+    let mut tv = Vec::new();
+    let mut alv = Vec::new();
+    let mut rlv = Vec::new();
+    for p in generics.params {
+        match &p {
+            GenericParam::Lifetime(ltd) if rlts.contains(&ltd.lifetime) &&
+                                           alts.contains(&ltd.lifetime) =>
+            {
+                unimplemented!("Methods that return references to their arguments are TODO")
+            },
+            GenericParam::Lifetime(ltd) if alts.contains(&ltd.lifetime) =>
+                alv.push(p),
+            GenericParam::Lifetime(ltd) if rlts.contains(&ltd.lifetime) =>
+                rlv.push(p),
+            GenericParam::Lifetime(_) =>
+                panic!("An unused lifetime parameter?"),
+            _ => tv.push(p)
+        }
+    }
+
+    let alg = lifetimes_to_generics(alv);
+    let rlg = lifetimes_to_generics(rlv);
+
+    let tg = if tv.is_empty() {
         Generics::default()
     } else {
         Generics {
             lt_token: generics.lt_token,
             gt_token: generics.gt_token,
-            params: Punctuated::from_iter(gv.into_iter()),
+            params: Punctuated::from_iter(tv.into_iter()),
             // XXX this assumes that none of the lifetimes are referenced by the
             // where clause
             where_clause: generics.where_clause
         }
     };
 
-    (tg, lg)
+    (tg, alg, rlg)
 }
 
 /// Return the visibility that should be used for expectation!, given the
@@ -663,13 +786,15 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     let ident = &sig.ident;
     let (expectation_generics, expectation_inputs, call_exprs) =
         declosurefy(&sig.generics, &sig.inputs);
-    let (merged_g, _) = split_lifetimes(if let Some(g) = generics {
+    let merged_generics = if let Some(g) = generics {
         merge_generics(&g, &expectation_generics)
     } else {
         sig.generics.clone()
-    });
+    };
+    let (no_lt_g, _, _) = split_lifetimes(merged_generics, &sig.inputs,
+                                          &sig.output);
     let inputs = demutify(&sig.inputs);
-    let (_ig, tg, _wc) = merged_g.split_for_impl();
+    let (_ig, tg, _wc) = no_lt_g.split_for_impl();
     for fn_arg in expectation_inputs.iter() {
         match fn_arg {
             FnArg::Typed(_) => {},
@@ -702,13 +827,15 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
         }
     };
 
-    let is_expectation_generic = expectation_generics.params.iter().any(|p| {
+    let is_expectation_generic = expectation_generics.params.iter()
+        .any(|p| {
             if let GenericParam::Type(_) = p {
                 true
             } else {
                 false
             }
-        }) || expectation_generics.where_clause.is_some() ||
+        }) ||
+        expectation_generics.where_clause.is_some() ||
         (is_static && generics.filter(|g| !g.params.is_empty()).is_some());
 
     let expectation_ident = format_ident!("Expectation");
