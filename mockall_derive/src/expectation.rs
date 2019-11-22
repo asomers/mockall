@@ -55,10 +55,14 @@ struct Common<'a> {
     struct_generics: Option<&'a Generics>,
     /// Generics of the method
     meth_generics: &'a Generics,
-    /// Type generics of the Expectation object
+    /// Type Generics of the Expectation object
     egenerics: Generics,
-    /// Lifetime generics of the mocked method
-    elifetimes: Generics,
+    /// Lifetime Generics of the mocked method that relate to the arguments but
+    /// not the return value
+    alifetimes: Generics,
+    /// Lifetime Generics of the mocked method that related to the return value
+    /// but not the arguments
+    rlifetimes: Generics,
     /// Is this for a static method or free function?
     is_static: bool,
     /// Expressions that create the predicate arguments from the call arguments
@@ -88,7 +92,7 @@ impl<'a> Common<'a> {
         let v = &self.vis;
         let argnames = &self.argnames;
         let predty = &self.predty;
-        let lg = &self.elifetimes;
+        let lg = &self.alifetimes;
         let hrtb = self.hrtb();
         quote!(
             /// Add this expectation to a
@@ -262,10 +266,10 @@ impl<'a> Common<'a> {
     }
 
     fn hrtb(&self) -> TokenStream {
-        if self.elifetimes.params.is_empty() {
+        if self.alifetimes.params.is_empty() {
             TokenStream::default()
         } else {
-            let ig = &self.elifetimes;
+            let ig = &self.alifetimes;
             quote!(for #ig)
         }
     }
@@ -334,7 +338,7 @@ impl<'a> Expectation<'a> {
         let rfunc_ts = self.rfunc();
         let (ig, tg, wc) = self.common().egenerics.split_for_impl();
         let hrtb = self.common().hrtb();
-        let lg = &self.common().elifetimes;
+        let lg = &self.common().alifetimes;
         let preds = TokenStream::from_iter(
             self.common().predty.iter().map(|t|
                 quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + Send>,)
@@ -586,7 +590,7 @@ impl<'a> Expectation<'a> {
         meth_ident: &'a Ident,
         mod_ident: &'a Ident,
         parent_ident: Option<&'a Ident>,
-        return_type: &ReturnType,
+        rt: &ReturnType,
         vis: &Visibility,
         levels: i32) -> Self
     {
@@ -619,7 +623,8 @@ impl<'a> Expectation<'a> {
         } else {
             meth_generics.clone()
         };
-        let (mut egenerics, elifetimes) = split_lifetimes(generics);
+        let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(generics,
+                                                                      args, rt);
         for p in egenerics.params.iter_mut() {
             if let GenericParam::Type(tp) = p {
                 let static_bound = Lifetime::new("'static", Span::call_site());
@@ -631,7 +636,7 @@ impl<'a> Expectation<'a> {
         );
         let mut ref_expectation = false;
         let mut ref_mut_expectation = false;
-        let output = supersuperfy(&match return_type {
+        let output = supersuperfy(&match rt {
             ReturnType::Default => Type::Tuple(TypeTuple {
                 paren_token: token::Paren::default(),
                 elems: Punctuated::new()
@@ -670,7 +675,8 @@ impl<'a> Expectation<'a> {
             struct_generics,
             meth_generics,
             egenerics,
-            elifetimes,
+            alifetimes,
+            rlifetimes,
             is_static,
             predexprs,
             predty,
@@ -724,7 +730,7 @@ impl<'a> StaticExpectation<'a> {
         let ident_str = self.common().ident_str();
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let hrtb = self.common.hrtb();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
         let v = &self.common.vis;
         quote!(
@@ -859,7 +865,7 @@ impl<'a> StaticExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -932,7 +938,7 @@ impl<'a> StaticExpectation<'a> {
     fn rfunc(&self) -> TokenStream {
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
         let hrtb = self.common.hrtb();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let fn_params = &self.common.fn_params;
@@ -1462,7 +1468,7 @@ impl<'a> RefExpectation<'a> {
     fn expectation(&self, em_ts: TokenStream) -> TokenStream {
         let ident_str = self.common().ident_str();
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
         let v = &self.common.vis;
         quote!(
@@ -1512,7 +1518,7 @@ impl<'a> RefExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1591,7 +1597,7 @@ impl<'a> RefExpectation<'a> {
     fn rfunc(&self) -> TokenStream {
         let fn_params = &self.common.fn_params;
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
 
         #[cfg(not(feature = "nightly_derive"))]
@@ -1660,7 +1666,7 @@ impl<'a> RefMutExpectation<'a> {
         let argty = &self.common.argty;
         let ident_str = self.common().ident_str();
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
         let v = &self.common.vis;
         quote!(
@@ -1737,7 +1743,7 @@ impl<'a> RefMutExpectation<'a> {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
         let (ig, tg, _wc) = self.common.egenerics.split_for_impl();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
         let predexprs = &self.common.predexprs;
         let v = &self.common.vis;
@@ -1817,7 +1823,7 @@ impl<'a> RefMutExpectation<'a> {
         let argty = &self.common.argty;
         let fn_params = &self.common.fn_params;
         let (ig, tg, wc) = self.common.egenerics.split_for_impl();
-        let lg = &self.common.elifetimes;
+        let lg = &self.common.alifetimes;
         let output = &self.common.output;
 
         #[cfg(not(feature = "nightly_derive"))]

@@ -258,7 +258,7 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     } else {
         &meth_types.expectation_generics
     }.clone();
-    let (tbf_tg, _) = split_lifetimes(tbf_g);
+    let (tbf_tg, _, _) = split_lifetimes(tbf_g, &inputs, &sig.output);
     let (_, tg, _) = tbf_tg.split_for_impl();
     let call_turbofish = tg.as_turbofish();
     let no_match_msg = format!("{}::{}: No matching expectation found",
