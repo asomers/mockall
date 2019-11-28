@@ -1260,7 +1260,7 @@ impl<'a> StaticExpectation<'a> {
                         ::std::sync::Mutex::new(GenericExpectations::new());
                 }
                 /// Like an
-                /// [`&GenericExpectation`](struct.GenericExpectation.html) but
+                /// [`&Expectation`](struct.Expectation.html) but
                 /// protected by a Mutex guard.  Useful for mocking static
                 /// methods.  Forwards accesses to an `Expectation` object.
                 #v struct ExpectationGuard #e_ig #e_wc{
