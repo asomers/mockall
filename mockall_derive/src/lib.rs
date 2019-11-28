@@ -30,10 +30,11 @@ use crate::automock::do_automock;
 use crate::mock::{Mock, do_mock};
 use crate::expectation::Expectation;
 
+#[derive(Debug)]
 struct MethodTypes {
     is_static: bool,
     /// Is the Expectation type generic?  This can be true even if the method is
-    /// not generic
+    /// not generic.
     is_expectation_generic: bool,
     /// Type of Expectation returned by the expect method
     expectation: Type,
@@ -50,6 +51,7 @@ struct MethodTypes {
     /// Method to call when invoking the expectation
     call: Ident,
     /// Expressions that should be used for Expectation::call's arguments
+    // TODO: can this be a Vec instead?
     call_exprs: Punctuated<TokenStream, Token![,]>,
     /// Method's argument list
     inputs: Punctuated<FnArg, Token![,]>,
@@ -775,4 +777,282 @@ mod t {
         assert_eq!(quote!(#ge #wce).to_string(),
                    quote!(#gm #gm_wc).to_string());
     }
+
+// Tests for the method_types function.  But there are no assertions for the
+// call_exprs field, because TokenStream doesn't implement Eq or anything close
+// to it.
+mod method_types{
+    use super::*;
+
+    // The simplest method: fn foo(&self);
+    #[test]
+    fn base(){
+        let tim: TraitItemMethod = parse2(quote!(fn foo(&self);)).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.expectation, parse2(quote!(foo::Expectation)).unwrap());
+        assert_eq!(mt.expectation_generics, Generics::default());
+        let inputs_vec: Vec<FnArg> = vec![parse2(quote!(&self)).unwrap()];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, inputs);
+        assert_eq!(mt.expectations, parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj, parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!()).unwrap());
+    }
+
+    // For closure args, expectation_inputs will not equal inputs
+    #[test]
+    fn closure() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo<F: Fn(u32) -> u32 + 'static>(&self, f: F) -> u32;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation<F>)).unwrap());
+        assert_eq!(mt.expectation_generics, Generics::default());
+        let inputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&self)).unwrap(),
+            parse2(quote!(f: F)).unwrap()
+        ];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        let einputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&self)).unwrap(),
+            parse2(quote!(f: Box<dyn Fn(u32) -> u32>)).unwrap()
+        ];
+        let einputs = Punctuated::from_iter(einputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, einputs);
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::Expectations<F>)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());
+    }
+
+    #[test]
+    fn generic_method() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo<I: 'static, O: 'static>(&self, i:I) -> O;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation<I, O>)).unwrap());
+        assert_eq!(mt.expectation_generics,
+                   parse2(quote!(<I: 'static, O: 'static>)).unwrap());
+        let inputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&self)).unwrap(),
+            parse2(quote!(i: I)).unwrap()
+        ];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, inputs);
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::GenericExpectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::GenericExpectations)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!(-> O)).unwrap());
+    }
+
+    #[test]
+    fn generic_method_with_lifetime_parameter() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo<'a>(&self, x: &'a X<'a>) -> u32;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation)).unwrap());
+        assert_eq!(mt.expectation_generics,
+                   parse2(quote!(<'a>)).unwrap());
+        let inputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&self)).unwrap(),
+            parse2(quote!(x: &'a X<'a>)).unwrap()
+        ];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, inputs);
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());
+    }
+
+    #[test]
+    fn generic_struct() {
+        let struct_generics = parse2(quote!(<T: 'static>)).unwrap();
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: T) -> T;
+        )).unwrap();
+        let mt = method_types(&tim.sig, Some(&struct_generics));
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation<T>)).unwrap());
+        assert!(mt.expectation_generics.params.is_empty());
+        let inputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&self)).unwrap(),
+            parse2(quote!(x: T)).unwrap()
+        ];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, inputs);
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::Expectations<T>)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!(-> T)).unwrap());
+    }
+
+    #[test]
+    fn generic_struct_with_where_clause() {
+        let mut struct_generics: Generics = parse2(quote!(<T: 'static>))
+            .unwrap();
+        struct_generics.where_clause =
+            Some(parse2(quote!(where T: Clone)).unwrap());
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: T) -> T;
+        )).unwrap();
+        let mt = method_types(&tim.sig, Some(&struct_generics));
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation<T>)).unwrap());
+        assert!(mt.expectation_generics.params.is_empty());
+        let inputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&self)).unwrap(),
+            parse2(quote!(x: T)).unwrap()
+        ];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, inputs);
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::Expectations<T>)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!(-> T)).unwrap());
+    }
+
+    // It's tricky to keep track of which generics apply to the struct, which to
+    // the method, and which to both
+    #[test]
+    fn generic_struct_with_generic_method() {
+        let struct_generics = parse2(quote!(<T: 'static>)).unwrap();
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo<Q: 'static>(&self, q: Q) -> T;
+        )).unwrap();
+        let mt = method_types(&tim.sig, Some(&struct_generics));
+        assert!(!mt.is_static);
+        assert!(mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation<T, Q>)).unwrap());
+        assert_eq!(mt.expectation_generics,
+                   parse2(quote!(<Q: 'static>)).unwrap());
+        let inputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&self)).unwrap(),
+            parse2(quote!(q: Q)).unwrap()
+        ];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, inputs);
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::GenericExpectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::GenericExpectations)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!(-> T)).unwrap());
+    }
+
+    #[test]
+    fn impl_trait() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo(&self) -> impl Debug + Send;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.output,
+                   parse2(quote!(-> Box<dyn Debug + Send>)).unwrap());
+    }
+
+    // Methods with mutable arguments must be demutified
+    #[test]
+    fn mutable_args() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo(&mut self, mut x: u32);)).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        let inputs_vec: Vec<FnArg> = vec![
+            parse2(quote!(&mut self)).unwrap(),
+            parse2(quote!(x: u32)).unwrap()
+        ];
+        let inputs = Punctuated::from_iter(inputs_vec.into_iter());
+        assert_eq!(mt.expectation_inputs, inputs);
+        assert_eq!(mt.call, "call");
+        assert_eq!(mt.inputs, inputs);
+        assert_eq!(mt.output, parse2(quote!()).unwrap());
+
+    }
+
+    // Methods that return types which are common targets for Deref are special
+    // cases
+    #[test]
+    fn returns_deref() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo(&self) -> &str;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.output,
+                   parse2(quote!(-> &str)).unwrap());
+    }
+
+    #[test]
+    fn returns_refmut() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo(&mut self) -> &mut u32;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(!mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.call, "call_mut");
+        assert_eq!(mt.output, parse2(quote!(-> &mut u32)).unwrap());
+    }
+
+    #[test]
+    fn static_method() {
+        let tim: TraitItemMethod = parse2(quote!(
+            fn foo() -> u32;
+        )).unwrap();
+        let mt = method_types(&tim.sig, None);
+        assert!(mt.is_static);
+        assert!(!mt.is_expectation_generic);
+        assert_eq!(mt.expectation,
+                   parse2(quote!(foo::Expectation)).unwrap());
+        assert_eq!(mt.expectation_generics, Generics::default());
+        assert!(mt.expectation_inputs.is_empty());
+        assert_eq!(mt.expectations,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj,
+                   parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.call, "call");
+        assert!(mt.inputs.is_empty());
+        assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());
+    }
+}
+
 }
