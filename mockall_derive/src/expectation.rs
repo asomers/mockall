@@ -1040,13 +1040,10 @@ impl<'a> StaticExpectation<'a> {
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
-        meth_generics.params.push(GenericParam::Lifetime(ltdef));
+        meth_generics.params.push(GenericParam::Lifetime(ltdef.clone()));
         let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
 
         let mut e_generics = self.common.egenerics.clone();
-        let ltdef = LifetimeDef::new(
-            Lifetime::new("'__mockall_lt", Span::call_site())
-        );
         e_generics.params.push(GenericParam::Lifetime(ltdef));
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
 
