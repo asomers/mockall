@@ -388,7 +388,7 @@ impl<'a> Expectation<'a> {
                 idx
             }).collect::<Vec<_>>();
         let matcher_ts = quote!(
-            enum Matcher #tg #wc {
+            enum Matcher #ig #wc {
                 Always,
                 Func(Box<dyn #hrtb Fn(#refpredty) -> bool + Send>),
                 Pred(Box<(#preds)>),
