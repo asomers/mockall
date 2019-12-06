@@ -446,7 +446,18 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
             }
             ret
         },
-        _ => unimplemented!()
+        Type::ImplTrait(tit) => {
+            let mut ret = HashSet::default();
+            for tpb in tit.bounds.iter() {
+                ret.extend(find_lifetimes_in_tpb(tpb));
+            }
+            ret
+        },
+        _ => {
+            compile_error(ty.span(), "unsupported type in this context");
+            HashSet::default()
+        }
+
     }
 }
 
@@ -675,7 +686,6 @@ fn split_lifetimes(
         match arg {
             FnArg::Typed(pt) => {
                 alts.extend(find_lifetimes(pt.ty.as_ref()))
-                //alts.extend(find_lifetimes(pt.ty.as_ref(), args, rt))
             },
             _ => ()
         };
