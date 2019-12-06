@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased] - ReleaseDate
+## [0.6.0] - 5 December 2019
 ### Added
 
 - Added the ability to mock generic methods whose return values' lifetimes are
