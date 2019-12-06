@@ -312,11 +312,13 @@
 //!
 //! let mut mock1 = MockFoo::new();
 //! mock1.expect_foo()
+//!     .times(1)
 //!     .in_sequence(&mut seq)
 //!     .returning(|| ());
 //!
 //! let mut mock2 = MockFoo::new();
 //! mock2.expect_foo()
+//!     .times(1)
 //!     .in_sequence(&mut seq)
 //!     .returning(|| ());
 //!
