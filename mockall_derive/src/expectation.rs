@@ -194,7 +194,7 @@ impl<'a> Common<'a> {
             }
 
             /// Single-threaded version of [`withf`](#method.withf).
-            /// Can be used when the argument or return type isn't `Send`.
+            /// Can be used when the argument type isn't `Send`.
             #v fn withf_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
                 where MockallF: #hrtb Fn(#(&#predty, )*)
                                 -> bool + 'static

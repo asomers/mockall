@@ -8,6 +8,9 @@ use std::rc::Rc;
 trait Foo {
     // Rc is not Send
     fn foo(&self, x: Rc<u32>) -> Rc<u32>;
+
+    // Rc is not Send
+    fn bar(x: Rc<u32>) -> Rc<u32>;
 }
 
 #[test]
@@ -21,6 +24,16 @@ fn returning_st() {
 }
 
 #[test]
+fn returning_st_static() {
+    let mock = MockFoo::bar_context();
+    let y = Rc::new(43u32);
+    mock.expect()
+        .returning_st(move |_| y.clone());
+    let x = Rc::new(42u32);
+    assert_eq!(43, *MockFoo::bar(x).as_ref());
+}
+
+#[test]
 fn withf_st() {
     let mut mock = MockFoo::new();
     let x = Rc::new(42u32);
@@ -29,4 +42,15 @@ fn withf_st() {
         .withf_st(move |x| *x == argument)
         .returning_st(|_| Rc::new(43u32));
     assert_eq!(43, *mock.foo(x).as_ref());
+}
+
+#[test]
+fn withf_st_static() {
+    let mock = MockFoo::bar_context();
+    let x = Rc::new(42u32);
+    let argument = x.clone();
+    mock.expect()
+        .withf_st(move |x| *x == argument)
+        .returning_st(|_| Rc::new(43u32));
+    assert_eq!(43, *MockFoo::bar(x).as_ref());
 }
