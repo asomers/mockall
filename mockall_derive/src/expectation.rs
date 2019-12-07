@@ -192,6 +192,16 @@ impl<'a> Common<'a> {
                 self.common.withf(__mockall_f);
                 self
             }
+
+            /// Single-threaded version of [`withf`](#method.withf).
+            /// Can be used when the argument type isn't `Send`.
+            #v fn withf_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                where MockallF: #hrtb Fn(#(&#predty, )*)
+                                -> bool + 'static
+            {
+                self.common.withf_st(__mockall_f);
+                self
+            }
         )
     }
 
@@ -391,6 +401,8 @@ impl<'a> Expectation<'a> {
             enum Matcher #ig #wc {
                 Always,
                 Func(Box<dyn #hrtb Fn(#refpredty) -> bool + Send>),
+                // Version of Matcher::Func for closures that aren't Send
+                FuncST(::mockall::Fragile<Box<dyn #hrtb Fn(#refpredty) -> bool>>),
                 Pred(Box<(#preds)>),
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
@@ -404,6 +416,8 @@ impl<'a> Expectation<'a> {
                         Matcher::Always => true,
                         Matcher::Func(__mockall_f) =>
                             __mockall_f(#(#argnames, )*),
+                        Matcher::FuncST(__mockall_f) =>
+                            (__mockall_f.get())(#(#argnames, )*),
                         Matcher::Pred(__mockall_pred) =>
                             [#pred_matches]
                             .iter()
@@ -427,6 +441,7 @@ impl<'a> Expectation<'a> {
                     match self {
                         Matcher::Always => write!(__mockall_fmt, "<anything>"),
                         Matcher::Func(_) => write!(__mockall_fmt, "<function>"),
+                        Matcher::FuncST(_) => write!(__mockall_fmt, "<single threaded function>"),
                         Matcher::Pred(__mockall_p) => {
                             write!(__mockall_fmt, #braces,
                                 #(__mockall_p.#indices,)*)
@@ -519,6 +534,15 @@ impl<'a> Expectation<'a> {
                     let mut __mockall_guard = self.matcher.lock().unwrap();
                     mem::replace(__mockall_guard.deref_mut(),
                                  Matcher::Func(Box::new(__mockall_f)));
+                }
+
+                fn withf_st<MockallF>(&mut self, __mockall_f: MockallF)
+                    where MockallF: #hrtb Fn(#refpredty)
+                                    -> bool + 'static
+                {
+                    let mut __mockall_guard = self.matcher.lock().unwrap();
+                    mem::replace(__mockall_guard.deref_mut(),
+                                 Matcher::FuncST(::mockall::Fragile::new(Box::new(__mockall_f))));
                 }
 
                 fn verify_sequence(&self) {
@@ -1267,6 +1291,16 @@ impl<'a> StaticExpectation<'a> {
                     {
                         self.guard.0[self.i].withf(__mockall_f)
                     }
+
+                    /// Just like
+                    /// [`Expectation::withf_st`](struct.Expectation.html#method.withf_st)
+                    #v fn withf_st<MockallF>(&mut self, __mockall_f: MockallF)
+                        -> &mut Expectation #tg
+                        where MockallF: #hrtb Fn(#(&#predty, )*)
+                                        -> bool + 'static
+                    {
+                        self.guard.0[self.i].withf_st(__mockall_f)
+                    }
                 }
                 #context_ts
             )
@@ -1462,6 +1496,21 @@ impl<'a> StaticExpectation<'a> {
                             .unwrap()
                             .0[self.i]
                             .withf(__mockall_f)
+                    }
+
+                    /// Just like
+                    /// [`Expectation::withf_st`](struct.Expectation.html#method.withf_st)
+                    #v fn withf_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Expectation #tg
+                        where MockallF: #hrtb Fn(#(&#predty, )*)
+                                        -> bool + 'static
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .withf_st(__mockall_f)
                     }
                 }
                 #context_ts

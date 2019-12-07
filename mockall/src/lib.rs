@@ -150,7 +150,8 @@
 //! [`returning_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.returning_st)
 //! or
 //! [`return_once_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_once_st)
-//! methods.
+//! methods. If you need to match arguments that are not `Send`, you can use the
+//! [`withf_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.withf_st)
 //! These take a non-`Send` object and add runtime access checks.  The wrapped
 //! object will be `Send`, but accessing it from multiple threads will cause a
 //! runtime panic.
@@ -165,10 +166,12 @@
 //!
 //! # fn main() {
 //! let mut mock = MockFoo::new();
+//! let x = Rc::new(5);
+//! let argument = x.clone();
 //! mock.expect_foo()
-//!     .withf(|x| **x == 5)
+//!     .withf_st(move |x| *x == argument)
 //!     .returning_st(move |_| Rc::new(42u32));
-//! assert_eq!(42, *mock.foo(Rc::new(5)));
+//! assert_eq!(42, *mock.foo(x));
 //! # }
 //! ```
 //!
