@@ -19,3 +19,14 @@ fn returning_st() {
     let x = Rc::new(42u32);
     assert_eq!(43, *mock.foo(x).as_ref());
 }
+
+#[test]
+fn withf_st() {
+    let mut mock = MockFoo::new();
+    let x = Rc::new(42u32);
+    let argument = x.clone();
+    mock.expect_foo()
+        .withf_st(move |x| *x == argument)
+        .returning_st(|_| Rc::new(43u32));
+    assert_eq!(43, *mock.foo(x).as_ref());
+}
