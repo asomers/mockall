@@ -529,6 +529,7 @@ fn mock_impl(item_impl: ItemImpl) -> TokenStream {
         (methods, Vec::new())
     };
     let mock = Mock {
+        attrs: item_impl.attrs.clone(),
         vis,
         name,
         generics: item_impl.generics.clone(),
@@ -608,6 +609,7 @@ fn mock_native_function(modname: &Ident, f: &ItemFn) -> TokenStream {
 fn mock_trait(attrs: Attrs, item: ItemTrait) -> TokenStream {
     let trait_ = attrs.substitute_trait(&item);
     let mock = Mock {
+        attrs: item.attrs.clone(),
         vis: item.vis.clone(),
         name: item.ident.clone(),
         generics: item.generics.clone(),
