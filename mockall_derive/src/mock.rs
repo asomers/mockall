@@ -8,6 +8,7 @@ use std::{
 use syn::parse::{Parse, ParseStream};
 
 pub(crate) struct Mock {
+    pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) vis: syn::Visibility,
     pub(crate) name: syn::Ident,
     pub(crate) generics: syn::Generics,
@@ -28,8 +29,8 @@ impl Mock {
             (trait_.ident.to_string(), self.generics.clone())
         }).collect::<Vec<_>>();
         // generate the mock structure
-        gen_struct(&mock_struct_name, &self.vis, &self.name, &self.generics,
-                   &subs, &self.methods)
+        gen_struct(&self.attrs[..], &mock_struct_name, &self.vis, &self.name,
+                   &self.generics, &subs, &self.methods)
             .to_tokens(&mut output);
         // generate sub structures
         for trait_ in self.traits.iter() {
@@ -45,8 +46,8 @@ impl Mock {
                 }
             }).collect::<Vec<_>>();
             let vis = syn::Visibility::Inherited;
-            gen_struct(&mock_struct_name, &vis, &sub_mock, &self.generics, &[],
-                       &methods)
+            gen_struct(&[], &mock_struct_name, &vis, &sub_mock,
+                       &self.generics, &[], &methods)
                 .to_tokens(&mut output);
             let mock_sub_name = gen_mock_ident(&sub_mock);
             for meth in methods {
@@ -134,6 +135,7 @@ impl Mock {
 
 impl Parse for Mock {
     fn parse(input: ParseStream) -> syn::parse::Result<Self> {
+        let attrs = input.call(syn::Attribute::parse_outer)?;
         let vis: syn::Visibility = input.parse()?;
         let name: syn::Ident = input.parse()?;
         let mut generics: syn::Generics = input.parse()?;
@@ -161,19 +163,17 @@ impl Parse for Mock {
             traits.push(trait_);
         }
 
-        Ok(Mock{vis, name, generics, methods, traits})
+        Ok(Mock{attrs, vis, name, generics, methods, traits})
     }
 }
 
-fn format_attrs(attrs: &[syn::Attribute]) -> TokenStream {
+fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
     let mut out = TokenStream::new();
     for attr in attrs {
-        if attr.path.get_ident().map(|i| i == "doc").unwrap_or(false) {
-            // Discard doc attributes from the mock object.  They cause a bunch
-            // of warnings.
-            continue;
+        let is_doc = attr.path.get_ident().map(|i| i == "doc").unwrap_or(false);
+        if !is_doc || include_docs {
+            attr.to_tokens(&mut out);
         }
-        attr.to_tokens(&mut out);
     }
     out
 }
@@ -219,12 +219,13 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     let merged_g = merge_generics(&generics, &meth_types.expectation_generics);
     let inputs = &meth_types.inputs;
     let output = &meth_types.output;
-    let attrs = format_attrs(meth_attrs);
+    let attrs_with_docs = format_attrs(meth_attrs, true);
+    let attrs_nodocs = format_attrs(meth_attrs, false);
 
     // First the mock method
     {
         let (ig, _, wc) = sig.generics.split_for_impl();
-        quote!(#attrs #meth_vis #constness #unsafety #asyncness #abi
+        quote!(#attrs_with_docs #meth_vis #constness #unsafety #asyncness #abi
                #fn_token #ident #ig (#inputs) #output #wc)
             .to_tokens(&mut mock_output);
     }
@@ -298,7 +299,7 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
         let docstr: Option<syn::Attribute> = None;
         let context_ident = format_ident!("{}_context", ident);
         let (_, ctx_tg, _) = generics.split_for_impl();
-        quote!(#attrs #docstr #expect_vis fn #context_ident()
+        quote!(#attrs_nodocs #docstr #expect_vis fn #context_ident()
                -> #mod_ident::#ident::Context #ctx_tg
             {
                 #mod_ident::#ident::Context::default()
@@ -324,7 +325,7 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
 
         quote!(
             #must_use
-            #attrs #docstr #expect_vis fn #expect_ident #ig(&mut self)
+            #attrs_nodocs #docstr #expect_vis fn #expect_ident #ig(&mut self)
                -> &mut #mod_ident::#expectation
                #wc
             {
@@ -339,13 +340,14 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
         // context objects instead.
         quote!()
     } else {
-        quote!(#attrs { #expect_obj_name.checkpoint(); })
+        quote!(#attrs_nodocs { #expect_obj_name.checkpoint(); })
     }.to_tokens(&mut cp_output);
 
     (mock_output, expect_output, cp_output)
 }
 
-fn gen_struct<T>(mock_ident: &syn::Ident,
+fn gen_struct<T>(attrs: &[syn::Attribute],
+                 mock_ident: &syn::Ident,
                  vis: &syn::Visibility,
                  ident: &syn::Ident,
                  generics: &syn::Generics,
@@ -360,6 +362,11 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
     let mut mod_body = TokenStream::new();
     let mut default_body = TokenStream::new();
 
+    let mut attr_ts = TokenStream::new();
+    for attr in attrs{
+        attr.to_tokens(&mut attr_ts);
+    }
+
     // Make Expectation fields for each method
     for (sub, sub_generics) in subs.iter() {
         let (_, tg, _) = sub_generics.split_for_impl();
@@ -370,7 +377,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
             .to_tokens(&mut default_body)
     }
     for meth in methods.iter() {
-        let attrs = format_attrs(&meth.borrow().attrs);
+        let attrs = format_attrs(&meth.borrow().attrs, false);
         let method_ident = &meth.borrow().sig.ident;
         let meth_types = method_types(&meth.borrow().sig, Some(generics));
         let expect_obj = &meth_types.expect_obj;
@@ -437,6 +444,7 @@ fn gen_struct<T>(mock_ident: &syn::Ident,
         }
         #[allow(non_camel_case_types)]
         #[allow(non_snake_case)]
+        #attr_ts
         #vis struct #ident #ig #wc {
             #body
         }
@@ -584,6 +592,30 @@ mod t {
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let output = do_mock(ts).to_string();
         assert!(!output.contains("pub struct MockFoo"));
+    }
+
+    #[test]
+    fn doc_comments() {
+        let code = r#"
+            /// Struct docs
+            pub Foo {
+                /// Method docs
+                fn foo(&self);
+            }
+            trait Tr {
+                /// Trait method docs
+                fn bar(&self);
+            }
+        "#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let output = do_mock(ts)
+            .to_string()
+            // Strip spaces so we don't get test regressions due to minor
+            // formatting changes
+            .replace(" ", "");
+        assert!(output.contains(r#"#[doc="Methoddocs"]pubfnfoo"#));
+        assert!(output.contains(r#"#[doc="Structdocs"]pubstructMockFoo"#));
+        assert!(output.contains(r#"#[doc="Traitmethoddocs"]fnbar"#));
     }
 
 }
