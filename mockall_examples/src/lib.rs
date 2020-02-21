@@ -1,5 +1,4 @@
 // vim: tw=80
-#![cfg_attr(feature = "nightly-docs", feature(doc_cfg))]
 
 //! Examples of mock objects and their generated methods.
 //!
@@ -8,13 +7,13 @@
 //! crate.  You should never depend on this crate.
 //
 
-#[cfg(all(feature = "nightly-docs", rustdoc))]
+#[cfg(doc)]
 use mockall::*;
 
 /// A basic trait with several kinds of method.
 ///
 /// It is mocked by the [`MockFoo`](struct.MockFoo.html) struct.
-#[cfg(all(feature = "nightly-docs", rustdoc))]
+#[cfg(doc)]
 #[automock]
 pub trait Foo {
     /// A method with a `'static` return type
@@ -33,7 +32,7 @@ pub trait Foo {
     fn bang(x: i32) -> i32;
 }
 
-#[cfg(all(feature = "nightly-docs", rustdoc))]
+#[cfg(doc)]
 #[automock(mod mock_ffi;)]
 extern "C" {
     /// A foreign "C" function
