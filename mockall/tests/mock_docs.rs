@@ -1,4 +1,6 @@
 // vim: tw=80
+#![deny(missing_docs)]
+
 use mockall::*;
 
 // mock! should allow doc comments in all reasonable positions.  This test
@@ -15,10 +17,9 @@ mock!{
         /// Method docs
         fn foo(&self);
     }
+    /// Trait docs
     trait Tr {
         /// Trait method docs
         fn bar(&self);
     }
 }
-
-
