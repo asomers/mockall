@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 ### Fixed
+
+- Fixed the docs for `mockall_examples`
+  ([#103](https://github.com/asomers/mockall/pull/103))
+
 ### Removed
 
 ## [0.6.0] - 5 December 2019
