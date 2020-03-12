@@ -1,4 +1,5 @@
 // vim: tw=80
+//#![deny(missing_docs)]
 
 //! Examples of mock objects and their generated methods.
 //!

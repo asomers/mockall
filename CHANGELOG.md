@@ -22,6 +22,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   raises the MSRV to 1.36.0.
   ([#108](https://github.com/asomers/mockall/pull/108))
 
+- The proc macros will now build successfully in crates that set
+  `#![deny(missing_docs)]`
+  ([#107](https://github.com/asomers/mockall/pull/107))
+
 ### Removed
 
 ## [0.6.0] - 5 December 2019

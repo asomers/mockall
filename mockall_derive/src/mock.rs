@@ -63,6 +63,8 @@ impl Mock {
             }
             let (ig, tg, wc) = self.generics.split_for_impl();
             quote!(impl #ig #mock_sub_name #tg #wc {
+                /// Validate that all current expectations for all methods have
+                /// been satisfied, and discard them.
                 fn checkpoint(&mut self) {
                     #sub_cp_body
                 }
@@ -416,12 +418,14 @@ fn gen_struct<T>(attrs: &[syn::Attribute],
     let (ig, tg, wc) = generics.split_for_impl();
     quote!(
         #[allow(non_snake_case)]
+        #[doc(hidden)]
         pub mod #mod_ident {
             use super::*;
             #mod_body
         }
         #[allow(non_camel_case_types)]
         #[allow(non_snake_case)]
+        #[allow(missing_docs)]
         #attr_ts
         #vis struct #ident #ig #wc {
             #body

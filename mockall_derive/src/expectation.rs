@@ -575,6 +575,7 @@ impl<'a> Expectation<'a> {
         let sm_ts = self.static_method_methods(&with_generics, &with_args);
         quote!(
             #attrs
+            #[allow(missing_docs)]
             pub mod #ident {
                 #extra_uses
                 use super::*;   // Import types from the calling environment
@@ -1154,6 +1155,7 @@ impl<'a> StaticExpectation<'a> {
         if !self.common.is_generic() {
             quote!(
                 ::mockall::lazy_static! {
+                    #[doc(hidden)]
                     #v static ref EXPECTATIONS:
                         ::std::sync::Mutex<#expect_obj> =
                         ::std::sync::Mutex::new(Expectations::new());
