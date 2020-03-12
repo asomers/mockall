@@ -352,8 +352,14 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
         }
     }
 
-    quote!(pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
-    quote!(pub mod #modname { #body })
+    quote!(
+        /// Verify that all current expectations for this function are
+        /// satisfied and clear them.
+        pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
+    quote!(
+        #[allow(missing_docs)]
+        pub mod #modname { #body }
+    )
 }
 
 /// Mock a foreign function the same way we mock static trait methods: with a
@@ -422,7 +428,16 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
         .to_tokens(&mut out);
     let no_match_msg = format!("{}::{}: No matching expectation found",
         modname, ident);
+    let fn_docstr = {
+        let inner_ds = format!("Mock version of the `{}` function", ident);
+        quote!( #[doc = #inner_ds])
+    };
+    let context_docstr = {
+        let inner_ds = format!("Return a Context object used to hold the expectations for `{}`", ident);
+        quote!( #[doc = #inner_ds])
+    };
     quote!(
+        #fn_docstr
         #meth_vis #constness #unsafety #asyncness
         #fn_token #ident #generics (#inputs) #output {
             {
@@ -438,6 +453,7 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
                 /*)*/
             }.expect(#no_match_msg)
         }
+        #context_docstr
         #meth_vis fn #context_ident() -> #mod_ident::Context
         {
             #mod_ident::Context::default()
@@ -595,8 +611,12 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
         }
     }
 
-    quote!(pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
-    quote!(pub mod #modname { #body })
+    quote!(
+        /// Verify that all current expectations for this function are
+        /// satisfied and clear them.
+        pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
+    quote!(
+        pub mod #modname { #body })
 }
 
 /// Mock a function the same way we mock static trait methods: with a
