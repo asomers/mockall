@@ -615,7 +615,12 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
         /// Verify that all current expectations for this function are
         /// satisfied and clear them.
         pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
+    let docstr = {
+        let inner_ds = format!("Mock version of the `{}` module", mod_.ident);
+        quote!( #[doc = #inner_ds])
+    };
     quote!(
+        #docstr
         pub mod #modname { #body })
 }
 

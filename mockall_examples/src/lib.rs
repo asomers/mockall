@@ -61,3 +61,13 @@ extern "C" {
     /// A foreign "C" function
     pub fn ffi_func();
 }
+
+#[cfg(all(doc, feature = "nightly"))]
+/// Mock this entire module
+#[automock]
+mod a_module {
+    /// A function in a mocked module
+    pub fn modfunc() {
+        unimplemented!()
+    }
+}
