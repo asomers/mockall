@@ -85,14 +85,8 @@ impl Mock {
             cp.to_tokens(&mut cp_body);
         }
         // generate the mock struct's inherent methods
-        #[cfg(all(not(test),feature = "extra-docs"))]
-        let checkpoint_docs = quote!(
-            #[doc = "Immediately validate all expectations and clear them."]
-        );
-        #[cfg(any(test, not(feature = "extra-docs")))]
-        let checkpoint_docs: Option<syn::Attribute> = None;
         quote!(
-            #checkpoint_docs
+            #[doc = "Immediately validate all expectations and clear them."]
             pub fn checkpoint(&mut self) {
                 #cp_body
             }
@@ -101,21 +95,14 @@ impl Mock {
         // even if the struct implements a trait that has a new method.  The
         // trait's new method can still be called as `<MockX as TraitY>::new`
         if !has_new {
-            #[cfg(all(not(test),feature = "extra-docs"))]
-            let docstr = {
-                let inner_ds = concat!(
-                    "Create a new mock object with no expectations.\n\n",
-                    "This method will not be generated if the real struct ",
-                    "already has a `new` method.  However, it *will* be ",
-                    "generated if the struct implements a trait with a `new` ",
-                    "method.  The trait's `new` method can still be called ",
-                    "like `<MockX as TraitY>::new`");
-                quote!( #[doc = #inner_ds])
-            };
-            #[cfg(any(test, not(feature = "extra-docs")))]
-            let docstr: Option<syn::Attribute> = None;
             quote!(
-                #docstr
+                /// Create a new mock object with no expectations.
+                ///
+                /// This method will not be generated if the real struct
+                /// already has a `new` method.  However, it *will* be
+                /// generated if the struct implements a trait with a `new`
+                /// method.  The trait's `new` method can still be called
+                /// like `<MockX as TraitY>::new`
                 pub fn new() -> Self {
                     Self::default()
                 }
@@ -289,31 +276,18 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
 
     // Then the expectation method
     if meth_types.is_static {
-        #[cfg(all(not(test),feature = "extra-docs"))]
-        let docstr = {
-            let inner_ds = format!("Create a [`Context`]({}/{}/struct.Context.html) for mocking the `{}` method",
-                quote!(#mod_ident), ident, ident);
-            quote!( #[doc = #inner_ds])
-        };
-        #[cfg(any(test, not(feature = "extra-docs")))]
-        let docstr: Option<syn::Attribute> = None;
         let context_ident = format_ident!("{}_context", ident);
         let (_, ctx_tg, _) = generics.split_for_impl();
-        quote!(#attrs_nodocs #docstr #expect_vis fn #context_ident()
+        quote!(#attrs_nodocs
+               /// Create a [`Context`](#mod_ident/ident/struct.Context.html)
+               /// for mocking the `ident` method
+               #expect_vis fn #context_ident()
                -> #mod_ident::#ident::Context #ctx_tg
             {
                 #mod_ident::#ident::Context::default()
             }
         )
     } else {
-        #[cfg(all(not(test),feature = "extra-docs"))]
-        let docstr = {
-            let inner_ds = format!("Create an [`Expectation`]({}/{}/struct.Expectation.html) for mocking the `{}` method",
-                quote!(#mod_ident), ident, ident);
-            quote!( #[doc = #inner_ds])
-        };
-        #[cfg(any(test, not(feature = "extra-docs")))]
-        let docstr: Option<syn::Attribute> = None;
         let expect_ident = format_ident!("expect_{}", ident);
 
         #[cfg(not(feature = "nightly_derive"))]
@@ -325,7 +299,11 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
 
         quote!(
             #must_use
-            #attrs_nodocs #docstr #expect_vis fn #expect_ident #ig(&mut self)
+            #attrs_nodocs
+            /// Create an
+            /// [`Expectation`](#mod_ident/ident/struct.Expectation.html) for
+            /// mocking the `ident` method
+            #expect_vis fn #expect_ident #ig(&mut self)
                -> &mut #mod_ident::#expectation
                #wc
             {
