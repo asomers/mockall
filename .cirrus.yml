@@ -2,7 +2,7 @@ test_task:
   name: cargo test 
   matrix:
     - container:
-       image: rust:1.35.0
+       image: rust:1.36.0
     - container:
        image: rust:latest
     - container:
