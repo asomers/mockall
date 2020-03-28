@@ -3,6 +3,7 @@
 
 use mockall::*;
 use std::rc::Rc;
+use std::sync::Mutex;
 
 #[automock]
 trait Foo {
@@ -11,6 +12,10 @@ trait Foo {
 
     // Rc is not Send
     fn bar(x: Rc<u32>) -> Rc<u32>;
+}
+
+lazy_static! {
+    static ref BAR_MTX: Mutex<()> = Mutex::new(());
 }
 
 #[test]
@@ -25,6 +30,8 @@ fn returning_st() {
 
 #[test]
 fn returning_st_static() {
+    let _m = BAR_MTX.lock().unwrap();
+
     let mock = MockFoo::bar_context();
     let y = Rc::new(43u32);
     mock.expect()
@@ -46,6 +53,8 @@ fn withf_st() {
 
 #[test]
 fn withf_st_static() {
+    let _m = BAR_MTX.lock().unwrap();
+
     let mock = MockFoo::bar_context();
     let x = Rc::new(42u32);
     let argument = x.clone();
