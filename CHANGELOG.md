@@ -26,6 +26,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `#![deny(missing_docs)]`
   ([#107](https://github.com/asomers/mockall/pull/107))
 
+- Fixed mocking methods with an explicit receiver lifetime like `&'a self`
+  ([#112](https://github.com/asomers/mockall/pull/112))
+
 ### Removed
 
 ## [0.6.0] - 5 December 2019
