@@ -684,10 +684,16 @@ fn split_lifetimes(
     let mut alts = HashSet::<Lifetime>::default();
     for arg in args {
         match arg {
+            FnArg::Receiver(r) => {
+                if let Some((_, olt)) = &r.reference {
+                    if let Some(lt) = olt {
+                        alts.insert(lt.clone());
+                    }
+                }
+            },
             FnArg::Typed(pt) => {
                 alts.extend(find_lifetimes(pt.ty.as_ref()))
             },
-            _ => ()
         };
     };
 
