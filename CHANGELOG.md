@@ -12,6 +12,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Added the ability to match non-`Send` arguments with `withf_st`
   ([#93](https://github.com/asomers/mockall/pull/93))
 
+- Added the ability to mock non-`'static` structs (but not their constructor
+  methods)
+  ([#114](https://github.com/asomers/mockall/pull/114))
+
 ### Changed
 ### Fixed
 

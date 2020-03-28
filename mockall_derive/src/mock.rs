@@ -279,7 +279,8 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     // Then the expectation method
     if meth_types.is_static {
         let context_ident = format_ident!("{}_context", ident);
-        let (_, ctx_tg, _) = generics.split_for_impl();
+        let context_generics = strip_generics_lifetimes(generics);
+        let (_, ctx_tg, _) = context_generics.split_for_impl();
         quote!(#attrs_nodocs
                /// Create a [`Context`](#mod_ident/ident/struct.Context.html)
                /// for mocking the `ident` method
