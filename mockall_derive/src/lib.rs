@@ -285,15 +285,25 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
                         if !generics.params.is_empty() {
                             let args = Punctuated::from_iter(
                                 generics.params.iter().map(|gp| {
-                                    let ident = match gp {
-                                        GenericParam::Type(tp) => &tp.ident,
-                                        GenericParam::Lifetime(ld) =>
-                                            &ld.lifetime.ident,
-                                        GenericParam::Const(cp) => &cp.ident,
-                                    };
-                                    parse2::<GenericArgument>(
-                                        quote!(#ident)
-                                    ).unwrap()
+                                    match gp {
+                                        GenericParam::Type(tp) => {
+                                            let ident = tp.ident.clone();
+                                            GenericArgument::Type(
+                                                Type::Path(
+                                                    TypePath {
+                                                        qself: None,
+                                                        path: Path::from(ident)
+                                                    }
+                                                )
+                                            )
+                                        },
+                                        GenericParam::Lifetime(ld) =>{
+                                            GenericArgument::Lifetime(
+                                                ld.lifetime.clone()
+                                            )
+                                        }
+                                        _ => unimplemented!(),
+                                    }
                                 })
                             );
                             seg.arguments = PathArguments::AngleBracketed(
@@ -458,6 +468,19 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
             HashSet::default()
         }
 
+    }
+}
+
+/// Return a new Generics object based on the given one but with lifetimes
+/// removed
+fn strip_generics_lifetimes(generics: &Generics) -> Generics {
+    Generics {
+        lt_token: generics.lt_token.clone(),
+        gt_token: generics.gt_token.clone(),
+        where_clause: generics.where_clause.clone(),
+        params: generics.type_params()
+            .map(|generics| GenericParam::Type(generics.clone()))
+            .collect::<Punctuated<GenericParam, Token![,]>>()
     }
 }
 
@@ -668,8 +691,8 @@ fn lifetimes_to_generics(lv: Vec<GenericParam>) -> Generics {
 }
 
 /// Split a generics list into three: one for type generics, one for lifetime
-/// generics that relate to the arguments, and one for lifetime generics that
-/// relate to the return type.
+/// generics that relate to the arguments only, and one for lifetime generics
+/// that relate to the return type.
 fn split_lifetimes(
     generics: Generics,
     args: &Punctuated<FnArg, Token![,]>,
@@ -708,17 +731,14 @@ fn split_lifetimes(
     let mut rlv = Vec::new();
     for p in generics.params {
         match &p {
-            GenericParam::Lifetime(ltd) if rlts.contains(&ltd.lifetime) &&
-                                           alts.contains(&ltd.lifetime) =>
-            {
-                unimplemented!("Methods that return references to their arguments are TODO")
-            },
-            GenericParam::Lifetime(ltd) if alts.contains(&ltd.lifetime) =>
-                alv.push(p),
             GenericParam::Lifetime(ltd) if rlts.contains(&ltd.lifetime) =>
                 rlv.push(p),
-            GenericParam::Lifetime(_) =>
-                panic!("An unused lifetime parameter?"),
+            GenericParam::Lifetime(ltd) if alts.contains(&ltd.lifetime) =>
+                alv.push(p),
+            GenericParam::Lifetime(_) => {
+                // Probably a lifetime parameter from the impl block that isn't
+                // used by this particular method
+            },
             _ => tv.push(p)
         }
     }
@@ -850,8 +870,7 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
                 false
             }
         }) ||
-        expectation_generics.where_clause.is_some() ||
-        (is_static && generics.filter(|g| !g.params.is_empty()).is_some());
+        expectation_generics.where_clause.is_some();
 
     let expectation_ident = format_ident!("Expectation");
     let expectations_ident = if is_expectation_generic {

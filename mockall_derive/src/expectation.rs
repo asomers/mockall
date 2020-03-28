@@ -53,8 +53,8 @@ struct Common<'a> {
     expect_obj: &'a Type,
     /// The expectation's generic types as a list of types
     fn_params: Punctuated<Ident, Token![,]>,
-    /// Generics of the parent struct
-    struct_generics: Option<&'a Generics>,
+    /// Type generics of the mock struct
+    struct_generics: Option<Generics>,
     /// Generics of the method
     meth_generics: &'a Generics,
     /// Type Generics of the Expectation object
@@ -654,17 +654,7 @@ impl<'a> Expectation<'a> {
         } else {
             meth_generics.clone()
         };
-        let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(generics,
-                                                                      args, rt);
-        for p in egenerics.params.iter_mut() {
-            if let GenericParam::Type(tp) = p {
-                let static_bound = Lifetime::new("'static", Span::call_site());
-                tp.bounds.push(TypeParamBound::Lifetime(static_bound));
-            }
-        }
-        let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
-            egenerics.type_params().map(|tp| tp.ident.clone())
-        );
+
         let mut ref_expectation = false;
         let mut ref_mut_expectation = false;
         let output = supersuperfy(&match rt {
@@ -698,13 +688,31 @@ impl<'a> Expectation<'a> {
             }
         }, levels);
 
+        let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
+            generics,
+            args,
+            &ReturnType::Type(<Token![->]>::default(), Box::new(output.clone()))
+        );
+        for p in egenerics.params.iter_mut() {
+            if let GenericParam::Type(tp) = p {
+                let static_bound = Lifetime::new("'static", Span::call_site());
+                tp.bounds.push(TypeParamBound::Lifetime(static_bound));
+            }
+        }
+        let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+            egenerics.type_params().map(|tp| tp.ident.clone())
+        );
+
+        let struct_type_generics = struct_generics
+            .map(|g| strip_generics_lifetimes(g));
+
         let common = Common {
             argnames,
             argty,
             attrs,
             expect_obj,
             fn_params,
-            struct_generics,
+            struct_generics: struct_type_generics,
             meth_generics,
             egenerics,
             alifetimes,
@@ -761,6 +769,7 @@ impl<'a> StaticExpectation<'a> {
         let argty = &self.common.argty;
         let ident_str = self.common().ident_str();
         let generics = merge_generics(&self.common.egenerics, &self.common.rlifetimes);
+
         let (ig, tg, wc) = generics.split_for_impl();
         let (_, common_tg, _) = self.common.egenerics.split_for_impl();
         let hrtb = self.common.hrtb();
@@ -937,7 +946,9 @@ impl<'a> StaticExpectation<'a> {
     fn generic_expectations_methods(&self) -> TokenStream {
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let (ig, tg, wc) = self.common.egenerics.split_for_impl();
+        let generics = merge_generics(&self.common.egenerics,
+                                      &self.common.rlifetimes);
+        let (ig, tg, wc) = generics.split_for_impl();
         let output = &self.common.output;
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
@@ -1071,7 +1082,9 @@ impl<'a> StaticExpectation<'a> {
         let v = &self.common.vis;
 
         let gd = Generics::default();
-        let (s_ig, s_tg, s_wc) = self.common.struct_generics.unwrap_or(&gd)
+        let (s_ig, s_tg, s_wc) = self.common.struct_generics
+            .as_ref()
+            .unwrap_or(&gd)
             .split_for_impl();
 
         // Add a lifetime parameter, needed by MutexGuard
@@ -1083,10 +1096,14 @@ impl<'a> StaticExpectation<'a> {
         let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
 
         let mut e_generics = self.common.egenerics.clone();
+        e_generics.lt_token.get_or_insert(<Token![<]>::default());
         e_generics.params.push(GenericParam::Lifetime(ltdef));
+        e_generics.gt_token.get_or_insert(<Token![>]>::default());
+        let ei_generics = merge_generics(&e_generics, &self.common.rlifetimes);
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
+        let (ei_ig, _, _) = ei_generics.split_for_impl();
 
-        let ctx_fn_params = match self.common.struct_generics {
+        let ctx_fn_params = match &self.common.struct_generics {
             None => Punctuated::new(),
             Some(g) => Punctuated::<Ident, Token![,]>::from_iter(
                 g.type_params().map(|tp| tp.ident.clone())
@@ -1178,7 +1195,7 @@ impl<'a> StaticExpectation<'a> {
                     i: usize
                 }
 
-                impl #e_ig ExpectationGuard #e_tg #e_wc
+                impl #ei_ig ExpectationGuard #e_tg #e_wc
                 {
                     /// Just like
                     /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
@@ -1323,7 +1340,7 @@ impl<'a> StaticExpectation<'a> {
                     _phantom: ::std::marker::PhantomData<(#fn_params)>,
                 }
 
-                impl #e_ig ExpectationGuard #e_tg #e_wc
+                impl #ei_ig ExpectationGuard #e_tg #e_wc
                 {
                     /// Just like
                     /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
