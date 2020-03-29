@@ -1,10 +1,7 @@
 // vim: tw=80
 use super::*;
 use quote::ToTokens;
-use std::{
-    borrow::Borrow,
-    env
-};
+use std::borrow::Borrow;
 use syn::parse::{Parse, ParseStream};
 
 pub(crate) struct ManualMock {
@@ -552,19 +549,6 @@ fn tim2iim(m: &syn::TraitItemMethod, vis: &syn::Visibility)
         sig: m.sig.clone(),
         block: syn::parse2(quote!({})).unwrap(),
     }
-}
-
-pub(crate) fn do_mock(input: TokenStream) -> TokenStream {
-    let mock: ManualMock = match syn::parse2(input) {
-        Ok(mock) => mock,
-        Err(err) => {
-            return err.to_compile_error();
-        }
-    };
-    if env::var("MOCKALL_DEBUG").is_ok() {
-        println!("{}", mock.gen());
-    }
-    mock.gen()
 }
 
 /// Test cases for `mock!{}`.

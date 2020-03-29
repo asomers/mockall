@@ -1,10 +1,7 @@
 // vim: tw=80
 use super::*;
 use quote::ToTokens;
-use std::{
-    collections::HashMap,
-    env
-};
+use std::collections::HashMap;
 use syn::parse::{Parse, ParseStream};
 
 /// A single automock attribute
@@ -30,7 +27,7 @@ impl Parse for Attr {
 
 /// automock attributes
 #[derive(Debug, Default)]
-struct Attrs {
+pub(crate) struct Attrs {
     attrs: HashMap<Ident, Type>,
     modname: Option<Ident>
 }
@@ -662,38 +659,6 @@ fn mock_trait(attrs: Attrs, item: ItemTrait) -> TokenStream {
         traits: vec![trait_]
     };
     mock.gen()
-}
-
-pub(crate)
-fn do_automock(attr_stream: TokenStream, input: TokenStream) -> TokenStream
-{
-    let attrs: Attrs = match parse2(attr_stream) {
-        Ok(a) => a,
-        Err(err) => {
-            return err.to_compile_error();
-        }
-    };
-    let item: Item = match parse2(input) {
-        Ok(item) => item,
-        Err(err) => {
-            return err.to_compile_error();
-        }
-    };
-    let ts = match item {
-        Item::Impl(item_impl) => mock_impl(item_impl),
-        Item::ForeignMod(foreign_mod) => mock_foreign(attrs, foreign_mod),
-        Item::Mod(item_mod) => mock_module(item_mod),
-        Item::Trait(item_trait) => mock_trait(attrs, item_trait),
-        _ => {
-            compile_error(item.span(),
-                "#[automock] does not support this item type");
-            TokenStream::new()
-        }
-    };
-    if env::var("MOCKALL_DEBUG").is_ok() {
-        println!("{}", ts);
-    }
-    ts
 }
 
 /// Test cases for `#[automock]`.
