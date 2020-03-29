@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased] - ReleaseDate
+## [0.7.0] - 29 March 2020
 ### Added
 
 - `mock!` now allows doc comments in any position
