@@ -20,7 +20,7 @@ mock!{
 fn returning() {
     let mut mock = MockFoo::<u32>::default();
     mock.expect_foo()
-        .returning(|t| G(t));
+        .returning(G);
     assert_eq!(42u32, mock.foo(42u32).0);
 
     // It's possible to instantiate a mock object that doesn't satisfy the

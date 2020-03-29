@@ -11,6 +11,7 @@ mock! {
     }
 }
 
+#[allow(clippy::redundant_clone)]
 #[test]
 fn returning() {
     let mut mock0 = MockA::new();

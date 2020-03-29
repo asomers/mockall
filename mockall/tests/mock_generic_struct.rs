@@ -22,6 +22,7 @@ mock!{
 }
 
 #[test]
+#[allow(clippy::redundant_clone)]
 fn returning() {
     let mut mock = MockExtGenericStruct::<NonCopy>::new();
     // An explicit .clone() is required so as not to return by move

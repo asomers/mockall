@@ -394,8 +394,7 @@ impl<'a> Expectation<'a> {
             });
         let indices = (0..argnames.len())
             .map(|i| {
-                let idx = syn::Index::from(i);
-                idx
+                syn::Index::from(i)
             }).collect::<Vec<_>>();
         let matcher_ts = quote!(
             enum Matcher #ig #wc {
@@ -612,6 +611,7 @@ impl<'a> Expectation<'a> {
     /// * `return_type`     - Return type of the mock method
     /// * `vis`             - Visibility of the expectation, *already supersuperfied*.
     /// * `levels`          - Depth of modules added by the caller
+    #[allow(clippy::unused_unit)]
     pub(crate) fn new(
         attrs: &'a TokenStream,
         args: &Punctuated<FnArg, Token![,]>,

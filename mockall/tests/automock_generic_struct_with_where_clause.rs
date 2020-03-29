@@ -12,6 +12,7 @@ impl<T> GenericStruct<T>
     where T: Clone + Default + 'static
 {
     #[allow(unused)]
+    #[allow(clippy::redundant_clone)]
     fn foo(&self, x: T) -> T {
         x.clone()
     }

@@ -120,11 +120,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     // Then remove those types from both the Generics' params and where clause
     let should_remove = |ident: &Ident| {
             let ty: Type = parse2(quote!(#ident)).unwrap();
-            if hm.contains_key(&ty) {
-                true
-            } else {
-                false
-            }
+            hm.contains_key(&ty)
     };
     let params = Punctuated::from_iter(gen.params.iter().filter(|g| {
         if let GenericParam::Type(tp) = g {
@@ -150,8 +146,8 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
         }).cloned());
     }
     let outg = Generics {
-        lt_token: if params.is_empty() { None } else { gen.lt_token.clone() },
-        gt_token: if params.is_empty() { None } else { gen.gt_token.clone() },
+        lt_token: if params.is_empty() { None } else { gen.lt_token },
+        gt_token: if params.is_empty() { None } else { gen.gt_token },
         params,
         where_clause: wc2
     };
@@ -165,14 +161,14 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
                 FnArg::Typed(PatType {
                     attrs: Vec::default(),
                     pat: immutable_pt.pat,
-                    colon_token: pt.colon_token.clone(),
+                    colon_token: pt.colon_token,
                     ty: Box::new(newty.clone())
                 })
             } else {
                 FnArg::Typed(PatType {
                     attrs: Vec::default(),
                     pat: immutable_pt.pat,
-                    colon_token: pt.colon_token.clone(),
+                    colon_token: pt.colon_token,
                     ty: pt.ty.clone()
                 })
             }
@@ -309,9 +305,9 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
                             seg.arguments = PathArguments::AngleBracketed(
                                 AngleBracketedGenericArguments {
                                     colon2_token: None,
-                                    lt_token: generics.lt_token.unwrap().clone(),
+                                    lt_token: generics.lt_token.unwrap(),
                                     args,
-                                    gt_token: generics.gt_token.unwrap().clone(),
+                                    gt_token: generics.gt_token.unwrap(),
 
                                 }
                             );
@@ -420,7 +416,7 @@ fn find_lifetimes_in_path(path: &Path) -> HashSet<Lifetime> {
 }
 
 fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
-    return match ty {
+    match ty {
         Type::Array(ta) => find_lifetimes(ta.elem.as_ref()),
         Type::Group(tg) => find_lifetimes(tg.elem.as_ref()),
         Type::Infer(_ti) => HashSet::default(),
@@ -475,8 +471,8 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
 /// removed
 fn strip_generics_lifetimes(generics: &Generics) -> Generics {
     Generics {
-        lt_token: generics.lt_token.clone(),
-        gt_token: generics.gt_token.clone(),
+        lt_token: generics.lt_token,
+        gt_token: generics.gt_token,
         where_clause: generics.where_clause.clone(),
         params: generics.type_params()
             .map(|generics| GenericParam::Type(generics.clone()))
@@ -827,7 +823,7 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
         sig.generics.clone()
     };
     let inputs = demutify(&sig.inputs);
-    let (no_lt_g, _, rlg) = split_lifetimes(merged_generics.clone(),
+    let (no_lt_g, _, rlg) = split_lifetimes(merged_generics,
                                             &sig.inputs, &sig.output);
     let with_ret_lt_g = merge_generics(&no_lt_g, &rlg);
     for fn_arg in expectation_inputs.iter() {
