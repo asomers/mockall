@@ -420,7 +420,7 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
     let mut g = generics.clone();
     let lt = Lifetime::new("'guard", Span::call_site());
     let ltd = LifetimeDef::new(lt);
-    g.params.push(GenericParam::Lifetime(ltd.clone()));
+    g.params.push(GenericParam::Lifetime(ltd));
 
     let mut out = TokenStream::new();
     Expectation::new(&TokenStream::new(), &inputs, &expect_obj, None, generics,
@@ -637,7 +637,7 @@ fn mock_trait(attrs: Attrs, item: ItemTrait) -> TokenStream {
         attrs: item.attrs.clone(),
         vis: item.vis.clone(),
         name: item.ident.clone(),
-        generics: item.generics.clone(),
+        generics: item.generics,
         methods: Vec::new(),
         traits: vec![trait_]
     };

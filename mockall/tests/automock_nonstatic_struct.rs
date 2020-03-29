@@ -24,6 +24,7 @@ impl<'nss> NonStaticStruct<'nss> {
 #[test]
 fn normal_method() {
     // This function serves to define a named lifetime
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     fn has_lt<'a>(_x: &'a i8) {
         let mut mock = MockNonStaticStruct::<'a>::default();
         mock.expect_foo()
@@ -38,8 +39,9 @@ fn normal_method() {
 #[test]
 fn static_method() {
     // This function serves to define a named lifetime
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     fn has_lt<'a>(_x: &'a i8) {
-        let ctx = MockNonStaticStruct::bar_context();
+        let ctx = MockNonStaticStruct::<'a>::bar_context();
         ctx.expect()
             .returning(|| 5);
         assert_eq!(5, MockNonStaticStruct::bar());

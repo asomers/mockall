@@ -53,6 +53,7 @@ mod return_const {
         assert_eq!("abcd", mock.alias());
     }
 
+    #[allow(clippy::redundant_static_lifetimes)]
     #[test]
     fn static_str() {
         const TEXT: &'static str = "abcd";
