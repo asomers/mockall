@@ -23,7 +23,7 @@ impl From<(Attrs, Item)> for MockableItem {
             Item::Mod(item_mod) =>
                 MockableItem::Module(MockableModule::from(item_mod)),
             Item::Trait(trait_) =>
-                MockableItem::Manual(ManualMock::from(trait_)),
+                MockableItem::Manual(ManualMock::from((attrs, trait_))),
             _ => unimplemented!()
         }
     }
