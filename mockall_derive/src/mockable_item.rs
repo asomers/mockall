@@ -37,9 +37,9 @@ impl From<ManualMock> for MockableItem {
 }
 
 pub(crate) struct MockableModule {
-    vis: Visibility,
-    mock_ident: Ident,
-    content: Vec<Item>
+    pub vis: Visibility,
+    pub mock_ident: Ident,
+    pub content: Vec<Item>
 }
 
 impl From<(Attrs, ItemForeignMod)> for MockableModule {
