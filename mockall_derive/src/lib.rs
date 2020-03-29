@@ -924,8 +924,9 @@ fn staticize(generics: &Generics) -> Generics {
     ret
 }
 
-fn mock_it<M: Into<MockableItem>>(item: M) -> TokenStream {
-    let mockable: MockableItem = item.into();
+fn mock_it<M: Into<MockableItem>>(inputs: M) -> TokenStream
+{
+    let mockable: MockableItem = inputs.into();
     let mock = MockItem::from(mockable);
     let ts = mock.into_token_stream();
     if env::var("MOCKALL_DEBUG").is_ok() {
@@ -963,7 +964,7 @@ pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
             return err.to_compile_error().into();
         }
     };
-    output.extend(mock_it(item));
+    output.extend(mock_it((attrs, item)));
     output.into()
 }
 

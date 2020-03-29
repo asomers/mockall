@@ -29,7 +29,7 @@ impl Parse for Attr {
 #[derive(Debug, Default)]
 pub(crate) struct Attrs {
     attrs: HashMap<Ident, Type>,
-    modname: Option<Ident>
+    pub modname: Option<Ident>
 }
 
 impl Attrs {

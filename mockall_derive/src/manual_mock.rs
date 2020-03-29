@@ -120,6 +120,18 @@ impl ManualMock {
     }
 }
 
+impl From<ItemImpl> for ManualMock {
+    fn from(item_impl: ItemImpl) -> ManualMock {
+        unimplemented!()
+    }
+}
+
+impl From<ItemTrait> for ManualMock {
+    fn from(item_trait: ItemTrait) -> ManualMock {
+        unimplemented!()
+    }
+}
+
 impl Parse for ManualMock {
     fn parse(input: ParseStream) -> syn::parse::Result<Self> {
         let attrs = input.call(syn::Attribute::parse_outer)?;
