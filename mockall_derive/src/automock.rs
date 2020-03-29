@@ -558,7 +558,7 @@ fn mock_impl(item_impl: ItemImpl) -> TokenStream {
         assert!(titys.is_empty());
         (methods, Vec::new())
     };
-    let mock = Mock {
+    let mock = ManualMock {
         attrs: item_impl.attrs.clone(),
         vis,
         name,
@@ -653,7 +653,7 @@ fn mock_native_function(modname: &Ident, f: &ItemFn, call_levels: i32)
 /// Generate a mock struct that implements a trait
 fn mock_trait(attrs: Attrs, item: ItemTrait) -> TokenStream {
     let trait_ = attrs.substitute_trait(&item);
-    let mock = Mock {
+    let mock = ManualMock {
         attrs: item.attrs.clone(),
         vis: item.vis.clone(),
         name: item.ident.clone(),

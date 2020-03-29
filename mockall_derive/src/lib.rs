@@ -23,9 +23,9 @@ use syn::{
 
 mod automock;
 mod expectation;
-mod mock;
+mod manual_mock;
 use crate::automock::do_automock;
-use crate::mock::{Mock, do_mock};
+use crate::manual_mock::{ManualMock, do_mock};
 use crate::expectation::Expectation;
 
 #[derive(Debug)]

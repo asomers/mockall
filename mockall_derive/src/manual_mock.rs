@@ -7,17 +7,17 @@ use std::{
 };
 use syn::parse::{Parse, ParseStream};
 
-pub(crate) struct Mock {
+pub(crate) struct ManualMock {
     pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) vis: syn::Visibility,
     pub(crate) name: syn::Ident,
     pub(crate) generics: syn::Generics,
-    // The Mock struct's inherent methods.  The blocks will all be empty.
+    // The ManualMock struct's inherent methods.  The blocks will all be empty.
     pub(crate) methods: Vec<syn::ImplItemMethod>,
     pub(crate) traits: Vec<syn::ItemTrait>
 }
 
-impl Mock {
+impl ManualMock {
     pub(crate) fn gen(&self) -> TokenStream {
         let mut output = TokenStream::new();
         let mut mock_body = TokenStream::new();
@@ -123,7 +123,7 @@ impl Mock {
     }
 }
 
-impl Parse for Mock {
+impl Parse for ManualMock {
     fn parse(input: ParseStream) -> syn::parse::Result<Self> {
         let attrs = input.call(syn::Attribute::parse_outer)?;
         let vis: syn::Visibility = input.parse()?;
@@ -153,7 +153,7 @@ impl Parse for Mock {
             traits.push(trait_);
         }
 
-        Ok(Mock{attrs, vis, name, generics, methods, traits})
+        Ok(ManualMock{attrs, vis, name, generics, methods, traits})
     }
 }
 
@@ -555,7 +555,7 @@ fn tim2iim(m: &syn::TraitItemMethod, vis: &syn::Visibility)
 }
 
 pub(crate) fn do_mock(input: TokenStream) -> TokenStream {
-    let mock: Mock = match syn::parse2(input) {
+    let mock: ManualMock = match syn::parse2(input) {
         Ok(mock) => mock,
         Err(err) => {
             return err.to_compile_error();
