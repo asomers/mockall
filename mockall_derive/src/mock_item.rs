@@ -12,7 +12,7 @@ pub(crate) enum MockItem {
 impl From<MockableItem> for MockItem {
     fn from(mockable: MockableItem) -> MockItem {
         match mockable {
-            MockableItem::Manual(_) => unimplemented!(),
+            MockableItem::Manual(_) => unimplemented!("1"),
             MockableItem::Module(mod_) => MockItem::Module(
                 MockItemModule::from(mod_)
             )
@@ -24,7 +24,7 @@ impl ToTokens for MockItem {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             MockItem::Module(mod_) => mod_.to_tokens(tokens),
-            _ => unimplemented!()
+            _ => unimplemented!("2")
         }
     }
 }
@@ -33,13 +33,13 @@ struct MockFunction{}
 
 impl From<(&Ident, ItemFn)> for MockFunction {
     fn from((ident, f): (&Ident, ItemFn)) -> MockFunction {
-        unimplemented!()
+        unimplemented!("3")
     }
 }
 
 impl ToTokens for MockFunction {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        unimplemented!()
+        unimplemented!("4")
     }
 }
 

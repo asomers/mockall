@@ -24,7 +24,7 @@ impl From<(Attrs, Item)> for MockableItem {
                 MockableItem::Module(MockableModule::from(item_mod)),
             Item::Trait(trait_) =>
                 MockableItem::Manual(ManualMock::from((attrs, trait_))),
-            _ => unimplemented!()
+            _ => panic!("automock does not support this item type")
         }
     }
 }
