@@ -39,6 +39,7 @@ impl From<ManualMock> for MockableItem {
 pub(crate) struct MockableModule {
     pub vis: Visibility,
     pub mock_ident: Ident,
+    pub mod_token: token::Mod,
     pub content: Vec<Item>
 }
 
@@ -48,6 +49,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
             "module name is required when mocking foreign functions,",
             " like `#[automock(mod mock_ffi)]`"
         ));
+        let mod_token = <Token![mod]>::default();
         let vis = Visibility::Public(VisPublic{
             pub_token: <Token![pub]>::default()
         });
@@ -82,26 +84,27 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                     }
                 }
             }).collect::<Vec<_>>();
-        MockableModule { vis, mock_ident, content }
+        MockableModule { vis, mock_ident, mod_token, content }
     }
 }
 
 impl From<ItemMod> for MockableModule {
-    fn from(module: ItemMod) -> MockableModule {
-        let span = module.span();
+    fn from(mod_: ItemMod) -> MockableModule {
+        let span = mod_.span();
         // TODO: in the future, consider mocking non-public modules
         let vis = Visibility::Public(VisPublic{
-            pub_token: Token![pub](module.vis.span())
+            pub_token: Token![pub](mod_.vis.span())
         });
-        let mock_ident = format_ident!("mock_{}", module.ident);
-        let ident = module.ident;
-        let content = if let Some((_, content)) = module.content {
+        let mock_ident = format_ident!("mock_{}", mod_.ident);
+        let mod_token = mod_.mod_token;
+        let ident = mod_.ident;
+        let content = if let Some((_, content)) = mod_.content {
             content
         } else {
             compile_error(span,
             "automock can only mock inline modules, not modules from another file");
             Vec::new()
         };
-        MockableModule { vis, mock_ident, content }
+        MockableModule { vis, mock_ident, mod_token, content }
     }
 }

@@ -5,6 +5,7 @@ use quote::ToTokens;
 
 use crate::mockable_item::{MockableItem, MockableModule};
 
+/// A Mock item
 pub(crate) enum MockItem {
     Module(MockItemModule)
 }
@@ -29,7 +30,8 @@ impl ToTokens for MockItem {
     }
 }
 
-struct MockFunction{}
+struct MockFunction{
+}
 
 impl From<(&Ident, ItemFn)> for MockFunction {
     fn from((ident, f): (&Ident, ItemFn)) -> MockFunction {
@@ -52,6 +54,50 @@ pub(crate) struct MockItemModule {
     vis: Visibility,
     mock_ident: Ident,
     content: Vec<MockItemContent>
+}
+
+fn mock_fn(item_fn: ItemFn) -> ItemMod {
+    let ident = format_ident!("__{}", item_fn.sig.ident);
+    unimplemented!("5")
+}
+
+/// Generate a whole mod module from the mockable sort
+impl From<MockableModule> for ItemMod {
+    fn from(mod_: MockableModule) -> ItemMod {
+        let attrs = Vec::new();
+        let vis = mod_.vis;
+        let mod_token = mod_.mod_token;
+        let ident = mod_.mock_ident;
+        let semi = None;
+        let brace = token::Brace::default();
+
+        let mut contents = Vec::<Item>::new();
+        contents.push(Item::Verbatim(quote!(use super::T;)));
+        for item in mod_.content.into_iter() {
+            match item {
+                Item::Fn(item_fn) => {
+                    contents.push(
+                        Item::Verbatim(quote!(#[allow(missing_docs)]))
+                    );
+                    contents.push(Item::Mod(mock_fn(item_fn)));
+                },
+                _ => {
+                    compile_error(item.span(),
+                        "Unsupported item type when mocking modules");
+                }
+            }
+        }
+
+        let content = Some((brace, contents));
+        ItemMod {
+            attrs,
+            vis,
+            mod_token,
+            ident,
+            content,
+            semi
+        }
+    }
 }
 
 impl From<MockableModule> for MockItemModule {
