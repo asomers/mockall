@@ -1,4 +1,5 @@
 // vim: tw=80
+BREAK THE BUILD
 //! A powerful mock object library for Rust.
 //!
 //! Mockall provides provides tools to create mock versions of almost any trait
