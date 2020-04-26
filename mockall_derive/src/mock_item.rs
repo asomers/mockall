@@ -3,7 +3,9 @@ use super::*;
 
 use quote::ToTokens;
 
-use crate::mockable_item::{MockableItem, MockableModule};
+use crate::{
+    mockable_item::{MockableItem, MockableModule}
+};
 
 /// A Mock item
 pub(crate) enum MockItem {
@@ -30,22 +32,170 @@ impl ToTokens for MockItem {
     }
 }
 
-struct MockFunction{
+struct MockFunction {
+    /// Names of the method arguments
+    argnames: Vec<Pat>,
+    /// Types of the method arguments
+    argty: Vec<Type>,
+    /// Type Generics of the Expectation object
+    egenerics: Generics,
+    /// Is this for a static method or free function?
+    is_static: bool,
+    /// The mockable version of the function
+    item_fn: ItemFn,
+    /// name of the function's parent module
+    mod_ident: Ident,
+    /// Expressions that create the predicate arguments from the call arguments
+    predexprs: Vec<TokenStream>,
+    /// Types used for Predicates.  Will be almost the same as args, but every
+    /// type will be a non-reference type.
+    predty: Vec<Type>,
 }
 
 impl From<(&Ident, ItemFn)> for MockFunction {
+    /// Create a MockFunction from its mockable version and the name of its
+    /// parent module
     fn from((ident, f): (&Ident, ItemFn)) -> MockFunction {
-        unimplemented!("3")
+        let egenerics = Generics::default();    // TODO
+        let mut argnames = Vec::new();
+        let mut argty = Vec::new();
+        let mut is_static = true;
+        let mut predexprs = Vec::new();
+        let mut predty = Vec::new();
+        for fa in f.sig.inputs.iter() {
+            if let FnArg::Typed(pt) = fa {
+                let argname = (*pt.pat).clone();
+                let aty = &pt.ty;
+                //let aty = supersuperfy(&pt.ty, levels);
+                if let Type::Reference(tr) = &**aty {
+                    predexprs.push(quote!(#argname));
+                    predty.push((*tr.elem).clone());
+                } else {
+                    predexprs.push(quote!(&#argname));
+                    predty.push((**aty).clone());
+                };
+                argnames.push(argname);
+                argty.push((**aty).clone());
+            } else {
+                is_static = false;
+                ()    // Strip out the "&self" argument
+            }
+        }
+        MockFunction {
+            argnames,
+            argty,
+            is_static,
+            predexprs,
+            predty,
+            egenerics,
+            item_fn: f,
+            mod_ident: ident.clone(),
+        }
     }
 }
 
 impl ToTokens for MockFunction {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        unimplemented!("4")
+        let matcher = &Matcher{f: self};
+        let mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
+        let orig_signature = &self.item_fn.sig;
+        quote!(
+            #[allow(missing_docs)]
+            pub mod #mod_ident {
+                use super::*;
+                use ::mockall::CaseTreeExt;
+                use ::std::sync::MutexGuard;
+                use ::std::{
+                    mem,
+                    ops::{DerefMut, Range},
+                    sync::Mutex
+                };
+                enum Rfunc {} // 42 lines
+                #matcher
+                struct Common{} // 106 lines
+                pub struct Expectation{}    // 208 lines
+                pub struct Expectations{}   // 43 lines
+                pub struct ExpectationGuard {} // 114 lines
+                pub struct Context {}   // 44 lines
+            }
+            #orig_signature {}
+            pub fn bar_context() {}
+        ).to_tokens(tokens);
     }
 }
 
-enum MockItemContent {
+struct Matcher<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for Matcher<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let hrtb = Visibility::Inherited;   // TODO
+        let refpredty = Visibility::Inherited; // TODO
+        let preds = Visibility::Inherited; // TODO
+        let predty = &self.f.predty;
+        let fn_params = Visibility::Inherited; // TODO
+        let argnames = &self.f.argnames;
+        let pred_matches = Visibility::Inherited; // TODO
+        let lg = Visibility::Inherited; // TODO
+        let braces = Visibility::Inherited; // TODO
+        let indices = [Visibility::Inherited]; // TODO
+        quote!(
+            enum Matcher #ig #wc {
+                Always,
+                Func(Box<dyn #hrtb Fn(#refpredty) -> bool + Send>),
+                // Version of Matcher::Func for closures that aren't Send
+                FuncST(::mockall::Fragile<Box<dyn #hrtb Fn(#refpredty) -> bool>>),
+                Pred(Box<(#preds)>),
+                // Prevent "unused type parameter" errors
+                // Surprisingly, PhantomData<Fn(generics)> is Send even if
+                // generics are not, unlike PhantomData<generics>
+                _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
+            }
+            impl #ig Matcher #tg #wc {
+                fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
+                    match self {
+                        Matcher::Always => true,
+                        Matcher::Func(__mockall_f) =>
+                            __mockall_f(#(#argnames, )*),
+                        Matcher::FuncST(__mockall_f) =>
+                            (__mockall_f.get())(#(#argnames, )*),
+                        Matcher::Pred(__mockall_pred) =>
+                            [#pred_matches]
+                            .iter()
+                            .all(|__mockall_x| *__mockall_x),
+                        _ => unreachable!()
+                    }
+                }
+            }
+
+            impl #ig Default for Matcher #tg #wc {
+                #[allow(unused_variables)]
+                fn default() -> Self {
+                    Matcher::Always
+                }
+            }
+
+            impl #ig ::std::fmt::Display for Matcher #tg #wc {
+                fn fmt(&self, __mockall_fmt: &mut ::std::fmt::Formatter<'_>)
+                    -> ::std::fmt::Result
+                {
+                    match self {
+                        Matcher::Always => write!(__mockall_fmt, "<anything>"),
+                        Matcher::Func(_) => write!(__mockall_fmt, "<function>"),
+                        Matcher::FuncST(_) => write!(__mockall_fmt, "<single threaded function>"),
+                        Matcher::Pred(__mockall_p) => {
+                            write!(__mockall_fmt, #braces,
+                                #(__mockall_p.#indices,)*)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}enum MockItemContent {
     Fn(MockFunction),
     Tokens(TokenStream)
 }
@@ -53,6 +203,7 @@ enum MockItemContent {
 pub(crate) struct MockItemModule {
     vis: Visibility,
     mock_ident: Ident,
+    orig_ident: Option<Ident>,
     content: Vec<MockItemContent>
 }
 
@@ -103,6 +254,7 @@ impl From<MockableModule> for ItemMod {
 impl From<MockableModule> for MockItemModule {
     fn from(mod_: MockableModule) -> MockItemModule {
         let mock_ident = mod_.mock_ident.clone();
+        let orig_ident = mod_.orig_ident;
         let content = mod_.content.into_iter().filter_map(|item| {
             let span = item.span();
             match item {
@@ -149,6 +301,7 @@ impl From<MockableModule> for MockItemModule {
         MockItemModule {
             vis: mod_.vis,
             mock_ident: mod_.mock_ident,
+            orig_ident,
             content
         }
     }
@@ -182,8 +335,11 @@ impl ToTokens for MockItemModule {
             pub fn checkpoint() { #cp_body }
         ).to_tokens(&mut body);
         let docstr = {
-            let inner_ds = format!("TODO: write doc string");
-            //let inner_ds = format!("Mock version of the `{}` module", mod_.ident);
+            let inner_ds = if let Some(ident) = &self.orig_ident {
+                format!("Mock version of the `{}` module", ident)
+            } else {
+                format!("TODO: write doc string")
+            };
             quote!( #[doc = #inner_ds])
         };
         quote!(

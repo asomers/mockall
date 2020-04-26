@@ -40,11 +40,14 @@ pub(crate) struct MockableModule {
     pub vis: Visibility,
     pub mock_ident: Ident,
     pub mod_token: token::Mod,
+    /// Ident of the original module, if any
+    pub orig_ident: Option<Ident>,
     pub content: Vec<Item>
 }
 
 impl From<(Attrs, ItemForeignMod)> for MockableModule {
     fn from((attrs, foreign): (Attrs, ItemForeignMod)) -> MockableModule {
+        let orig_ident = None;
         let mock_ident = attrs.modname.expect(concat!(
             "module name is required when mocking foreign functions,",
             " like `#[automock(mod mock_ffi)]`"
@@ -84,7 +87,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                     }
                 }
             }).collect::<Vec<_>>();
-        MockableModule { vis, mock_ident, mod_token, content }
+        MockableModule { vis, mock_ident, mod_token, orig_ident, content }
     }
 }
 
@@ -96,8 +99,8 @@ impl From<ItemMod> for MockableModule {
             pub_token: Token![pub](mod_.vis.span())
         });
         let mock_ident = format_ident!("mock_{}", mod_.ident);
+        let orig_ident = Some(mod_.ident);
         let mod_token = mod_.mod_token;
-        let ident = mod_.ident;
         let content = if let Some((_, content)) = mod_.content {
             content
         } else {
@@ -105,6 +108,6 @@ impl From<ItemMod> for MockableModule {
             "automock can only mock inline modules, not modules from another file");
             Vec::new()
         };
-        MockableModule { vis, mock_ident, mod_token, content }
+        MockableModule { vis, mock_ident, mod_token, orig_ident, content }
     }
 }
