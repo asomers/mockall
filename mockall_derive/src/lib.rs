@@ -13,8 +13,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::{
     collections::{HashMap, HashSet},
-    iter::FromIterator,
-    mem
+    iter::FromIterator
 };
 use syn::{
     *,
@@ -77,7 +76,7 @@ cfg_if! {
 
 // If there are any closures in the argument list, turn them into boxed
 // functions
-fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) -> 
+fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     (Generics, Punctuated<FnArg, Token![,]>, Punctuated<TokenStream, Token![,]>)
 {
     let mut hm = HashMap::new();
@@ -515,8 +514,7 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
             },
             Type::BareFn(bfn) => {
                 if let ReturnType::Type(_, ref mut bt) = bfn.output {
-                    let new_bt = Box::new(supersuperfy(bt.as_ref(), levels));
-                    mem::replace(bt, new_bt);
+                    *bt = Box::new(supersuperfy(bt.as_ref(), levels));
                 }
                 for input in bfn.inputs.iter_mut() {
                     input.ty = supersuperfy(&input.ty, levels);
