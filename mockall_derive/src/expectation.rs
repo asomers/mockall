@@ -522,8 +522,8 @@ impl<'a> Expectation<'a> {
                 fn with<#with_generics>(&mut self, #with_args)
                 {
                     let mut __mockall_guard = self.matcher.lock().unwrap();
-                    mem::replace(__mockall_guard.deref_mut(),
-                        Matcher::Pred(Box::new((#boxed_withargs))));
+                    *__mockall_guard.deref_mut() =
+                        Matcher::Pred(Box::new((#boxed_withargs)));
                 }
 
                 fn withf<MockallF>(&mut self, __mockall_f: MockallF)
@@ -531,8 +531,8 @@ impl<'a> Expectation<'a> {
                                     -> bool + Send + 'static
                 {
                     let mut __mockall_guard = self.matcher.lock().unwrap();
-                    mem::replace(__mockall_guard.deref_mut(),
-                                 Matcher::Func(Box::new(__mockall_f)));
+                    *__mockall_guard.deref_mut() =
+                                 Matcher::Func(Box::new(__mockall_f));
                 }
 
                 fn withf_st<MockallF>(&mut self, __mockall_f: MockallF)
@@ -540,8 +540,8 @@ impl<'a> Expectation<'a> {
                                     -> bool + 'static
                 {
                     let mut __mockall_guard = self.matcher.lock().unwrap();
-                    mem::replace(__mockall_guard.deref_mut(),
-                                 Matcher::FuncST(::mockall::Fragile::new(Box::new(__mockall_f))));
+                    *__mockall_guard.deref_mut() =
+                        Matcher::FuncST(::mockall::Fragile::new(Box::new(__mockall_f)));
                 }
 
                 fn verify_sequence(&self) {
@@ -827,8 +827,8 @@ impl<'a> StaticExpectation<'a> {
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        mem::replace(__mockall_guard.deref_mut(),
-                            Rfunc::Once(Box::new(__mockall_f)));
+                        *__mockall_guard.deref_mut() =
+                            Rfunc::Once(Box::new(__mockall_f));
                     }
                     self
                 }
@@ -848,8 +848,8 @@ impl<'a> StaticExpectation<'a> {
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        mem::replace(__mockall_guard.deref_mut(), Rfunc::OnceST(
-                            ::mockall::Fragile::new(Box::new(__mockall_f))));
+                        *__mockall_guard.deref_mut() = Rfunc::OnceST(
+                            ::mockall::Fragile::new(Box::new(__mockall_f)));
                     }
                     self
                 }
@@ -864,8 +864,8 @@ impl<'a> StaticExpectation<'a> {
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        mem::replace(__mockall_guard.deref_mut(),
-                            Rfunc::Mut(Box::new(__mockall_f)));
+                        *__mockall_guard.deref_mut() =
+                            Rfunc::Mut(Box::new(__mockall_f));
                     }
                     self
                 }
@@ -883,9 +883,8 @@ impl<'a> StaticExpectation<'a> {
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        mem::replace(__mockall_guard.deref_mut(), Rfunc::MutST(
-                            ::mockall::Fragile::new(Box::new(__mockall_f)))
-                        );
+                        *__mockall_guard.deref_mut() = Rfunc::MutST(
+                            ::mockall::Fragile::new(Box::new(__mockall_f)));
                     }
                     self
                 }
@@ -1575,7 +1574,7 @@ impl<'a> RefExpectation<'a> {
                 #v fn return_const(&mut self, __mockall_o: #output)
                     -> &mut Self
                 {
-                    mem::replace(&mut self.rfunc, Rfunc::Const(__mockall_o));
+                    self.rfunc = Rfunc::Const(__mockall_o);
                     self
                 }
 
@@ -1777,7 +1776,7 @@ impl<'a> RefMutExpectation<'a> {
                 /// reference.
                 #v fn return_var(&mut self, __mockall_o: #output) -> &mut Self
                 {
-                    mem::replace(&mut self.rfunc, Rfunc::Var(__mockall_o));
+                    self.rfunc = Rfunc::Var(__mockall_o);
                     self
                 }
 
@@ -1788,8 +1787,7 @@ impl<'a> RefMutExpectation<'a> {
                     -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + Send + Sync + 'static
                 {
-                    mem::replace(&mut self.rfunc,
-                                 Rfunc::Mut(Box::new(__mockall_f), None));
+                    self.rfunc = Rfunc::Mut(Box::new(__mockall_f), None);
                     self
                 }
 
@@ -1799,9 +1797,8 @@ impl<'a> RefMutExpectation<'a> {
                     -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #output + 'static
                 {
-                    mem::replace(&mut self.rfunc, Rfunc::MutST(
-                        ::mockall::Fragile::new(Box::new(__mockall_f)), None)
-                    );
+                    self.rfunc = Rfunc::MutST(
+                        ::mockall::Fragile::new(Box::new(__mockall_f)), None);
                     self
                 }
 
