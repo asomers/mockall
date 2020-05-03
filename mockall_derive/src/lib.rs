@@ -77,7 +77,7 @@ cfg_if! {
 
 // If there are any closures in the argument list, turn them into boxed
 // functions
-fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) -> 
+fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     (Generics, Punctuated<FnArg, Token![,]>, Punctuated<TokenStream, Token![,]>)
 {
     let mut hm = HashMap::new();
@@ -516,7 +516,7 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
             Type::BareFn(bfn) => {
                 if let ReturnType::Type(_, ref mut bt) = bfn.output {
                     let new_bt = Box::new(supersuperfy(bt.as_ref(), levels));
-                    mem::replace(bt, new_bt);
+                    let _ = mem::replace(bt, new_bt);
                 }
                 for input in bfn.inputs.iter_mut() {
                     input.ty = supersuperfy(&input.ty, levels);
