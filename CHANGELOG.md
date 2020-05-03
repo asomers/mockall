@@ -4,10 +4,11 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] -ReleaseDate
-### Added
-### Changed
 ### Fixed
-### Removed
+
+- Fixed `unused must_use` warnings in consumers' crates on the latest nightly
+  ([#124](https://github.com/asomers/mockall/pull/124))
+  ([#125](https://github.com/asomers/mockall/pull/125))
 
 ## [0.7.0] - 29 March 2020
 ### Added
