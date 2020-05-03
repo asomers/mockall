@@ -50,6 +50,8 @@ struct MockFunction {
     item_fn: ItemFn,
     /// name of the function's parent module
     mod_ident: Ident,
+    /// Output type of the Method, supersuperfied.
+    output: Type,
     /// Expressions that create the predicate arguments from the call arguments
     predexprs: Vec<TokenStream>,
     /// Types used for Predicates.  Will be almost the same as args, but every
@@ -110,10 +112,17 @@ impl From<(&Ident, ItemFn)> for MockFunction {
                 ()    // Strip out the "&self" argument
             }
         }
+        // TODO: supersuperfy the output
+        let output = match f.sig.output.clone() {
+            ReturnType::Default => Type::Tuple(TypeTuple{
+                paren_token: token::Paren(Span::call_site()),
+                elems: Punctuated::new()
+            }),
+            ReturnType::Type(_, ty) => (*ty).clone()
+        };
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
             f.sig.generics.clone(),
             &f.sig.inputs,
-            // TODO: supersuperfy the output
             &f.sig.output
         );
         let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
@@ -128,6 +137,7 @@ impl From<(&Ident, ItemFn)> for MockFunction {
             is_static,
             item_fn: f,
             mod_ident: ident.clone(),
+            output,
             predexprs,
             predty,
             refpredty,
@@ -138,6 +148,7 @@ impl From<(&Ident, ItemFn)> for MockFunction {
 impl ToTokens for MockFunction {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let matcher = &Matcher{f: self};
+        let rfunc = &Rfunc{f: self};
         let mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
         let orig_signature = &self.item_fn.sig;
         quote!(
@@ -151,7 +162,7 @@ impl ToTokens for MockFunction {
                     ops::{DerefMut, Range},
                     sync::Mutex
                 };
-                enum Rfunc {} // 42 lines
+                #rfunc
                 #matcher
                 struct Common{} // 106 lines
                 pub struct Expectation{}    // 208 lines
@@ -257,7 +268,94 @@ impl<'a> ToTokens for Matcher<'a> {
             }
         ).to_tokens(tokens);
     }
-}enum MockItemContent {
+}
+
+struct Rfunc<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for Rfunc<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let fn_params = &self.f.fn_params;
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let hrtb = self.f.hrtb();
+        let lg = &self.f.alifetimes;
+        let output = &self.f.output;
+        quote!(
+            enum Rfunc #ig #wc {
+                Default,
+                // Indicates that a `return_once` expectation has already
+                // returned
+                Expired,
+                Mut(Box<dyn #hrtb FnMut(#(#argty, )*) -> #output + Send>),
+                // Version of Rfunc::Mut for closures that aren't Send
+                MutST(::mockall::Fragile<
+                    Box<dyn #hrtb FnMut(#(#argty, )*) -> #output >>
+                ),
+                Once(Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output + Send>),
+                // Version of Rfunc::Once for closure that aren't Send
+                OnceST(::mockall::Fragile<
+                    Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output>>
+                ),
+                // Prevent "unused type parameter" errors Surprisingly,
+                // PhantomData<Fn(generics)> is Send even if generics are not,
+                // unlike PhantomData<generics>
+                _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
+            }
+
+            impl #ig  Rfunc #tg #wc {
+                fn call_mut #lg (&mut self, #( #argnames: #argty, )* )
+                    -> std::result::Result<#output, &'static str>
+                {
+                    match self {
+                        Rfunc::Default => {
+                            use ::mockall::ReturnDefault;
+                            ::mockall::DefaultReturner::<#output>
+                                ::return_default()
+                        },
+                        Rfunc::Expired => {
+                            Err("called twice, but it returns by move")
+                        },
+                        Rfunc::Mut(__mockall_f) => {
+                            Ok(__mockall_f( #(#argnames, )* ))
+                        },
+                        Rfunc::MutST(__mockall_f) => {
+                            Ok((__mockall_f.get_mut())(#(#argnames,)*))
+                        },
+                        Rfunc::Once(_) => {
+                            if let Rfunc::Once(mut __mockall_f) =
+                                mem::replace(self, Rfunc::Expired) {
+                                Ok(__mockall_f( #(#argnames, )* ))
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::OnceST(_) => {
+                            if let Rfunc::OnceST(mut __mockall_f) =
+                                mem::replace(self, Rfunc::Expired) {
+                                Ok((__mockall_f.into_inner())(#(#argnames,)*))
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::_Phantom(_) => unreachable!()
+                    }
+                }
+            }
+
+            impl #ig std::default::Default for Rfunc #tg #wc
+            {
+                fn default() -> Self {
+                    Rfunc::Default
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+enum MockItemContent {
     Fn(MockFunction),
     Tokens(TokenStream)
 }
