@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased] -ReleaseDate
+## [0.7.1] - 3 May 2020
 ### Fixed
 
 - Fixed `unused must_use` warnings in consumers' crates on the latest nightly
