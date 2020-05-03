@@ -13,8 +13,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::{
     collections::{HashMap, HashSet},
-    iter::FromIterator,
-    mem
+    iter::FromIterator
 };
 use syn::{
     *,
@@ -515,8 +514,7 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
             },
             Type::BareFn(bfn) => {
                 if let ReturnType::Type(_, ref mut bt) = bfn.output {
-                    let new_bt = Box::new(supersuperfy(bt.as_ref(), levels));
-                    let _ = mem::replace(bt, new_bt);
+                    *bt = Box::new(supersuperfy(bt.as_ref(), levels));
                 }
                 for input in bfn.inputs.iter_mut() {
                     input.ty = supersuperfy(&input.ty, levels);
