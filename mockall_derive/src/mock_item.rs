@@ -33,12 +33,17 @@ impl ToTokens for MockItem {
 }
 
 struct MockFunction {
+    /// Lifetime Generics of the mocked method that relate to the arguments but
+    /// not the return value
+    alifetimes: Generics,
     /// Names of the method arguments
     argnames: Vec<Pat>,
     /// Types of the method arguments
     argty: Vec<Type>,
     /// Type Generics of the Expectation object
     egenerics: Generics,
+    /// The mock function's generic types as a list of types
+    fn_params: Punctuated<Ident, Token![,]>,
     /// Is this for a static method or free function?
     is_static: bool,
     /// The mockable version of the function
@@ -50,6 +55,21 @@ struct MockFunction {
     /// Types used for Predicates.  Will be almost the same as args, but every
     /// type will be a non-reference type.
     predty: Vec<Type>,
+    /// References to every type in `predty`.
+    refpredty: Vec<Type>
+}
+
+impl MockFunction {
+    // TODO: return a Syn object instead of a TokenStream
+    fn hrtb(&self) -> TokenStream {
+        if self.alifetimes.params.is_empty() {
+            TokenStream::default()
+        } else {
+            let ig = &self.alifetimes;
+            quote!(for #ig)
+        }
+    }
+
 }
 
 impl From<(&Ident, ItemFn)> for MockFunction {
@@ -62,6 +82,7 @@ impl From<(&Ident, ItemFn)> for MockFunction {
         let mut is_static = true;
         let mut predexprs = Vec::new();
         let mut predty = Vec::new();
+        let mut refpredty = Vec::new();
         for fa in f.sig.inputs.iter() {
             if let FnArg::Typed(pt) = fa {
                 let argname = (*pt.pat).clone();
@@ -70,9 +91,17 @@ impl From<(&Ident, ItemFn)> for MockFunction {
                 if let Type::Reference(tr) = &**aty {
                     predexprs.push(quote!(#argname));
                     predty.push((*tr.elem).clone());
+                    refpredty.push((**aty).clone());
                 } else {
                     predexprs.push(quote!(&#argname));
                     predty.push((**aty).clone());
+                    let tr = TypeReference {
+                        and_token: Token![&](Span::call_site()),
+                        lifetime: None,
+                        mutability: None,
+                        elem: Box::new((**aty).clone())
+                    };
+                    refpredty.push(Type::Reference(tr));
                 };
                 argnames.push(argname);
                 argty.push((**aty).clone());
@@ -81,15 +110,27 @@ impl From<(&Ident, ItemFn)> for MockFunction {
                 ()    // Strip out the "&self" argument
             }
         }
+        let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
+            f.sig.generics.clone(),
+            &f.sig.inputs,
+            // TODO: supersuperfy the output
+            &f.sig.output
+        );
+        let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+            egenerics.type_params().map(|tp| tp.ident.clone())
+        );
         MockFunction {
+            alifetimes,
             argnames,
             argty,
-            is_static,
-            predexprs,
-            predty,
             egenerics,
+            fn_params,
+            is_static,
             item_fn: f,
             mod_ident: ident.clone(),
+            predexprs,
+            predty,
+            refpredty,
         }
     }
 }
@@ -131,22 +172,43 @@ struct Matcher<'a> {
 impl<'a> ToTokens for Matcher<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let hrtb = Visibility::Inherited;   // TODO
-        let refpredty = Visibility::Inherited; // TODO
-        let preds = Visibility::Inherited; // TODO
-        let predty = &self.f.predty;
-        let fn_params = Visibility::Inherited; // TODO
         let argnames = &self.f.argnames;
-        let pred_matches = Visibility::Inherited; // TODO
-        let lg = Visibility::Inherited; // TODO
-        let braces = Visibility::Inherited; // TODO
-        let indices = [Visibility::Inherited]; // TODO
+        let braces = argnames.iter()
+            .fold(String::new(), |mut acc, _argname| {
+                if acc.is_empty() {
+                    acc.push_str("{}");
+                } else {
+                    acc.push_str(", {}");
+                }
+                acc
+            });
+        let fn_params = &self.f.fn_params;
+        let hrtb = self.f.hrtb();
+        let indices = (0..argnames.len())
+            .map(|i| {
+                syn::Index::from(i)
+            }).collect::<Vec<_>>();
+        let lg = &self.f.alifetimes;
+        let pred_matches = TokenStream::from_iter(
+            argnames.iter().enumerate()
+            .map(|(i, argname)| {
+                let idx = syn::Index::from(i);
+                quote!(__mockall_pred.#idx.eval(#argname),)
+            })
+        );
+        let preds = TokenStream::from_iter(
+            self.f.predty.iter().map(|t|
+                quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + Send>,)
+            )
+        );
+        let predty = &self.f.predty;
+        let refpredty = &self.f.refpredty;
         quote!(
             enum Matcher #ig #wc {
                 Always,
-                Func(Box<dyn #hrtb Fn(#refpredty) -> bool + Send>),
+                Func(Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool + Send>),
                 // Version of Matcher::Func for closures that aren't Send
-                FuncST(::mockall::Fragile<Box<dyn #hrtb Fn(#refpredty) -> bool>>),
+                FuncST(::mockall::Fragile<Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool>>),
                 Pred(Box<(#preds)>),
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
