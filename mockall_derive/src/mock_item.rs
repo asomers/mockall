@@ -72,6 +72,16 @@ impl MockFunction {
         }
     }
 
+    // TODO: choose a better name
+    fn ident_str(&self) -> String {
+        // TODO: incorporate structure name
+        //if let Some(pi) = self.mod_ident {
+            //format!("{}::{}", pi, self.meth_ident)
+        //} else {
+            format!("{}", self.item_fn.sig.ident)
+        //}
+    }
+
 }
 
 impl From<(&Ident, ItemFn)> for MockFunction {
@@ -147,6 +157,7 @@ impl From<(&Ident, ItemFn)> for MockFunction {
 
 impl ToTokens for MockFunction {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let common = &Common{f: self};
         let matcher = &Matcher{f: self};
         let rfunc = &Rfunc{f: self};
         let mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
@@ -164,7 +175,7 @@ impl ToTokens for MockFunction {
                 };
                 #rfunc
                 #matcher
-                struct Common{} // 106 lines
+                #common
                 pub struct Expectation{}    // 208 lines
                 pub struct Expectations{}   // 43 lines
                 pub struct ExpectationGuard {} // 114 lines
@@ -172,6 +183,156 @@ impl ToTokens for MockFunction {
             }
             #orig_signature {}
             pub fn bar_context() {}
+        ).to_tokens(tokens);
+    }
+}
+
+/// Holds parts of the expectation that are common for all output types
+struct Common<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for Common<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.f.argnames;
+        let predty = &self.f.predty;
+        let hrtb = self.f.hrtb();
+        let ident_str = self.f.ident_str();
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let lg = &self.f.alifetimes;
+        let refpredty = &self.f.refpredty;
+        let with_generics_idents = (0..self.f.predty.len())
+            .map(|i| format_ident!("MockallMatcher{}", i))
+            .collect::<Vec<_>>();
+        let with_generics = TokenStream::from_iter(
+            with_generics_idents.iter().zip(self.f.predty.iter())
+            .map(|(id, mt)|
+                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
+            )
+        );
+        let with_args = TokenStream::from_iter(
+            self.f.argnames.iter().zip(with_generics_idents.iter())
+            .map(|(argname, id)| quote!(#argname: #id, ))
+        );
+        let boxed_withargs = TokenStream::from_iter(
+            argnames.iter().map(|aa| quote!(Box::new(#aa), ))
+        );
+        quote!(
+            /// Holds the stuff that is independent of the output type
+            struct Common #ig #wc {
+                matcher: Mutex<Matcher #tg>,
+                seq_handle: Option<::mockall::SeqHandle>,
+                times: ::mockall::Times
+            }
+
+            impl #ig std::default::Default for Common #tg #wc
+            {
+                fn default() -> Self {
+                    Common {
+                        matcher: Mutex::new(Matcher::default()),
+                        seq_handle: None,
+                        times: ::mockall::Times::default()
+                    }
+                }
+            }
+
+            impl #ig Common #tg #wc {
+                fn call(&self) {
+                    self.times.call()
+                        .unwrap_or_else(|m| {
+                            let desc = format!("{}",
+                                               self.matcher.lock().unwrap());
+                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                                m);
+                        });
+                    self.verify_sequence();
+                    if self.times.is_satisfied() {
+                        self.satisfy_sequence()
+                    }
+                }
+
+                fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
+                    -> &mut Self
+                {
+                    assert!(self.times.is_exact(),
+                        "Only Expectations with an exact call count have sequences");
+                    self.seq_handle = Some(__mockall_seq.next_handle());
+                    self
+                }
+
+                fn is_done(&self) -> bool {
+                    self.times.is_done()
+                }
+
+                fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
+                    self.matcher.lock().unwrap().matches(#(#argnames, )*)
+                }
+
+                /// Forbid this expectation from ever being called.
+                fn never(&mut self) {
+                    self.times.never();
+                }
+
+                fn satisfy_sequence(&self) {
+                    if let Some(__mockall_handle) = &self.seq_handle {
+                        __mockall_handle.satisfy()
+                    }
+                }
+
+                /// Expect this expectation to be called any number of times
+                /// contained with the given range.
+                fn times<MockallR>(&mut self, __mockall_r: MockallR)
+                    where MockallR: Into<::mockall::TimesRange>
+                {
+                    self.times.times(__mockall_r)
+                }
+
+                fn with<#with_generics>(&mut self, #with_args)
+                {
+                    let mut __mockall_guard = self.matcher.lock().unwrap();
+                    *__mockall_guard.deref_mut() =
+                        Matcher::Pred(Box::new((#boxed_withargs)));
+                }
+
+                fn withf<MockallF>(&mut self, __mockall_f: MockallF)
+                    where MockallF: #hrtb Fn(#( #refpredty, )*)
+                                    -> bool + Send + 'static
+                {
+                    let mut __mockall_guard = self.matcher.lock().unwrap();
+                    *__mockall_guard.deref_mut() =
+                         Matcher::Func(Box::new(__mockall_f));
+                }
+
+                fn withf_st<MockallF>(&mut self, __mockall_f: MockallF)
+                    where MockallF: #hrtb Fn(#( #refpredty, )*)
+                                    -> bool + 'static
+                {
+                    let mut __mockall_guard = self.matcher.lock().unwrap();
+                    *__mockall_guard.deref_mut() =
+                         Matcher::FuncST(
+                             ::mockall::Fragile::new(Box::new(__mockall_f))
+                        );
+                }
+
+                fn verify_sequence(&self) {
+                    if let Some(__mockall_handle) = &self.seq_handle {
+                        __mockall_handle.verify()
+                    }
+                }
+            }
+
+            impl #ig Drop for Common #tg #wc {
+                fn drop(&mut self) {
+                    if !::std::thread::panicking() && !self.times.is_satisfied()
+                    {
+                        let desc = format!("{}", self.matcher.lock().unwrap());
+                        panic!("{}: Expectation({}) called fewer than {} times",
+                               #ident_str,
+                               desc,
+                               self.times.minimum());
+                    }
+                }
+            }
         ).to_tokens(tokens);
     }
 }
