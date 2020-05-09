@@ -165,6 +165,7 @@ impl From<(&Ident, ItemFn)> for MockFunction {
 impl ToTokens for MockFunction {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common = &Common{f: self};
+        let context = &Context{f: self};
         // TODO: non-Static expectations
         let expectation = &StaticExpectation{f: self};
         let expectations = &StaticExpectations{f: self};
@@ -191,7 +192,7 @@ impl ToTokens for MockFunction {
                 #expectation
                 #expectations
                 #guard
-                pub struct Context {}   // 44 lines
+                #context
             }
             #orig_signature {}
             pub fn bar_context() {}
@@ -717,6 +718,96 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
                                     -> bool + 'static
                 {
                     self.guard.0[self.i].withf_st(__mockall_f)
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+/// Generates Context, which manages the context for expectations of static
+/// methods.
+struct Context<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for Context<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let ltdef = LifetimeDef::new(
+            Lifetime::new("'__mockall_lt", Span::call_site())
+        );
+        let mut e_generics = self.f.egenerics.clone();
+        e_generics.lt_token.get_or_insert(<Token![<]>::default());
+        e_generics.params.push(GenericParam::Lifetime(ltdef));
+        e_generics.gt_token.get_or_insert(<Token![>]>::default());
+        let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
+        let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
+        let gd = Generics::default();
+        let (s_ig, s_tg, s_wc) = gd.split_for_impl();   // TODO: generic structs
+        let mut meth_generics = gd.clone();
+        let ltdef = LifetimeDef::new(
+            Lifetime::new("'__mockall_lt", Span::call_site())
+        );
+        meth_generics.params.push(GenericParam::Lifetime(ltdef.clone()));
+        let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
+        let ctx_fn_params = Punctuated::<Ident, Token![,]>::new();  // TODO
+        let v = &self.f.vis;
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let must_use = quote!(#[must_use =
+                "Must set return value when not using the \"nightly\" feature"
+            ]);
+        #[cfg(feature = "nightly_derive")]
+        let must_use = quote!();
+
+        quote!(
+            /// Manages the context for expectations of static methods.
+            ///
+            /// Expectations on this method will be validated and cleared when
+            /// the `Context` object drops.  The `Context` object does *not*
+            /// provide any form of synchronization, so multiple tests that set
+            /// expectations on the same static method must provide their own.
+            #[must_use = "Context only serves to create expectations" ]
+            #v struct Context #s_ig #s_wc {
+                // Prevent "unused type parameter" errors
+                // Surprisingly, PhantomData<Fn(generics)> is Send even if
+                // generics are not, unlike PhantomData<generics>
+                _phantom: ::std::marker::PhantomData<
+                    Box<dyn Fn(#ctx_fn_params) -> () + Send>
+                >
+            }
+            impl #s_ig Context #s_tg #s_wc {
+                /// Verify that all current expectations for this method are
+                /// satisfied and clear them.
+                #v fn checkpoint(&self) {
+                    Self::do_checkpoint()
+                }
+                #[doc(hidden)]
+                #v fn do_checkpoint() {
+                    let __mockall_timeses = EXPECTATIONS
+                        .lock()
+                        .unwrap()
+                        .checkpoint()
+                        .collect::<Vec<_>>();
+                }
+
+                /// Create a new expectation for this method.
+                #must_use
+                #v fn expect #meth_ig ( &self,) -> ExpectationGuard #e_tg
+                    #meth_wc
+                {
+                    ExpectationGuard::new(EXPECTATIONS.lock().unwrap())
+                }
+            }
+            impl #s_ig Default for Context #s_tg #s_wc {
+                fn default() -> Self {
+                    Context {_phantom: std::marker::PhantomData}
+                }
+            }
+            impl #s_ig Drop for Context #s_tg #s_wc {
+                fn drop(&mut self) {
+                    if !std::thread::panicking() {
+                        Self::do_checkpoint()
+                    }
                 }
             }
         ).to_tokens(tokens);
