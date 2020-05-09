@@ -164,6 +164,7 @@ impl ToTokens for MockFunction {
         let common = &Common{f: self};
         // TODO: non-Static expectations
         let expectation = &StaticExpectation{f: self};
+        let expectations = &StaticExpectations{f: self};
         let matcher = &Matcher{f: self};
         let rfunc = &Rfunc{f: self};
         let mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
@@ -183,7 +184,7 @@ impl ToTokens for MockFunction {
                 #matcher
                 #common
                 #expectation
-                pub struct Expectations{}   // 43 lines
+                #expectations
                 pub struct ExpectationGuard {} // 114 lines
                 pub struct Context {}   // 44 lines
             }
@@ -337,6 +338,187 @@ impl<'a> ToTokens for Common<'a> {
                                desc,
                                self.times.minimum());
                     }
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+/// Generates methods that are common for all Expectation types
+struct CommonExpectationMethods<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for CommonExpectationMethods<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.f.argnames;
+        let hrtb = self.f.hrtb();
+        let lg = &self.f.alifetimes;
+        let predty = &self.f.predty;
+        let with_generics_idents = (0..self.f.predty.len())
+            .map(|i| format_ident!("MockallMatcher{}", i))
+            .collect::<Vec<_>>();
+        let with_generics = TokenStream::from_iter(
+            with_generics_idents.iter().zip(self.f.predty.iter())
+            .map(|(id, mt)|
+                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
+            )
+        );
+        let with_args = TokenStream::from_iter(
+            self.f.argnames.iter().zip(with_generics_idents.iter())
+            .map(|(argname, id)| quote!(#argname: #id, ))
+        );
+        let v = &self.f.vis;
+        quote!(
+            /// Add this expectation to a
+            /// [`Sequence`](../../../mockall/struct.Sequence.html).
+            #v fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
+                -> &mut Self
+            {
+                self.common.in_sequence(__mockall_seq);
+                self
+            }
+
+            fn is_done(&self) -> bool {
+                self.common.is_done()
+            }
+
+            /// Validate this expectation's matcher.
+            fn matches #lg (&self, #(#argnames: &#predty, )*) -> bool {
+                self.common.matches(#(#argnames, )*)
+            }
+
+            /// Forbid this expectation from ever being called.
+            #v fn never(&mut self) -> &mut Self {
+                self.common.never();
+                self
+            }
+
+            /// Create a new, default, [`Expectation`](struct.Expectation.html)
+            #v fn new() -> Self {
+                Self::default()
+            }
+
+            /// Expect this expectation to be called exactly once.  Shortcut for
+            /// [`times(1)`](#method.times).
+            #v fn once(&mut self) -> &mut Self {
+                self.times(1)
+            }
+
+            /// Restrict the number of times that that this method may be called.
+            ///
+            /// The argument may be:
+            /// * A fixed number: `.times(4)`
+            /// * Various types of range:
+            ///   - `.times(5..10)`
+            ///   - `.times(..10)`
+            ///   - `.times(5..)`
+            ///   - `.times(5..=10)`
+            ///   - `.times(..=10)`
+            /// * The wildcard: `.times(..)`
+            #v fn times<MockallR>(&mut self, __mockall_r: MockallR) -> &mut Self
+                where MockallR: Into<::mockall::TimesRange>
+            {
+                self.common.times(__mockall_r);
+                self
+            }
+
+            /// Allow this expectation to be called any number of times
+            ///
+            /// This behavior is the default, but the method is provided in case the
+            /// default behavior changes.
+            #[deprecated(since = "0.3.0", note = "Use times instead")]
+            #v fn times_any(&mut self) -> &mut Self {
+                self.common.times(..);
+                self
+            }
+
+            /// Allow this expectation to be called any number of times within a
+            /// given range
+            #[deprecated(since = "0.3.0", note = "Use times instead")]
+            #v fn times_range(&mut self, __mockall_range: Range<usize>)
+                -> &mut Self
+            {
+                self.common.times(__mockall_range);
+                self
+            }
+
+            /// Set matching crieteria for this Expectation.
+            ///
+            /// The matching predicate can be anything implemening the
+            /// [`Predicate`](../../../mockall/trait.Predicate.html) trait.  Only
+            /// one matcher can be set per `Expectation` at a time.
+            #v fn with<#with_generics>(&mut self, #with_args) -> &mut Self
+            {
+                self.common.with(#(#argnames, )*);
+                self
+            }
+
+            /// Set a matching function for this Expectation.
+            ///
+            /// This is equivalent to calling [`with`](#method.with) with a
+            /// function argument, like `with(predicate::function(f))`.
+            #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                where MockallF: #hrtb Fn(#(&#predty, )*)
+                                -> bool + Send + 'static
+            {
+                self.common.withf(__mockall_f);
+                self
+            }
+
+            /// Single-threaded version of [`withf`](#method.withf).
+            /// Can be used when the argument type isn't `Send`.
+            #v fn withf_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
+                where MockallF: #hrtb Fn(#(&#predty, )*)
+                                -> bool + 'static
+            {
+                self.common.withf_st(__mockall_f);
+                self
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+/// Holds the moethods of the Expectations object that are common for all
+/// Expectation types
+struct CommonExpectationsMethods<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for CommonExpectationsMethods<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let v = &self.f.vis;
+        quote!(
+            /// A collection of [`Expectation`](struct.Expectations.html)
+            /// objects.  Users will rarely if ever use this struct directly.
+            #[doc(hidden)]
+            #v struct Expectations #ig ( Vec<Expectation #tg>) #wc;
+
+            impl #ig Expectations #tg #wc {
+                /// Verify that all current expectations are satisfied and clear
+                /// them.
+                #v fn checkpoint(&mut self) -> std::vec::Drain<Expectation #tg>
+                {
+                    self.0.drain(..)
+                }
+
+                /// Create a new expectation for this method.
+                #v fn expect(&mut self) -> &mut Expectation #tg
+                {
+                    self.0.push(Expectation::default());
+                    let __mockall_l = self.0.len();
+                    &mut self.0[__mockall_l - 1]
+                }
+
+                #v fn new() -> Self {
+                    Self::default()
+                }
+            }
+            impl #ig Default for Expectations #tg #wc
+            {
+                fn default() -> Self {
+                    Expectations(Vec::new())
                 }
             }
         ).to_tokens(tokens);
@@ -667,136 +849,39 @@ impl<'a> ToTokens for StaticExpectation<'a> {
     }
 }
 
-/// Generates methods that are common for all Expectation types
-struct CommonExpectationMethods<'a> {
+/// An Expectations type for functions return a `'static` value
+struct StaticExpectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for CommonExpectationMethods<'a> {
+impl<'a> ToTokens for StaticExpectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let common_methods = CommonExpectationsMethods{f: &self.f};
         let argnames = &self.f.argnames;
-        let hrtb = self.f.hrtb();
+        let argty = &self.f.argty;
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let lg = &self.f.alifetimes;
-        let predty = &self.f.predty;
-        let with_generics_idents = (0..self.f.predty.len())
-            .map(|i| format_ident!("MockallMatcher{}", i))
-            .collect::<Vec<_>>();
-        let with_generics = TokenStream::from_iter(
-            with_generics_idents.iter().zip(self.f.predty.iter())
-            .map(|(id, mt)|
-                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
-            )
-        );
-        let with_args = TokenStream::from_iter(
-            self.f.argnames.iter().zip(with_generics_idents.iter())
-            .map(|(argname, id)| quote!(#argname: #id, ))
-        );
+        let output = &self.f.output;
+        let predexprs = &self.f.predexprs;
         let v = &self.f.vis;
         quote!(
-            /// Add this expectation to a
-            /// [`Sequence`](../../../mockall/struct.Sequence.html).
-            #v fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
-                -> &mut Self
-            {
-                self.common.in_sequence(__mockall_seq);
-                self
-            }
+            #common_methods
+            impl #ig Expectations #tg #wc {
+                /// Simulate calling the real method.  Every current expectation
+                /// will be checked in FIFO order and the first one with
+                /// matching arguments will be used.
+                #v fn call #lg (&self, #(#argnames: #argty, )* )
+                    -> Option<#output>
+                {
+                    self.0.iter()
+                        .find(|__mockall_e|
+                              __mockall_e.matches(#(#predexprs, )*) &&
+                              (!__mockall_e.is_done() || self.0.len() == 1))
+                        .map(move |__mockall_e|
+                             __mockall_e.call(#(#argnames, )*)
+                        )
+                }
 
-            fn is_done(&self) -> bool {
-                self.common.is_done()
-            }
-
-            /// Validate this expectation's matcher.
-            fn matches #lg (&self, #(#argnames: &#predty, )*) -> bool {
-                self.common.matches(#(#argnames, )*)
-            }
-
-            /// Forbid this expectation from ever being called.
-            #v fn never(&mut self) -> &mut Self {
-                self.common.never();
-                self
-            }
-
-            /// Create a new, default, [`Expectation`](struct.Expectation.html)
-            #v fn new() -> Self {
-                Self::default()
-            }
-
-            /// Expect this expectation to be called exactly once.  Shortcut for
-            /// [`times(1)`](#method.times).
-            #v fn once(&mut self) -> &mut Self {
-                self.times(1)
-            }
-
-            /// Restrict the number of times that that this method may be called.
-            ///
-            /// The argument may be:
-            /// * A fixed number: `.times(4)`
-            /// * Various types of range:
-            ///   - `.times(5..10)`
-            ///   - `.times(..10)`
-            ///   - `.times(5..)`
-            ///   - `.times(5..=10)`
-            ///   - `.times(..=10)`
-            /// * The wildcard: `.times(..)`
-            #v fn times<MockallR>(&mut self, __mockall_r: MockallR) -> &mut Self
-                where MockallR: Into<::mockall::TimesRange>
-            {
-                self.common.times(__mockall_r);
-                self
-            }
-
-            /// Allow this expectation to be called any number of times
-            ///
-            /// This behavior is the default, but the method is provided in case the
-            /// default behavior changes.
-            #[deprecated(since = "0.3.0", note = "Use times instead")]
-            #v fn times_any(&mut self) -> &mut Self {
-                self.common.times(..);
-                self
-            }
-
-            /// Allow this expectation to be called any number of times within a
-            /// given range
-            #[deprecated(since = "0.3.0", note = "Use times instead")]
-            #v fn times_range(&mut self, __mockall_range: Range<usize>)
-                -> &mut Self
-            {
-                self.common.times(__mockall_range);
-                self
-            }
-
-            /// Set matching crieteria for this Expectation.
-            ///
-            /// The matching predicate can be anything implemening the
-            /// [`Predicate`](../../../mockall/trait.Predicate.html) trait.  Only
-            /// one matcher can be set per `Expectation` at a time.
-            #v fn with<#with_generics>(&mut self, #with_args) -> &mut Self
-            {
-                self.common.with(#(#argnames, )*);
-                self
-            }
-
-            /// Set a matching function for this Expectation.
-            ///
-            /// This is equivalent to calling [`with`](#method.with) with a
-            /// function argument, like `with(predicate::function(f))`.
-            #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
-                where MockallF: #hrtb Fn(#(&#predty, )*)
-                                -> bool + Send + 'static
-            {
-                self.common.withf(__mockall_f);
-                self
-            }
-
-            /// Single-threaded version of [`withf`](#method.withf).
-            /// Can be used when the argument type isn't `Send`.
-            #v fn withf_st<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
-                where MockallF: #hrtb Fn(#(&#predty, )*)
-                                -> bool + 'static
-            {
-                self.common.withf_st(__mockall_f);
-                self
             }
         ).to_tokens(tokens);
     }
