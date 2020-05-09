@@ -66,6 +66,17 @@ struct MockFunction {
 }
 
 impl MockFunction {
+    /// Return this method's contribution to its parent's checkpoint method
+    fn checkpoint(&self) -> impl ToTokens {
+        let inner_mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
+        quote!(
+            let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
+                .unwrap()
+                .checkpoint()
+                .collect::<Vec<_>>();
+        )
+    }
+
     // TODO: return a Syn object instead of a TokenStream
     fn hrtb(&self) -> TokenStream {
         if self.alifetimes.params.is_empty() {
@@ -1326,14 +1337,8 @@ impl ToTokens for MockItemModule {
             match item {
                 MockItemContent::Tokens(ts) => ts.to_tokens(&mut body),
                 MockItemContent::Fn(f) => {
-                    //let mod_ident = format_ident!("__{}", &f.sig.ident);
-                    //quote!(
-                        //let __mockall_timeses = #mod_ident::EXPECTATIONS.lock()
-                            //.unwrap()
-                            //.checkpoint()
-                            //.collect::<Vec<_>>();
-                    //).to_tokens(&mut cp_body);
                     f.to_tokens(&mut body);
+                    f.checkpoint().to_tokens(&mut cp_body);
                 },
             }
         }
