@@ -59,6 +59,8 @@ struct MockFunction {
     predty: Vec<Type>,
     /// References to every type in `predty`.
     refpredty: Vec<Type>,
+    /// Lifetime Generics of the mocked method that relate to the return value
+    rlifetimes: Generics,
     /// Visibility of the expectation and its methods
     vis: Visibility
 }
@@ -154,6 +156,7 @@ impl From<(&Ident, ItemFn)> for MockFunction {
             predexprs,
             predty,
             refpredty,
+            rlifetimes,
             vis
         }
     }
@@ -165,6 +168,8 @@ impl ToTokens for MockFunction {
         // TODO: non-Static expectations
         let expectation = &StaticExpectation{f: self};
         let expectations = &StaticExpectations{f: self};
+        // TODO: ExpectationGuard for generic methods
+        let guard = &ConcreteExpectationGuard{f: self};
         let matcher = &Matcher{f: self};
         let rfunc = &Rfunc{f: self};
         let mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
@@ -185,7 +190,7 @@ impl ToTokens for MockFunction {
                 #common
                 #expectation
                 #expectations
-                pub struct ExpectationGuard {} // 114 lines
+                #guard
                 pub struct Context {}   // 44 lines
             }
             #orig_signature {}
@@ -519,6 +524,199 @@ impl<'a> ToTokens for CommonExpectationsMethods<'a> {
             {
                 fn default() -> Self {
                     Expectations(Vec::new())
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+/// The ExpectationGuard structure for static methods with no generic types
+struct ConcreteExpectationGuard<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let ltdef = LifetimeDef::new(
+            Lifetime::new("'__mockall_lt", Span::call_site())
+        );
+        let mut e_generics = self.f.egenerics.clone();
+        e_generics.lt_token.get_or_insert(<Token![<]>::default());
+        e_generics.params.push(GenericParam::Lifetime(ltdef));
+        e_generics.gt_token.get_or_insert(<Token![>]>::default());
+        let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
+        let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
+        let (ei_ig, _, _) = ei_generics.split_for_impl();
+        let fn_params = &self.f.fn_params;
+        let hrtb = self.f.hrtb();
+        let output = &self.f.output;
+        let predty = &self.f.predty;
+        let tbf = tg.as_turbofish();
+        let with_generics_idents = (0..self.f.predty.len())
+            .map(|i| format_ident!("MockallMatcher{}", i))
+            .collect::<Vec<_>>();
+        let with_generics = TokenStream::from_iter(
+            with_generics_idents.iter().zip(self.f.predty.iter())
+            .map(|(id, mt)|
+                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
+            )
+        );
+        let with_args = TokenStream::from_iter(
+            self.f.argnames.iter().zip(with_generics_idents.iter())
+            .map(|(argname, id)| quote!(#argname: #id, ))
+        );
+        let v = &self.f.vis;
+        quote!(
+            ::mockall::lazy_static! {
+                #[doc(hidden)]
+                #v static ref EXPECTATIONS:
+                    ::std::sync::Mutex<Expectations #tg> =
+                    ::std::sync::Mutex::new(Expectations::new());
+            }
+            /// Like an [`&Expectation`](struct.Expectation.html) but
+            /// protected by a Mutex guard.  Useful for mocking static
+            /// methods.  Forwards accesses to an `Expectation` object.
+            // We must return the MutexGuard to the caller so he can
+            // configure the expectation.  But we can't bundle both the
+            // guard and the &Expectation into the same structure; the
+            // borrow checker won't let us.  Instead we'll record the
+            // expectation's position within the Expectations vector so we
+            // can proxy its methods.
+            //
+            // ExpectationGuard is only defined for expectations that return
+            // 'static return types.
+            #v struct ExpectationGuard #e_ig #e_wc {
+                guard: MutexGuard<'__mockall_lt, Expectations #tg>,
+                i: usize
+            }
+
+            impl #ei_ig ExpectationGuard #e_tg #e_wc
+            {
+                /// Just like
+                /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
+                #v fn in_sequence(&mut self,
+                    __mockall_seq: &mut ::mockall::Sequence)
+                    -> &mut Expectation #tg
+                {
+                    self.guard.0[self.i].in_sequence(__mockall_seq)
+                }
+
+                /// Just like
+                /// [`Expectation::never`](struct.Expectation.html#method.never)
+                #v fn never(&mut self) -> &mut Expectation #tg {
+                    self.guard.0[self.i].never()
+                }
+
+                // Should only be called from the mockall_derive generated
+                // code
+                #[doc(hidden)]
+                #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, Expectations #tg>)
+                    -> Self
+                {
+                    __mockall_guard.expect(); // Drop the &Expectation
+                    let __mockall_i = __mockall_guard.0.len() - 1;
+                    ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
+                }
+
+                /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
+                #v fn once(&mut self) -> &mut Expectation #tg {
+                    self.guard.0[self.i].once()
+                }
+
+                /// Just like
+                /// [`Expectation::return_const`](struct.Expectation.html#method.return_const)
+                #v fn return_const<MockallOutput>
+                (&mut self, __mockall_c: MockallOutput)
+                    -> &mut Expectation #tg
+                    where MockallOutput: Clone + Into<#output> + Send + 'static
+                {
+                    self.guard.0[self.i].return_const(__mockall_c)
+                }
+
+                /// Just like
+                /// [`Expectation::returning`](struct.Expectation.html#method.returning)
+                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Expectation #tg
+                    where MockallF: #hrtb FnMut(#(#argty, )*)
+                        -> #output + Send + 'static
+                {
+                    self.guard.0[self.i].returning(__mockall_f)
+                }
+
+                /// Just like
+                /// [`Expectation::return_once`](struct.Expectation.html#method.return_once)
+                #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Expectation #tg
+                    where MockallF: #hrtb FnOnce(#(#argty, )*)
+                                    -> #output + Send + 'static
+                {
+                    self.guard.0[self.i].return_once(__mockall_f)
+                }
+
+                /// Just like
+                /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
+                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Expectation #tg
+                    where MockallF: #hrtb FnMut(#(#argty, )*)
+                                    -> #output + 'static
+                {
+                    self.guard.0[self.i].returning_st(__mockall_f)
+                }
+
+                /// Just like
+                /// [`Expectation::times`](struct.Expectation.html#method.times)
+                #v fn times<MockallR>(&mut self, __mockall_r: MockallR)
+                    -> &mut Expectation #tg
+                    where MockallR: Into<::mockall::TimesRange>
+                {
+                    self.guard.0[self.i].times(__mockall_r)
+                }
+
+                /// Just like
+                /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
+                #[deprecated(since = "0.3.0", note = "Use times instead")]
+                #v fn times_any(&mut self) -> &mut Expectation #tg {
+                    self.guard.0[self.i].times(..)
+                }
+
+                /// Just like
+                /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
+                #[deprecated(since = "0.3.0", note = "Use times instead")]
+                #v fn times_range(&mut self, __mockall_range: Range<usize>)
+                    -> &mut Expectation #tg
+                {
+                    self.guard.0[self.i].times(__mockall_range)
+                }
+
+                /// Just like
+                /// [`Expectation::with`](struct.Expectation.html#method.with)
+                #v fn with<#with_generics> (&mut self, #with_args)
+                    -> &mut Expectation #tg
+                {
+                    self.guard.0[self.i].with(#(#argnames, )*)
+                }
+
+                /// Just like
+                /// [`Expectation::withf`](struct.Expectation.html#method.withf)
+                #v fn withf<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Expectation #tg
+                    where MockallF: #hrtb Fn(#(&#predty, )*)
+                                    -> bool + Send + 'static
+                {
+                    self.guard.0[self.i].withf(__mockall_f)
+                }
+
+                /// Just like
+                /// [`Expectation::withf_st`](struct.Expectation.html#method.withf_st)
+                #v fn withf_st<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Expectation #tg
+                    where MockallF: #hrtb Fn(#(&#predty, )*)
+                                    -> bool + 'static
+                {
+                    self.guard.0[self.i].withf_st(__mockall_f)
                 }
             }
         ).to_tokens(tokens);
