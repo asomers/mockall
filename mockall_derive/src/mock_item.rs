@@ -171,6 +171,9 @@ impl ToTokens for MockFunction {
         let expectation = &StaticExpectation{f: self};
         let expectations = &StaticExpectations{f: self};
         let fn_ident = &self.item_fn.sig.ident;
+        let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
+            fn_ident);
+        let context_ident = format_ident!("{}_context", fn_ident);
         let fn_docstr = format!("Mock version of the `{}` function", fn_ident);
         // TODO: ExpectationGuard for generic methods
         let guard = &ConcreteExpectationGuard{f: self};
@@ -216,7 +219,11 @@ impl ToTokens for MockFunction {
                     /*)*/
                 }.expect(#no_match_msg)
             }
-            pub fn bar_context() {}
+            #[doc = #context_docstr]
+            #v fn #context_ident() -> #inner_mod_ident::Context
+            {
+                #inner_mod_ident::Context::default()
+            }
         ).to_tokens(tokens);
     }
 }
