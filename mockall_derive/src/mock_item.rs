@@ -99,10 +99,16 @@ impl MockFunction {
 
 }
 
-impl From<(&Ident, ItemFn)> for MockFunction {
-    /// Create a MockFunction from its mockable version and the name of its
-    /// parent module
-    fn from((ident, f): (&Ident, ItemFn)) -> MockFunction {
+impl From<(&Ident, i32, ItemFn)> for MockFunction {
+    /// Create a MockFunction.
+    ///
+    /// # Arguments
+    ///
+    /// * ident:    Name of the parent module
+    /// * levels:   How many levels of modules beneath the original function
+    ///             this one is nested.
+    /// * f:        The MockableFunction to mock
+    fn from((ident, levels, f): (&Ident, i32, ItemFn)) -> MockFunction {
         let egenerics = Generics::default();    // TODO
         let mut argnames = Vec::new();
         let mut argty = Vec::new();
@@ -113,38 +119,36 @@ impl From<(&Ident, ItemFn)> for MockFunction {
         for fa in f.sig.inputs.iter() {
             if let FnArg::Typed(pt) = fa {
                 let argname = (*pt.pat).clone();
-                let aty = &pt.ty;
-                //let aty = supersuperfy(&pt.ty, levels);
-                if let Type::Reference(tr) = &**aty {
+                let aty = supersuperfy(&pt.ty, levels);
+                if let Type::Reference(ref tr) = aty {
                     predexprs.push(quote!(#argname));
                     predty.push((*tr.elem).clone());
-                    refpredty.push((**aty).clone());
+                    refpredty.push(aty.clone());
                 } else {
                     predexprs.push(quote!(&#argname));
-                    predty.push((**aty).clone());
+                    predty.push(aty.clone());
                     let tr = TypeReference {
                         and_token: Token![&](Span::call_site()),
                         lifetime: None,
                         mutability: None,
-                        elem: Box::new((**aty).clone())
+                        elem: Box::new(aty.clone())
                     };
                     refpredty.push(Type::Reference(tr));
                 };
                 argnames.push(argname);
-                argty.push((**aty).clone());
+                argty.push(aty.clone());
             } else {
                 is_static = false;
                 ()    // Strip out the "&self" argument
             }
         }
-        // TODO: supersuperfy the output
-        let output = match f.sig.output.clone() {
+        let output = supersuperfy(&match f.sig.output.clone() {
             ReturnType::Default => Type::Tuple(TypeTuple{
                 paren_token: token::Paren(Span::call_site()),
                 elems: Punctuated::new()
             }),
             ReturnType::Type(_, ty) => (*ty).clone()
-        };
+        }, levels);
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
             f.sig.generics.clone(),
             &f.sig.inputs,
@@ -153,7 +157,7 @@ impl From<(&Ident, ItemFn)> for MockFunction {
         let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
             egenerics.type_params().map(|tp| tp.ident.clone())
         );
-        let vis = expectation_visibility(&f.vis, 2);
+        let vis = f.vis.clone();
         MockFunction {
             alifetimes,
             argnames,
@@ -195,6 +199,7 @@ impl ToTokens for MockFunction {
             mod_ident, fn_ident);
         let orig_signature = &self.item_fn.sig;
         let rfunc = &Rfunc{f: self};
+        //let v = &self.vis;
         let v = expectation_visibility(&self.vis, 1);
         quote!(
             #[allow(missing_docs)]
@@ -413,7 +418,7 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
             self.f.argnames.iter().zip(with_generics_idents.iter())
             .map(|(argname, id)| quote!(#argname: #id, ))
         );
-        let v = &self.f.vis;
+        let v = expectation_visibility(&self.f.vis, 2);
         quote!(
             /// Add this expectation to a
             /// [`Sequence`](../../../mockall/struct.Sequence.html).
@@ -533,7 +538,7 @@ struct CommonExpectationsMethods<'a> {
 impl<'a> ToTokens for CommonExpectationsMethods<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let v = &self.f.vis;
+        let v = expectation_visibility(&self.f.vis, 2);
         quote!(
             /// A collection of [`Expectation`](struct.Expectations.html)
             /// objects.  Users will rarely if ever use this struct directly.
@@ -608,7 +613,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
             self.f.argnames.iter().zip(with_generics_idents.iter())
             .map(|(argname, id)| quote!(#argname: #id, ))
         );
-        let v = &self.f.vis;
+        let v = expectation_visibility(&self.f.vis, 2);
         quote!(
             ::mockall::lazy_static! {
                 #[doc(hidden)]
@@ -789,7 +794,7 @@ impl<'a> ToTokens for Context<'a> {
         meth_generics.params.push(GenericParam::Lifetime(ltdef.clone()));
         let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
         let ctx_fn_params = Punctuated::<Ident, Token![,]>::new();  // TODO
-        let v = &self.f.vis;
+        let v = expectation_visibility(&self.f.vis, 2);
 
         #[cfg(not(feature = "nightly_derive"))]
         let must_use = quote!(#[must_use =
@@ -1048,7 +1053,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
         let common_tg = &tg; // TODO: get the generics right
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
-        let v = &self.f.vis;
+        let v = expectation_visibility(&self.f.vis, 2);
         quote!(
             /// Expectation type for methods that return a `'static` type.
             /// This is the type returned by the `expect_*` methods.
@@ -1191,7 +1196,7 @@ impl<'a> ToTokens for StaticExpectations<'a> {
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
         let predexprs = &self.f.predexprs;
-        let v = &self.f.vis;
+        let v = expectation_visibility(&self.f.vis, 2);
         quote!(
             #common_methods
             impl #ig Expectations #tg #wc {
@@ -1291,7 +1296,7 @@ impl From<MockableModule> for MockItemModule {
                 },
                 Item::Fn(f) => {
                     Some(MockItemContent::Fn(
-                        MockFunction::from((&mock_ident, f))
+                        MockFunction::from((&mock_ident, 1, f))
                     ))
                 },
                 Item::Mod(_) | Item::ForeignMod(_)
