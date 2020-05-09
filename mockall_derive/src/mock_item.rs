@@ -164,20 +164,27 @@ impl From<(&Ident, ItemFn)> for MockFunction {
 
 impl ToTokens for MockFunction {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.argnames;
         let common = &Common{f: self};
         let context = &Context{f: self};
         // TODO: non-Static expectations
         let expectation = &StaticExpectation{f: self};
         let expectations = &StaticExpectations{f: self};
+        let fn_ident = &self.item_fn.sig.ident;
+        let fn_docstr = format!("Mock version of the `{}` function", fn_ident);
         // TODO: ExpectationGuard for generic methods
         let guard = &ConcreteExpectationGuard{f: self};
         let matcher = &Matcher{f: self};
-        let rfunc = &Rfunc{f: self};
-        let mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
+        let mod_ident = &self.mod_ident;
+        let inner_mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
+        let no_match_msg = format!("{}::{}: No matching expectation found",
+            mod_ident, fn_ident);
         let orig_signature = &self.item_fn.sig;
+        let rfunc = &Rfunc{f: self};
+        let v = expectation_visibility(&self.vis, 1);
         quote!(
             #[allow(missing_docs)]
-            pub mod #mod_ident {
+            pub mod #inner_mod_ident {
                 use super::*;
                 use ::mockall::CaseTreeExt;
                 use ::std::sync::MutexGuard;
@@ -194,7 +201,21 @@ impl ToTokens for MockFunction {
                 #guard
                 #context
             }
-            #orig_signature {}
+            #[doc = #fn_docstr]
+            #v #orig_signature {
+                {
+                    let __mockall_guard = #inner_mod_ident::EXPECTATIONS
+                        .lock().unwrap();
+                    /*
+                     * TODO: catch panics, then gracefully release the mutex so
+                     * it won't be poisoned.  This requires bounding any generic
+                     * parameters with UnwindSafe
+                     */
+                    /* std::panic::catch_unwind(|| */
+                    __mockall_guard.call(#(#argnames),*)
+                    /*)*/
+                }.expect(#no_match_msg)
+            }
             pub fn bar_context() {}
         ).to_tokens(tokens);
     }
@@ -1204,7 +1225,7 @@ impl From<MockableModule> for ItemMod {
         let brace = token::Brace::default();
 
         let mut contents = Vec::<Item>::new();
-        contents.push(Item::Verbatim(quote!(use super::T;)));
+        contents.push(Item::Verbatim(quote!(use super::T;)));   // TODO
         for item in mod_.content.into_iter() {
             match item {
                 Item::Fn(item_fn) => {
