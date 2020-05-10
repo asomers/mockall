@@ -481,18 +481,18 @@ fn mock_native_function(modname: &Ident, f: &ItemFn, call_levels: i32)
 }
 
 /// Generate a mock struct that implements a trait
-fn mock_trait(attrs: Attrs, item: ItemTrait) -> TokenStream {
-    let trait_ = attrs.substitute_trait(&item);
-    let mock = ManualMock {
-        attrs: item.attrs.clone(),
-        vis: item.vis.clone(),
-        name: item.ident.clone(),
-        generics: item.generics,
-        methods: Vec::new(),
-        traits: vec![trait_]
-    };
-    mock.gen()
-}
+//fn mock_trait(attrs: Attrs, item: ItemTrait) -> TokenStream {
+    //let trait_ = attrs.substitute_trait(&item);
+    //let mock = ManualMock {
+        //attrs: item.attrs.clone(),
+        //vis: item.vis.clone(),
+        //name: item.ident.clone(),
+        //generics: item.generics,
+        //methods: Vec::new(),
+        //traits: vec![trait_]
+    //};
+    //mock.gen()
+//}
 
 /// Test cases for `#[automock]`.
 #[cfg(test)]

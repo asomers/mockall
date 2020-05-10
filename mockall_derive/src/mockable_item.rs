@@ -8,14 +8,14 @@ use super::*;
 /// altered lifetimes.
 pub(crate) enum MockableItem {
     Module(MockableModule),
-    Manual(ManualMock)
+    Struct(MockableStruct)
 }
 
 impl From<(Attrs, Item)> for MockableItem {
     fn from((attrs, item): (Attrs, Item)) -> MockableItem {
         match item {
             Item::Impl(item_impl) =>
-                MockableItem::Manual(ManualMock::from(item_impl)),
+                MockableItem::Struct(MockableStruct::from(item_impl)),
             Item::ForeignMod(item_foreign_mod) =>
                 MockableItem::Module(
                     MockableModule::from((attrs, item_foreign_mod))
@@ -23,16 +23,16 @@ impl From<(Attrs, Item)> for MockableItem {
             Item::Mod(item_mod) =>
                 MockableItem::Module(MockableModule::from(item_mod)),
             Item::Trait(trait_) =>
-                MockableItem::Manual(ManualMock::from((attrs, trait_))),
+                MockableItem::Struct(MockableStruct::from((attrs, trait_))),
             _ => panic!("automock does not support this item type")
         }
     }
 }
 
-impl From<ManualMock> for MockableItem {
-    fn from(mock: ManualMock) -> MockableItem {
+impl From<MockableStruct> for MockableItem {
+    fn from(mock: MockableStruct) -> MockableItem {
         // TODO: stuff like deselfify
-        MockableItem::Manual(mock)
+        MockableItem::Struct(mock)
     }
 }
 

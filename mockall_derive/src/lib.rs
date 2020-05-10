@@ -24,12 +24,14 @@ use syn::{
 
 mod automock;
 mod expectation;
-mod manual_mock;
 mod mock_item;
+mod mock_item_struct;
 mod mockable_item;
+mod mockable_struct;
 use crate::automock::Attrs;
-use crate::manual_mock::ManualMock;
+use crate::mockable_struct::MockableStruct;
 use crate::mock_item::MockItem;
+use crate::mock_item_struct::MockItemStruct;
 use crate::mockable_item::MockableItem;
 use crate::expectation::Expectation;
 
@@ -937,7 +939,7 @@ fn mock_it<M: Into<MockableItem>>(inputs: M) -> TokenStream
 
 #[proc_macro]
 pub fn mock(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let item: ManualMock = match syn::parse2(input.into()) {
+    let item: MockableStruct = match syn::parse2(input.into()) {
         Ok(mock) => mock,
         Err(err) => {
             return err.to_compile_error().into();

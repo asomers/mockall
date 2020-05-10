@@ -9,13 +9,16 @@ use crate::{
 
 /// A Mock item
 pub(crate) enum MockItem {
-    Module(MockItemModule)
+    Module(MockItemModule),
+    Struct(MockItemStruct)
 }
 
 impl From<MockableItem> for MockItem {
     fn from(mockable: MockableItem) -> MockItem {
         match mockable {
-            MockableItem::Manual(_) => unimplemented!("1"),
+            MockableItem::Struct(s) => MockItem::Struct(
+                MockItemStruct::from(s)
+            ),
             MockableItem::Module(mod_) => MockItem::Module(
                 MockItemModule::from(mod_)
             )
@@ -27,7 +30,7 @@ impl ToTokens for MockItem {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             MockItem::Module(mod_) => mod_.to_tokens(tokens),
-            _ => unimplemented!("2")
+            MockItem::Struct(s) => s.to_tokens(tokens)
         }
     }
 }
