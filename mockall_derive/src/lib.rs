@@ -813,6 +813,7 @@ fn expectation_visibility(vis: &Visibility, levels: u32)
 fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     let mut is_static = true;
     let ident = &sig.ident;
+    let private_meth_ident = format_ident!("__{}", &ident);
     let (expectation_generics, expectation_inputs, call_exprs) =
         declosurefy(&sig.generics, &sig.inputs);
     let merged_generics = if let Some(g) = generics {
@@ -873,7 +874,7 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
         format_ident!("Expectations")
     };
     let expectations = parse2(
-        quote!(#ident::#expectations_ident)
+        quote!(#private_meth_ident::#expectations_ident)
     ).unwrap();
 
     // Replace any generic lifetimes of the Expectation's type with 'static
@@ -881,7 +882,7 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     // in the original trait's or struct's signature.
     let expectation_g = staticize(&with_ret_lt_g);
     let (_, expectation_tg, _) = expectation_g.split_for_impl();
-    let expect_ts = quote!(#ident::#expectation_ident #expectation_tg);
+    let expect_ts = quote!(#private_meth_ident::#expectation_ident #expectation_tg);
     let expect_obj = if is_expectation_generic {
         parse2(quote!(#expectations))
     } else {
@@ -960,13 +961,13 @@ mod method_types{
         let mt = method_types(&tim.sig, None);
         assert!(!mt.is_static);
         assert!(!mt.is_expectation_generic);
-        assert_eq!(mt.expectation, parse2(quote!(foo::Expectation)).unwrap());
+        assert_eq!(mt.expectation, parse2(quote!(__foo::Expectation)).unwrap());
         assert_eq!(mt.expectation_generics, Generics::default());
         let inputs_vec: Vec<FnArg> = vec![parse2(quote!(&self)).unwrap()];
         let inputs = Punctuated::from_iter(inputs_vec.into_iter());
         assert_eq!(mt.expectation_inputs, inputs);
-        assert_eq!(mt.expectations, parse2(quote!(foo::Expectations)).unwrap());
-        assert_eq!(mt.expect_obj, parse2(quote!(foo::Expectations)).unwrap());
+        assert_eq!(mt.expectations, parse2(quote!(__foo::Expectations)).unwrap());
+        assert_eq!(mt.expect_obj, parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!()).unwrap());
@@ -982,7 +983,7 @@ mod method_types{
         assert!(!mt.is_static);
         assert!(!mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation<F>)).unwrap());
+                   parse2(quote!(__foo::Expectation<F>)).unwrap());
         assert_eq!(mt.expectation_generics, Generics::default());
         let inputs_vec: Vec<FnArg> = vec![
             parse2(quote!(&self)).unwrap(),
@@ -996,9 +997,9 @@ mod method_types{
         let einputs = Punctuated::from_iter(einputs_vec.into_iter());
         assert_eq!(mt.expectation_inputs, einputs);
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::Expectations<F>)).unwrap());
+                   parse2(quote!(__foo::Expectations<F>)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());
@@ -1013,7 +1014,7 @@ mod method_types{
         assert!(!mt.is_static);
         assert!(mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation<I, O>)).unwrap());
+                   parse2(quote!(__foo::Expectation<I, O>)).unwrap());
         assert_eq!(mt.expectation_generics,
                    parse2(quote!(<I: 'static, O: 'static>)).unwrap());
         let inputs_vec: Vec<FnArg> = vec![
@@ -1023,9 +1024,9 @@ mod method_types{
         let inputs = Punctuated::from_iter(inputs_vec.into_iter());
         assert_eq!(mt.expectation_inputs, inputs);
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::GenericExpectations)).unwrap());
+                   parse2(quote!(__foo::GenericExpectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::GenericExpectations)).unwrap());
+                   parse2(quote!(__foo::GenericExpectations)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!(-> O)).unwrap());
@@ -1040,7 +1041,7 @@ mod method_types{
         assert!(!mt.is_static);
         assert!(!mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation)).unwrap());
+                   parse2(quote!(__foo::Expectation)).unwrap());
         assert_eq!(mt.expectation_generics,
                    parse2(quote!(<'a>)).unwrap());
         let inputs_vec: Vec<FnArg> = vec![
@@ -1050,9 +1051,9 @@ mod method_types{
         let inputs = Punctuated::from_iter(inputs_vec.into_iter());
         assert_eq!(mt.expectation_inputs, inputs);
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());
@@ -1067,13 +1068,13 @@ mod method_types{
         assert!(!mt.is_static);
         assert!(!mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation<'static>)).unwrap());
+                   parse2(quote!(__foo::Expectation<'static>)).unwrap());
         assert_eq!(mt.expectation_generics,
                    parse2(quote!(<'a>)).unwrap());
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::Expectations<'static>)).unwrap());
+                   parse2(quote!(__foo::Expectations<'static>)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.output, parse2(quote!(-> X<'a>)).unwrap());
     }
@@ -1088,7 +1089,7 @@ mod method_types{
         assert!(!mt.is_static);
         assert!(!mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation<T>)).unwrap());
+                   parse2(quote!(__foo::Expectation<T>)).unwrap());
         assert!(mt.expectation_generics.params.is_empty());
         let inputs_vec: Vec<FnArg> = vec![
             parse2(quote!(&self)).unwrap(),
@@ -1097,9 +1098,9 @@ mod method_types{
         let inputs = Punctuated::from_iter(inputs_vec.into_iter());
         assert_eq!(mt.expectation_inputs, inputs);
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::Expectations<T>)).unwrap());
+                   parse2(quote!(__foo::Expectations<T>)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!(-> T)).unwrap());
@@ -1118,7 +1119,7 @@ mod method_types{
         assert!(!mt.is_static);
         assert!(!mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation<T>)).unwrap());
+                   parse2(quote!(__foo::Expectation<T>)).unwrap());
         assert!(mt.expectation_generics.params.is_empty());
         let inputs_vec: Vec<FnArg> = vec![
             parse2(quote!(&self)).unwrap(),
@@ -1127,9 +1128,9 @@ mod method_types{
         let inputs = Punctuated::from_iter(inputs_vec.into_iter());
         assert_eq!(mt.expectation_inputs, inputs);
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::Expectations<T>)).unwrap());
+                   parse2(quote!(__foo::Expectations<T>)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!(-> T)).unwrap());
@@ -1147,7 +1148,7 @@ mod method_types{
         assert!(!mt.is_static);
         assert!(mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation<T, Q>)).unwrap());
+                   parse2(quote!(__foo::Expectation<T, Q>)).unwrap());
         assert_eq!(mt.expectation_generics,
                    parse2(quote!(<Q: 'static>)).unwrap());
         let inputs_vec: Vec<FnArg> = vec![
@@ -1157,9 +1158,9 @@ mod method_types{
         let inputs = Punctuated::from_iter(inputs_vec.into_iter());
         assert_eq!(mt.expectation_inputs, inputs);
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::GenericExpectations)).unwrap());
+                   parse2(quote!(__foo::GenericExpectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::GenericExpectations)).unwrap());
+                   parse2(quote!(__foo::GenericExpectations)).unwrap());
         assert_eq!(mt.call, "call");
         assert_eq!(mt.inputs, inputs);
         assert_eq!(mt.output, parse2(quote!(-> T)).unwrap());
@@ -1231,13 +1232,13 @@ mod method_types{
         assert!(mt.is_static);
         assert!(!mt.is_expectation_generic);
         assert_eq!(mt.expectation,
-                   parse2(quote!(foo::Expectation)).unwrap());
+                   parse2(quote!(__foo::Expectation)).unwrap());
         assert_eq!(mt.expectation_generics, Generics::default());
         assert!(mt.expectation_inputs.is_empty());
         assert_eq!(mt.expectations,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.expect_obj,
-                   parse2(quote!(foo::Expectations)).unwrap());
+                   parse2(quote!(__foo::Expectations)).unwrap());
         assert_eq!(mt.call, "call");
         assert!(mt.inputs.is_empty());
         assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());

@@ -204,6 +204,7 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     let abi = &sig.abi;
     let fn_token = &sig.fn_token;
     let ident = &sig.ident;
+    let private_meth_ident = format_ident!("__{}", &ident);
     let meth_types = method_types(sig, Some(generics));
     let merged_g = merge_generics(&generics, &meth_types.expectation_generics);
     let inputs = &meth_types.inputs;
@@ -256,7 +257,7 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     if meth_types.is_static {
         quote!({
             {
-                let __mockall_guard = #mod_ident::#ident::EXPECTATIONS
+                let __mockall_guard = #mod_ident::#private_meth_ident::EXPECTATIONS
                     .lock().unwrap();
                 /*
                  * TODO: catch panics, then gracefully release the mutex so it
@@ -285,9 +286,9 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
                /// Create a [`Context`](#mod_ident/ident/struct.Context.html)
                /// for mocking the `ident` method
                #expect_vis fn #context_ident()
-               -> #mod_ident::#ident::Context #ctx_tg
+               -> #mod_ident::#private_meth_ident::Context #ctx_tg
             {
-                #mod_ident::#ident::Context::default()
+                #mod_ident::#private_meth_ident::Context::default()
             }
         )
     } else {
@@ -364,6 +365,7 @@ fn gen_struct<T>(attrs: &[syn::Attribute],
         let expect_obj = &meth_types.expect_obj;
         let expectations = &meth_types.expectations;
         let meth_ident = &meth.borrow().sig.ident;
+        let private_meth_ident = format_ident!("__{}", &meth_ident);
         let output = &meth_types.output;
 
         let expect_vis = expectation_visibility(&meth.borrow().vis, 2);
@@ -379,7 +381,8 @@ fn gen_struct<T>(attrs: &[syn::Attribute],
         Expectation::new(&attrs, &meth_types.expectation_inputs,
                          &meth_types.expect_obj,
                          Some(&generics), &meth_types.expectation_generics,
-                         meth_ident, meth_ident, Some(&mock_ident), output,
+                         meth_ident, &private_meth_ident, Some(&mock_ident),
+                         output,
                          &expect_vis, 2).to_tokens(&mut mod_body);
 
         if !meth_types.is_static {
