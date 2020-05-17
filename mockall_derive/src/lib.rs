@@ -24,6 +24,7 @@ use syn::{
 
 mod automock;
 mod expectation;
+mod mock_function;
 mod mock_item;
 mod mock_item_struct;
 mod mockable_item;

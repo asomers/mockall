@@ -1,7 +1,6 @@
 // vim: tw=80
 use super::*;
 use quote::ToTokens;
-use std::borrow::Borrow;
 use syn::parse::{Parse, ParseStream};
 
 pub(crate) struct MockableStruct {
