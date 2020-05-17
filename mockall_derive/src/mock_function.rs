@@ -3,6 +3,119 @@ use super::*;
 
 use quote::ToTokens;
 
+/// Build a MockFunction.
+#[derive(Clone, Debug)]
+pub(crate) struct Builder {
+    levels: i32,
+    parent: Option<Ident>,
+    sig: Signature,
+    struct_: Option<Ident>,
+    vis: Visibility
+}
+
+impl Builder {
+    pub fn build(self) -> MockFunction {
+        let egenerics = Generics::default();    // TODO
+        let mut argnames = Vec::new();
+        let mut argty = Vec::new();
+        let mut is_static = true;
+        let mut predexprs = Vec::new();
+        let mut predty = Vec::new();
+        let mut refpredty = Vec::new();
+        for fa in self.sig.inputs.iter() {
+            if let FnArg::Typed(pt) = fa {
+                let argname = (*pt.pat).clone();
+                let aty = supersuperfy(&pt.ty, self.levels);
+                if let Type::Reference(ref tr) = aty {
+                    predexprs.push(quote!(#argname));
+                    predty.push((*tr.elem).clone());
+                    refpredty.push(aty.clone());
+                } else {
+                    predexprs.push(quote!(&#argname));
+                    predty.push(aty.clone());
+                    let tr = TypeReference {
+                        and_token: Token![&](Span::call_site()),
+                        lifetime: None,
+                        mutability: None,
+                        elem: Box::new(aty.clone())
+                    };
+                    refpredty.push(Type::Reference(tr));
+                };
+                argnames.push(argname);
+                argty.push(aty.clone());
+            } else {
+                is_static = false;
+                ()    // Strip out the "&self" argument
+            }
+        }
+        let output = supersuperfy(&match self.sig.output.clone() {
+            ReturnType::Default => Type::Tuple(TypeTuple{
+                paren_token: token::Paren(Span::call_site()),
+                elems: Punctuated::new()
+            }),
+            ReturnType::Type(_, ty) => (*ty).clone()
+        }, self.levels);
+        let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
+            self.sig.generics.clone(),
+            &self.sig.inputs,
+            &self.sig.output
+        );
+        let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+            egenerics.type_params().map(|tp| tp.ident.clone())
+        );
+        MockFunction {
+            alifetimes,
+            argnames,
+            argty,
+            egenerics,
+            fn_params,
+            is_static,
+            mod_ident: self.parent.unwrap(),
+            output,
+            predexprs,
+            predty,
+            refpredty,
+            rlifetimes,
+            sig: self.sig,
+            struct_: self.struct_,
+            vis: self.vis
+        }
+    }
+
+    /// How many levels of modules beneath the original function this one is
+    /// nested.
+    pub fn levels(&mut self, levels: i32) -> &mut Self {
+        self.levels = levels;
+        self
+    }
+
+    /// # Arguments
+    ///
+    /// * sig:      The signature of the mockable function
+    /// * v:        The visibility of the mockable function
+    pub fn new(sig: Signature, vis: Visibility) -> Self {
+        Builder {
+            levels: 0,
+            parent: None,
+            sig,
+            struct_: None,
+            vis
+        }
+    }
+
+    /// Supply the name of the parent module
+    pub fn parent(&mut self, ident: &Ident) -> &mut Self {
+        self.parent = Some(ident.clone());
+        self
+    }
+
+    /// Supply the name of the parent struct, if any
+    pub fn struct_(&mut self, ident: &Ident) -> &mut Self {
+        self.struct_= Some(ident.clone());
+        self
+    }
+}
+
 pub(crate) struct MockFunction {
     /// Lifetime Generics of the mocked method that relate to the arguments but
     /// not the return value
@@ -33,7 +146,7 @@ pub(crate) struct MockFunction {
     /// The signature of the mockable function
     sig: Signature,
     /// Name of the parent structure, if any
-    struct_ident: Option<Ident>,
+    struct_: Option<Ident>,
     /// Visibility of the expectation and its methods
     vis: Visibility
 }
@@ -62,95 +175,13 @@ impl MockFunction {
 
     // TODO: choose a better name
     fn ident_str(&self) -> String {
-        if let Some(si) = &self.struct_ident {
+        if let Some(si) = &self.struct_ {
             format!("{}::{}", si, self.sig.ident)
         } else {
             format!("{}", self.sig.ident)
         }
     }
 
-}
-
-impl From<(&Ident, Option<Ident>, i32, Signature, Visibility)> for MockFunction {
-    /// Create a MockFunction.
-    ///
-    /// # Arguments
-    ///
-    /// * ident:    Name of the parent module
-    /// * levels:   How many levels of modules beneath the original function
-    ///             this one is nested.
-    /// * sig:      The signature of the mockable function
-    /// * v:        The visibility of the mockable function
-    fn from((mod_ident, struct_ident, levels, sig, vis):
-            (&Ident, Option<Ident>, i32, Signature, Visibility))
-        -> MockFunction
-    {
-        let egenerics = Generics::default();    // TODO
-        let mut argnames = Vec::new();
-        let mut argty = Vec::new();
-        let mut is_static = true;
-        let mut predexprs = Vec::new();
-        let mut predty = Vec::new();
-        let mut refpredty = Vec::new();
-        for fa in sig.inputs.iter() {
-            if let FnArg::Typed(pt) = fa {
-                let argname = (*pt.pat).clone();
-                let aty = supersuperfy(&pt.ty, levels);
-                if let Type::Reference(ref tr) = aty {
-                    predexprs.push(quote!(#argname));
-                    predty.push((*tr.elem).clone());
-                    refpredty.push(aty.clone());
-                } else {
-                    predexprs.push(quote!(&#argname));
-                    predty.push(aty.clone());
-                    let tr = TypeReference {
-                        and_token: Token![&](Span::call_site()),
-                        lifetime: None,
-                        mutability: None,
-                        elem: Box::new(aty.clone())
-                    };
-                    refpredty.push(Type::Reference(tr));
-                };
-                argnames.push(argname);
-                argty.push(aty.clone());
-            } else {
-                is_static = false;
-                ()    // Strip out the "&self" argument
-            }
-        }
-        let output = supersuperfy(&match sig.output.clone() {
-            ReturnType::Default => Type::Tuple(TypeTuple{
-                paren_token: token::Paren(Span::call_site()),
-                elems: Punctuated::new()
-            }),
-            ReturnType::Type(_, ty) => (*ty).clone()
-        }, levels);
-        let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
-            sig.generics.clone(),
-            &sig.inputs,
-            &sig.output
-        );
-        let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
-            egenerics.type_params().map(|tp| tp.ident.clone())
-        );
-        MockFunction {
-            alifetimes,
-            argnames,
-            argty,
-            egenerics,
-            fn_params,
-            is_static,
-            mod_ident: mod_ident.clone(),
-            output,
-            predexprs,
-            predty,
-            refpredty,
-            rlifetimes,
-            sig: sig,
-            struct_ident,
-            vis
-        }
-    }
 }
 
 impl ToTokens for MockFunction {

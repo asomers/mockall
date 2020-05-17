@@ -24,9 +24,13 @@ impl From<MockableStruct> for MockItemStruct {
             pub_token: Token![pub](Span::call_site())
         });
         let methods = mockable.methods.into_iter()
-            .map(|meth|
-                MockFunction::from((&mock_ident, Some(struct_name.clone()), 1, meth.sig, vis.clone()))
-            ).collect::<Vec<_>>();
+            .map(|meth| {
+                let mut builder = mock_function::Builder::new(meth.sig, vis.clone());
+                builder.parent(&mock_ident);
+                builder.struct_(&struct_name);
+                builder.levels(2);
+                builder.build()
+            }).collect::<Vec<_>>();
         MockItemStruct {
             generics: mockable.generics,
             methods,
