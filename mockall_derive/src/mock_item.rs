@@ -110,6 +110,7 @@ impl From<MockableModule> for MockItemModule {
                 },
                 Item::Fn(f) => {
                     let mf = mock_function::Builder::new(&f.sig, &f.vis)
+                        .attrs(&f.attrs)
                         .parent(&mock_ident)
                         .levels(1)
                         .build();

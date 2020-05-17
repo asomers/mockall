@@ -28,6 +28,7 @@ impl From<MockableStruct> for MockItemStruct {
         let methods = mockable.methods.into_iter()
             .map(|meth|
                 mock_function::Builder::new(&meth.sig, &meth.vis)
+                    .attrs(&meth.attrs)
                     .parent(&mock_ident)
                     .struct_(&struct_name)
                     .levels(2)
@@ -50,6 +51,9 @@ impl ToTokens for MockItemStruct {
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let methods = &self.methods;
         let modname = &self.modname;
+        let checkpoints = methods.iter()
+            .map(|meth| meth.checkpoint())
+            .collect::<Vec<_>>();
         let expectations_objects = methods.iter()
             .map(|meth| {
                 let name = meth.name();
@@ -57,7 +61,12 @@ impl ToTokens for MockItemStruct {
                 quote!(#name: #modname::#expectations_obj,)
             }).collect::<Vec<_>>();
         let vis = &self.vis;
-        let mut default_body = TokenStream::new();  // TODO
+        let default_constructions = methods.iter()
+            .map(|meth| {
+                let name = meth.name();
+                let expectations_obj = &meth.expectations_obj();
+                quote!(#name: #modname::#expectations_obj::default(),)
+            }).collect::<Vec<_>>();
         quote!(
             #[allow(non_snake_case)]
             #[doc(hidden)]
@@ -77,11 +86,27 @@ impl ToTokens for MockItemStruct {
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
-                        #default_body
+                        #(#default_constructions)*
                     }
                 }
             }
-            impl #ig #struct_name #tg #wc {}
+            impl #ig #struct_name #tg #wc {
+                #[doc = "Immediately validate all expectations and clear them."]
+                pub fn checkpoint(&mut self) {
+                    #(#checkpoints)*
+                }
+                // TODO: don't add the new method if the struct already has one
+                /// Create a new mock object with no expectations.
+                ///
+                /// This method will not be generated if the real struct
+                /// already has a `new` method.  However, it *will* be
+                /// generated if the struct implements a trait with a `new`
+                /// method.  The trait's `new` method can still be called
+                /// like `<MockX as TraitY>::new`
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            }
         ).to_tokens(tokens);
     }
 }

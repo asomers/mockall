@@ -3,9 +3,21 @@ use super::*;
 
 use quote::ToTokens;
 
+fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
+    let mut out = TokenStream::new();
+    for attr in attrs {
+        let is_doc = attr.path.get_ident().map(|i| i == "doc").unwrap_or(false);
+        if !is_doc || include_docs {
+            attr.to_tokens(&mut out);
+        }
+    }
+    out
+}
+
 /// Build a MockFunction.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Builder<'a> {
+    attrs: &'a [Attribute],
     levels: i32,
     parent: Option<&'a Ident>,
     sig: &'a Signature,
@@ -14,6 +26,11 @@ pub(crate) struct Builder<'a> {
 }
 
 impl<'a> Builder<'a> {
+    pub fn attrs(&mut self, attrs: &'a[Attribute]) -> &mut Self {
+        self.attrs = attrs;
+        self
+    }
+
     pub fn build(self) -> MockFunction {
         let egenerics = Generics::default();    // TODO
         let mut argnames = Vec::new();
@@ -67,6 +84,7 @@ impl<'a> Builder<'a> {
             alifetimes,
             argnames,
             argty,
+            attrs: self.attrs.to_vec(),
             egenerics,
             fn_params,
             is_static,
@@ -95,6 +113,7 @@ impl<'a> Builder<'a> {
     /// * v:        The visibility of the mockable function
     pub fn new(sig: &'a Signature, vis: &'a Visibility) -> Self {
         Builder {
+            attrs: &[],
             levels: 0,
             parent: None,
             sig,
@@ -124,6 +143,8 @@ pub(crate) struct MockFunction {
     argnames: Vec<Pat>,
     /// Types of the method arguments
     argty: Vec<Type>,
+    /// any attributes on the original function, like #[inline]
+    attrs: Vec<Attribute>,
     /// Type Generics of the Expectation object
     egenerics: Generics,
     /// The mock function's generic types as a list of types
@@ -155,12 +176,15 @@ impl MockFunction {
     /// Return this method's contribution to its parent's checkpoint method
     pub fn checkpoint(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();
-        quote!(
-            let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
-                .unwrap()
-                .checkpoint()
-                .collect::<Vec<_>>();
-        )
+        if self.is_static {
+            // Don't checkpoint static methods.  They get checkpointed by their
+            // context objects instead.
+            quote!()
+        } else {
+            let attrs_nodocs = format_attrs(&self.attrs, false);
+            let name = &self.name();
+            quote!(#attrs_nodocs { self.#name.checkpoint(); })
+        }
     }
 
     /// Return the name of this function's expecations object
