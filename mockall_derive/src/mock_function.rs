@@ -154,13 +154,19 @@ pub(crate) struct MockFunction {
 impl MockFunction {
     /// Return this method's contribution to its parent's checkpoint method
     pub fn checkpoint(&self) -> impl ToTokens {
-        let inner_mod_ident = format_ident!("__{}", &self.sig.ident);
+        let inner_mod_ident = self.inner_mod_ident();
         quote!(
             let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
                 .unwrap()
                 .checkpoint()
                 .collect::<Vec<_>>();
         )
+    }
+
+    /// Return the name of this function's expecations object
+    pub fn expectations_obj(&self) -> impl ToTokens {
+        let inner_mod_ident = self.inner_mod_ident();
+        quote!(#inner_mod_ident::Expectations)
     }
 
     // TODO: return a Syn object instead of a TokenStream
@@ -176,12 +182,19 @@ impl MockFunction {
     // TODO: choose a better name
     fn ident_str(&self) -> String {
         if let Some(si) = &self.struct_ {
-            format!("{}::{}", si, self.sig.ident)
+            format!("{}::{}", si, self.name())
         } else {
-            format!("{}", self.sig.ident)
+            format!("{}", self.name())
         }
     }
 
+    fn inner_mod_ident(&self) -> Ident {
+        format_ident!("__{}", &self.name())
+    }
+
+    pub fn name(&self) -> &Ident {
+        &self.sig.ident
+    }
 }
 
 impl ToTokens for MockFunction {
@@ -192,7 +205,7 @@ impl ToTokens for MockFunction {
         // TODO: non-Static expectations
         let expectation = &StaticExpectation{f: self};
         let expectations = &StaticExpectations{f: self};
-        let fn_ident = &self.sig.ident;
+        let fn_ident = &self.name();
         let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
             fn_ident);
         let context_ident = format_ident!("{}_context", fn_ident);
@@ -201,12 +214,11 @@ impl ToTokens for MockFunction {
         let guard = &ConcreteExpectationGuard{f: self};
         let matcher = &Matcher{f: self};
         let mod_ident = &self.mod_ident;
-        let inner_mod_ident = format_ident!("__{}", &self.sig.ident);
+        let inner_mod_ident = self.inner_mod_ident();
         let no_match_msg = format!("{}::{}: No matching expectation found",
             mod_ident, fn_ident);
         let orig_signature = &self.sig;
         let rfunc = &Rfunc{f: self};
-        //let v = &self.vis;
         let v = expectation_visibility(&self.vis, 1);
         quote!(
             #[allow(missing_docs)]

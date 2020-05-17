@@ -24,12 +24,10 @@ impl From<MockableStruct> for MockItemStruct {
         let mock_ident = gen_mod_ident(&mockable.name, None);
         let modname = gen_mod_ident(&mockable.original_name, None);
         let struct_name = &mockable.name;
-        let vis = Visibility::Public(VisPublic{
-            pub_token: Token![pub](Span::call_site())
-        });
+        let vis = &mockable.vis;
         let methods = mockable.methods.into_iter()
             .map(|meth|
-                mock_function::Builder::new(&meth.sig, &vis)
+                mock_function::Builder::new(&meth.sig, &meth.vis)
                     .parent(&mock_ident)
                     .struct_(&struct_name)
                     .levels(2)
@@ -52,6 +50,12 @@ impl ToTokens for MockItemStruct {
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let methods = &self.methods;
         let modname = &self.modname;
+        let expectations_objects = methods.iter()
+            .map(|meth| {
+                let name = meth.name();
+                let expectations_obj = &meth.expectations_obj();
+                quote!(#name: #modname::#expectations_obj,)
+            }).collect::<Vec<_>>();
         let vis = &self.vis;
         let mut default_body = TokenStream::new();  // TODO
         quote!(
@@ -66,10 +70,9 @@ impl ToTokens for MockItemStruct {
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
             //attr_ts
-            #vis struct #struct_name
-            //ig wc
+            #vis struct #struct_name #ig #wc
             {
-                //body
+                #(#expectations_objects)*
             }
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {

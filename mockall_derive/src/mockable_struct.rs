@@ -16,7 +16,7 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
 pub(crate) struct MockableStruct {
     pub generics: Generics,
     /// Inherent methods of the mockable struct
-    pub methods: Vec<TraitItemMethod>,
+    pub methods: Vec<ImplItemMethod>,
     pub name: Ident,
     /// Name of the original struct.
     pub original_name: Ident,
@@ -27,9 +27,21 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
     fn from((attrs, item_trait): (Attrs, ItemTrait)) -> MockableStruct {
         let trait_ = attrs.substitute_trait(&item_trait);
         let mut methods = Vec::new();
+        let pub_token = Token![pub](Span::call_site());
+        let empty_block = Block {
+            brace_token: token::Brace::default(),
+            stmts: Vec::new()
+        };
         for item in item_trait.items.into_iter() {
             if let TraitItem::Method(meth) = item {
-                methods.push(meth);
+                let iim = ImplItemMethod {
+                    attrs: meth.attrs,
+                    block: empty_block.clone(),
+                    defaultness: None,
+                    sig: meth.sig,
+                    vis: Visibility::Public(VisPublic{pub_token})
+                };
+                methods.push(iim);
             }
         }
         MockableStruct {
@@ -61,13 +73,7 @@ impl From<ItemImpl> for MockableStruct {
         let mut methods = Vec::new();
         for item in item_impl.items.into_iter() {
             if let ImplItem::Method(meth) = item {
-                let tim = TraitItemMethod {
-                    attrs: meth.attrs,
-                    default: None,
-                    semi_token: Some(Token![;](Span::call_site())),
-                    sig: meth.sig,
-                };
-                methods.push(tim);
+                methods.push(meth);
             }
         }
         let pub_token = Token![pub](Span::call_site());
