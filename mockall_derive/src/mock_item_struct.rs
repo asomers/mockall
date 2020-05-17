@@ -3,22 +3,32 @@ use super::*;
 
 use quote::ToTokens;
 
+use crate::mock_function::MockFunction;
+
+
 
 pub(crate) struct MockItemStruct {
     generics: Generics,
     /// Inherent methods of the mock struct
-    //methods: Vec<MockFunction>,
+    methods: Vec<MockFunction>,
     name: Ident,
     //traits: Vec<MockTraitImpl>
+    vis: Visibility,
 }
 
 impl From<MockableStruct> for MockItemStruct {
     fn from(mockable: MockableStruct) -> MockItemStruct {
+        let mock_ident = gen_mod_ident(&mockable.name, None);
+        let methods = Vec::new();
+        //let methods = mockable.methods.into_iter()
+            //.map(|meth| MockFunction::from((&mock_ident, 1, meth)))
+            //.collect::<Vec<_>>();
         MockItemStruct {
             generics: mockable.generics,
-            //methods: Vec::new(),
+            methods,
             name: mockable.name,
             //traits: Vec::new()
+            vis: mockable.vis
         }
     }
 }
@@ -27,6 +37,7 @@ impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
+        let vis = &self.vis;
         let mut default_body = TokenStream::new();  // TODO
         quote!(
             //#[allow(non_snake_case)]
@@ -39,8 +50,7 @@ impl ToTokens for MockItemStruct {
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
             //attr_ts
-            //vis
-            struct #struct_name
+            #vis struct #struct_name
             //ig wc
             {
                 //body

@@ -3,6 +3,16 @@ use super::*;
 use quote::ToTokens;
 use syn::parse::{Parse, ParseStream};
 
+fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
+        if path.segments.len() != 1 {
+            compile_error(path.span(),
+                "mockall_derive only supports structs defined in the current module");
+            return (Ident::new("", path.span()), PathArguments::None);
+        }
+        let last_seg = path.segments.last().unwrap();
+        (last_seg.ident.clone(), last_seg.arguments.clone())
+}
+
 pub(crate) struct MockableStruct {
     pub generics: Generics,
     /// Inherent methods of the mockable struct
@@ -32,8 +42,37 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
 }
 
 impl From<ItemImpl> for MockableStruct {
-    fn from(_s: ItemImpl) -> MockableStruct {
-        unimplemented!("8");
+    fn from(item_impl: ItemImpl) -> MockableStruct {
+        let name = match *item_impl.self_ty {
+            Type::Path(type_path) => {
+                gen_mock_ident(&find_ident_from_path(&type_path.path).0)
+            },
+            x => {
+                compile_error(x.span(),
+                    "mockall_derive only supports mocking traits and structs");
+                Ident::new("", Span::call_site())
+            }
+        };
+        let mut methods = Vec::new();
+        for item in item_impl.items.into_iter() {
+            if let ImplItem::Method(meth) = item {
+                let tim = TraitItemMethod {
+                    attrs: meth.attrs,
+                    default: None,
+                    semi_token: Some(Token![;](Span::call_site())),
+                    sig: meth.sig,
+                };
+                methods.push(tim);
+            }
+        }
+        let pub_token = Token![pub](Span::call_site());
+        let vis = Visibility::Public(VisPublic{pub_token});
+        MockableStruct {
+            vis,
+            name,
+            generics: item_impl.generics,
+            methods,
+        }
     }
 }
 
