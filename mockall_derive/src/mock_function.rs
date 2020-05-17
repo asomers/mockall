@@ -32,6 +32,8 @@ pub(crate) struct MockFunction {
     rlifetimes: Generics,
     /// The signature of the mockable function
     sig: Signature,
+    /// Name of the parent structure, if any
+    struct_ident: Option<Ident>,
     /// Visibility of the expectation and its methods
     vis: Visibility
 }
@@ -60,17 +62,16 @@ impl MockFunction {
 
     // TODO: choose a better name
     fn ident_str(&self) -> String {
-        // TODO: incorporate structure name
-        //if let Some(pi) = self.mod_ident {
-            //format!("{}::{}", pi, self.meth_ident)
-        //} else {
+        if let Some(si) = &self.struct_ident {
+            format!("{}::{}", si, self.sig.ident)
+        } else {
             format!("{}", self.sig.ident)
-        //}
+        }
     }
 
 }
 
-impl From<(&Ident, i32, Signature, Visibility)> for MockFunction {
+impl From<(&Ident, Option<Ident>, i32, Signature, Visibility)> for MockFunction {
     /// Create a MockFunction.
     ///
     /// # Arguments
@@ -80,7 +81,8 @@ impl From<(&Ident, i32, Signature, Visibility)> for MockFunction {
     ///             this one is nested.
     /// * sig:      The signature of the mockable function
     /// * v:        The visibility of the mockable function
-    fn from((ident, levels, sig, vis): (&Ident, i32, Signature, Visibility))
+    fn from((mod_ident, struct_ident, levels, sig, vis):
+            (&Ident, Option<Ident>, i32, Signature, Visibility))
         -> MockFunction
     {
         let egenerics = Generics::default();    // TODO
@@ -138,13 +140,14 @@ impl From<(&Ident, i32, Signature, Visibility)> for MockFunction {
             egenerics,
             fn_params,
             is_static,
-            mod_ident: ident.clone(),
+            mod_ident: mod_ident.clone(),
             output,
             predexprs,
             predty,
             refpredty,
             rlifetimes,
             sig: sig,
+            struct_ident,
             vis
         }
     }

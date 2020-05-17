@@ -110,7 +110,7 @@ impl From<MockableModule> for MockItemModule {
                 },
                 Item::Fn(f) => {
                     Some(MockItemContent::Fn(
-                        MockFunction::from((&mock_ident, 1, f.sig, f.vis))
+                        MockFunction::from((&mock_ident, None, 1, f.sig, f.vis))
                     ))
                 },
                 Item::Mod(_) | Item::ForeignMod(_)
