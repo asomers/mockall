@@ -19,10 +19,13 @@ pub(crate) struct MockItemStruct {
 impl From<MockableStruct> for MockItemStruct {
     fn from(mockable: MockableStruct) -> MockItemStruct {
         let mock_ident = gen_mod_ident(&mockable.name, None);
-        let methods = Vec::new();
-        //let methods = mockable.methods.into_iter()
-            //.map(|meth| MockFunction::from((&mock_ident, 1, meth)))
-            //.collect::<Vec<_>>();
+        let vis = Visibility::Public(VisPublic{
+            pub_token: Token![pub](Span::call_site())
+        });
+        let methods = mockable.methods.into_iter()
+            .map(|meth|
+                MockFunction::from((&mock_ident, 1, meth.sig, vis.clone()))
+            ).collect::<Vec<_>>();
         MockItemStruct {
             generics: mockable.generics,
             methods,
@@ -37,15 +40,17 @@ impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
+        let methods = &self.methods;
         let vis = &self.vis;
         let mut default_body = TokenStream::new();  // TODO
         quote!(
-            //#[allow(non_snake_case)]
-            //#[doc(hidden)]
-            //pub mod mod_ident {
-                //use super::*;
-                ////mod_body
-            //}
+            #[allow(non_snake_case)]
+            #[doc(hidden)]
+            pub mod mod_ident {
+                use super::*;
+                #(#methods)*
+                //mod_body
+            }
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
