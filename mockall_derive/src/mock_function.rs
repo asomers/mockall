@@ -4,16 +4,16 @@ use super::*;
 use quote::ToTokens;
 
 /// Build a MockFunction.
-#[derive(Clone, Debug)]
-pub(crate) struct Builder {
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Builder<'a> {
     levels: i32,
-    parent: Option<Ident>,
-    sig: Signature,
-    struct_: Option<Ident>,
-    vis: Visibility
+    parent: Option<&'a Ident>,
+    sig: &'a Signature,
+    struct_: Option<&'a Ident>,
+    vis: &'a Visibility
 }
 
-impl Builder {
+impl<'a> Builder<'a> {
     pub fn build(self) -> MockFunction {
         let egenerics = Generics::default();    // TODO
         let mut argnames = Vec::new();
@@ -70,15 +70,15 @@ impl Builder {
             egenerics,
             fn_params,
             is_static,
-            mod_ident: self.parent.unwrap(),
+            mod_ident: self.parent.unwrap().clone(),
             output,
             predexprs,
             predty,
             refpredty,
             rlifetimes,
-            sig: self.sig,
-            struct_: self.struct_,
-            vis: self.vis
+            sig: self.sig.clone(),
+            struct_: self.struct_.cloned(),
+            vis: self.vis.clone()
         }
     }
 
@@ -93,7 +93,7 @@ impl Builder {
     ///
     /// * sig:      The signature of the mockable function
     /// * v:        The visibility of the mockable function
-    pub fn new(sig: Signature, vis: Visibility) -> Self {
+    pub fn new(sig: &'a Signature, vis: &'a Visibility) -> Self {
         Builder {
             levels: 0,
             parent: None,
@@ -104,14 +104,14 @@ impl Builder {
     }
 
     /// Supply the name of the parent module
-    pub fn parent(&mut self, ident: &Ident) -> &mut Self {
-        self.parent = Some(ident.clone());
+    pub fn parent(&mut self, ident: &'a Ident) -> &mut Self {
+        self.parent = Some(ident);
         self
     }
 
     /// Supply the name of the parent struct, if any
-    pub fn struct_(&mut self, ident: &Ident) -> &mut Self {
-        self.struct_= Some(ident.clone());
+    pub fn struct_(&mut self, ident: &'a Ident) -> &mut Self {
+        self.struct_= Some(ident);
         self
     }
 }

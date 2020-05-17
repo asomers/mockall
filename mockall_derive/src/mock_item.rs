@@ -109,10 +109,11 @@ impl From<MockableModule> for MockItemModule {
                     Some(MockItemContent::Tokens(ic.into_token_stream()))
                 },
                 Item::Fn(f) => {
-                    let mut builder = mock_function::Builder::new(f.sig, f.vis);
-                    builder.parent(&mock_ident);
-                    builder.levels(1);
-                    Some(MockItemContent::Fn(builder.build()))
+                    let mf = mock_function::Builder::new(&f.sig, &f.vis)
+                        .parent(&mock_ident)
+                        .levels(1)
+                        .build();
+                    Some(MockItemContent::Fn(mf))
                 },
                 Item::Mod(_) | Item::ForeignMod(_)
                     | Item::Struct(_) | Item::Enum(_)
