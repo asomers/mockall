@@ -17,8 +17,6 @@ pub(crate) struct MockFunction {
     fn_params: Punctuated<Ident, Token![,]>,
     /// Is this for a static method or free function?
     is_static: bool,
-    /// The mockable version of the function
-    item_fn: ItemFn,
     /// name of the function's parent module
     mod_ident: Ident,
     /// Output type of the Method, supersuperfied.
@@ -32,6 +30,8 @@ pub(crate) struct MockFunction {
     refpredty: Vec<Type>,
     /// Lifetime Generics of the mocked method that relate to the return value
     rlifetimes: Generics,
+    /// The signature of the mockable function
+    sig: Signature,
     /// Visibility of the expectation and its methods
     vis: Visibility
 }
@@ -39,7 +39,7 @@ pub(crate) struct MockFunction {
 impl MockFunction {
     /// Return this method's contribution to its parent's checkpoint method
     pub fn checkpoint(&self) -> impl ToTokens {
-        let inner_mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
+        let inner_mod_ident = format_ident!("__{}", &self.sig.ident);
         quote!(
             let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
                 .unwrap()
@@ -64,13 +64,13 @@ impl MockFunction {
         //if let Some(pi) = self.mod_ident {
             //format!("{}::{}", pi, self.meth_ident)
         //} else {
-            format!("{}", self.item_fn.sig.ident)
+            format!("{}", self.sig.ident)
         //}
     }
 
 }
 
-impl From<(&Ident, i32, ItemFn)> for MockFunction {
+impl From<(&Ident, i32, Signature, Visibility)> for MockFunction {
     /// Create a MockFunction.
     ///
     /// # Arguments
@@ -78,8 +78,11 @@ impl From<(&Ident, i32, ItemFn)> for MockFunction {
     /// * ident:    Name of the parent module
     /// * levels:   How many levels of modules beneath the original function
     ///             this one is nested.
-    /// * f:        The MockableFunction to mock
-    fn from((ident, levels, f): (&Ident, i32, ItemFn)) -> MockFunction {
+    /// * sig:      The signature of the mockable function
+    /// * v:        The visibility of the mockable function
+    fn from((ident, levels, sig, vis): (&Ident, i32, Signature, Visibility))
+        -> MockFunction
+    {
         let egenerics = Generics::default();    // TODO
         let mut argnames = Vec::new();
         let mut argty = Vec::new();
@@ -87,7 +90,7 @@ impl From<(&Ident, i32, ItemFn)> for MockFunction {
         let mut predexprs = Vec::new();
         let mut predty = Vec::new();
         let mut refpredty = Vec::new();
-        for fa in f.sig.inputs.iter() {
+        for fa in sig.inputs.iter() {
             if let FnArg::Typed(pt) = fa {
                 let argname = (*pt.pat).clone();
                 let aty = supersuperfy(&pt.ty, levels);
@@ -113,7 +116,7 @@ impl From<(&Ident, i32, ItemFn)> for MockFunction {
                 ()    // Strip out the "&self" argument
             }
         }
-        let output = supersuperfy(&match f.sig.output.clone() {
+        let output = supersuperfy(&match sig.output.clone() {
             ReturnType::Default => Type::Tuple(TypeTuple{
                 paren_token: token::Paren(Span::call_site()),
                 elems: Punctuated::new()
@@ -121,14 +124,13 @@ impl From<(&Ident, i32, ItemFn)> for MockFunction {
             ReturnType::Type(_, ty) => (*ty).clone()
         }, levels);
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
-            f.sig.generics.clone(),
-            &f.sig.inputs,
-            &f.sig.output
+            sig.generics.clone(),
+            &sig.inputs,
+            &sig.output
         );
         let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
             egenerics.type_params().map(|tp| tp.ident.clone())
         );
-        let vis = f.vis.clone();
         MockFunction {
             alifetimes,
             argnames,
@@ -136,13 +138,13 @@ impl From<(&Ident, i32, ItemFn)> for MockFunction {
             egenerics,
             fn_params,
             is_static,
-            item_fn: f,
             mod_ident: ident.clone(),
             output,
             predexprs,
             predty,
             refpredty,
             rlifetimes,
+            sig: sig,
             vis
         }
     }
@@ -156,7 +158,7 @@ impl ToTokens for MockFunction {
         // TODO: non-Static expectations
         let expectation = &StaticExpectation{f: self};
         let expectations = &StaticExpectations{f: self};
-        let fn_ident = &self.item_fn.sig.ident;
+        let fn_ident = &self.sig.ident;
         let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
             fn_ident);
         let context_ident = format_ident!("{}_context", fn_ident);
@@ -165,10 +167,10 @@ impl ToTokens for MockFunction {
         let guard = &ConcreteExpectationGuard{f: self};
         let matcher = &Matcher{f: self};
         let mod_ident = &self.mod_ident;
-        let inner_mod_ident = format_ident!("__{}", &self.item_fn.sig.ident);
+        let inner_mod_ident = format_ident!("__{}", &self.sig.ident);
         let no_match_msg = format!("{}::{}: No matching expectation found",
             mod_ident, fn_ident);
-        let orig_signature = &self.item_fn.sig;
+        let orig_signature = &self.sig;
         let rfunc = &Rfunc{f: self};
         //let v = &self.vis;
         let v = expectation_visibility(&self.vis, 1);
