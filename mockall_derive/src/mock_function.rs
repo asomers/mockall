@@ -173,18 +173,87 @@ pub(crate) struct MockFunction {
 }
 
 impl MockFunction {
+    /// Return the mock function itself
+    pub fn call(&self) -> impl ToTokens {
+        let argnames = &self.argnames;
+        let (ig, tg, wc) = self.egenerics.split_for_impl();
+        let tbf = tg.as_turbofish();
+        let name = self.name();
+        let fn_docstr = format!("Mock version of the `{}` function", name);
+        let no_match_msg = if let Some(s) = &self.struct_ {
+            format!("{}::{}: No matching expectation found", s, name)
+        } else {
+            format!("{}::{}: No matching expectation found", self.mod_ident,
+                    self.name())
+        };
+        let sig = &self.sig;
+        let vis = &self.vis;
+        if self.is_static {
+            let inner_mod_ident = self.inner_mod_ident();
+            quote!(
+                #[doc = #fn_docstr]
+                #vis #sig {
+                    {
+                        let __mockall_guard = #inner_mod_ident::EXPECTATIONS
+                            .lock().unwrap();
+                        /*
+                         * TODO: catch panics, then gracefully release the mutex
+                         * so it won't be poisoned.  This requires bounding any
+                         * generic parameters with UnwindSafe
+                         */
+                        /* std::panic::catch_unwind(|| */
+                        __mockall_guard.call(#(#argnames),*)
+                        /*)*/
+                    }.expect(#no_match_msg)
+                }
+            )
+        } else {
+            // TODO:
+            // * call vs call_mut
+            // * call_exprs (declosurefy)
+            // * substructs
+            // * Add fn_docstr
+            quote!(
+                #vis #sig {
+                    self.#name.call#tbf(#(#argnames),*)
+                    .expect(#no_match_msg)
+                }
+
+            )
+        }
+    }
+
     /// Return this method's contribution to its parent's checkpoint method
     pub fn checkpoint(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();
         if self.is_static {
-            // Don't checkpoint static methods.  They get checkpointed by their
-            // context objects instead.
-            quote!()
+            quote!(
+                let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
+                    .unwrap()
+                    .checkpoint()
+                    .collect::<Vec<_>>();
+            )
         } else {
-            let attrs_nodocs = format_attrs(&self.attrs, false);
+            let attrs = format_attrs(&self.attrs, false);
             let name = &self.name();
-            quote!(#attrs_nodocs { self.#name.checkpoint(); })
+            quote!(#attrs { self.#name.checkpoint(); })
         }
+    }
+
+    /// Return a function that creates a Context object for this function
+    pub fn context_fn(&self) -> impl ToTokens {
+        let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
+            self.name());
+        let context_ident = format_ident!("{}_context", self.name());
+        let inner_mod_ident = self.inner_mod_ident();
+        let v = expectation_visibility(&self.vis, 1);
+        quote!(
+            #[doc = #context_docstr]
+            #v fn #context_ident() -> #inner_mod_ident::Context
+            {
+                #inner_mod_ident::Context::default()
+            }
+        )
     }
 
     /// Return the name of this function's expecations object
@@ -219,20 +288,17 @@ impl MockFunction {
     pub fn name(&self) -> &Ident {
         &self.sig.ident
     }
-}
 
-impl ToTokens for MockFunction {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    /// Generate code for this function's private module
+    pub fn priv_module(&self) -> impl ToTokens {
         let argnames = &self.argnames;
+        let call = self.call();
         let common = &Common{f: self};
         let context = &Context{f: self};
         // TODO: non-Static expectations
         let expectation = &StaticExpectation{f: self};
         let expectations = &StaticExpectations{f: self};
         let fn_ident = &self.name();
-        let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
-            fn_ident);
-        let context_ident = format_ident!("{}_context", fn_ident);
         let fn_docstr = format!("Mock version of the `{}` function", fn_ident);
         // TODO: ExpectationGuard for generic methods
         let guard = &ConcreteExpectationGuard{f: self};
@@ -243,7 +309,6 @@ impl ToTokens for MockFunction {
             mod_ident, fn_ident);
         let orig_signature = &self.sig;
         let rfunc = &Rfunc{f: self};
-        let v = expectation_visibility(&self.vis, 1);
         quote!(
             #[allow(missing_docs)]
             pub mod #inner_mod_ident {
@@ -263,27 +328,7 @@ impl ToTokens for MockFunction {
                 #guard
                 #context
             }
-            #[doc = #fn_docstr]
-            #v #orig_signature {
-                {
-                    let __mockall_guard = #inner_mod_ident::EXPECTATIONS
-                        .lock().unwrap();
-                    /*
-                     * TODO: catch panics, then gracefully release the mutex so
-                     * it won't be poisoned.  This requires bounding any generic
-                     * parameters with UnwindSafe
-                     */
-                    /* std::panic::catch_unwind(|| */
-                    __mockall_guard.call(#(#argnames),*)
-                    /*)*/
-                }.expect(#no_match_msg)
-            }
-            #[doc = #context_docstr]
-            #v fn #context_ident() -> #inner_mod_ident::Context
-            {
-                #inner_mod_ident::Context::default()
-            }
-        ).to_tokens(tokens);
+        )
     }
 }
 

@@ -159,7 +159,14 @@ impl ToTokens for MockItemModule {
             match item {
                 MockItemContent::Tokens(ts) => ts.to_tokens(&mut body),
                 MockItemContent::Fn(f) => {
-                    f.to_tokens(&mut body);
+                    let call = f.call();
+                    let ctx_fn = f.context_fn();
+                    let priv_mod = f.priv_module();
+                    quote!(
+                        #priv_mod
+                        #call
+                        #ctx_fn
+                    ).to_tokens(&mut body);
                     f.checkpoint().to_tokens(&mut cp_body);
                 },
             }

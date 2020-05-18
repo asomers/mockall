@@ -49,19 +49,24 @@ impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
-        let methods = &self.methods;
         let modname = &self.modname;
-        let checkpoints = methods.iter()
+        let calls = self.methods.iter()
+            .map(|meth| meth.call())
+            .collect::<Vec<_>>();
+        let checkpoints = self.methods.iter()
             .map(|meth| meth.checkpoint())
             .collect::<Vec<_>>();
-        let expectations_objects = methods.iter()
+        let expectations_objects = self.methods.iter()
             .map(|meth| {
                 let name = meth.name();
                 let expectations_obj = &meth.expectations_obj();
                 quote!(#name: #modname::#expectations_obj,)
             }).collect::<Vec<_>>();
+        let priv_mods = self.methods.iter()
+            .map(|meth| meth.priv_module())
+            .collect::<Vec<_>>();
         let vis = &self.vis;
-        let default_constructions = methods.iter()
+        let default_constructions = self.methods.iter()
             .map(|meth| {
                 let name = meth.name();
                 let expectations_obj = &meth.expectations_obj();
@@ -72,7 +77,7 @@ impl ToTokens for MockItemStruct {
             #[doc(hidden)]
             pub mod #modname {
                 use super::*;
-                #(#methods)*
+                #(#priv_mods)*
                 //mod_body
             }
             #[allow(non_camel_case_types)]
@@ -91,6 +96,7 @@ impl ToTokens for MockItemStruct {
                 }
             }
             impl #ig #struct_name #tg #wc {
+                #(#calls)*
                 #[doc = "Immediately validate all expectations and clear them."]
                 pub fn checkpoint(&mut self) {
                     #(#checkpoints)*
