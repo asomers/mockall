@@ -3,17 +3,6 @@ use super::*;
 
 use quote::ToTokens;
 
-fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
-    let mut out = TokenStream::new();
-    for attr in attrs {
-        let is_doc = attr.path.get_ident().map(|i| i == "doc").unwrap_or(false);
-        if !is_doc || include_docs {
-            attr.to_tokens(&mut out);
-        }
-    }
-    out
-}
-
 /// Build a MockFunction.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Builder<'a> {
@@ -189,6 +178,7 @@ impl MockFunction {
     /// Return the mock function itself
     pub fn call(&self) -> impl ToTokens {
         let argnames = &self.argnames;
+        let attrs = self.format_attrs(true);
         let (ig, tg, wc) = self.egenerics.split_for_impl();
         let tbf = tg.as_turbofish();
         let name = self.name();
@@ -204,6 +194,7 @@ impl MockFunction {
         if self.is_static {
             let inner_mod_ident = self.inner_mod_ident();
             quote!(
+                #attrs
                 #[doc = #fn_docstr]
                 #vis #sig {
                     {
@@ -227,6 +218,7 @@ impl MockFunction {
             // * substructs
             // * Add fn_docstr
             quote!(
+                #attrs
                 #vis #sig {
                     self.#name.call#tbf(#(#argnames),*)
                     .expect(#no_match_msg)
@@ -247,7 +239,7 @@ impl MockFunction {
                     .collect::<Vec<_>>();
             )
         } else {
-            let attrs = format_attrs(&self.attrs, false);
+            let attrs = self.format_attrs(false);
             let name = &self.name();
             quote!(#attrs { self.#name.checkpoint(); })
         }
@@ -277,7 +269,7 @@ impl MockFunction {
     // Supplying modname is an unfortunately hack.  Ideally MockFunction
     // wouldn't need to know that.
     pub fn expect(&self, modname: &Ident) -> impl ToTokens {
-        let attrs = format_attrs(&self.attrs, false);
+        let attrs = self.format_attrs(false);
         let name = self.name();
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
@@ -324,6 +316,17 @@ impl MockFunction {
         quote!(#inner_mod_ident::Expectations)
     }
 
+    pub fn format_attrs(&self, include_docs: bool) -> impl ToTokens {
+        let mut out = TokenStream::new();
+        for attr in &self.attrs {
+            let is_doc = attr.path.get_ident().map(|i| i == "doc").unwrap_or(false);
+            if !is_doc || include_docs {
+                attr.to_tokens(&mut out);
+            }
+        }
+        out
+    }
+
     // TODO: return a Syn object instead of a TokenStream
     fn hrtb(&self) -> TokenStream {
         if self.alifetimes.params.is_empty() {
@@ -354,6 +357,7 @@ impl MockFunction {
     /// Generate code for this function's private module
     pub fn priv_module(&self) -> impl ToTokens {
         let argnames = &self.argnames;
+        let attrs = self.format_attrs(false);
         let call = self.call();
         let common = &Common{f: self};
         let context = &Context{f: self};
@@ -377,6 +381,7 @@ impl MockFunction {
         let orig_signature = &self.sig;
         let rfunc = &Rfunc{f: self};
         quote!(
+            #attrs
             #[allow(missing_docs)]
             pub mod #inner_mod_ident {
                 use super::*;

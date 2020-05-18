@@ -66,8 +66,9 @@ impl ToTokens for MockItemStruct {
         let expectations_objects = self.methods.iter()
             .map(|meth| {
                 let name = meth.name();
+                let attrs = meth.format_attrs(false);
                 let expectations_obj = &meth.expectations_obj();
-                quote!(#name: #modname::#expectations_obj,)
+                quote!(#attrs #name: #modname::#expectations_obj,)
             }).collect::<Vec<_>>();
         let priv_mods = self.methods.iter()
             .map(|meth| meth.priv_module())
@@ -76,8 +77,9 @@ impl ToTokens for MockItemStruct {
         let default_constructions = self.methods.iter()
             .map(|meth| {
                 let name = meth.name();
+                let attrs = meth.format_attrs(false);
                 let expectations_obj = &meth.expectations_obj();
-                quote!(#name: #modname::#expectations_obj::default(),)
+                quote!(#attrs #name: #modname::#expectations_obj::default(),)
             }).collect::<Vec<_>>();
         quote!(
             #[allow(non_snake_case)]
