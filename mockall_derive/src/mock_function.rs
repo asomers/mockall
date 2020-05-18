@@ -256,6 +256,55 @@ impl MockFunction {
         )
     }
 
+    /// Generate code for the expect_ method
+    ///
+    /// # Arguments
+    ///
+    /// * `modname`:    Name of the parent struct's private module
+    // Supplying modname is an unfortunately hack.  Ideally MockFunction
+    // wouldn't need to know that.
+    pub fn expect(&self, modname: &Ident) -> impl ToTokens {
+        let attrs = format_attrs(&self.attrs, false);
+        let name = self.name();
+        let expect_ident = format_ident!("expect_{}", &name);
+        let expectation_obj = self.expectation_obj();
+        let inner_mod_ident = self.inner_mod_ident();
+        let (ig, tg, wc) = self.egenerics.split_for_impl();
+        let tbf = tg.as_turbofish();
+        let vis = &self.vis;
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let must_use = quote!(#[must_use =
+                "Must set return value when not using the \"nightly\" feature"
+            ]);
+        #[cfg(feature = "nightly_derive")]
+        let must_use = quote!();
+
+        // TODO:
+        // * substructs
+        // * Fancy generics alternatives
+        // * Fix "#mod_ident" in the doc string
+        quote!(
+            #must_use
+            #attrs
+            /// Create an
+            /// [`Expectation`](#mod_ident/ident/struct.Expectation.html) for
+            /// mocking the `ident` method
+            #vis fn #expect_ident #ig(&mut self)
+               -> &mut #modname::#expectation_obj
+               #wc
+            {
+                self.#name.expect#tbf()
+            }
+        )
+    }
+
+    /// Return the name of this function's expecation object
+    pub fn expectation_obj(&self) -> impl ToTokens {
+        let inner_mod_ident = self.inner_mod_ident();
+        quote!(#inner_mod_ident::Expectation)
+    }
+
     /// Return the name of this function's expecations object
     pub fn expectations_obj(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();

@@ -56,6 +56,9 @@ impl ToTokens for MockItemStruct {
         let checkpoints = self.methods.iter()
             .map(|meth| meth.checkpoint())
             .collect::<Vec<_>>();
+        let expects = self.methods.iter()
+            .map(|meth| meth.expect(&modname))
+            .collect::<Vec<_>>();
         let expectations_objects = self.methods.iter()
             .map(|meth| {
                 let name = meth.name();
@@ -96,7 +99,7 @@ impl ToTokens for MockItemStruct {
                 }
             }
             impl #ig #struct_name #tg #wc {
-                #(#calls)*
+                #(#calls #expects)*
                 #[doc = "Immediately validate all expectations and clear them."]
                 pub fn checkpoint(&mut self) {
                     #(#checkpoints)*
