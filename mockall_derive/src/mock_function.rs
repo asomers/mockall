@@ -353,6 +353,11 @@ impl MockFunction {
         let guard = &ConcreteExpectationGuard{f: self};
         let matcher = &Matcher{f: self};
         let mod_ident = &self.mod_ident;
+        let std_mutexguard = if self.is_static {
+            quote!(use ::std::sync::MutexGuard;)
+        } else {
+            quote!()
+        };
         let inner_mod_ident = self.inner_mod_ident();
         let no_match_msg = format!("{}::{}: No matching expectation found",
             mod_ident, fn_ident);
@@ -363,7 +368,7 @@ impl MockFunction {
             pub mod #inner_mod_ident {
                 use super::*;
                 use ::mockall::CaseTreeExt;
-                use ::std::sync::MutexGuard;
+                #std_mutexguard
                 use ::std::{
                     mem,
                     ops::{DerefMut, Range},
