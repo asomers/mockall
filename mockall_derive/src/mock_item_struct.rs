@@ -32,7 +32,8 @@ impl From<MockableStruct> for MockItemStruct {
                     .attrs(&meth.attrs)
                     .parent(&mock_ident)
                     .struct_(&struct_name)
-                    .levels(2)
+                    .levels(1)
+                    .call_levels(0)
                     .build()
             ).collect::<Vec<_>>();
         MockItemStruct {

@@ -18,6 +18,7 @@ fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Builder<'a> {
     attrs: &'a [Attribute],
+    call_levels: Option<i32>,
     levels: i32,
     parent: Option<&'a Ident>,
     sig: &'a Signature,
@@ -80,11 +81,13 @@ impl<'a> Builder<'a> {
         let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
             egenerics.type_params().map(|tp| tp.ident.clone())
         );
+        let call_levels = self.call_levels.unwrap_or(self.levels);
         MockFunction {
             alifetimes,
             argnames,
             argty,
             attrs: self.attrs.to_vec(),
+            call_vis: expectation_visibility(self.vis, call_levels),
             egenerics,
             fn_params,
             is_static,
@@ -96,12 +99,19 @@ impl<'a> Builder<'a> {
             rlifetimes,
             sig: self.sig.clone(),
             struct_: self.struct_.cloned(),
-            vis: self.vis.clone()
+            privmod_vis: expectation_visibility(self.vis, self.levels + 1)
         }
     }
 
     /// How many levels of modules beneath the original function this one is
     /// nested.
+    pub fn call_levels(&mut self, levels: i32) -> &mut Self {
+        self.call_levels = Some(levels);
+        self
+    }
+
+    /// How many levels of modules beneath the original function this one's
+    /// private module is nested.
     pub fn levels(&mut self, levels: i32) -> &mut Self {
         self.levels = levels;
         self
@@ -115,6 +125,7 @@ impl<'a> Builder<'a> {
         Builder {
             attrs: &[],
             levels: 0,
+            call_levels: None,
             parent: None,
             sig,
             struct_: None,
@@ -145,6 +156,8 @@ pub(crate) struct MockFunction {
     argty: Vec<Type>,
     /// any attributes on the original function, like #[inline]
     attrs: Vec<Attribute>,
+    /// Visibility of the mock function itself
+    call_vis: Visibility,
     /// Type Generics of the Expectation object
     egenerics: Generics,
     /// The mock function's generic types as a list of types
@@ -169,7 +182,7 @@ pub(crate) struct MockFunction {
     /// Name of the parent structure, if any
     struct_: Option<Ident>,
     /// Visibility of the expectation and its methods
-    vis: Visibility
+    privmod_vis: Visibility
 }
 
 impl MockFunction {
@@ -187,7 +200,7 @@ impl MockFunction {
                     self.name())
         };
         let sig = &self.sig;
-        let vis = &self.vis;
+        let vis = &self.call_vis;
         if self.is_static {
             let inner_mod_ident = self.inner_mod_ident();
             quote!(
@@ -246,7 +259,7 @@ impl MockFunction {
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
         let inner_mod_ident = self.inner_mod_ident();
-        let v = expectation_visibility(&self.vis, 1);
+        let v = &self.call_vis;
         quote!(
             #[doc = #context_docstr]
             #v fn #context_ident() -> #inner_mod_ident::Context
@@ -271,7 +284,7 @@ impl MockFunction {
         let inner_mod_ident = self.inner_mod_ident();
         let (ig, tg, wc) = self.egenerics.split_for_impl();
         let tbf = tg.as_turbofish();
-        let vis = &self.vis;
+        let vis = &self.call_vis;
 
         #[cfg(not(feature = "nightly_derive"))]
         let must_use = quote!(#[must_use =
@@ -560,7 +573,7 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
             self.f.argnames.iter().zip(with_generics_idents.iter())
             .map(|(argname, id)| quote!(#argname: #id, ))
         );
-        let v = expectation_visibility(&self.f.vis, 2);
+        let v = &self.f.privmod_vis;
         quote!(
             /// Add this expectation to a
             /// [`Sequence`](../../../mockall/struct.Sequence.html).
@@ -680,7 +693,7 @@ struct CommonExpectationsMethods<'a> {
 impl<'a> ToTokens for CommonExpectationsMethods<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let v = expectation_visibility(&self.f.vis, 2);
+        let v = &self.f.privmod_vis;
         quote!(
             /// A collection of [`Expectation`](struct.Expectations.html)
             /// objects.  Users will rarely if ever use this struct directly.
@@ -759,7 +772,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
             self.f.argnames.iter().zip(with_generics_idents.iter())
             .map(|(argname, id)| quote!(#argname: #id, ))
         );
-        let v = expectation_visibility(&self.f.vis, 2);
+        let v = &self.f.privmod_vis;
         quote!(
             ::mockall::lazy_static! {
                 #[doc(hidden)]
@@ -944,7 +957,7 @@ impl<'a> ToTokens for Context<'a> {
         meth_generics.params.push(GenericParam::Lifetime(ltdef.clone()));
         let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
         let ctx_fn_params = Punctuated::<Ident, Token![,]>::new();  // TODO
-        let v = expectation_visibility(&self.f.vis, 2);
+        let v = &self.f.privmod_vis;
 
         #[cfg(not(feature = "nightly_derive"))]
         let must_use = quote!(#[must_use =
@@ -1203,7 +1216,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
         let common_tg = &tg; // TODO: get the generics right
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
-        let v = expectation_visibility(&self.f.vis, 2);
+        let v = &self.f.privmod_vis;
         quote!(
             /// Expectation type for methods that return a `'static` type.
             /// This is the type returned by the `expect_*` methods.
@@ -1346,7 +1359,7 @@ impl<'a> ToTokens for StaticExpectations<'a> {
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
         let predexprs = &self.f.predexprs;
-        let v = expectation_visibility(&self.f.vis, 2);
+        let v = &self.f.privmod_vis;
         quote!(
             #common_methods
             impl #ig Expectations #tg #wc {
@@ -1369,5 +1382,3 @@ impl<'a> ToTokens for StaticExpectations<'a> {
         ).to_tokens(tokens);
     }
 }
-
-

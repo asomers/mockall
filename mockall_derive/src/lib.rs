@@ -784,6 +784,7 @@ fn split_lifetimes(
 fn expectation_visibility(vis: &Visibility, levels: i32)
     -> Visibility
 {
+    debug_assert!(levels >= 0);
     if levels == 0 {
         return vis.clone();
     }
