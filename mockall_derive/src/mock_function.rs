@@ -670,6 +670,10 @@ struct ConcreteExpectationGuard<'a> {
 
 impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        if !self.f.is_static {
+            return;
+        }
+
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
@@ -864,6 +868,10 @@ struct Context<'a> {
 
 impl<'a> ToTokens for Context<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        if !self.f.is_static {
+            return;
+        }
+
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
