@@ -14,6 +14,7 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
 }
 
 pub(crate) struct MockableStruct {
+    pub attrs: Vec<Attribute>,
     pub generics: Generics,
     /// Inherent methods of the mockable struct
     pub methods: Vec<ImplItemMethod>,
@@ -45,7 +46,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
             }
         }
         MockableStruct {
-            //attrs: item_trait.attrs.clone(),
+            attrs: item_trait.attrs.clone(),
             vis: item_trait.vis.clone(),
             name: gen_mock_ident(&item_trait.ident),
             generics: item_trait.generics,
@@ -79,6 +80,7 @@ impl From<ItemImpl> for MockableStruct {
         let pub_token = Token![pub](Span::call_site());
         let vis = Visibility::Public(VisPublic{pub_token});
         MockableStruct {
+            attrs: item_impl.attrs.clone(),
             vis,
             name,
             generics: item_impl.generics,

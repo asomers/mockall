@@ -8,6 +8,7 @@ use crate::mock_function::MockFunction;
 
 
 pub(crate) struct MockItemStruct {
+    attrs: Vec<Attribute>,
     generics: Generics,
     /// Inherent methods of the mock struct
     methods: Vec<MockFunction>,
@@ -35,6 +36,7 @@ impl From<MockableStruct> for MockItemStruct {
                     .build()
             ).collect::<Vec<_>>();
         MockItemStruct {
+            attrs: mockable.attrs,
             generics: mockable.generics,
             methods,
             modname,
@@ -47,6 +49,7 @@ impl From<MockableStruct> for MockItemStruct {
 
 impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let attrs = &self.attrs;
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let modname = &self.modname;
@@ -86,7 +89,7 @@ impl ToTokens for MockItemStruct {
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
-            //attr_ts
+            #(#attrs)*
             #vis struct #struct_name #ig #wc
             {
                 #(#expectations_objects)*
