@@ -108,6 +108,7 @@ impl From<ItemMod> for MockableModule {
             "automock can only mock inline modules, not modules from another file");
             Vec::new()
         };
+        // TODO: demutify funcs
         MockableModule { vis, mock_ident, mod_token, orig_ident, content }
     }
 }

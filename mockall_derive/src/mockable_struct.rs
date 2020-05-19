@@ -13,6 +13,12 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
         (last_seg.ident.clone(), last_seg.arguments.clone())
 }
 
+/// Performs transformations on the method to make it mockable
+fn mockable_method(mut meth: ImplItemMethod) -> ImplItemMethod {
+    demutify(&mut meth.sig.inputs);
+    meth
+}
+
 pub(crate) struct MockableStruct {
     pub attrs: Vec<Attribute>,
     pub generics: Generics,
@@ -42,7 +48,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
                     sig: meth.sig,
                     vis: Visibility::Public(VisPublic{pub_token})
                 };
-                methods.push(iim);
+                methods.push(mockable_method(iim));
             }
         }
         MockableStruct {
@@ -74,7 +80,7 @@ impl From<ItemImpl> for MockableStruct {
         let mut methods = Vec::new();
         for item in item_impl.items.into_iter() {
             if let ImplItem::Method(meth) = item {
-                methods.push(meth);
+                methods.push(mockable_method(meth));
             }
         }
         let pub_token = Token![pub](Span::call_site());

@@ -215,11 +215,8 @@ fn deimplify(rt: &mut ReturnType) {
 }
 
 /// Remove any mutability qualifiers from a method's argument list
-fn demutify(inputs: &Punctuated<FnArg, token::Comma>)
-    -> Punctuated<FnArg, token::Comma>
-{
-    let mut output = inputs.clone();
-    for arg in output.iter_mut() {
+fn demutify(inputs: &mut Punctuated<FnArg, token::Comma>) {
+    for arg in inputs.iter_mut() {
         match arg {
             FnArg::Receiver(r) => if r.reference.is_none() {
                 r.mutability = None
@@ -227,7 +224,6 @@ fn demutify(inputs: &Punctuated<FnArg, token::Comma>)
             FnArg::Typed(pt) => demutify_arg(pt),
         }
     }
-    output
 }
 
 /// Remove any "mut" from a method argument's binding.
@@ -844,7 +840,8 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     } else {
         sig.generics.clone()
     };
-    let inputs = demutify(&sig.inputs);
+    let mut inputs = sig.inputs.clone();
+    demutify(&mut inputs);
     let (no_lt_g, _, rlg) = split_lifetimes(merged_generics,
                                             &sig.inputs, &sig.output);
     let with_ret_lt_g = merge_generics(&no_lt_g, &rlg);
