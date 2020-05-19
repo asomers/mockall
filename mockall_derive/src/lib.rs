@@ -10,7 +10,7 @@ extern crate proc_macro;
 
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use std::{
     collections::{HashMap, HashSet},
     iter::FromIterator
@@ -464,6 +464,17 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
         }
 
     }
+}
+
+fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
+    let mut out = TokenStream::new();
+    for attr in attrs {
+        let is_doc = attr.path.get_ident().map(|i| i == "doc").unwrap_or(false);
+        if !is_doc || include_docs {
+            attr.to_tokens(&mut out);
+        }
+    }
+    out
 }
 
 /// Return a new Generics object based on the given one but with lifetimes
