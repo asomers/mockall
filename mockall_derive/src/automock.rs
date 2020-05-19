@@ -332,11 +332,15 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
         match item {
             ForeignItem::Fn(f) => {
                 let mod_ident = format_ident!("__{}", &f.sig.ident);
+                let attrs_nodocs = format_attrs(&f.attrs, false);
                 quote!(
-                    let __mockall_timeses = #mod_ident::EXPECTATIONS.lock()
-                        .unwrap()
-                        .checkpoint()
-                        .collect::<Vec<_>>();
+                    #attrs_nodocs
+                    {
+                        let __mockall_timeses = #mod_ident::EXPECTATIONS.lock()
+                            .unwrap()
+                            .checkpoint()
+                            .collect::<Vec<_>>();
+                    }
                 ).to_tokens(&mut cp_body);
                 mock_foreign_function(&modname, f).to_tokens(&mut body);
             },
@@ -369,10 +373,11 @@ fn mock_foreign_function(modname: &Ident, f: ForeignItemFn) -> TokenStream {
     // unsafe too, to prevent "warning: unused unsafe" messages.
     let mut sig = f.sig.clone();
     sig.unsafety = Some(Token![unsafe](f.sig.span()));
-    mock_function(modname, &f.vis, &sig)
+    mock_function(modname, &f.attrs, &f.vis, &sig)
 }
 
-fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
+fn mock_function(modname: &Ident, attrs: &[Attribute], vis: &Visibility,
+                 sig: &Signature)
     -> TokenStream
 {
     let asyncness = &sig.asyncness;
@@ -388,6 +393,7 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
             quote!(#decl_output)
         }
     };
+    let attrs_nodocs = format_attrs(&attrs, false);
     let mut args = Vec::new();
 
     if sig.variadic.is_some() {
@@ -423,7 +429,7 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
     g.params.push(GenericParam::Lifetime(ltd));
 
     let mut out = TokenStream::new();
-    Expectation::new(&TokenStream::new(), &inputs, &expect_obj, None, generics,
+    Expectation::new(&attrs_nodocs, &inputs, &expect_obj, None, generics,
         &ident, &mod_ident, None, &sig.output, &expect_vis, 1)
         .to_tokens(&mut out);
     let no_match_msg = format!("{}::{}: No matching expectation found",
@@ -437,6 +443,7 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
         quote!( #[doc = #inner_ds])
     };
     quote!(
+        #attrs_nodocs
         #fn_docstr
         #meth_vis #constness #unsafety #asyncness
         #fn_token #ident #generics (#inputs) #output {
@@ -453,6 +460,7 @@ fn mock_function(modname: &Ident, vis: &Visibility, sig: &Signature)
                 /*)*/
             }.expect(#no_match_msg)
         }
+        #attrs_nodocs
         #context_docstr
         #meth_vis fn #context_ident() -> #mod_ident::Context
         {
@@ -580,11 +588,15 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
             Item::Const(ic) => ic.to_tokens(&mut body),
             Item::Fn(f) => {
                 let mod_ident = format_ident!("__{}", &f.sig.ident);
+                let attrs_nodocs = format_attrs(&f.attrs, false);
                 quote!(
-                    let __mockall_timeses = #mod_ident::EXPECTATIONS.lock()
-                        .unwrap()
-                        .checkpoint()
-                        .collect::<Vec<_>>();
+                    #attrs_nodocs
+                    {
+                        let __mockall_timeses = #mod_ident::EXPECTATIONS.lock()
+                            .unwrap()
+                            .checkpoint()
+                            .collect::<Vec<_>>();
+                    }
                 ).to_tokens(&mut cp_body);
                 mock_native_function(&modname, &f).to_tokens(&mut body);
             },
@@ -627,7 +639,7 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
 /// Mock a function the same way we mock static trait methods: with a
 /// global Expectations object
 fn mock_native_function(modname: &Ident, f: &ItemFn) -> TokenStream {
-    mock_function(modname, &f.vis, &f.sig)
+    mock_function(modname, &f.attrs, &f.vis, &f.sig)
 }
 
 /// Generate a mock struct that implements a trait
