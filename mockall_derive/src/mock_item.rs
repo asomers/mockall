@@ -179,16 +179,18 @@ impl ToTokens for MockItemModule {
             pub fn checkpoint() { #cp_body }
         ).to_tokens(&mut body);
         let docstr = {
-            let inner_ds = if let Some(ident) = &self.orig_ident {
-                format!("Mock version of the `{}` module", ident)
+            if let Some(ident) = &self.orig_ident {
+                let inner = format!("Mock version of the `{}` module", ident);
+                quote!( #[doc = #inner])
             } else {
-                format!("TODO: write doc string")
-            };
-            quote!( #[doc = #inner_ds])
+                // TODO: write doc string
+                quote!(#[allow(missing_docs)])
+            }
         };
         quote!(
             #docstr
-            pub mod #modname { #body }
-        ).to_tokens(tokens);
+            pub mod #modname {
+                #body
+        }).to_tokens(tokens);
     }
 }
