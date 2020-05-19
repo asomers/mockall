@@ -109,6 +109,7 @@ impl From<ItemMod> for MockableModule {
             Vec::new()
         };
         // TODO: demutify funcs
+        // TODO: deimplify funcs
         MockableModule { vis, mock_ident, mod_token, orig_ident, content }
     }
 }

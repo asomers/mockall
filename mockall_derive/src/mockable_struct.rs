@@ -16,6 +16,7 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
 /// Performs transformations on the method to make it mockable
 fn mockable_method(mut meth: ImplItemMethod) -> ImplItemMethod {
     demutify(&mut meth.sig.inputs);
+    deimplify(&mut meth.sig.output);
     meth
 }
 
