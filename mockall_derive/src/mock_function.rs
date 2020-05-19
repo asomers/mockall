@@ -230,13 +230,17 @@ impl MockFunction {
 
     /// Return this method's contribution to its parent's checkpoint method
     pub fn checkpoint(&self) -> impl ToTokens {
+        let attrs = self.format_attrs(false);
         let inner_mod_ident = self.inner_mod_ident();
         if self.is_static {
             quote!(
-                let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
-                    .unwrap()
-                    .checkpoint()
-                    .collect::<Vec<_>>();
+                #attrs
+                {
+                    let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
+                        .unwrap()
+                        .checkpoint()
+                        .collect::<Vec<_>>();
+                }
             )
         } else {
             let attrs = self.format_attrs(false);
@@ -247,12 +251,14 @@ impl MockFunction {
 
     /// Return a function that creates a Context object for this function
     pub fn context_fn(&self) -> impl ToTokens {
+        let attrs = self.format_attrs(false);
         let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
         let inner_mod_ident = self.inner_mod_ident();
         let v = &self.call_vis;
         quote!(
+            #attrs
             #[doc = #context_docstr]
             #v fn #context_ident() -> #inner_mod_ident::Context
             {
