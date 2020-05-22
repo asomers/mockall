@@ -107,7 +107,7 @@ impl ToTokens for MockItemStruct {
                 let name = meth.name();
                 let attrs = meth.format_attrs(false);
                 let expectations_obj = &meth.expectations_obj();
-                quote!(#attrs #name: #modname::#expectations_obj,)
+                quote!(#attrs #name: #modname::#expectations_obj)
             }).collect::<Vec<_>>();
         let expects = if self.substruct {
             Vec::new()
@@ -156,15 +156,15 @@ impl ToTokens for MockItemStruct {
             #(#attrs)*
             #vis struct #struct_name #ig #wc
             {
-                #(#expectations_objects)*
-                #(#substruct_expectations: #substruct_type_names)*
+                #(#expectations_objects),*
+                #(#substruct_expectations: #substruct_type_names),*
             }
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
                         // TODO: try removing the type names, and just use
                         // "default"
-                        #(#substruct_expectations: #substruct_type_names::default())*
+                        #(#substruct_expectations: #substruct_type_names::default()),*
                         #(#default_constructions)*
                     }
                 }
