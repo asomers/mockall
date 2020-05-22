@@ -64,28 +64,14 @@ pub(crate) struct MockableStruct {
 impl From<(Attrs, ItemTrait)> for MockableStruct {
     fn from((attrs, item_trait): (Attrs, ItemTrait)) -> MockableStruct {
         let trait_ = attrs.substitute_trait(&item_trait);
-        let mut methods = Vec::new();
-        let pub_token = Token![pub](Span::call_site());
-        let meth_vis = Visibility::Public(VisPublic{pub_token}); 
-        let empty_block = Block {
-            brace_token: token::Brace::default(),
-            stmts: Vec::new()
-        };
-        for item in item_trait.items.into_iter() {
-            if let TraitItem::Method(meth) = item {
-                let iim = tim2iim(meth, &meth_vis);
-                methods.push(mockable_method(iim));
-            }
-        }
         MockableStruct {
-            attrs: item_trait.attrs.clone(),
-            vis: item_trait.vis.clone(),
-            name: gen_mock_ident(&item_trait.ident),
-            generics: item_trait.generics,
-            methods,
-            original_name: item_trait.ident,
-            // TODO: mock trait methods as traits methods, not struct methods
-            traits: Vec::new()
+            attrs: trait_.attrs.clone(),
+            vis: trait_.vis.clone(),
+            name: gen_mock_ident(&trait_.ident),
+            generics: trait_.generics.clone(),
+            methods: Vec::new(),
+            original_name: trait_.ident.clone(),
+            traits: vec![mockable_trait(trait_)]
         }
     }
 }

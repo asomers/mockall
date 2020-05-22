@@ -51,7 +51,7 @@ impl From<MockableStruct> for MockItemStruct {
         let mock_ident = gen_mod_ident(&mockable.name, None);
         let modname = gen_mod_ident(&mockable.original_name, None);
         let struct_name = &mockable.name;
-        let vis = &mockable.vis;
+        let vis = mockable.vis;
         let methods = mockable.methods.into_iter()
             .map(|meth|
                 mock_function::Builder::new(&meth.sig, &meth.vis)
@@ -64,7 +64,7 @@ impl From<MockableStruct> for MockItemStruct {
             ).collect::<Vec<_>>();
         let structname = &mockable.name;
         let traits = mockable.traits.into_iter()
-            .map(|t| MockTrait::new(structname, t))
+            .map(|t| MockTrait::new(structname, t, &vis))
             .collect();
         MockItemStruct {
             attrs: mockable.attrs,
@@ -74,7 +74,7 @@ impl From<MockableStruct> for MockItemStruct {
             name: mockable.name,
             substruct: false,
             traits,
-            vis: mockable.vis
+            vis
         }
     }
 }

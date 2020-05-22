@@ -18,13 +18,17 @@ impl MockTrait {
         &self.name
     }
 
-    pub fn new(structname: &Ident, trait_: ItemTrait) -> Self {
-        let pub_token = Token![pub](Span::call_site());
-        let meth_vis = Visibility::Public(VisPublic{pub_token}); 
+    /// Create a new MockTrait
+    ///
+    /// # Arguments
+    /// * `structname` - name of the struct that implements this trait
+    /// * `trait_`  -    Mockable ItemTrait
+    /// * `vis`     -   Visibility of the struct
+    pub fn new(structname: &Ident, trait_: ItemTrait, vis: &Visibility) -> Self {
         let mut methods = Vec::new();
         for ti in trait_.items.into_iter() {
             if let TraitItem::Method(tim) = ti {
-                let mf = mock_function::Builder::new(&tim.sig, &meth_vis)
+                let mf = mock_function::Builder::new(&tim.sig, &vis)
                     .attrs(&tim.attrs)
                     .levels(1)
                     .call_levels(0)
