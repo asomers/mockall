@@ -65,7 +65,7 @@ impl Mock {
             quote!(impl #ig #mock_sub_name #tg #wc {
                 /// Validate that all current expectations for all methods have
                 /// been satisfied, and discard them.
-                fn checkpoint(&mut self) {
+                pub fn checkpoint(&mut self) {
                     #sub_cp_body
                 }
             }).to_tokens(&mut output);
@@ -88,7 +88,8 @@ impl Mock {
         }
         // generate the mock struct's inherent methods
         quote!(
-            #[doc = "Immediately validate all expectations and clear them."]
+            /// Validate that all current expectations for all methods have
+            /// been satisfied, and discard them.
             pub fn checkpoint(&mut self) {
                 #cp_body
             }
