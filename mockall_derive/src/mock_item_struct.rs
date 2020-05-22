@@ -3,8 +3,10 @@ use super::*;
 
 use quote::ToTokens;
 
-use crate::mock_function::MockFunction;
-
+use crate::{
+    mock_function::MockFunction,
+    mock_trait::MockTrait
+};
 
 
 pub(crate) struct MockItemStruct {
@@ -16,7 +18,7 @@ pub(crate) struct MockItemStruct {
     // TODO: base this on name so we can get rid of MockableStruct.original_name
     modname: Ident,
     name: Ident,
-    //traits: Vec<MockTraitImpl>
+    traits: Vec<MockTrait>,
     vis: Visibility,
 }
 
@@ -36,13 +38,16 @@ impl From<MockableStruct> for MockItemStruct {
                     .call_levels(0)
                     .build()
             ).collect::<Vec<_>>();
+        let traits = mockable.traits.into_iter()
+            .map(|t| MockTrait::from(t))
+            .collect();
         MockItemStruct {
             attrs: mockable.attrs,
             generics: mockable.generics,
             methods,
             modname,
             name: mockable.name,
-            //traits: Vec::new()
+            traits,
             vis: mockable.vis
         }
     }
@@ -50,6 +55,7 @@ impl From<MockableStruct> for MockItemStruct {
 
 impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        println!("got here");
         let attrs = &self.attrs;
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
@@ -60,6 +66,13 @@ impl ToTokens for MockItemStruct {
         let checkpoints = self.methods.iter()
             .map(|meth| meth.checkpoint())
             .collect::<Vec<_>>();
+        let default_constructions = self.methods.iter()
+            .map(|meth| {
+                let name = meth.name();
+                let attrs = meth.format_attrs(false);
+                let expectations_obj = &meth.expectations_obj();
+                quote!(#attrs #name: #modname::#expectations_obj::default(),)
+            }).collect::<Vec<_>>();
         let expects = self.methods.iter()
             .map(|meth| meth.expect(&modname))
             .collect::<Vec<_>>();
@@ -73,21 +86,22 @@ impl ToTokens for MockItemStruct {
         let priv_mods = self.methods.iter()
             .map(|meth| meth.priv_module())
             .collect::<Vec<_>>();
-        let vis = &self.vis;
-        let default_constructions = self.methods.iter()
-            .map(|meth| {
-                let name = meth.name();
-                let attrs = meth.format_attrs(false);
-                let expectations_obj = &meth.expectations_obj();
-                quote!(#attrs #name: #modname::#expectations_obj::default(),)
+        let substruct_objects = self.traits.iter()
+            .map(|trait_| {
+                let name = format_ident!("{}_expectations", trait_.name());
+                let ty = format_ident!("{}_{}", self.name, trait_.name());
+                quote!(name: ty,)
             }).collect::<Vec<_>>();
+        //let substructs = self.traits.iter()
+            //.map(|trait_| trait_.substruct_object())
+            //.collect::<Vec<_>>();
+        let vis = &self.vis;
         quote!(
             #[allow(non_snake_case)]
             #[doc(hidden)]
             pub mod #modname {
                 use super::*;
                 #(#priv_mods)*
-                //mod_body
             }
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
@@ -96,6 +110,7 @@ impl ToTokens for MockItemStruct {
             #vis struct #struct_name #ig #wc
             {
                 #(#expectations_objects)*
+                #(#substruct_objects)*
             }
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {

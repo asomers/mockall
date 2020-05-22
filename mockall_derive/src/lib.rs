@@ -27,6 +27,7 @@ mod expectation;
 mod mock_function;
 mod mock_item;
 mod mock_item_struct;
+mod mock_trait;
 mod mockable_item;
 mod mockable_struct;
 use crate::automock::Attrs;

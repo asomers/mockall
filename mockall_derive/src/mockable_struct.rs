@@ -20,6 +20,17 @@ fn mockable_method(mut meth: ImplItemMethod) -> ImplItemMethod {
     meth
 }
 
+/// Performs transformations on the trait to make it mockable
+fn mockable_trait(mut trait_: ItemTrait) -> ItemTrait {
+    for item in trait_.items.iter_mut() {
+        if let TraitItem::Method(tim) = item {
+            demutify(&mut tim.sig.inputs);
+            deimplify(&mut tim.sig.output);
+        }
+    }
+    trait_
+}
+
 /// Converts a TraitItemMethod into an ImplItemMethod
 fn tim2iim(m: syn::TraitItemMethod, vis: &syn::Visibility)
     -> syn::ImplItemMethod
@@ -47,6 +58,7 @@ pub(crate) struct MockableStruct {
     /// Name of the original struct.
     pub original_name: Ident,
     pub vis: Visibility,
+    pub traits: Vec<ItemTrait>
 }
 
 impl From<(Attrs, ItemTrait)> for MockableStruct {
@@ -71,8 +83,9 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
             name: gen_mock_ident(&item_trait.ident),
             generics: item_trait.generics,
             methods,
-            original_name: item_trait.ident
-            //traits: vec![trait_]
+            original_name: item_trait.ident,
+            // TODO: mock trait methods as traits methods, not struct methods
+            traits: Vec::new()
         }
     }
 }
@@ -105,7 +118,8 @@ impl From<ItemImpl> for MockableStruct {
             name,
             generics: item_impl.generics,
             methods,
-            original_name
+            original_name,
+            traits: Vec::new()
         }
     }
 }
@@ -134,11 +148,11 @@ impl Parse for MockableStruct {
             }
         }
 
-        //let mut traits = Vec::new();
-        //while !input.is_empty() {
-            //let trait_: syn::ItemTrait = input.parse()?;
-            //traits.push(trait_);
-        //}
+        let mut traits = Vec::new();
+        while !input.is_empty() {
+            let trait_: syn::ItemTrait = input.parse()?;
+            traits.push(mockable_trait(trait_));
+        }
 
         Ok(
             MockableStruct {
@@ -147,7 +161,8 @@ impl Parse for MockableStruct {
                 name: gen_mock_ident(&original_name),
                 generics,
                 methods,
-                original_name
+                original_name,
+                traits
             }
         )
     }
