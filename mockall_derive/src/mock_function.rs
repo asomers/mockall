@@ -12,6 +12,7 @@ pub(crate) struct Builder<'a> {
     parent: Option<&'a Ident>,
     sig: &'a Signature,
     struct_: Option<&'a Ident>,
+    trait_: Option<&'a Ident>,
     vis: &'a Visibility
 }
 
@@ -80,7 +81,7 @@ impl<'a> Builder<'a> {
             egenerics,
             fn_params,
             is_static,
-            mod_ident: self.parent.unwrap().clone(),
+            mod_ident: self.parent.unwrap_or(&Ident::new("FIXME", Span::call_site())).clone(),
             output,
             predexprs,
             predty,
@@ -88,6 +89,7 @@ impl<'a> Builder<'a> {
             rlifetimes,
             sig: self.sig.clone(),
             struct_: self.struct_.cloned(),
+            trait_: self.trait_.cloned(),
             privmod_vis: expectation_visibility(self.vis, self.levels + 1)
         }
     }
@@ -118,6 +120,7 @@ impl<'a> Builder<'a> {
             parent: None,
             sig,
             struct_: None,
+            trait_: None,
             vis
         }
     }
@@ -133,8 +136,15 @@ impl<'a> Builder<'a> {
         self.struct_= Some(ident);
         self
     }
+
+    /// Supply the name of the method's trait, if any
+    pub fn trait_(&mut self, ident: &'a Ident) -> &mut Self {
+        self.trait_ = Some(ident);
+        self
+    }
 }
 
+#[derive(Clone)]
 pub(crate) struct MockFunction {
     /// Lifetime Generics of the mocked method that relate to the arguments but
     /// not the return value
@@ -170,6 +180,8 @@ pub(crate) struct MockFunction {
     sig: Signature,
     /// Name of the parent structure, if any
     struct_: Option<Ident>,
+    /// Name of this method's trait, if the method comes from a trait
+    trait_: Option<Ident>,
     /// Visibility of the expectation and its methods
     privmod_vis: Visibility
 }
@@ -190,7 +202,17 @@ impl MockFunction {
                     self.name())
         };
         let sig = &self.sig;
-        let vis = &self.call_vis;
+        let vis = if self.trait_.is_some() {
+            &Visibility::Inherited
+        } else {
+            &self.call_vis
+        };
+        let substruct_obj = if let Some(trait_) = &self.trait_ {
+            let ident = format_ident!("{}_expectations", trait_);
+            quote!(#ident.)
+        } else {
+            quote!()
+        };
         if self.is_static {
             let inner_mod_ident = self.inner_mod_ident();
             quote!(
@@ -220,7 +242,7 @@ impl MockFunction {
             quote!(
                 #attrs
                 #vis #sig {
-                    self.#name.call#tbf(#(#argnames),*)
+                    self.#substruct_obj #name.call#tbf(#(#argnames),*)
                     .expect(#no_match_msg)
                 }
 
@@ -291,6 +313,12 @@ impl MockFunction {
         #[cfg(feature = "nightly_derive")]
         let must_use = quote!();
 
+        let substruct_obj = if let Some(trait_) = &self.trait_ {
+            let ident = format_ident!("{}_expectations", trait_);
+            quote!(#ident.)
+        } else {
+            quote!()
+        };
         // TODO:
         // * substructs
         // * Fancy generics alternatives
@@ -305,7 +333,7 @@ impl MockFunction {
                -> &mut #modname::#expectation_obj
                #wc
             {
-                self.#name.expect#tbf()
+                self.#substruct_obj #name.expect#tbf()
             }
         )
     }

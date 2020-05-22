@@ -18,8 +18,32 @@ pub(crate) struct MockItemStruct {
     // TODO: base this on name so we can get rid of MockableStruct.original_name
     modname: Ident,
     name: Ident,
+    /// Is this a whole MockStruct or just a substructure for a trait impl?
+    substruct: bool,
     traits: Vec<MockTrait>,
     vis: Visibility,
+}
+
+impl MockItemStruct {
+    fn new_method(&self) -> impl ToTokens {
+        // TODO: don't add the new method if the struct already has one
+        if self.substruct {
+            TokenStream::new()
+        } else {
+            quote!(
+                /// Create a new mock object with no expectations.
+                ///
+                /// This method will not be generated if the real struct
+                /// already has a `new` method.  However, it *will* be
+                /// generated if the struct implements a trait with a `new`
+                /// method.  The trait's `new` method can still be called
+                /// like `<MockX as TraitY>::new`
+                pub fn new() -> Self {
+                    Self::default()
+                }
+            )
+        }
+    }
 }
 
 impl From<MockableStruct> for MockItemStruct {
@@ -38,8 +62,9 @@ impl From<MockableStruct> for MockItemStruct {
                     .call_levels(0)
                     .build()
             ).collect::<Vec<_>>();
+        let structname = &mockable.name;
         let traits = mockable.traits.into_iter()
-            .map(|t| MockTrait::from(t))
+            .map(|t| MockTrait::new(structname, t))
             .collect();
         MockItemStruct {
             attrs: mockable.attrs,
@@ -47,6 +72,7 @@ impl From<MockableStruct> for MockItemStruct {
             methods,
             modname,
             name: mockable.name,
+            substruct: false,
             traits,
             vis: mockable.vis
         }
@@ -55,15 +81,18 @@ impl From<MockableStruct> for MockItemStruct {
 
 impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        println!("got here");
         let attrs = &self.attrs;
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let modname = &self.modname;
-        let calls = self.methods.iter()
-            .map(|meth| meth.call())
-            .collect::<Vec<_>>();
-        let checkpoints = self.methods.iter()
+        let calls = if self.substruct {
+            Vec::new()
+        } else {
+            self.methods.iter()
+                .map(|meth| meth.call())
+                .collect::<Vec<_>>()
+        };
+        let method_checkpoints = self.methods.iter()
             .map(|meth| meth.checkpoint())
             .collect::<Vec<_>>();
         let default_constructions = self.methods.iter()
@@ -73,9 +102,6 @@ impl ToTokens for MockItemStruct {
                 let expectations_obj = &meth.expectations_obj();
                 quote!(#attrs #name: #modname::#expectations_obj::default(),)
             }).collect::<Vec<_>>();
-        let expects = self.methods.iter()
-            .map(|meth| meth.expect(&modname))
-            .collect::<Vec<_>>();
         let expectations_objects = self.methods.iter()
             .map(|meth| {
                 let name = meth.name();
@@ -83,18 +109,39 @@ impl ToTokens for MockItemStruct {
                 let expectations_obj = &meth.expectations_obj();
                 quote!(#attrs #name: #modname::#expectations_obj,)
             }).collect::<Vec<_>>();
+        let expects = if self.substruct {
+            Vec::new()
+        } else {
+            self.methods.iter()
+                .map(|meth| meth.expect(&modname))
+                .collect::<Vec<_>>()
+        };
+        let new_method = self.new_method();
         let priv_mods = self.methods.iter()
             .map(|meth| meth.priv_module())
             .collect::<Vec<_>>();
-        let substruct_objects = self.traits.iter()
+        let substructs = self.traits.iter()
             .map(|trait_| {
-                let name = format_ident!("{}_expectations", trait_.name());
-                let ty = format_ident!("{}_{}", self.name, trait_.name());
-                quote!(name: ty,)
+                MockItemStruct {
+                    attrs: trait_.attrs.clone(),
+                    generics: trait_.generics.clone(),
+                    methods: trait_.methods.clone(),
+                    modname: format_ident!("{}_{}", &self.modname, trait_.name()),
+                    name: format_ident!("{}_{}", &self.name, trait_.name()),
+                    substruct: true,
+                    traits: Vec::new(),
+                    vis: Visibility::Inherited,
+                }
             }).collect::<Vec<_>>();
-        //let substructs = self.traits.iter()
-            //.map(|trait_| trait_.substruct_object())
-            //.collect::<Vec<_>>();
+        let substruct_expectations = self.traits.iter()
+            .map(|trait_| format_ident!("{}_expectations", trait_.name()))
+            .collect::<Vec<_>>();
+        let substruct_type_names = substructs.iter()
+            .map(|ss| ss.name.clone())
+            .collect::<Vec<_>>();
+        let trait_impls = self.traits.iter()
+            .map(|ss| ss.trait_impl(&self.modname))
+            .collect::<Vec<_>>();
         let vis = &self.vis;
         quote!(
             #[allow(non_snake_case)]
@@ -110,33 +157,30 @@ impl ToTokens for MockItemStruct {
             #vis struct #struct_name #ig #wc
             {
                 #(#expectations_objects)*
-                #(#substruct_objects)*
+                #(#substruct_expectations: #substruct_type_names)*
             }
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
+                        // TODO: try removing the type names, and just use
+                        // "default"
+                        #(#substruct_expectations: #substruct_type_names::default())*
                         #(#default_constructions)*
                     }
                 }
             }
+            #(#substructs)*
             impl #ig #struct_name #tg #wc {
                 #(#calls #expects)*
-                #[doc = "Immediately validate all expectations and clear them."]
+                /// Validate that all current expectations for all methods have
+                /// been satisfied, and discard them.
                 pub fn checkpoint(&mut self) {
-                    #(#checkpoints)*
+                    #(self.#substruct_expectations.checkpoint();)*
+                    #(#method_checkpoints)*
                 }
-                // TODO: don't add the new method if the struct already has one
-                /// Create a new mock object with no expectations.
-                ///
-                /// This method will not be generated if the real struct
-                /// already has a `new` method.  However, it *will* be
-                /// generated if the struct implements a trait with a `new`
-                /// method.  The trait's `new` method can still be called
-                /// like `<MockX as TraitY>::new`
-                pub fn new() -> Self {
-                    Self::default()
-                }
+                #new_method
             }
+            #(#trait_impls)*
         ).to_tokens(tokens);
     }
 }

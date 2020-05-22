@@ -1,0 +1,73 @@
+// vim: tw=80
+use proc_macro2::Span;
+use quote::{ToTokens, format_ident, quote};
+use syn::*;
+
+use crate::mock_function::{self, MockFunction};
+
+pub(crate) struct MockTrait {
+    pub attrs: Vec<Attribute>,
+    pub generics: Generics,
+    pub methods: Vec<MockFunction>,
+    pub name: Ident,
+    structname: Ident,
+}
+
+impl MockTrait {
+    pub fn name(&self) -> &Ident {
+        &self.name
+    }
+
+    pub fn new(structname: &Ident, trait_: ItemTrait) -> Self {
+        let pub_token = Token![pub](Span::call_site());
+        let meth_vis = Visibility::Public(VisPublic{pub_token}); 
+        let mut methods = Vec::new();
+        for ti in trait_.items.into_iter() {
+            if let TraitItem::Method(tim) = ti {
+                let mf = mock_function::Builder::new(&tim.sig, &meth_vis)
+                    .attrs(&tim.attrs)
+                    .levels(1)
+                    .call_levels(0)
+                    .struct_(structname)
+                    .trait_(&trait_.ident)
+                    .build();
+                methods.push(mf);
+            }
+        }
+        MockTrait {
+            attrs: trait_.attrs,
+            generics: trait_.generics,
+            methods,
+            name: trait_.ident,
+            structname: structname.clone()
+        }
+    }
+
+    /// Generate code for the expect_ method
+    ///
+    /// # Arguments
+    ///
+    /// * `modname`:    Name of the parent struct's private module
+    // Supplying modname is an unfortunately hack.  Ideally MockTrait
+    // wouldn't need to know that.
+    pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
+        let (ig, tg, wc) = self.generics.split_for_impl();
+        let ss_modname = format_ident!("{}_{}", &modname, self.name);
+        let calls = self.methods.iter()
+                .map(|meth| meth.call())
+                .collect::<Vec<_>>();
+        let expects = self.methods.iter()
+                .map(|meth| meth.expect(&ss_modname))
+                .collect::<Vec<_>>();
+        let name = &self.name;
+        let structname = &self.structname;
+        quote!(
+            impl #ig #name for #structname #tg #wc {
+                #(#calls)*
+            }
+            impl #ig #structname #tg #wc {
+                #(#expects)*
+            }
+        )
+    }
+}
