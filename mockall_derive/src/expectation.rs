@@ -49,8 +49,6 @@ struct Common<'a> {
     /// Types of the method arguments
     argty: Vec<Type>,
     attrs: &'a TokenStream,
-    /// Type of the Expectations object, with generics
-    expect_obj: &'a Type,
     /// The expectation's generic types as a list of types
     fn_params: Punctuated<Ident, Token![,]>,
     /// Type generics of the mock struct
@@ -601,8 +599,6 @@ impl<'a> Expectation<'a> {
     ///                       `#[cfg()]`
     /// * `args`            - Arguments for the mock method, which may be
     ///                       slightly different than on the original method.
-    /// * `expect_obj       - Type of Expectations object stored in the mock
-    ///                       structure, with generics fields
     /// * `struct_generics` - Generics of the parent struct, if any.
     /// * `meth_generics`   - Generics of the method being mocked
     /// * `mod_ident`       - Name of the expectaton's private module
@@ -615,7 +611,6 @@ impl<'a> Expectation<'a> {
     pub(crate) fn new(
         attrs: &'a TokenStream,
         args: &Punctuated<FnArg, Token![,]>,
-        expect_obj: &'a Type,
         struct_generics: Option<&'a Generics>,
         meth_generics: &'a Generics,
         meth_ident: &'a Ident,
@@ -710,7 +705,6 @@ impl<'a> Expectation<'a> {
             argnames,
             argty,
             attrs,
-            expect_obj,
             fn_params,
             struct_generics: struct_type_generics,
             meth_generics,
@@ -1071,7 +1065,6 @@ impl<'a> StaticExpectation<'a> {
 
         let argnames = &self.common.argnames;
         let argty = &self.common.argty;
-        let expect_obj = &self.common.expect_obj;
         let fn_params = &self.common.fn_params;
         let (_ig, tg, _wc) = self.common.egenerics.split_for_impl();
         let hrtb = self.common.hrtb();
@@ -1173,7 +1166,7 @@ impl<'a> StaticExpectation<'a> {
                 ::mockall::lazy_static! {
                     #[doc(hidden)]
                     #v static ref EXPECTATIONS:
-                        ::std::sync::Mutex<#expect_obj> =
+                        ::std::sync::Mutex<Expectations> =
                         ::std::sync::Mutex::new(Expectations::new());
                 }
                 /// Like an [`&Expectation`](struct.Expectation.html) but
@@ -1189,8 +1182,7 @@ impl<'a> StaticExpectation<'a> {
                 // ExpectationGuard is only defined for expectations that return
                 // 'static return types.
                 #v struct ExpectationGuard #e_ig #e_wc {
-                    guard: MutexGuard<'__mockall_lt, #expect_obj>,
-                    //guard: MutexGuard<'__mockall_lt, Expectations #tg>,
+                    guard: MutexGuard<'__mockall_lt, Expectations #tg>,
                     i: usize
                 }
 
