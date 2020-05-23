@@ -384,6 +384,10 @@ impl MockFunction {
         format_ident!("__{}", &self.name())
     }
 
+    pub fn is_static(&self) -> bool {
+        self.is_static
+    }
+
     pub fn name(&self) -> &Ident {
         &self.sig.ident
     }
