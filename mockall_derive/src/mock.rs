@@ -380,7 +380,6 @@ fn gen_struct<T>(attrs: &[syn::Attribute],
         }
 
         Expectation::new(&attrs, &meth_types.expectation_inputs,
-                         &meth_types.expect_obj,
                          Some(&generics), &meth_types.expectation_generics,
                          meth_ident, &private_meth_ident, Some(&mock_ident),
                          output,
