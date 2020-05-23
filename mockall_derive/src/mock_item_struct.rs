@@ -89,7 +89,7 @@ impl ToTokens for MockItemStruct {
             Vec::new()
         } else {
             self.methods.iter()
-                .map(|meth| meth.call())
+                .map(|meth| meth.call(Some(modname)))
                 .collect::<Vec<_>>()
         };
         let method_checkpoints = self.methods.iter()
@@ -122,7 +122,7 @@ impl ToTokens for MockItemStruct {
                 // expects methods.
                 Box::new(TokenStream::new()) as Box<dyn ToTokens>
             } else {
-                Box::new(meth.context_fn()) as Box<dyn ToTokens>
+                Box::new(meth.context_fn(Some(modname))) as Box<dyn ToTokens>
             }).collect::<Vec<_>>();
         let expects = if self.substruct {
             Vec::new()

@@ -58,7 +58,7 @@ impl MockTrait {
         let (ig, tg, wc) = self.generics.split_for_impl();
         let ss_modname = format_ident!("{}_{}", &modname, self.name);
         let calls = self.methods.iter()
-                .map(|meth| meth.call())
+                .map(|meth| meth.call(None))
                 .collect::<Vec<_>>();
         let expects = self.methods.iter()
                 .map(|meth| meth.expect(&ss_modname))

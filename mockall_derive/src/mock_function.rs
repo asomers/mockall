@@ -188,7 +188,13 @@ pub(crate) struct MockFunction {
 
 impl MockFunction {
     /// Return the mock function itself
-    pub fn call(&self) -> impl ToTokens {
+    ///
+    /// # Arguments
+    ///
+    /// * `modname`:    Name of the parent struct's private module
+    // Supplying modname is an unfortunately hack.  Ideally MockFunction
+    // wouldn't need to know that.
+    pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
         let argnames = &self.argnames;
         let attrs = self.format_attrs(true);
         let (ig, tg, wc) = self.egenerics.split_for_impl();
@@ -214,13 +220,13 @@ impl MockFunction {
             quote!()
         };
         if self.is_static {
-            let inner_mod_ident = self.inner_mod_ident();
+            let outer_mod_path = self.outer_mod_path(modname);
             quote!(
                 #attrs
                 #[doc = #fn_docstr]
                 #vis #sig {
                     {
-                        let __mockall_guard = #inner_mod_ident::EXPECTATIONS
+                        let __mockall_guard = #outer_mod_path::EXPECTATIONS
                             .lock().unwrap();
                         /*
                          * TODO: catch panics, then gracefully release the mutex
@@ -272,19 +278,25 @@ impl MockFunction {
     }
 
     /// Return a function that creates a Context object for this function
-    pub fn context_fn(&self) -> impl ToTokens {
+    ///
+    /// # Arguments
+    ///
+    /// * `modname`:    Name of the parent struct's private module
+    // Supplying modname is an unfortunately hack.  Ideally MockFunction
+    // wouldn't need to know that.
+    pub fn context_fn(&self, modname: Option<&Ident>) -> impl ToTokens {
         let attrs = self.format_attrs(false);
         let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
-        let inner_mod_ident = self.inner_mod_ident();
+        let outer_mod_path = self.outer_mod_path(modname);
         let v = &self.call_vis;
         quote!(
             #attrs
             #[doc = #context_docstr]
-            #v fn #context_ident() -> #inner_mod_ident::Context
+            #v fn #context_ident() -> #outer_mod_path::Context
             {
-                #inner_mod_ident::Context::default()
+                #outer_mod_path::Context::default()
             }
         )
     }
@@ -380,6 +392,17 @@ impl MockFunction {
         }
     }
 
+    fn outer_mod_path(&self, modname: Option<&Ident>) -> Path {
+        let mut path = if let Some(m) = modname {
+            Path::from(PathSegment::from(m.clone()))
+        } else {
+            Path { leading_colon: None, segments: Punctuated::new() }
+        };
+        //let mut path = Path::from(PathSegment::from(modname.clone()));
+        path.segments.push(PathSegment::from(self.inner_mod_ident()));
+        path
+    }
+
     fn inner_mod_ident(&self) -> Ident {
         format_ident!("__{}", &self.name())
     }
@@ -396,7 +419,6 @@ impl MockFunction {
     pub fn priv_module(&self) -> impl ToTokens {
         let argnames = &self.argnames;
         let attrs = self.format_attrs(false);
-        let call = self.call();
         let common = &Common{f: self};
         let context = &Context{f: self};
         // TODO: non-Static expectations
@@ -799,6 +821,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
         let (ei_ig, _, _) = ei_generics.split_for_impl();
         let fn_params = &self.f.fn_params;
         let hrtb = self.f.hrtb();
+        let inner_mod_ident = self.f.inner_mod_ident();
         let output = &self.f.output;
         let predty = &self.f.predty;
         let tbf = tg.as_turbofish();
@@ -820,7 +843,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
             ::mockall::lazy_static! {
                 #[doc(hidden)]
                 #v static ref EXPECTATIONS:
-                    ::std::sync::Mutex<Expectations #tg> =
+                    ::std::sync::Mutex<#inner_mod_ident::Expectations #tg> =
                     ::std::sync::Mutex::new(Expectations::new());
             }
             /// Like an [`&Expectation`](struct.Expectation.html) but
@@ -836,7 +859,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
             // ExpectationGuard is only defined for expectations that return
             // 'static return types.
             #v struct ExpectationGuard #e_ig #e_wc {
-                guard: MutexGuard<'__mockall_lt, Expectations #tg>,
+                guard: MutexGuard<'__mockall_lt, #inner_mod_ident::Expectations #tg>,
                 i: usize
             }
 
