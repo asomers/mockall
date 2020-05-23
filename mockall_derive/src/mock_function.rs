@@ -843,7 +843,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
             ::mockall::lazy_static! {
                 #[doc(hidden)]
                 #v static ref EXPECTATIONS:
-                    ::std::sync::Mutex<#inner_mod_ident::Expectations #tg> =
+                    ::std::sync::Mutex<Expectations #tg> =
                     ::std::sync::Mutex::new(Expectations::new());
             }
             /// Like an [`&Expectation`](struct.Expectation.html) but
@@ -859,7 +859,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
             // ExpectationGuard is only defined for expectations that return
             // 'static return types.
             #v struct ExpectationGuard #e_ig #e_wc {
-                guard: MutexGuard<'__mockall_lt, #inner_mod_ident::Expectations #tg>,
+                guard: MutexGuard<'__mockall_lt, Expectations #tg>,
                 i: usize
             }
 
