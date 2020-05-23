@@ -200,7 +200,6 @@ impl MockFunction {
         let (ig, tg, wc) = self.egenerics.split_for_impl();
         let tbf = tg.as_turbofish();
         let name = self.name();
-        let fn_docstr = format!("Mock version of the `{}` function", name);
         let no_match_msg = if let Some(s) = &self.struct_ {
             format!("{}::{}: No matching expectation found", s, name)
         } else {
@@ -223,7 +222,6 @@ impl MockFunction {
             let outer_mod_path = self.outer_mod_path(modname);
             quote!(
                 #attrs
-                #[doc = #fn_docstr]
                 #vis #sig {
                     {
                         let __mockall_guard = #outer_mod_path::EXPECTATIONS
