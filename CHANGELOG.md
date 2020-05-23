@@ -12,6 +12,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   foreign functions or module functions.
   ([#129](https://github.com/asomers/mockall/pull/129))
 
+- Propagate doc comments for module functions to the generated mock functions.
+  ([#132](https://github.com/asomers/mockall/pull/132))
+
 ### Removed
 
 ## [0.7.1] - 3 May 2020
