@@ -434,7 +434,8 @@ fn mock_function(modname: &Ident, attrs: &[Attribute], vis: &Visibility,
     let no_match_msg = format!("{}::{}: No matching expectation found",
         modname, ident);
     let context_docstr = {
-        let inner_ds = format!("Return a Context object used to hold the expectations for `{}`", ident);
+        let inner_ds = format!("Create a [`Context`](struct.Context.html) for mocking the `{}` method",
+            ident);
         quote!( #[doc = #inner_ds])
     };
     quote!(
