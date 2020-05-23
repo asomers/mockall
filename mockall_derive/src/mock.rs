@@ -283,9 +283,16 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
         let context_ident = format_ident!("{}_context", ident);
         let context_generics = strip_generics_lifetimes(generics);
         let (_, ctx_tg, _) = context_generics.split_for_impl();
+        let context_docstr = {
+            let inner_ds = format!("Create a [`Context`]({}/struct.Context.html) for mocking the `{}` method",
+            // I don't think the unwrap should ever fail, but if it does it's
+            // better than we screw up the doc comment than panic.  Hence "XXX"
+                mod_ident.unwrap_or(&Ident::new("XXX", Span::call_site())),
+                ident);
+            quote!( #[doc = #inner_ds])
+        };
         quote!(#attrs_nodocs
-               /// Create a [`Context`](#mod_ident/ident/struct.Context.html)
-               /// for mocking the `ident` method
+               #context_docstr
                #expect_vis fn #context_ident()
                -> #mod_ident::#private_meth_ident::Context #ctx_tg
             {
