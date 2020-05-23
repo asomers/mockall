@@ -284,7 +284,9 @@ impl MockFunction {
     // wouldn't need to know that.
     pub fn context_fn(&self, modname: Option<&Ident>) -> impl ToTokens {
         let attrs = self.format_attrs(false);
-        let context_docstr = format!("Return a Context object used to hold the expectations for `{}`",
+        let context_docstr = format!("Create a [`Context`]({}struct.Context.html) for mocking the `{}` method",
+            modname.map(|m| format!("{}/", m))
+                .unwrap_or(String::new()),
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
         let outer_mod_path = self.outer_mod_path(modname);
