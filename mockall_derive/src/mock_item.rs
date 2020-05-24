@@ -113,7 +113,7 @@ impl From<MockableModule> for MockItemModule {
                         .attrs(&f.attrs)
                         .parent(&mock_ident)
                         .levels(1)
-                        .call_levels(1)
+                        .call_levels(0)
                         .build();
                     Some(MockItemContent::Fn(mf))
                 },

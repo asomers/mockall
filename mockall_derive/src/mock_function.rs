@@ -90,7 +90,7 @@ impl<'a> Builder<'a> {
             sig: self.sig.clone(),
             struct_: self.struct_.cloned(),
             trait_: self.trait_.cloned(),
-            privmod_vis: expectation_visibility(self.vis, self.levels + 1)
+            privmod_vis: expectation_visibility(self.vis, self.levels)
         }
     }
 

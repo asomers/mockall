@@ -56,12 +56,45 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
         let vis = Visibility::Public(VisPublic{
             pub_token: <Token![pub]>::default()
         });
-        let content = foreign.items.into_iter()
+        let mut content = vec![
+            // When mocking extern blocks, we pretend that they're modules, so
+            // we need a "use super::*;" to ensure that types can resolve
+            Item::Use(ItemUse {
+                attrs: Vec::new(),
+                vis: Visibility::Inherited,
+                use_token: token::Use::default(),
+                leading_colon: None,
+                tree: UseTree::Path(UsePath {
+                    ident: Ident::new("super", Span::call_site()),
+                    colon2_token: token::Colon2::default(),
+                    tree: Box::new(UseTree::Glob(UseGlob {
+                        star_token: token::Star::default()
+                    }))
+                }),
+                semi_token: token::Semi::default()
+            })
+        ];
+        content.extend(foreign.items.into_iter()
             .map(|foreign_item| {
                 match foreign_item {
                     ForeignItem::Fn(f) => {
                         let span = f.sig.span();
                         let mut sig = f.sig;
+
+                        // When mocking extern blocks, we pretend that they're
+                        // modules.  So we must supersuperfy everything by one
+                        // level.
+                        let vis = expectation_visibility(&f.vis, 1);
+
+                        for arg in sig.inputs.iter_mut() {
+                            if let FnArg::Typed(pt) = arg {
+                                *pt.ty = supersuperfy(&*pt.ty, 1);
+                            }
+                        }
+                        if let ReturnType::Type(_, ty) = &mut sig.output {
+                            **ty = supersuperfy(&*ty, 1);
+                        }
+
                         // Foreign functions are always unsafe.  Mock foreign
                         // functions should be unsafe too, to prevent "warning:
                         // unused unsafe" messages.
@@ -70,10 +103,11 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                             brace_token: token::Brace::default(),
                             stmts: Vec::new()
                         });
+
                         Item::Fn(
                             ItemFn {
                                 attrs: f.attrs,
-                                vis: f.vis,
+                                vis,
                                 sig,
                                 block
                             }
@@ -86,7 +120,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                         Item::Verbatim(TokenStream::default())
                     }
                 }
-            }).collect::<Vec<_>>();
+            }));
         MockableModule { vis, mock_ident, mod_token, orig_ident, content }
     }
 }

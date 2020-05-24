@@ -30,7 +30,7 @@ impl MockTrait {
             if let TraitItem::Method(tim) = ti {
                 let mf = mock_function::Builder::new(&tim.sig, &vis)
                     .attrs(&tim.attrs)
-                    .levels(1)
+                    .levels(2)
                     .call_levels(0)
                     .struct_(structname)
                     .trait_(&trait_.ident)
