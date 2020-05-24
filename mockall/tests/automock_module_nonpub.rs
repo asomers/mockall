@@ -22,12 +22,20 @@ cfg_if::cfg_if! {
                 mod m {
                     use super::*;
 
-                    fn foo(x: PubCrateT) -> PubCrateT { unimplemented!() }
-                    fn bar(x: PrivT) -> PrivT { unimplemented!() }
-                    fn baz(x: super::super::SuperT) -> super::super::SuperT {
+                    pub(crate) fn foo(x: PubCrateT) -> PubCrateT {
                         unimplemented!()
                     }
-                    fn bang(x: crate::outer::SuperT) -> crate::outer::SuperT {
+                    pub(super) fn bar(x: PrivT) -> PrivT {
+                        unimplemented!()
+                    }
+                    pub(in super::super) fn baz(x: super::super::SuperT)
+                        -> super::super::SuperT
+                    {
+                        unimplemented!()
+                    }
+                    pub(in crate::outer) fn bang(x: crate::outer::SuperT)
+                        -> crate::outer::SuperT
+                    {
                         unimplemented!()
                     }
                 }

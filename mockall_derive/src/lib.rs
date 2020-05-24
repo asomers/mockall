@@ -773,10 +773,13 @@ fn split_lifetimes(
 /// # Arguments
 /// - `vis`:    Original visibility of the item
 /// - `levels`: How many modules will the mock item be nested in?
-fn expectation_visibility(vis: &Visibility, levels: u32)
+fn expectation_visibility(vis: &Visibility, levels: i32)
     -> Visibility
 {
-    debug_assert!(levels > 0);
+    if levels == 0 {
+        return vis.clone();
+    }
+
     let in_token = Token![in](vis.span());
     let super_token = Token![super](vis.span());
     match vis {
