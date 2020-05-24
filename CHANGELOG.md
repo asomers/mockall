@@ -18,6 +18,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Fix the formatting of generated doc comments for context methods
   ([#132](https://github.com/asomers/mockall/pull/132))
 
+- Fixed some visibility issues in the generated mocks for modules and extern
+  functions.
+  ([#133](https://github.com/asomers/mockall/pull/133))
+
 ### Removed
 
 ## [0.7.1] - 3 May 2020
