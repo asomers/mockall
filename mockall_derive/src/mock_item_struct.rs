@@ -164,8 +164,10 @@ impl ToTokens for MockItemStruct {
             .map(|ss| ss.name.clone())
             .collect::<Vec<_>>();
         let trait_impls = self.traits.iter()
-            .map(|ss| ss.trait_impl(&self.modname))
-            .collect::<Vec<_>>();
+            .map(|ss| {
+                let modname = format_ident!("{}_{}", &self.modname, ss.name());
+                ss.trait_impl(&modname)
+            }).collect::<Vec<_>>();
         let vis = &self.vis;
         quote!(
             #[allow(non_snake_case)]

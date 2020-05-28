@@ -1,5 +1,5 @@
 // vim: tw=80
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::{
     *,
@@ -80,11 +80,16 @@ impl MockTrait {
         let (ig, tg, wc) = self.generics.split_for_impl();
         let ss_modname = format_ident!("{}_{}", &modname, self.name);
         let calls = self.methods.iter()
-                .map(|meth| meth.call(None))
+                .map(|meth| meth.call(Some(modname)))
                 .collect::<Vec<_>>();
+        let contexts = self.methods.iter()
+            .filter(|meth| meth.is_static())
+            .map(|meth| meth.context_fn(Some(modname)))
+            .collect::<Vec<_>>();
         let expects = self.methods.iter()
-                .map(|meth| meth.expect(&ss_modname))
-                .collect::<Vec<_>>();
+            .filter(|meth| !meth.is_static())
+            .map(|meth| meth.expect(&modname))
+            .collect::<Vec<_>>();
         let name = &self.name;
         let structname = &self.structname;
         let types = &self.types;
@@ -95,6 +100,7 @@ impl MockTrait {
             }
             impl #ig #structname #tg #wc {
                 #(#expects)*
+                #(#contexts)*
             }
         )
     }
