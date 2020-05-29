@@ -12,6 +12,8 @@ use crate::{
 pub(crate) struct MockItemStruct {
     attrs: Vec<Attribute>,
     generics: Generics,
+    /// Does the original struct have a `new` method?
+    has_new: bool,
     /// Inherent methods of the mock struct
     methods: Vec<MockFunction>,
     /// Name of the overall module that holds all of the mock stuff
@@ -26,8 +28,7 @@ pub(crate) struct MockItemStruct {
 
 impl MockItemStruct {
     fn new_method(&self) -> impl ToTokens {
-        // TODO: don't add the new method if the struct already has one
-        if self.substruct {
+        if self.has_new || self.substruct {
             TokenStream::new()
         } else {
             quote!(
@@ -52,6 +53,18 @@ impl From<MockableStruct> for MockItemStruct {
         let modname = gen_mod_ident(&mockable.original_name, None);
         let struct_name = &mockable.name;
         let vis = mockable.vis;
+        let has_new = mockable.methods.iter()
+            .any(|meth| meth.sig.ident == "new") ||
+            mockable.traits.iter()
+            .any(|trait_|
+                trait_.items.iter()
+                    .any(|ti| if let TraitItem::Method(tim) = ti {
+                            tim.sig.ident == "new"
+                        } else {
+                            false
+                        }
+                    )
+            );
         let methods = mockable.methods.into_iter()
             .map(|meth|
                 mock_function::Builder::new(&meth.sig, &meth.vis)
@@ -66,9 +79,11 @@ impl From<MockableStruct> for MockItemStruct {
         let traits = mockable.traits.into_iter()
             .map(|t| MockTrait::new(structname, t, &vis))
             .collect();
+
         MockItemStruct {
             attrs: mockable.attrs,
             generics: mockable.generics,
+            has_new,
             methods,
             modname,
             name: mockable.name,
@@ -149,6 +164,8 @@ impl ToTokens for MockItemStruct {
                 MockItemStruct {
                     attrs: trait_.attrs.clone(),
                     generics: trait_.generics.clone(),
+                    // Never generate new methods for substructs
+                    has_new: true,
                     methods: trait_.methods.clone(),
                     modname: format_ident!("{}_{}", &self.modname, trait_.name()),
                     name: format_ident!("{}_{}", &self.name, trait_.name()),
