@@ -14,18 +14,37 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
 }
 
 /// Performs transformations on the method to make it mockable
-fn mockable_method(mut meth: ImplItemMethod) -> ImplItemMethod {
+fn mockable_method(mut meth: ImplItemMethod, name: &Ident, generics: &Generics)
+    -> ImplItemMethod
+{
     demutify(&mut meth.sig.inputs);
     deimplify(&mut meth.sig.output);
+    if let ReturnType::Type(_, ty) = &mut meth.sig.output {
+        deselfify(ty, name, generics);
+    }
     meth
 }
 
+/// Performs transformations on the method to make it mockable
+fn mockable_trait_method(
+    meth: &mut TraitItemMethod,
+    name: &Ident,
+    generics: &Generics)
+{
+    demutify(&mut meth.sig.inputs);
+    deimplify(&mut meth.sig.output);
+    if let ReturnType::Type(_, ty) = &mut meth.sig.output {
+        deselfify(ty, name, generics);
+    }
+}
+
 /// Performs transformations on the trait to make it mockable
-fn mockable_trait(mut trait_: ItemTrait) -> ItemTrait {
+fn mockable_trait(mut trait_: ItemTrait, name: &Ident, generics: &Generics)
+    -> ItemTrait
+{
     for item in trait_.items.iter_mut() {
         if let TraitItem::Method(tim) = item {
-            demutify(&mut tim.sig.inputs);
-            deimplify(&mut tim.sig.output);
+            mockable_trait_method(tim, name, generics);
         }
     }
     trait_
@@ -64,14 +83,20 @@ pub(crate) struct MockableStruct {
 impl From<(Attrs, ItemTrait)> for MockableStruct {
     fn from((attrs, item_trait): (Attrs, ItemTrait)) -> MockableStruct {
         let trait_ = attrs.substitute_trait(&item_trait);
+        let attrs = trait_.attrs.clone();
+        let vis = trait_.vis.clone();
+        let name = gen_mock_ident(&trait_.ident);
+        let generics = trait_.generics.clone();
+        let original_name = trait_.ident.clone();
+        let traits = vec![mockable_trait(trait_, &name, &generics)];
         MockableStruct {
-            attrs: trait_.attrs.clone(),
-            vis: trait_.vis.clone(),
-            name: gen_mock_ident(&trait_.ident),
-            generics: trait_.generics.clone(),
+            attrs,
+            vis,
+            name,
+            generics,
             methods: Vec::new(),
-            original_name: trait_.ident.clone(),
-            traits: vec![mockable_trait(trait_)]
+            original_name,
+            traits
         }
     }
 }
@@ -93,7 +118,7 @@ impl From<ItemImpl> for MockableStruct {
         let mut methods = Vec::new();
         for item in item_impl.items.into_iter() {
             if let ImplItem::Method(meth) = item {
-                methods.push(mockable_method(meth));
+                methods.push(mockable_method(meth, &name, &item_impl.generics));
             }
         }
         let pub_token = Token![pub](Span::call_site());
@@ -118,6 +143,7 @@ impl Parse for MockableStruct {
         let mut generics: syn::Generics = input.parse()?;
         let wc: Option<syn::WhereClause> = input.parse()?;
         generics.where_clause = wc;
+        let name = gen_mock_ident(&original_name);
 
         let impl_content;
         let _brace_token = braced!(impl_content in input);
@@ -125,7 +151,8 @@ impl Parse for MockableStruct {
         while !impl_content.is_empty() {
             let method: syn::TraitItem = impl_content.parse()?;
             match method {
-                syn::TraitItem::Method(meth) => {
+                syn::TraitItem::Method(mut meth) => {
+                    mockable_trait_method(&mut meth, &name, &generics);
                     methods.push(tim2iim(meth, &vis))
                 },
                 _ => {
@@ -137,14 +164,14 @@ impl Parse for MockableStruct {
         let mut traits = Vec::new();
         while !input.is_empty() {
             let trait_: syn::ItemTrait = input.parse()?;
-            traits.push(mockable_trait(trait_));
+            traits.push(mockable_trait(trait_, &name, &generics));
         }
 
         Ok(
             MockableStruct {
                 attrs: attrs,
                 vis,
-                name: gen_mock_ident(&original_name),
+                name,
                 generics,
                 methods,
                 original_name,
