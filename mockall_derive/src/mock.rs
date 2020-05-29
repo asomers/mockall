@@ -206,10 +206,13 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     let fn_token = &sig.fn_token;
     let ident = &sig.ident;
     let private_meth_ident = format_ident!("__{}", &ident);
-    let meth_types = method_types(sig, Some(generics));
+    let mut meth_types = method_types(sig, Some(generics));
     let merged_g = merge_generics(&generics, &meth_types.expectation_generics);
     let inputs = &meth_types.inputs;
-    let output = &meth_types.output;
+    let output = &mut meth_types.output;
+    if let ReturnType::Type(_, ty) = output {
+        deselfify(ty, mock_struct_name, generics);
+    }
     let attrs_with_docs = format_attrs(meth_attrs, true);
     let attrs_nodocs = format_attrs(meth_attrs, false);
 
