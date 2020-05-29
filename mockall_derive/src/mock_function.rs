@@ -37,7 +37,13 @@ impl<'a> Builder<'a> {
                 if let Type::Reference(ref tr) = aty {
                     predexprs.push(quote!(#argname));
                     predty.push((*tr.elem).clone());
-                    refpredty.push(aty.clone());
+                    let tr2 = Type::Reference(TypeReference {
+                        and_token: tr.and_token.clone(),
+                        lifetime: None,
+                        mutability: None,
+                        elem: tr.elem.clone()
+                    });
+                    refpredty.push(tr2);
                 } else {
                     predexprs.push(quote!(&#argname));
                     predty.push(aty.clone());
