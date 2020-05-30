@@ -270,7 +270,7 @@ pub(crate) struct MockItemTraitImpl {
 
 impl ToTokens for MockItemTraitImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let attrs = &self.attrs;
+        let attrs_nodocs = format_attrs(&self.attrs, false);
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let modname = &self.modname;
@@ -288,7 +288,7 @@ impl ToTokens for MockItemTraitImpl {
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
-            #(#attrs)*
+            #attrs_nodocs
             struct #struct_name #ig #wc
             {
                 #(#field_definitions),*
