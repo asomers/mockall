@@ -116,21 +116,62 @@ impl From<ItemImpl> for MockableStruct {
             }
         };
         let mut methods = Vec::new();
-        for item in item_impl.items.into_iter() {
-            if let ImplItem::Method(meth) = item {
-                methods.push(mockable_method(meth, &name, &item_impl.generics));
-            }
-        }
         let pub_token = Token![pub](Span::call_site());
         let vis = Visibility::Public(VisPublic{pub_token});
+        let mut traits = Vec::new();
+        if let Some((bang, path, _)) = item_impl.trait_ {
+            if bang.is_some() {
+                compile_error(bang.span(), "Unsupported by mockall");
+            }
+            assert!(path.segments.last().unwrap().arguments.is_empty(), "TODO");
+
+            // Regenerate the trait that this block is implementing
+            let generics = &item_impl.generics;
+            let traitname = &path.segments.last().unwrap().ident;
+            let mut items = Vec::new();
+            for item in item_impl.items.into_iter() {
+                if let ImplItem::Method(meth) = item {
+                    items.push(
+                        TraitItem::Method(TraitItemMethod {
+                            attrs: meth.attrs,
+                            sig: meth.sig,
+                            default: None,
+                            semi_token: Some(Token![;](Span::call_site()))
+                        })
+                    );
+                }
+            }
+            let trait_ = ItemTrait {
+                attrs: item_impl.attrs.clone(),
+                vis: vis.clone(),
+                unsafety: item_impl.unsafety,
+                auto_token: None,
+                trait_token: Token![trait](Span::call_site()),
+                ident: traitname.clone(),
+                generics: generics.clone(),
+                colon_token: None,
+                supertraits: Punctuated::new(),
+                brace_token: token::Brace::default(),
+                items
+            };
+            traits.push(mockable_trait(trait_, traitname, &generics));
+        } else {
+            for item in item_impl.items.into_iter() {
+                if let ImplItem::Method(meth) = item {
+                    methods.push(
+                        mockable_method(meth, &name, &item_impl.generics)
+                    );
+                }
+            }
+        };
         MockableStruct {
-            attrs: item_impl.attrs.clone(),
-            vis,
+            attrs: item_impl.attrs,
             name,
             generics: item_impl.generics,
             methods,
             original_name,
-            traits: Vec::new()
+            traits,
+            vis
         }
     }
 }
