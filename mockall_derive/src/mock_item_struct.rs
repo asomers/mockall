@@ -41,18 +41,19 @@ impl Methods {
             }).collect::<Vec<_>>()
     }
 
-    fn default_constructions(&self, modname: &Ident) -> Vec<impl ToTokens> {
+    /// Return a fragment of code to initialize struct fields during default()
+    fn default_inits(&self, modname: &Ident) -> Vec<TokenStream> {
         self.0.iter()
             .filter(|meth| !meth.is_static())
             .map(|meth| {
                 let name = meth.name();
                 let attrs = meth.format_attrs(false);
                 let expectations_obj = &meth.expectations_obj();
-                quote!(#attrs #name: #modname::#expectations_obj::default(),)
+                quote!(#attrs #name: #modname::#expectations_obj::default())
             }).collect::<Vec<_>>()
     }
 
-    fn expectations_objects(&self, modname: &Ident) -> Vec<impl ToTokens> {
+    fn field_definitions(&self, modname: &Ident) -> Vec<TokenStream> {
         self.0.iter()
             .filter(|meth| !meth.is_static())
             .map(|meth| {
@@ -176,8 +177,6 @@ impl ToTokens for MockItemStruct {
         let modname = &self.modname;
         let calls = self.methods.calls(Some(modname));
         let method_checkpoints = self.methods.checkpoints();
-        let default_constructions = self.methods.default_constructions(&modname);
-        let expectations_objects = self.methods.expectations_objects(&modname);
         let contexts = self.methods.contexts(Some(&modname));
         let expects = self.methods.expects(&modname);
         let new_method = self.new_method();
@@ -187,6 +186,7 @@ impl ToTokens for MockItemStruct {
                 MockItemTraitImpl {
                     attrs: trait_.attrs.clone(),
                     generics: trait_.generics.clone(),
+                    fieldname: format_ident!("{}_expectations", trait_.name()),
                     methods: Methods(trait_.methods.clone()),
                     modname: format_ident!("{}_{}", &self.modname, trait_.name()),
                     name: format_ident!("{}_{}", &self.name, trait_.name()),
@@ -195,9 +195,20 @@ impl ToTokens for MockItemStruct {
         let substruct_expectations = self.traits.iter()
             .map(|trait_| format_ident!("{}_expectations", trait_.name()))
             .collect::<Vec<_>>();
-        let substruct_type_names = substructs.iter()
-            .map(|ss| ss.name.clone())
-            .collect::<Vec<_>>();
+        let mut field_definitions = substructs.iter()
+            .map(|ss| {
+                let fieldname = &ss.fieldname;
+                let tyname = &ss.name;
+                quote!(#fieldname: #tyname)
+            }).collect::<Vec<_>>();
+        field_definitions.extend(self.methods.field_definitions(&modname));
+        let mut default_inits = substructs.iter()
+            .map(|ss| {
+                let fieldname = &ss.fieldname;
+                let tyname = &ss.name;
+                quote!(#fieldname: #tyname::default())
+            }).collect::<Vec<_>>();
+        default_inits.extend(self.methods.default_inits(&modname));
         let trait_impls = self.traits.iter()
             .map(|ss| {
                 let modname = format_ident!("{}_{}", &self.modname, ss.name());
@@ -217,16 +228,14 @@ impl ToTokens for MockItemStruct {
             #(#attrs)*
             #vis struct #struct_name #ig #wc
             {
-                #(#expectations_objects),*
-                #(#substruct_expectations: #substruct_type_names),*
+                #(#field_definitions),*
             }
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
                         // TODO: try removing the type names, and just use
                         // "default"
-                        #(#substruct_expectations: #substruct_type_names::default()),*
-                        #(#default_constructions)*
+                        #(#default_inits),*
                     }
                 }
             }
@@ -255,6 +264,8 @@ pub(crate) struct MockItemTraitImpl {
     // TODO: base this on name so we can get rid of MockableStruct.original_name
     modname: Ident,
     name: Ident,
+    /// Name of the field of this type in the parent's structure
+    fieldname: Ident,
 }
 
 impl ToTokens for MockItemTraitImpl {
@@ -264,8 +275,8 @@ impl ToTokens for MockItemTraitImpl {
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let modname = &self.modname;
         let method_checkpoints = self.methods.checkpoints();
-        let default_constructions = self.methods.default_constructions(&modname);
-        let expectations_objects = self.methods.expectations_objects(&modname);
+        let default_inits = self.methods.default_inits(&modname);
+        let field_definitions = self.methods.field_definitions(&modname);
         let priv_mods = self.methods.priv_mods();
         quote!(
             #[allow(non_snake_case)]
@@ -280,12 +291,12 @@ impl ToTokens for MockItemTraitImpl {
             #(#attrs)*
             struct #struct_name #ig #wc
             {
-                #(#expectations_objects),*
+                #(#field_definitions),*
             }
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
-                        #(#default_constructions)*
+                        #(#default_inits),*
                     }
                 }
             }
