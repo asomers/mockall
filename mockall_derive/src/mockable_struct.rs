@@ -121,7 +121,7 @@ impl From<ItemImpl> for MockableStruct {
         let mut traits = Vec::new();
         if let Some((bang, path, _)) = item_impl.trait_ {
             if bang.is_some() {
-                compile_error(bang.span(), "Unsupported by mockall");
+                compile_error(bang.span(), "Unsupported by automock");
             }
             assert!(path.segments.last().unwrap().arguments.is_empty(), "TODO");
 
@@ -129,16 +129,34 @@ impl From<ItemImpl> for MockableStruct {
             let generics = &item_impl.generics;
             let traitname = &path.segments.last().unwrap().ident;
             let mut items = Vec::new();
+            let mut attrs = Attrs::default();
             for item in item_impl.items.into_iter() {
-                if let ImplItem::Method(meth) = item {
-                    items.push(
-                        TraitItem::Method(TraitItemMethod {
-                            attrs: meth.attrs,
-                            sig: meth.sig,
-                            default: None,
-                            semi_token: Some(Token![;](Span::call_site()))
-                        })
-                    );
+                match item {
+                    ImplItem::Method(meth) =>
+                        items.push(
+                            TraitItem::Method(TraitItemMethod {
+                                attrs: meth.attrs,
+                                sig: meth.sig,
+                                default: None,
+                                semi_token: Some(Token![;](Span::call_site()))
+                            })
+                        ),
+                    ImplItem::Type(ty) => {
+                        attrs.attrs.insert(ty.ident.clone(), ty.ty.clone());
+                        items.push(
+                            TraitItem::Type(TraitItemType {
+                                attrs: ty.attrs,
+                                type_token: ty.type_token,
+                                ident: ty.ident,
+                                generics: ty.generics,
+                                colon_token: None,
+                                bounds: Punctuated::new(),
+                                default: Some((ty.eq_token, ty.ty.clone())),
+                                semi_token: ty.semi_token
+                            })
+                        );
+                    },
+                    x => compile_error(x.span(), "Unsupported by automock")
                 }
             }
             let trait_ = ItemTrait {
@@ -154,6 +172,7 @@ impl From<ItemImpl> for MockableStruct {
                 brace_token: token::Brace::default(),
                 items
             };
+            let trait_ = attrs.substitute_trait(&trait_);
             traits.push(mockable_trait(trait_, traitname, &generics));
         } else {
             for item in item_impl.items.into_iter() {
