@@ -256,6 +256,11 @@ impl MockFunction {
         } else {
             quote!()
         };
+        let call = if self.return_refmut {
+            Ident::new("call_mut", Span::call_site())
+        } else {
+            Ident::new("call", Span::call_site())
+        };
         if self.is_static {
             let outer_mod_path = self.outer_mod_path(modname);
             quote!(
@@ -270,21 +275,20 @@ impl MockFunction {
                          * generic parameters with UnwindSafe
                          */
                         /* std::panic::catch_unwind(|| */
-                        __mockall_guard.call(#(#argnames),*)
+                        __mockall_guard.#call(#(#argnames),*)
                         /*)*/
                     }.expect(#no_match_msg)
                 }
             )
         } else {
             // TODO:
-            // * call vs call_mut
             // * call_exprs (declosurefy)
             // * substructs
             // * Add fn_docstr
             quote!(
                 #attrs
                 #vis #sig {
-                    self.#substruct_obj #name.call#tbf(#(#argnames),*)
+                    self.#substruct_obj #name.#call#tbf(#(#argnames),*)
                     .expect(#no_match_msg)
                 }
 
@@ -460,12 +464,17 @@ impl MockFunction {
         let common = &Common{f: self};
         let context = &Context{f: self};
         let expectation: Box<dyn ToTokens> = if self.return_ref {
-            // TODO: refmut expectations
             Box::new(RefExpectation{f: self})
+        } else if self.return_refmut {
+            Box::new(RefMutExpectation{f: self})
         } else {
             Box::new(StaticExpectation{f: self})
         };
-        let expectations = &Expectations{f: self};
+        let expectations: Box<dyn ToTokens> = if self.return_refmut {
+            Box::new(RefMutExpectations{f: self})
+        } else {
+            Box::new(Expectations{f: self})
+        };
         let fn_ident = &self.name();
         let fn_docstr = format!("Mock version of the `{}` function", fn_ident);
         // TODO: ExpectationGuard for generic methods
@@ -483,6 +492,8 @@ impl MockFunction {
         let orig_signature = &self.sig;
         let rfunc: Box<dyn ToTokens> = if self.return_ref {
             Box::new(RefRfunc{f: self})
+        } else if self.return_refmut {
+            Box::new(RefMutRfunc{f: self})
         } else {
             Box::new(StaticRfunc{f: self})
         };
@@ -1286,6 +1297,95 @@ impl<'a> ToTokens for RefRfunc<'a> {
     }
 }
 
+struct RefMutRfunc<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for RefMutRfunc<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let fn_params = &self.f.fn_params;
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let lg = &self.f.alifetimes;
+        let owned_output = &self.f.owned_output;
+        let output = &self.f.output;
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let default_err_msg =
+            "Returning default values requires the \"nightly\" feature";
+        #[cfg(feature = "nightly_derive")]
+        let default_err_msg =
+            "Can only return default values for types that impl std::Default";
+
+        quote!(
+            enum Rfunc #ig #wc {
+                Default(Option<#owned_output>),
+                Mut((Box<dyn FnMut(#(#argty, )*) -> #owned_output + Send + Sync>),
+                    Option<#owned_output>),
+                // Version of Rfunc::Mut for closures that aren't Send
+                MutST((::mockall::Fragile<
+                           Box<dyn FnMut(#(#argty, )*) -> #owned_output >>
+                       ), Option<#owned_output>
+                ),
+                Var(#owned_output),
+                // Prevent "unused type parameter" errors Surprisingly,
+                // PhantomData<Fn(generics)> is Send even if generics are not,
+                // unlike PhantomData<generics>
+                _Phantom(Mutex<Box<dyn Fn(#fn_params) -> () + Send>>)
+            }
+
+            impl #ig  Rfunc #tg #wc {
+                fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
+                    -> std::result::Result<#output, &'static str>
+                {
+                    match self {
+                        Rfunc::Default(Some(ref mut __mockall_o)) => {
+                            Ok(__mockall_o)
+                        },
+                        Rfunc::Default(None) => {
+                            Err(#default_err_msg)
+                        },
+                        Rfunc::Mut(ref mut __mockall_f, ref mut __mockall_o) =>
+                        {
+                            *__mockall_o = Some(__mockall_f(#(#argnames, )*));
+                            if let Some(ref mut __mockall_o2) = __mockall_o {
+                                Ok(__mockall_o2)
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::MutST(ref mut __mockall_f, ref mut __mockall_o)=>
+                        {
+                            *__mockall_o = Some((__mockall_f.get_mut())(
+                                    #(#argnames, )*)
+                            );
+                            if let Some(ref mut __mockall_o2) = __mockall_o {
+                                Ok(__mockall_o2)
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Rfunc::Var(ref mut __mockall_o) => {
+                            Ok(__mockall_o)
+                        },
+                        Rfunc::_Phantom(_) => unreachable!()
+                    }
+                }
+            }
+
+            impl #ig std::default::Default for Rfunc #tg #wc
+            {
+                fn default() -> Self {
+                    use ::mockall::ReturnDefault;
+                    Rfunc::Default(::mockall::DefaultReturner::<#owned_output>
+                                ::maybe_return_default())
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
 struct StaticRfunc<'a> {
     f: &'a MockFunction
 }
@@ -1424,6 +1524,93 @@ impl<'a> ToTokens for RefExpectation<'a> {
                 #common_methods
             }
             impl #ig Default for Expectation #tg #wc
+            {
+                fn default() -> Self {
+                    Expectation {
+                        common: Common::default(),
+                        rfunc: Rfunc::default()
+                    }
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+/// For methods that take &mut self and return a reference
+struct RefMutExpectation<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for RefMutExpectation<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let common_methods = CommonExpectationMethods{f: &self.f};
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let hrtb = self.f.hrtb();
+        let ident_str = self.f.ident_str();
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let common_tg = &tg; // TODO: get the generics right
+        let lg = &self.f.alifetimes;
+        let owned_output = &self.f.owned_output;
+        let owned_output = &self.f.owned_output;
+        let v = &self.f.privmod_vis;
+        quote!(
+            /// Expectation type for methods taking a `&mut self` argument and
+            /// returning references.  This is the type returned by the
+            /// `expect_*` methods.
+            #v struct Expectation #ig {
+                common: Common #tg,
+                rfunc: Rfunc #tg
+            }
+
+            impl #ig Expectation #tg {
+                /// Simulating calling the real method for this expectation
+                #v fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
+                    -> &mut #owned_output
+                {
+                    self.common.call();
+                    let desc = format!("{}",
+                        self.common.matcher.lock().unwrap());
+                    self.rfunc.call_mut(#(#argnames, )*).unwrap_or_else(|m| {
+                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                                   m);
+                    })
+                }
+
+                /// Convenience method that can be used to supply a return value
+                /// for a `Expectation`.  The value will be returned by mutable
+                /// reference.
+                #v fn return_var(&mut self, __mockall_o: #owned_output) -> &mut Self
+                {
+                    self.rfunc = Rfunc::Var(__mockall_o);
+                    self
+                }
+
+                /// Supply a closure that the `Expectation` will use to create its
+                /// return value.  The return value will be returned by mutable
+                /// reference.
+                #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Self
+                    where MockallF: FnMut(#(#argty, )*) -> #owned_output + Send + Sync + 'static
+                {
+                    self.rfunc = Rfunc::Mut(Box::new(__mockall_f), None);
+                    self
+                }
+
+                /// Single-threaded version of [`returning`](#method.returning).
+                /// Can be used when the argument or return type isn't `Send`.
+                #v fn returning_st<MockallF>(&mut self, __mockall_f: MockallF)
+                    -> &mut Self
+                    where MockallF: FnMut(#(#argty, )*) -> #owned_output + 'static
+                {
+                    self.rfunc = Rfunc::MutST(
+                        ::mockall::Fragile::new(Box::new(__mockall_f)), None);
+                    self
+                }
+
+                #common_methods
+            }
+            impl #ig Default for Expectation #tg
             {
                 fn default() -> Self {
                     Expectation {
@@ -1581,7 +1768,51 @@ impl<'a> ToTokens for StaticExpectation<'a> {
     }
 }
 
-/// An collection of Expectation's
+/// An collection of RefMutExpectation's
+struct RefMutExpectations<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for RefMutExpectations<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let common_methods = CommonExpectationsMethods{f: &self.f};
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let lg = &self.f.alifetimes;
+        let owned_output = &self.f.owned_output;
+        let output = &self.f.output;
+        let predexprs = &self.f.predexprs;
+        let v = &self.f.privmod_vis;
+        quote!(
+            #common_methods
+            impl #ig Expectations #tg #wc {
+                /// Simulate calling the real method.  Every current expectation
+                /// will be checked in FIFO order and the first one with
+                /// matching arguments will be used.
+                #v fn call_mut #lg (&mut self, #(#argnames: #argty, )* )
+                    -> Option<#output>
+                {
+                    let __mockall_n = self.0.len();
+                    self.0.iter_mut()
+                        .find(|__mockall_e|
+                              __mockall_e.matches(#(#predexprs, )*) &&
+                              (!__mockall_e.is_done() || __mockall_n == 1))
+                        .map(move |__mockall_e|
+                             __mockall_e.call_mut(#(#argnames, )*)
+                        )
+                }
+
+            }
+            // The Senc + Sync are required for downcast, since Expectation
+            // stores an Option<#owned_output>
+            impl #ig
+                ::mockall::AnyExpectations for Expectations #tg
+                where #owned_output: Send + Sync
+            {}
+        ).to_tokens(tokens);
+    }
+}/// An collection of Expectation's
 struct Expectations<'a> {
     f: &'a MockFunction
 }
