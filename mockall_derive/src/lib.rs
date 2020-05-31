@@ -517,41 +517,41 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
     fn recurse(t: &mut Type, levels: i32) {
         match t {
             Type::Slice(s) => {
-                supersuperfy(s.elem.as_mut(), levels);
+                recurse(s.elem.as_mut(), levels);
             },
             Type::Array(a) => {
-                supersuperfy(a.elem.as_mut(), levels);
+                recurse(a.elem.as_mut(), levels);
             },
             Type::Ptr(p) => {
-                supersuperfy(p.elem.as_mut(), levels);
+                recurse(p.elem.as_mut(), levels);
             },
             Type::Reference(r) => {
-                supersuperfy(r.elem.as_mut(), levels);
+                recurse(r.elem.as_mut(), levels);
             },
             Type::BareFn(bfn) => {
                 if let ReturnType::Type(_, ref mut bt) = bfn.output {
-                    *bt = Box::new(supersuperfy(bt.as_ref(), levels));
+                    recurse(bt.as_mut(), levels);
                 }
                 for input in bfn.inputs.iter_mut() {
-                    input.ty = supersuperfy(&input.ty, levels);
+                    recurse(&mut input.ty, levels);
                 }
             },
             Type::Tuple(tuple) => {
                 for elem in tuple.elems.iter_mut() {
-                    supersuperfy(elem, levels);
+                    recurse(elem, levels);
                 }
             }
             Type::Path(type_path) => {
                 if let Some(ref _qself) = type_path.qself {
                     compile_error(type_path.span(), "QSelf is TODO");
                 }
-                supersuperfy_path(&mut type_path.path, levels)
+                supersuperfy_path(&mut type_path.path, levels);
             },
             Type::Paren(p) => {
-                supersuperfy(p.elem.as_mut(), levels);
+                recurse(p.elem.as_mut(), levels);
             },
             Type::Group(g) => {
-                supersuperfy(g.elem.as_mut(), levels);
+                recurse(g.elem.as_mut(), levels);
             },
             Type::Macro(_) | Type::Verbatim(_) => {
                 compile_error(t.span(),
