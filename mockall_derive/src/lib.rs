@@ -512,28 +512,28 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
     fn recurse(t: &mut Type, levels: i32) {
         match t {
             Type::Slice(s) => {
-                supersuperfy(s.elem.as_mut(), levels);
+                recurse(s.elem.as_mut(), levels);
             },
             Type::Array(a) => {
-                supersuperfy(a.elem.as_mut(), levels);
+                recurse(a.elem.as_mut(), levels);
             },
             Type::Ptr(p) => {
-                supersuperfy(p.elem.as_mut(), levels);
+                recurse(p.elem.as_mut(), levels);
             },
             Type::Reference(r) => {
-                supersuperfy(r.elem.as_mut(), levels);
+                recurse(r.elem.as_mut(), levels);
             },
             Type::BareFn(bfn) => {
                 if let ReturnType::Type(_, ref mut bt) = bfn.output {
-                    *bt = Box::new(supersuperfy(bt.as_ref(), levels));
+                    recurse(bt.as_mut(), levels);
                 }
                 for input in bfn.inputs.iter_mut() {
-                    input.ty = supersuperfy(&input.ty, levels);
+                    recurse(&mut input.ty, levels);
                 }
             },
             Type::Tuple(tuple) => {
                 for elem in tuple.elems.iter_mut() {
-                    supersuperfy(elem, levels);
+                    recurse(elem, levels);
                 }
             }
             Type::Path(type_path) => {
@@ -543,10 +543,10 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
                 supersuperfy_path(&mut type_path.path, levels)
             },
             Type::Paren(p) => {
-                supersuperfy(p.elem.as_mut(), levels);
+                recurse(p.elem.as_mut(), levels);
             },
             Type::Group(g) => {
-                supersuperfy(g.elem.as_mut(), levels);
+                recurse(g.elem.as_mut(), levels);
             },
             Type::Macro(_) | Type::Verbatim(_) => {
                 compile_error(t.span(),
@@ -1256,6 +1256,117 @@ mod method_types{
         assert_eq!(mt.call, "call");
         assert!(mt.inputs.is_empty());
         assert_eq!(mt.output, parse2(quote!(-> u32)).unwrap());
+    }
+}
+
+mod supersuperfy {
+    use super::*;
+
+    fn check_supersuperfy(orig: TokenStream, expected: TokenStream) {
+        let orig_ty: Type = parse2(orig).unwrap();
+        let expected_ty: Type = parse2(expected).unwrap();
+        let output = supersuperfy(&orig_ty, 1);
+        assert_eq!(format!("{}", quote!(#output)),
+                   format!("{}", quote!(#expected_ty)));
+    }
+
+    #[test]
+    fn array() {
+        check_supersuperfy(
+            quote!([super::X; n]),
+            quote!([super::super::X; n])
+        );
+    }
+
+    #[test]
+    fn barefn() {
+        check_supersuperfy(
+            quote!(fn(super::A) -> super::B),
+            quote!(fn(super::super::A) -> super::super::B)
+        );
+    }
+
+    #[test]
+    fn group() {
+        let orig = TypeGroup {
+            group_token: token::Group::default(),
+            elem: Box::new(parse2(quote!(super::T)).unwrap())
+        };
+        let expected = TypeGroup {
+            group_token: token::Group::default(),
+            elem: Box::new(parse2(quote!(super::super::T)).unwrap())
+        };
+        let output = supersuperfy(&Type::Group(orig), 1);
+        assert_eq!(format!("{}", quote!(#output)),
+                   format!("{}", quote!(#expected)));
+    }
+
+    // Just check that it doesn't panic
+    #[test]
+    fn infer() {
+        check_supersuperfy( quote!(_), quote!(_));
+    }
+
+    // Just check that it doesn't panic
+    #[test]
+    fn never() {
+        check_supersuperfy( quote!(!), quote!(!));
+    }
+
+    #[test]
+    fn paren() {
+        check_supersuperfy(
+            quote!((super::X)),
+            quote!((super::super::X))
+        );
+    }
+
+    #[test]
+    fn path() {
+        check_supersuperfy(
+            quote!(::super::SuperT<u32>),
+            quote!(::super::super::SuperT<u32>)
+        );
+    }
+
+    #[test]
+    fn ptr() {
+        check_supersuperfy(
+            quote!(*const super::X),
+            quote!(*const super::super::X)
+        );
+    }
+
+    #[test]
+    fn reference() {
+        check_supersuperfy(
+            quote!(&'a mut super::X),
+            quote!(&'a mut super::super::X)
+        );
+    }
+
+    #[test]
+    fn slice() {
+        check_supersuperfy(
+            quote!([super::X]),
+            quote!([super::super::X])
+        );
+    }
+
+    #[test]
+    fn trait_object() {
+        check_supersuperfy(
+            quote!(dyn super::X + super::Y),
+            quote!(dyn super::super::X + super::super::Y)
+        );
+    }
+
+    #[test]
+    fn tuple() {
+        check_supersuperfy(
+            quote!((super::A, super::B)),
+            quote!((super::super::A, super::super::B))
+        );
     }
 }
 
