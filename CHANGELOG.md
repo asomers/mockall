@@ -22,6 +22,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   functions.
   ([#133](https://github.com/asomers/mockall/pull/133))
 
+- Fixed mocking methods with complicated types including a `super::` component.
+  ([#137](https://github.com/asomers/mockall/pull/137))
+
 ### Removed
 
 ## [0.7.1] - 3 May 2020
