@@ -3,6 +3,45 @@ use super::*;
 
 use quote::ToTokens;
 
+/// Convert a special reference type like "&str" into a reference to its owned
+/// type like "&String".
+fn destrify(ty: &mut Type) {
+    if let Type::Reference(ref mut tr) = ty {
+        if let Some(lt) = &tr.lifetime {
+            if lt.ident == "static" {
+                // For methods that return 'static references, the user can
+                // usually actually supply one, unlike nonstatic references.
+                // destrify is unneeded and harmful in such cases.
+                return;
+            }
+        }
+
+        let path_ty: TypePath = parse2(quote!(Path)).unwrap();
+        let pathbuf_ty: Type = parse2(quote!(::std::path::PathBuf)).unwrap();
+
+        let str_ty: TypePath = parse2(quote!(str)).unwrap();
+        let string_ty: Type = parse2(quote!(::std::string::String)).unwrap();
+
+        let cstr_ty: TypePath = parse2(quote!(CStr)).unwrap();
+        let cstring_ty: Type = parse2(quote!(::std::ffi::CString)).unwrap();
+
+        let osstr_ty: TypePath = parse2(quote!(OsStr)).unwrap();
+        let osstring_ty: Type = parse2(quote!(::std::ffi::OsString)).unwrap();
+
+        match tr.elem.as_ref() {
+            Type::Path(ref path) if *path == cstr_ty =>
+                *tr.elem = cstring_ty,
+            Type::Path(ref path) if *path == osstr_ty =>
+                *tr.elem = osstring_ty,
+            Type::Path(ref path) if *path == path_ty =>
+                *tr.elem = pathbuf_ty,
+            Type::Path(ref path) if *path == str_ty =>
+                *tr.elem = string_ty,
+            _ => (), // Nothing to do
+        };
+    }
+}
+
 /// Build a MockFunction.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Builder<'a> {
@@ -70,7 +109,9 @@ impl<'a> Builder<'a> {
                     elems: Punctuated::new()
                 }),
             ReturnType::Type(_, ref ty) => {
-                supersuperfy(&**ty, self.levels)
+                let mut output_ty = supersuperfy(&**ty, self.levels);
+                destrify(&mut output_ty);
+                output_ty
             }
         };
         let owned_output = if let Type::Reference(ref tr) = &output {
