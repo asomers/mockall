@@ -62,13 +62,33 @@ impl<'a> Builder<'a> {
                 ()    // Strip out the "&self" argument
             }
         }
-        let output = supersuperfy(&match self.sig.output.clone() {
-            ReturnType::Default => Type::Tuple(TypeTuple{
-                paren_token: token::Paren(Span::call_site()),
-                elems: Punctuated::new()
-            }),
-            ReturnType::Type(_, ty) => (*ty).clone()
-        }, self.levels);
+        let mut return_ref = false;
+        let mut return_refmut = false;
+        let output = match self.sig.output {
+            ReturnType::Default => Type::Tuple(TypeTuple {
+                    paren_token: token::Paren::default(),
+                    elems: Punctuated::new()
+                }),
+            ReturnType::Type(_, ref ty) => {
+                supersuperfy(&**ty, self.levels)
+            }
+        };
+        let owned_output = if let Type::Reference(ref tr) = &output {
+            if tr.lifetime.as_ref().map_or(false, |lt| lt.ident == "static")
+            {
+                // Just a static expectation
+                output.clone()
+            } else {
+                if tr.mutability.is_none() {
+                    return_ref = true;
+                } else {
+                    return_refmut = true;
+                }
+                *tr.elem.clone()
+            }
+        } else {
+            output.clone()
+        };
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
             self.sig.generics.clone(),
             &self.sig.inputs,
@@ -89,9 +109,12 @@ impl<'a> Builder<'a> {
             is_static,
             mod_ident: self.parent.unwrap_or(&Ident::new("FIXME", Span::call_site())).clone(),
             output,
+            owned_output,
             predexprs,
             predty,
             refpredty,
+            return_ref,
+            return_refmut,
             rlifetimes,
             sig: self.sig.clone(),
             struct_: self.struct_.cloned(),
@@ -173,11 +196,20 @@ pub(crate) struct MockFunction {
     mod_ident: Ident,
     /// Output type of the Method, supersuperfied.
     output: Type,
+    /// Owned version of the output type of the Method, supersuperfied.
+    ///
+    /// If the real output type is a non-'static reference, then it will differ
+    /// from this field.
+    owned_output: Type,
     /// Expressions that create the predicate arguments from the call arguments
     predexprs: Vec<TokenStream>,
     /// Types used for Predicates.  Will be almost the same as args, but every
     /// type will be a non-reference type.
     predty: Vec<Type>,
+    /// Does the function return a non-'static reference? 
+    return_ref: bool,
+    /// Does the function return a mutable reference? 
+    return_refmut: bool,
     /// References to every type in `predty`.
     refpredty: Vec<Type>,
     /// Lifetime Generics of the mocked method that relate to the return value
@@ -427,9 +459,13 @@ impl MockFunction {
         let attrs = self.format_attrs(false);
         let common = &Common{f: self};
         let context = &Context{f: self};
-        // TODO: non-Static expectations
-        let expectation = &StaticExpectation{f: self};
-        let expectations = &StaticExpectations{f: self};
+        let expectation: Box<dyn ToTokens> = if self.return_ref {
+            // TODO: refmut expectations
+            Box::new(RefExpectation{f: self})
+        } else {
+            Box::new(StaticExpectation{f: self})
+        };
+        let expectations = &Expectations{f: self};
         let fn_ident = &self.name();
         let fn_docstr = format!("Mock version of the `{}` function", fn_ident);
         // TODO: ExpectationGuard for generic methods
@@ -445,7 +481,11 @@ impl MockFunction {
         let no_match_msg = format!("{}::{}: No matching expectation found",
             mod_ident, fn_ident);
         let orig_signature = &self.sig;
-        let rfunc = &Rfunc{f: self};
+        let rfunc: Box<dyn ToTokens> = if self.return_ref {
+            Box::new(RefRfunc{f: self})
+        } else {
+            Box::new(StaticRfunc{f: self})
+        };
         quote!(
             #attrs
             #[allow(missing_docs)]
@@ -1187,11 +1227,70 @@ impl<'a> ToTokens for Matcher<'a> {
     }
 }
 
-struct Rfunc<'a> {
+struct RefRfunc<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for Rfunc<'a> {
+impl<'a> ToTokens for RefRfunc<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let fn_params = &self.f.fn_params;
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let lg = &self.f.alifetimes;
+        let owned_output = &self.f.owned_output;
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let default_err_msg =
+            "Returning default values requires the \"nightly\" feature";
+        #[cfg(feature = "nightly_derive")]
+        let default_err_msg =
+            "Can only return default values for types that impl std::Default";
+
+        quote!(
+            enum Rfunc #ig #wc {
+                Default(Option<#owned_output>),
+                Const(#owned_output),
+                // Prevent "unused type parameter" errors Surprisingly,
+                // PhantomData<Fn(generics)> is Send even if generics are not,
+                // unlike PhantomData<generics>
+                _Phantom(Mutex<Box<dyn Fn(#fn_params) -> () + Send>>)
+            }
+
+            impl #ig  Rfunc #tg #wc {
+                fn call #lg (&self)
+                    -> std::result::Result<&#owned_output, &'static str>
+                {
+                    match self {
+                        Rfunc::Default(Some(ref __mockall_o)) => {
+                            Ok(__mockall_o)
+                        },
+                        Rfunc::Default(None) => {
+                            Err(#default_err_msg)
+                        },
+                        Rfunc::Const(ref __mockall_o) => {
+                            Ok(__mockall_o)
+                        },
+                        Rfunc::_Phantom(_) => unreachable!()
+                    }
+                }
+            }
+
+            impl #ig std::default::Default for Rfunc #tg #wc
+            {
+                fn default() -> Self {
+                    use ::mockall::ReturnDefault;
+                    Rfunc::Default(::mockall::DefaultReturner::<#owned_output>
+                                ::maybe_return_default())
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+struct StaticRfunc<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for StaticRfunc<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
@@ -1266,6 +1365,71 @@ impl<'a> ToTokens for Rfunc<'a> {
             {
                 fn default() -> Self {
                     Rfunc::Default
+                }
+            }
+        ).to_tokens(tokens);
+    }
+}
+
+/// An expectation type for functions that take a &self and return a reference
+struct RefExpectation<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for RefExpectation<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let common_methods = CommonExpectationMethods{f: &self.f};
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let hrtb = self.f.hrtb();
+        let ident_str = self.f.ident_str();
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let common_tg = &tg; // TODO: get the generics right
+        let lg = &self.f.alifetimes;
+        let output = &self.f.output;
+        let owned_output = &self.f.owned_output;
+        let v = &self.f.privmod_vis;
+        quote!(
+            /// Expectation type for methods taking a `&self` argument and
+            /// returning immutable references.  This is the type returned by
+            /// the `expect_*` methods.
+            #v struct Expectation #ig #wc {
+                common: Common #common_tg,
+                rfunc: Rfunc #tg,
+            }
+
+            impl #ig Expectation #tg #wc {
+                // TODO: reenable docs after merging 2020_refactor branch
+                ///// Call this [`Expectation`] as if it were the real method.
+                //#[doc(hidden)]
+                #v fn call #lg (&self, #(#argnames: #argty, )* ) -> #output
+                {
+                    self.common.call();
+                    self.rfunc.call().unwrap_or_else(|m| {
+                        let desc = format!("{}",
+                                           self.common.matcher.lock().unwrap());
+                        panic!("{}: Expectation({}) {}", #ident_str, desc,
+                            m);
+                    })
+                }
+
+                /// Return a reference to a constant value from the `Expectation`
+                #v fn return_const(&mut self, __mockall_o: #owned_output)
+                    -> &mut Self
+                {
+                    self.rfunc = Rfunc::Const(__mockall_o);
+                    self
+                }
+
+                #common_methods
+            }
+            impl #ig Default for Expectation #tg #wc
+            {
+                fn default() -> Self {
+                    Expectation {
+                        common: Common::default(),
+                        rfunc: Rfunc::default()
+                    }
                 }
             }
         ).to_tokens(tokens);
@@ -1417,12 +1581,12 @@ impl<'a> ToTokens for StaticExpectation<'a> {
     }
 }
 
-/// An Expectations type for functions return a `'static` value
-struct StaticExpectations<'a> {
+/// An collection of Expectation's
+struct Expectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for StaticExpectations<'a> {
+impl<'a> ToTokens for Expectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationsMethods{f: &self.f};
         let argnames = &self.f.argnames;
