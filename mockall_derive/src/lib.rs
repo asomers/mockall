@@ -1295,4 +1295,115 @@ mod method_types{
     }
 }
 
+mod supersuperfy {
+    use super::*;
+
+    fn check_supersuperfy(orig: TokenStream, expected: TokenStream) {
+        let orig_ty: Type = parse2(orig).unwrap();
+        let expected_ty: Type = parse2(expected).unwrap();
+        let output = supersuperfy(&orig_ty, 1);
+        assert_eq!(format!("{}", quote!(#output)),
+                   format!("{}", quote!(#expected_ty)));
+    }
+
+    #[test]
+    fn array() {
+        check_supersuperfy(
+            quote!([super::X; n]),
+            quote!([super::super::X; n])
+        );
+    }
+
+    #[test]
+    fn barefn() {
+        check_supersuperfy(
+            quote!(fn(super::A) -> super::B),
+            quote!(fn(super::super::A) -> super::super::B)
+        );
+    }
+
+    #[test]
+    fn group() {
+        let orig = TypeGroup {
+            group_token: token::Group::default(),
+            elem: Box::new(parse2(quote!(super::T)).unwrap())
+        };
+        let expected = TypeGroup {
+            group_token: token::Group::default(),
+            elem: Box::new(parse2(quote!(super::super::T)).unwrap())
+        };
+        let output = supersuperfy(&Type::Group(orig), 1);
+        assert_eq!(format!("{}", quote!(#output)),
+                   format!("{}", quote!(#expected)));
+    }
+
+    // Just check that it doesn't panic
+    #[test]
+    fn infer() {
+        check_supersuperfy( quote!(_), quote!(_));
+    }
+
+    // Just check that it doesn't panic
+    #[test]
+    fn never() {
+        check_supersuperfy( quote!(!), quote!(!));
+    }
+
+    #[test]
+    fn paren() {
+        check_supersuperfy(
+            quote!((super::X)),
+            quote!((super::super::X))
+        );
+    }
+
+    #[test]
+    fn path() {
+        check_supersuperfy(
+            quote!(::super::SuperT<u32>),
+            quote!(::super::super::SuperT<u32>)
+        );
+    }
+
+    #[test]
+    fn ptr() {
+        check_supersuperfy(
+            quote!(*const super::X),
+            quote!(*const super::super::X)
+        );
+    }
+
+    #[test]
+    fn reference() {
+        check_supersuperfy(
+            quote!(&'a mut super::X),
+            quote!(&'a mut super::super::X)
+        );
+    }
+
+    #[test]
+    fn slice() {
+        check_supersuperfy(
+            quote!([super::X]),
+            quote!([super::super::X])
+        );
+    }
+
+    #[test]
+    fn trait_object() {
+        check_supersuperfy(
+            quote!(dyn super::X + super::Y),
+            quote!(dyn super::super::X + super::super::Y)
+        );
+    }
+
+    #[test]
+    fn tuple() {
+        check_supersuperfy(
+            quote!((super::A, super::B)),
+            quote!((super::super::A, super::super::B))
+        );
+    }
+}
+
 }
