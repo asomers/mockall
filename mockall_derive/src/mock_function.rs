@@ -51,6 +51,7 @@ pub(crate) struct Builder<'a> {
     parent: Option<&'a Ident>,
     sig: &'a Signature,
     struct_: Option<&'a Ident>,
+    struct_generics: Option<&'a Generics>,
     trait_: Option<&'a Ident>,
     vis: &'a Visibility
 }
@@ -62,7 +63,6 @@ impl<'a> Builder<'a> {
     }
 
     pub fn build(self) -> MockFunction {
-        let egenerics = Generics::default();    // TODO
         let mut argnames = Vec::new();
         let mut argty = Vec::new();
         let mut is_static = true;
@@ -130,10 +130,16 @@ impl<'a> Builder<'a> {
         } else {
             output.clone()
         };
+        let merged_generics = if let Some(g) = self.struct_generics {
+            merge_generics(g, &self.sig.generics)
+        } else {
+            self.sig.generics.clone()
+        };
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
-            self.sig.generics.clone(),
+            merged_generics,
             &self.sig.inputs,
-            &self.sig.output
+            &ReturnType::Type(<Token![->]>::default(),
+                              Box::new(owned_output.clone()))
         );
         // TODO: reconsider adding 'static bounds.  It isn't required for most
         // methods.  See PR #114
@@ -198,6 +204,7 @@ impl<'a> Builder<'a> {
             parent: None,
             sig,
             struct_: None,
+            struct_generics: None,
             trait_: None,
             vis
         }
@@ -212,6 +219,12 @@ impl<'a> Builder<'a> {
     /// Supply the name of the parent struct, if any
     pub fn struct_(&mut self, ident: &'a Ident) -> &mut Self {
         self.struct_= Some(ident);
+        self
+    }
+
+    /// Supply the Generics of the parent struct, if any
+    pub fn struct_generics(&mut self, generics: &'a Generics) -> &mut Self {
+        self.struct_generics = Some(generics);
         self
     }
 
@@ -284,7 +297,7 @@ impl MockFunction {
     pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
         let argnames = &self.argnames;
         let attrs = self.format_attrs(true);
-        let (ig, tg, wc) = self.egenerics.split_for_impl();
+        let (ig, tg, wc) = self.sig.generics.split_for_impl();
         let tbf = tg.as_turbofish();
         let name = self.name();
         let no_match_msg = if let Some(s) = &self.struct_ {
@@ -444,7 +457,7 @@ impl MockFunction {
     /// Return the name of this function's expecation object
     pub fn expectation_obj(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();
-        if self.is_generic() {
+        if self.is_expectation_generic() {
             let (_, tg, _) = self.egenerics.split_for_impl();
             quote!(#inner_mod_ident::Expectation #tg)
         } else {
@@ -455,10 +468,22 @@ impl MockFunction {
     /// Return the name of this function's expecations object
     pub fn expectations_obj(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();
-        if self.is_generic() {
+        if self.is_method_generic() {
             quote!(#inner_mod_ident::GenericExpectations)
         } else {
             quote!(#inner_mod_ident::Expectations)
+        }
+    }
+
+    pub fn field_definition(&self, modname: Option<&Ident>) -> TokenStream {
+        let name = self.name();
+        let attrs = self.format_attrs(false);
+        let expectations_obj = &self.expectations_obj();
+        if self.is_method_generic() {
+            quote!(#attrs #name: #modname::#expectations_obj)
+        } else {
+            let (_, tg, _) = self.egenerics.split_for_impl();
+            quote!(#attrs #name: #modname::#expectations_obj #tg)
         }
     }
 
@@ -492,16 +517,20 @@ impl MockFunction {
         }
     }
 
-    /// The MockFunction is generic if the expectation has any non-lifetime
-    /// generic parameters.
-    fn is_generic(&self) -> bool {
-        self.egenerics.params.iter().any(|p| {
+    fn is_expectation_generic(&self) -> bool {
+        !self.fn_params.is_empty()
+    }
+
+    /// Is the mock method generic (as opposed to a non-generic method of a
+    /// generic mock struct)?
+    fn is_method_generic(&self) -> bool {
+        self.sig.generics.params.iter().any(|p| {
             if let GenericParam::Type(_) = p {
                 true
             } else {
                 false
             }
-        }) || self.egenerics.where_clause.is_some()
+        }) || self.sig.generics.where_clause.is_some()
     }
 
     fn outer_mod_path(&self, modname: Option<&Ident>) -> Path {
@@ -1930,7 +1959,7 @@ struct GenericExpectations<'a> {
 
 impl<'a> ToTokens for GenericExpectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        if ! self.f.is_generic() {
+        if ! self.f.is_expectation_generic() {
             return;
         }
 

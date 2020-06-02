@@ -56,12 +56,8 @@ impl Methods {
     fn field_definitions(&self, modname: &Ident) -> Vec<TokenStream> {
         self.0.iter()
             .filter(|meth| !meth.is_static())
-            .map(|meth| {
-                let name = meth.name();
-                let attrs = meth.format_attrs(false);
-                let expectations_obj = &meth.expectations_obj();
-                quote!(#attrs #name: #modname::#expectations_obj)
-            }).collect::<Vec<_>>()
+            .map(|meth| meth.field_definition(Some(modname)))
+            .collect::<Vec<_>>()
     }
 
     fn expects(&self, modname: &Ident) -> Vec<impl ToTokens> {
@@ -121,12 +117,56 @@ impl MockItemStruct {
             )
         }
     }
+
+    fn phantom_default_inits(&self) -> Vec<TokenStream> {
+        self.generics.params
+        .iter()
+        .enumerate()
+        .map(|(count, param)| {
+            let phident = format_ident!("_t{}", count);
+            quote!(#phident: ::std::marker::PhantomData,)
+        }).collect()
+    }
+
+    /// Generate any PhantomData field definitions
+    fn phantom_fields(&self) -> Vec<TokenStream> {
+        self.generics.params
+        .iter()
+        .enumerate()
+        .filter_map(|(count, param)| {
+            let phident = format_ident!("_t{}", count);
+            match param {
+                syn::GenericParam::Lifetime(l) => {
+                    if !l.bounds.is_empty() {
+                        compile_error(l.bounds.span(),
+                            "#automock does not yet support lifetime bounds on structs");
+                    }
+                    let lifetime = &l.lifetime;
+                    Some(
+                    quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>,)
+                    )
+                },
+                syn::GenericParam::Type(tp) => {
+                    let ty = &tp.ident;
+                    Some(
+                    quote!(#phident: ::std::marker::PhantomData<#ty>,)
+                    )
+                },
+                syn::GenericParam::Const(_) => {
+                    compile_error(param.span(),
+                        "#automock does not yet support generic constants");
+                    None
+                }
+            }
+        }).collect()
+    }
 }
 
 impl From<MockableStruct> for MockItemStruct {
     fn from(mockable: MockableStruct) -> MockItemStruct {
         let mock_ident = gen_mod_ident(&mockable.name, None);
         let modname = gen_mod_ident(&mockable.original_name, None);
+        let generics = mockable.generics;
         let struct_name = &mockable.name;
         let vis = mockable.vis;
         let has_new = mockable.methods.iter()
@@ -147,6 +187,7 @@ impl From<MockableStruct> for MockItemStruct {
                     .attrs(&meth.attrs)
                     .parent(&mock_ident)
                     .struct_(&struct_name)
+                    .struct_generics(&generics)
                     .levels(2)
                     .call_levels(0)
                     .build()
@@ -158,7 +199,7 @@ impl From<MockableStruct> for MockItemStruct {
 
         MockItemStruct {
             attrs: mockable.attrs,
-            generics: mockable.generics,
+            generics,
             has_new,
             methods,
             modname,
@@ -202,6 +243,7 @@ impl ToTokens for MockItemStruct {
                 quote!(#fieldname: #tyname)
             }).collect::<Vec<_>>();
         field_definitions.extend(self.methods.field_definitions(&modname));
+        field_definitions.extend(self.phantom_fields());
         let mut default_inits = substructs.iter()
             .map(|ss| {
                 let fieldname = &ss.fieldname;
@@ -209,6 +251,7 @@ impl ToTokens for MockItemStruct {
                 quote!(#fieldname: #tyname::default())
             }).collect::<Vec<_>>();
         default_inits.extend(self.methods.default_inits(&modname));
+        default_inits.extend(self.phantom_default_inits());
         let trait_impls = self.traits.iter()
             .map(|ss| {
                 let modname = format_ident!("{}_{}", &self.modname, ss.name());
