@@ -135,6 +135,14 @@ impl<'a> Builder<'a> {
             &self.sig.inputs,
             &self.sig.output
         );
+        // TODO: reconsider adding 'static bounds.  It isn't required for most
+        // methods.  See PR #114
+        for p in egenerics.params.iter_mut() {
+            if let GenericParam::Type(tp) = p {
+                let static_bound = Lifetime::new("'static", Span::call_site());
+                tp.bounds.push(TypeParamBound::Lifetime(static_bound));
+            }
+        }
         let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
             egenerics.type_params().map(|tp| tp.ident.clone())
         );
@@ -397,7 +405,7 @@ impl MockFunction {
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
         let inner_mod_ident = self.inner_mod_ident();
-        let (ig, tg, wc) = self.egenerics.split_for_impl();
+        let (ig, tg, wc) = self.sig.generics.split_for_impl();
         let tbf = tg.as_turbofish();
         let vis = &self.call_vis;
 
@@ -436,13 +444,22 @@ impl MockFunction {
     /// Return the name of this function's expecation object
     pub fn expectation_obj(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();
-        quote!(#inner_mod_ident::Expectation)
+        if self.is_generic() {
+            let (_, tg, _) = self.egenerics.split_for_impl();
+            quote!(#inner_mod_ident::Expectation #tg)
+        } else {
+            quote!(#inner_mod_ident::Expectation)
+        }
     }
 
     /// Return the name of this function's expecations object
     pub fn expectations_obj(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();
-        quote!(#inner_mod_ident::Expectations)
+        if self.is_generic() {
+            quote!(#inner_mod_ident::GenericExpectations)
+        } else {
+            quote!(#inner_mod_ident::Expectations)
+        }
     }
 
     pub fn format_attrs(&self, include_docs: bool) -> impl ToTokens {
@@ -473,6 +490,18 @@ impl MockFunction {
         } else {
             format!("{}", self.name())
         }
+    }
+
+    /// The MockFunction is generic if the expectation has any non-lifetime
+    /// generic parameters.
+    fn is_generic(&self) -> bool {
+        self.egenerics.params.iter().any(|p| {
+            if let GenericParam::Type(_) = p {
+                true
+            } else {
+                false
+            }
+        }) || self.egenerics.where_clause.is_some()
     }
 
     fn outer_mod_path(&self, modname: Option<&Ident>) -> Path {
@@ -516,6 +545,7 @@ impl MockFunction {
         } else {
             Box::new(Expectations{f: self})
         };
+        let generic_expectations = GenericExpectations{f: self};
         let fn_ident = &self.name();
         let fn_docstr = format!("Mock version of the `{}` function", fn_ident);
         // TODO: ExpectationGuard for generic methods
@@ -555,6 +585,7 @@ impl MockFunction {
                 #common
                 #expectation
                 #expectations
+                #generic_expectations
                 #guard
                 #context
             }
@@ -1436,7 +1467,9 @@ impl<'a> ToTokens for StaticRfunc<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let fn_params = &self.f.fn_params;
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let generics = merge_generics(&self.f.egenerics,
+                                      &self.f.rlifetimes);
+        let (ig, tg, wc) = generics.split_for_impl();
         let hrtb = self.f.hrtb();
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
@@ -1890,3 +1923,92 @@ impl<'a> ToTokens for Expectations<'a> {
         ).to_tokens(tokens);
     }
 }
+
+struct GenericExpectations<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for GenericExpectations<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        if ! self.f.is_generic() {
+            return;
+        }
+
+        let ge = StaticGenericExpectations{f: self.f};
+        let v = &self.f.privmod_vis;
+        quote!(
+            /// A collection of [`Expectation`](struct.Expectations.html)
+            /// objects for a generic method.  Users will rarely if ever use
+            /// this struct directly.
+            #[doc(hidden)]
+            #[derive(Default)]
+            #v struct GenericExpectations{
+                store: std::collections::hash_map::HashMap<::mockall::Key,
+                               Box<dyn ::mockall::AnyExpectations>>
+            }
+            impl GenericExpectations {
+                /// Verify that all current expectations are satisfied and clear
+                /// them.  This applies to all sets of generic parameters!
+                #v fn checkpoint(&mut self) ->
+                    std::collections::hash_map::Drain<::mockall::Key,
+                               Box<dyn ::mockall::AnyExpectations>>
+                {
+                    self.store.drain()
+                }
+
+                #v fn new() -> Self {
+                    Self::default()
+                }
+            }
+            #ge
+        ).to_tokens(tokens);
+    }
+}
+
+/// Generates methods for GenericExpectations for methods returning static
+/// values
+struct StaticGenericExpectations<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for StaticGenericExpectations<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let generics = merge_generics(&self.f.egenerics,
+                                      &self.f.rlifetimes);
+        let (ig, tg, wc) = generics.split_for_impl();
+        let tbf = tg.as_turbofish();
+        let output = &self.f.output;
+        let v = &self.f.privmod_vis;
+        quote!(
+            impl #ig ::mockall::AnyExpectations for Expectations #tg #wc {}
+            impl GenericExpectations {
+                /// Simulating calling the real method.
+                #v fn call #ig (&self, #(#argnames: #argty, )* )
+                    -> Option<#output> #wc
+                {
+                    self.store.get(&::mockall::Key::new::<(#(#argty, )*)>())
+                        .map(|__mockall_e| {
+                            __mockall_e.downcast_ref::<Expectations #tg>()
+                            .unwrap()
+                            .call(#(#argnames, )*)
+                        // TODO: use Option::flatten once it stabilizes
+                        // https://github.com/rust-lang/rust/issues/60258
+                        }).and_then(std::convert::identity)
+                }
+
+                /// Create a new Expectation.
+                #v fn expect #ig (&mut self) -> &mut Expectation #tg #wc
+                {
+                    self.store.entry(::mockall::Key::new::<(#(#argty, )*)>())
+                        .or_insert_with(|| Box::new(Expectations #tbf::new()))
+                        .downcast_mut::<Expectations #tg>()
+                        .unwrap()
+                        .expect()
+                }
+            }
+        ).to_tokens(tokens)
+    }
+}
+
