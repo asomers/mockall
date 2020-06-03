@@ -557,14 +557,6 @@ fn gen_struct<T>(attrs: &[syn::Attribute],
         let output = &meth_types.output;
 
         let expect_vis = expectation_visibility(&meth.borrow().vis, 2);
-        let mut macro_g = TokenStream::new();
-        let merged_g = merge_generics(&generics, &meth_types.expectation_generics);
-        if ! merged_g.params.is_empty() {
-            merged_g.split_for_impl().1.to_tokens(&mut macro_g)
-        } else {
-            // expectation! requires the <> even if it's empty
-            quote!(<>).to_tokens(&mut macro_g);
-        }
 
         Expectation::new(&attrs, &meth_types.expectation_inputs,
                          Some(&generics), &meth_types.expectation_generics,

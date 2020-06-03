@@ -641,7 +641,9 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
                             ot.default = yt.default.clone();
                         }
                         // XXX this might result in duplicate bounds
-                        ot.bounds.extend(yt.bounds.iter().cloned());
+                        if ot.bounds != yt.bounds {
+                            ot.bounds.extend(yt.bounds.iter().cloned());
+                        }
                     }
                     continue 'outer_param;
                 }
@@ -672,7 +674,9 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
                                         ybl.lifetimes.iter().cloned()),
                             };
                             // XXX: might result in duplicate bounds
-                            ot.bounds.extend(yt.bounds.iter().cloned())
+                            if ot.bounds != yt.bounds {
+                                ot.bounds.extend(yt.bounds.iter().cloned())
+                            }
                         }
                         continue 'outer_wc;
                     }
@@ -974,8 +978,11 @@ pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
 mod t {
     use super::*;
 
+mod merge_generics {
+    use super::*;
+
     #[test]
-    fn merge_generics() {
+    fn both() {
         let mut g1: Generics = parse2(quote!(<T: 'static, V: Copy> )).unwrap();
         let wc1: WhereClause = parse2(quote!(where T: Default)).unwrap();
         g1.where_clause = Some(wc1);
@@ -997,6 +1004,51 @@ mod t {
         assert_eq!(quote!(#ge #wce).to_string(),
                    quote!(#gm #gm_wc).to_string());
     }
+
+    #[test]
+    fn eq() {
+        let mut g1: Generics = parse2(quote!(<T: 'static, V: Copy> )).unwrap();
+        let wc1: WhereClause = parse2(quote!(where T: Default)).unwrap();
+        g1.where_clause = Some(wc1.clone());
+
+        let g2 = g1.clone();
+
+        let gm = super::merge_generics(&g1, &g2);
+        let gm_wc = &gm.where_clause;
+
+        assert_eq!(quote!(#g1 #wc1).to_string(),
+                   quote!(#gm #gm_wc).to_string());
+    }
+
+    #[test]
+    fn lhs_only() {
+        let mut g1: Generics = parse2(quote!(<T: 'static, V: Copy> )).unwrap();
+        let wc1: WhereClause = parse2(quote!(where T: Default)).unwrap();
+        g1.where_clause = Some(wc1.clone());
+
+        let g2 = Generics::default();
+
+        let gm = super::merge_generics(&g1, &g2);
+        let gm_wc = &gm.where_clause;
+
+        assert_eq!(quote!(#g1 #wc1).to_string(),
+                   quote!(#gm #gm_wc).to_string());
+    }
+
+    #[test]
+    fn rhs_only() {
+        let g1 = Generics::default();
+        let mut g2: Generics = parse2(quote!(<Q: Send, V: Clone>)).unwrap();
+        let wc2: WhereClause = parse2(quote!(where T: Sync, Q: Debug)).unwrap();
+        g2.where_clause = Some(wc2.clone());
+
+        let gm = super::merge_generics(&g1, &g2);
+        let gm_wc = &gm.where_clause;
+
+        assert_eq!(quote!(#g2 #wc2).to_string(),
+                   quote!(#gm #gm_wc).to_string());
+    }
+}
 
 // Tests for the method_types function.  But there are no assertions for the
 // call_exprs field, because TokenStream doesn't implement Eq or anything close
