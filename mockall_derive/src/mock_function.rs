@@ -569,10 +569,12 @@ impl MockFunction {
         } else {
             Box::new(StaticExpectation{f: self})
         };
-        let expectations: Box<dyn ToTokens> = if self.return_refmut {
+        let expectations: Box<dyn ToTokens> = if self.return_ref {
+            Box::new(RefExpectations{f: self})
+        } else if self.return_refmut {
             Box::new(RefMutExpectations{f: self})
         } else {
-            Box::new(Expectations{f: self})
+            Box::new(StaticExpectations{f: self})
         };
         let generic_expectations = GenericExpectations{f: self};
         let fn_ident = &self.name();
@@ -1605,7 +1607,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
                 // TODO: reenable docs after merging 2020_refactor branch
                 ///// Call this [`Expectation`] as if it were the real method.
                 //#[doc(hidden)]
-                #v fn call #lg (&self, #(#argnames: #argty, )* ) -> #output
+                #v fn call #lg (&self) -> #output
                 {
                     self.common.call();
                     self.rfunc.call().unwrap_or_else(|m| {
@@ -1871,6 +1873,44 @@ impl<'a> ToTokens for StaticExpectation<'a> {
     }
 }
 
+/// An collection of RefExpectation's
+struct RefExpectations<'a> {
+    f: &'a MockFunction
+}
+
+impl<'a> ToTokens for RefExpectations<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let common_methods = CommonExpectationsMethods{f: &self.f};
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let lg = &self.f.alifetimes;
+        let output = &self.f.output;
+        let predexprs = &self.f.predexprs;
+        let v = &self.f.privmod_vis;
+        quote!(
+            #common_methods
+            impl #ig Expectations #tg #wc {
+                /// Simulate calling the real method.  Every current expectation
+                /// will be checked in FIFO order and the first one with
+                /// matching arguments will be used.
+                #v fn call #lg (&self, #(#argnames: #argty, )* )
+                    -> Option<#output>
+                {
+                    self.0.iter()
+                        .find(|__mockall_e|
+                              __mockall_e.matches(#(#predexprs, )*) &&
+                              (!__mockall_e.is_done() || self.0.len() == 1))
+                        .map(move |__mockall_e|
+                             __mockall_e.call()
+                        )
+                }
+
+            }
+        ).to_tokens(tokens);
+    }
+}
+
 /// An collection of RefMutExpectation's
 struct RefMutExpectations<'a> {
     f: &'a MockFunction
@@ -1915,12 +1955,14 @@ impl<'a> ToTokens for RefMutExpectations<'a> {
             {}
         ).to_tokens(tokens);
     }
-}/// An collection of Expectation's
-struct Expectations<'a> {
+}
+
+/// An collection of Expectation's for methods returning static values
+struct StaticExpectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for Expectations<'a> {
+impl<'a> ToTokens for StaticExpectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationsMethods{f: &self.f};
         let argnames = &self.f.argnames;
