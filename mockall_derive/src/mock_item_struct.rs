@@ -8,6 +8,48 @@ use crate::{
     mock_trait::MockTrait
 };
 
+fn phantom_default_inits(generics: &Generics) -> Vec<TokenStream> {
+    generics.params
+    .iter()
+    .enumerate()
+    .map(|(count, param)| {
+        let phident = format_ident!("_t{}", count);
+        quote!(#phident: ::std::marker::PhantomData,)
+    }).collect()
+}
+
+/// Generate any PhantomData field definitions
+fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
+    generics.params
+    .iter()
+    .enumerate()
+    .filter_map(|(count, param)| {
+        let phident = format_ident!("_t{}", count);
+        match param {
+            syn::GenericParam::Lifetime(l) => {
+                if !l.bounds.is_empty() {
+                    compile_error(l.bounds.span(),
+                        "#automock does not yet support lifetime bounds on structs");
+                }
+                let lifetime = &l.lifetime;
+                Some(
+                quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>,)
+                )
+            },
+            syn::GenericParam::Type(tp) => {
+                let ty = &tp.ident;
+                Some(
+                quote!(#phident: ::std::marker::PhantomData<#ty>,)
+                )
+            },
+            syn::GenericParam::Const(_) => {
+                compile_error(param.span(),
+                    "#automock does not yet support generic constants");
+                None
+            }
+        }
+    }).collect()
+}
 
 /// A collection of methods defined in one spot
 struct Methods(Vec<MockFunction>);
@@ -119,46 +161,11 @@ impl MockItemStruct {
     }
 
     fn phantom_default_inits(&self) -> Vec<TokenStream> {
-        self.generics.params
-        .iter()
-        .enumerate()
-        .map(|(count, param)| {
-            let phident = format_ident!("_t{}", count);
-            quote!(#phident: ::std::marker::PhantomData,)
-        }).collect()
+        phantom_default_inits(&self.generics)
     }
 
-    /// Generate any PhantomData field definitions
     fn phantom_fields(&self) -> Vec<TokenStream> {
-        self.generics.params
-        .iter()
-        .enumerate()
-        .filter_map(|(count, param)| {
-            let phident = format_ident!("_t{}", count);
-            match param {
-                syn::GenericParam::Lifetime(l) => {
-                    if !l.bounds.is_empty() {
-                        compile_error(l.bounds.span(),
-                            "#automock does not yet support lifetime bounds on structs");
-                    }
-                    let lifetime = &l.lifetime;
-                    Some(
-                    quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>,)
-                    )
-                },
-                syn::GenericParam::Type(tp) => {
-                    let ty = &tp.ident;
-                    Some(
-                    quote!(#phident: ::std::marker::PhantomData<#ty>,)
-                    )
-                },
-                syn::GenericParam::Const(_) => {
-                    compile_error(param.span(),
-                        "#automock does not yet support generic constants");
-                    None
-                }
-            }
-        }).collect()
+        phantom_fields(&self.generics)
     }
 }
 
@@ -194,7 +201,7 @@ impl From<MockableStruct> for MockItemStruct {
             ).collect::<Vec<_>>());
         let structname = &mockable.name;
         let traits = mockable.traits.into_iter()
-            .map(|t| MockTrait::new(structname, t, &vis))
+            .map(|t| MockTrait::new(structname, &generics, t, &vis))
             .collect();
 
         MockItemStruct {
@@ -226,7 +233,7 @@ impl ToTokens for MockItemStruct {
             .map(|trait_| {
                 MockItemTraitImpl {
                     attrs: trait_.attrs.clone(),
-                    generics: trait_.generics.clone(),
+                    generics: self.generics.clone(),
                     fieldname: format_ident!("{}_expectations", trait_.name()),
                     methods: Methods(trait_.methods.clone()),
                     modname: format_ident!("{}_{}", &self.modname, trait_.name()),
@@ -240,7 +247,7 @@ impl ToTokens for MockItemStruct {
             .map(|ss| {
                 let fieldname = &ss.fieldname;
                 let tyname = &ss.name;
-                quote!(#fieldname: #tyname)
+                quote!(#fieldname: #tyname #tg)
             }).collect::<Vec<_>>();
         field_definitions.extend(self.methods.field_definitions(&modname));
         field_definitions.extend(self.phantom_fields());
@@ -311,6 +318,16 @@ pub(crate) struct MockItemTraitImpl {
     fieldname: Ident,
 }
 
+impl MockItemTraitImpl {
+    fn phantom_default_inits(&self) -> Vec<TokenStream> {
+        phantom_default_inits(&self.generics)
+    }
+
+    fn phantom_fields(&self) -> Vec<TokenStream> {
+        phantom_fields(&self.generics)
+    }
+}
+
 impl ToTokens for MockItemTraitImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let attrs_nodocs = format_attrs(&self.attrs, false);
@@ -318,8 +335,10 @@ impl ToTokens for MockItemTraitImpl {
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let modname = &self.modname;
         let method_checkpoints = self.methods.checkpoints();
-        let default_inits = self.methods.default_inits(&modname);
-        let field_definitions = self.methods.field_definitions(&modname);
+        let mut default_inits = self.methods.default_inits(&modname);
+        default_inits.extend(self.phantom_default_inits());
+        let mut field_definitions = self.methods.field_definitions(&modname);
+        field_definitions.extend(self.phantom_fields());
         let priv_mods = self.methods.priv_mods();
         quote!(
             #[allow(non_snake_case)]

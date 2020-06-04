@@ -13,7 +13,8 @@ use crate::{
 
 pub(crate) struct MockTrait {
     pub attrs: Vec<Attribute>,
-    pub generics: Generics,
+    pub struct_generics: Generics,
+    pub trait_generics: Generics,
     pub methods: Vec<MockFunction>,
     pub name: Ident,
     structname: Ident,
@@ -29,9 +30,14 @@ impl MockTrait {
     ///
     /// # Arguments
     /// * `structname` - name of the struct that implements this trait
+    /// * `struct_generics` - Generics of the parent structure
     /// * `trait_`  -    Mockable ItemTrait
     /// * `vis`     -   Visibility of the struct
-    pub fn new(structname: &Ident, trait_: ItemTrait, vis: &Visibility) -> Self {
+    pub fn new(structname: &Ident,
+               struct_generics: &Generics,
+               trait_: ItemTrait,
+               vis: &Visibility) -> Self
+    {
         let mut methods = Vec::new();
         let mut types = Vec::new();
         for ti in trait_.items.into_iter() {
@@ -46,6 +52,7 @@ impl MockTrait {
                         .levels(2)
                         .call_levels(0)
                         .struct_(structname)
+                        .struct_generics(struct_generics)
                         .trait_(&trait_.ident)
                         .build();
                     methods.push(mf);
@@ -61,7 +68,8 @@ impl MockTrait {
         }
         MockTrait {
             attrs: trait_.attrs,
-            generics: trait_.generics,
+            struct_generics: struct_generics.clone(),
+            trait_generics: trait_.generics,
             methods,
             name: trait_.ident,
             structname: structname.clone(),
@@ -77,7 +85,8 @@ impl MockTrait {
     // Supplying modname is an unfortunately hack.  Ideally MockTrait
     // wouldn't need to know that.
     pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
-        let (ig, tg, wc) = self.generics.split_for_impl();
+        let (ig, tg, wc) = self.struct_generics.split_for_impl();
+        let (_, t_tg, _) = self.trait_generics.split_for_impl();
         let ss_modname = format_ident!("{}_{}", &modname, self.name);
         let calls = self.methods.iter()
                 .map(|meth| meth.call(Some(modname)))
@@ -94,7 +103,7 @@ impl MockTrait {
         let structname = &self.structname;
         let types = &self.types;
         quote!(
-            impl #ig #name for #structname #tg #wc {
+            impl #ig #name #t_tg for #structname #tg #wc {
                 #(#types)*
                 #(#calls)*
             }
