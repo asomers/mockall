@@ -25,6 +25,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed mocking methods with complicated types including a `super::` component.
   ([#137](https://github.com/asomers/mockall/pull/137))
 
+- Mocked generic static methods can now use `return_const`.  This capability
+  was omitted as an oversight from PR #47.
+  ([#141](https://github.com/asomers/mockall/pull/141))
+
 ### Removed
 
 ## [0.7.1] - 3 May 2020

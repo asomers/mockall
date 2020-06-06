@@ -1390,6 +1390,22 @@ impl<'a> StaticExpectation<'a> {
                     }
 
                     /// Just like
+                    /// [`Expectation::return_const`](struct.Expectation.html#method.return_const)
+                    #v fn return_const<MockallOutput>
+                    (&mut self, __mockall_c: MockallOutput)
+                        -> &mut Expectation #tg
+                        where MockallOutput: Clone + Into<#output> + Send + 'static
+                    {
+                        self.guard.store.get_mut(
+                                &::mockall::Key::new::<(#(#argty, )*)>()
+                            ).unwrap()
+                            .downcast_mut::<Expectations #tg>()
+                            .unwrap()
+                            .0[self.i]
+                            .return_const(__mockall_c)
+                    }
+
+                    /// Just like
                     /// [`Expectation::returning`](struct.Expectation.html#method.returning)
                     #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                         -> &mut Expectation #tg
