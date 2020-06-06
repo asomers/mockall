@@ -14,7 +14,7 @@ fn phantom_default_inits(generics: &Generics) -> Vec<TokenStream> {
     .enumerate()
     .map(|(count, param)| {
         let phident = format_ident!("_t{}", count);
-        quote!(#phident: ::std::marker::PhantomData,)
+        quote!(#phident: ::std::marker::PhantomData)
     }).collect()
 }
 
@@ -33,13 +33,13 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
                 }
                 let lifetime = &l.lifetime;
                 Some(
-                quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>,)
+                quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>)
                 )
             },
             syn::GenericParam::Type(tp) => {
                 let ty = &tp.ident;
                 Some(
-                quote!(#phident: ::std::marker::PhantomData<#ty>,)
+                quote!(#phident: ::std::marker::PhantomData<#ty>)
                 )
             },
             syn::GenericParam::Const(_) => {
