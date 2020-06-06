@@ -1188,6 +1188,17 @@ impl<'a> StaticExpectation<'a> {
 
                 impl #ei_ig ExpectationGuard #e_tg #e_wc
                 {
+                    // Should only be called from the mockall_derive generated
+                    // code
+                    #[doc(hidden)]
+                    #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, Expectations #tg>)
+                        -> Self
+                    {
+                        __mockall_guard.expect(); // Drop the &Expectation
+                        let __mockall_i = __mockall_guard.0.len() - 1;
+                        ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
+                    }
+
                     /// Just like
                     /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
                     #v fn in_sequence(&mut self,
@@ -1201,17 +1212,6 @@ impl<'a> StaticExpectation<'a> {
                     /// [`Expectation::never`](struct.Expectation.html#method.never)
                     #v fn never(&mut self) -> &mut Expectation #tg {
                         self.guard.0[self.i].never()
-                    }
-
-                    // Should only be called from the mockall_derive generated
-                    // code
-                    #[doc(hidden)]
-                    #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, Expectations #tg>)
-                        -> Self
-                    {
-                        __mockall_guard.expect(); // Drop the &Expectation
-                        let __mockall_i = __mockall_guard.0.len() - 1;
-                        ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
                     }
 
                     /// Just like
@@ -1333,6 +1333,23 @@ impl<'a> StaticExpectation<'a> {
 
                 impl #ei_ig ExpectationGuard #e_tg #e_wc
                 {
+                    #[doc(hidden)]
+                    #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, GenericExpectations>)
+                        -> Self
+                    {
+                        let __mockall_ee: &mut Expectations #tg =
+                            __mockall_guard.store.entry(
+                                ::mockall::Key::new::<(#(#argty, )*)>()
+                            ).or_insert_with(||
+                                Box::new(Expectations #tbf ::new()))
+                            .downcast_mut()
+                            .unwrap();
+                        __mockall_ee.expect();    // Drop the &Expectation
+                        let __mockall_i = __mockall_ee.0.len() - 1;
+                        ExpectationGuard{guard: __mockall_guard, i: __mockall_i,
+                            _phantom: ::std::marker::PhantomData}
+                    }
+
                     /// Just like
                     /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
                     #v fn in_sequence(&mut self,
@@ -1358,23 +1375,6 @@ impl<'a> StaticExpectation<'a> {
                             .unwrap()
                             .0[self.i]
                             .never()
-                    }
-
-                    #[doc(hidden)]
-                    #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, GenericExpectations>)
-                        -> Self
-                    {
-                        let __mockall_ee: &mut Expectations #tg =
-                            __mockall_guard.store.entry(
-                                ::mockall::Key::new::<(#(#argty, )*)>()
-                            ).or_insert_with(||
-                                Box::new(Expectations #tbf ::new()))
-                            .downcast_mut()
-                            .unwrap();
-                        __mockall_ee.expect();    // Drop the &Expectation
-                        let __mockall_i = __mockall_ee.0.len() - 1;
-                        ExpectationGuard{guard: __mockall_guard, i: __mockall_i,
-                            _phantom: ::std::marker::PhantomData}
                     }
 
                     /// Just like
