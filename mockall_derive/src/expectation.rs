@@ -1214,7 +1214,8 @@ impl<'a> StaticExpectation<'a> {
                         ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
                     }
 
-                    /// Just like [`Expectation::once`](struct.Expectation.html#method.once)
+                    /// Just like
+                    /// [`Expectation::once`](struct.Expectation.html#method.once)
                     #v fn once(&mut self) -> &mut Expectation #tg {
                         self.guard.0[self.i].once()
                     }
@@ -1321,8 +1322,7 @@ impl<'a> StaticExpectation<'a> {
                         ::std::sync::Mutex<GenericExpectations> =
                         ::std::sync::Mutex::new(GenericExpectations::new());
                 }
-                /// Like an
-                /// [`&Expectation`](struct.Expectation.html) but
+                /// Like an [`&Expectation`](struct.Expectation.html) but
                 /// protected by a Mutex guard.  Useful for mocking static
                 /// methods.  Forwards accesses to an `Expectation` object.
                 #v struct ExpectationGuard #e_ig #e_wc{
@@ -1361,11 +1361,11 @@ impl<'a> StaticExpectation<'a> {
                     }
 
                     #[doc(hidden)]
-                    #v fn new(mut guard: MutexGuard<'__mockall_lt, GenericExpectations>)
+                    #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, GenericExpectations>)
                         -> Self
                     {
                         let __mockall_ee: &mut Expectations #tg =
-                            guard.store.entry(
+                            __mockall_guard.store.entry(
                                 ::mockall::Key::new::<(#(#argty, )*)>()
                             ).or_insert_with(||
                                 Box::new(Expectations #tbf ::new()))
@@ -1373,7 +1373,7 @@ impl<'a> StaticExpectation<'a> {
                             .unwrap();
                         __mockall_ee.expect();    // Drop the &Expectation
                         let __mockall_i = __mockall_ee.0.len() - 1;
-                        ExpectationGuard{guard, i: __mockall_i,
+                        ExpectationGuard{guard: __mockall_guard, i: __mockall_i,
                             _phantom: ::std::marker::PhantomData}
                     }
 
