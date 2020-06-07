@@ -1001,9 +1001,9 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
-                   .get_mut(&::mockall::Key::new::<(T,)>())
+                   .get_mut(&::mockall::Key::new::<(#(#argty, )*)>())
                    .unwrap()
-                   .downcast_mut::<Expectations<T>>()
+                   .downcast_mut::<Expectations #tg>()
                    .unwrap())
         } else {
             quote!(self.guard)
@@ -1174,9 +1174,9 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
-                   .get_mut(&::mockall::Key::new::<(T,)>())
+                   .get_mut(&::mockall::Key::new::<(#(#argty, )*)>())
                    .unwrap()
-                   .downcast_mut::<Expectations<T>>()
+                   .downcast_mut::<Expectations #tg>()
                    .unwrap())
         } else {
             quote!(self.guard)
@@ -1272,9 +1272,9 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
-                   .get_mut(&::mockall::Key::new::<(T,)>())
+                   .get_mut(&::mockall::Key::new::<(#(#argty, )*)>())
                    .unwrap()
-                   .downcast_mut::<Expectations<T>>()
+                   .downcast_mut::<Expectations #tg>()
                    .unwrap())
         } else {
             quote!(self.guard)
