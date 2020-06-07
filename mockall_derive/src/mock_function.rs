@@ -153,6 +153,8 @@ impl<'a> Builder<'a> {
             egenerics.type_params().map(|tp| tp.ident.clone())
         );
         let call_levels = self.call_levels.unwrap_or(self.levels);
+        let struct_generics = self.struct_generics.cloned()
+            .unwrap_or(Generics::default());
         MockFunction {
             alifetimes,
             argnames,
@@ -173,6 +175,7 @@ impl<'a> Builder<'a> {
             rlifetimes,
             sig: self.sig.clone(),
             struct_: self.struct_.cloned(),
+            struct_generics,
             trait_: self.trait_.cloned(),
             privmod_vis: expectation_visibility(self.vis, self.levels)
         }
@@ -280,6 +283,8 @@ pub(crate) struct MockFunction {
     sig: Signature,
     /// Name of the parent structure, if any
     struct_: Option<Ident>,
+    /// Generics of the parent structure
+    struct_generics: Generics,
     /// Name of this method's trait, if the method comes from a trait
     trait_: Option<Ident>,
     /// Visibility of the expectation and its methods
@@ -297,7 +302,7 @@ impl MockFunction {
     pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
         let argnames = &self.argnames;
         let attrs = self.format_attrs(true);
-        let (_, tg, _) = if self.is_method_generic() {
+        let (_, tg, _) = if self.is_method_generic() || self.is_static() {
             &self.egenerics
         } else {
             &self.sig.generics
@@ -397,12 +402,13 @@ impl MockFunction {
                 .unwrap_or(String::new()),
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
+        let (_, tg, wc) = self.struct_generics.split_for_impl();
         let outer_mod_path = self.outer_mod_path(modname);
         let v = &self.call_vis;
         quote!(
             #attrs
             #[doc = #context_docstr]
-            #v fn #context_ident() -> #outer_mod_path::Context
+            #v fn #context_ident() -> #outer_mod_path::Context #tg
             {
                 #outer_mod_path::Context::default()
             }
@@ -1370,15 +1376,16 @@ impl<'a> ToTokens for Context<'a> {
         e_generics.gt_token.get_or_insert(<Token![>]>::default());
         let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
-        let gd = Generics::default();
-        let (s_ig, s_tg, s_wc) = gd.split_for_impl();   // TODO: generic structs
+        let (s_ig, s_tg, s_wc) = self.f.struct_generics.split_for_impl();
         let mut meth_generics = self.f.sig.generics.clone();
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
         meth_generics.params.push(GenericParam::Lifetime(ltdef.clone()));
         let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
-        let ctx_fn_params = Punctuated::<Ident, Token![,]>::new();  // TODO
+        let ctx_fn_params = Punctuated::<Ident, Token![,]>::from_iter(
+            self.f.struct_generics.type_params().map(|tp| tp.ident.clone())
+        );
         let v = &self.f.privmod_vis;
 
         #[cfg(not(feature = "nightly_derive"))]
