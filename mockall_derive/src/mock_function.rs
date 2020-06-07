@@ -297,7 +297,11 @@ impl MockFunction {
     pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
         let argnames = &self.argnames;
         let attrs = self.format_attrs(true);
-        let (ig, tg, wc) = self.sig.generics.split_for_impl();
+        let (_, tg, _) = if self.is_method_generic() {
+            &self.egenerics
+        } else {
+            &self.sig.generics
+        }.split_for_impl();
         let tbf = tg.as_turbofish();
         let name = self.name();
         let no_match_msg = if let Some(s) = &self.struct_ {
@@ -418,7 +422,12 @@ impl MockFunction {
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
         let inner_mod_ident = self.inner_mod_ident();
-        let (ig, tg, wc) = self.sig.generics.split_for_impl();
+        let (_, tg, _) = if self.is_method_generic() {
+            &self.egenerics
+        } else {
+            &self.sig.generics
+        }.split_for_impl();
+        let (ig, _, wc) = self.sig.generics.split_for_impl();
         let tbf = tg.as_turbofish();
         let vis = &self.call_vis;
 
