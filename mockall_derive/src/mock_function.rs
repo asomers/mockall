@@ -354,7 +354,6 @@ impl MockFunction {
         } else {
             // TODO:
             // * call_exprs (declosurefy)
-            // * substructs
             // * Add fn_docstr
             quote!(
                 #attrs
