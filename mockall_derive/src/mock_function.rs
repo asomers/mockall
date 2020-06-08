@@ -69,7 +69,13 @@ impl<'a> Builder<'a> {
         let mut predexprs = Vec::new();
         let mut predty = Vec::new();
         let mut refpredty = Vec::new();
-        for fa in self.sig.inputs.iter() {
+
+        // TODO: add a test case that tests declosurefy and supersuperfy in
+        // combination.
+        let (call_generics, declosured_inputs, call_exprs) =
+            declosurefy(&self.sig.generics, &self.sig.inputs);
+
+        for fa in declosured_inputs.iter() {
             if let FnArg::Typed(pt) = fa {
                 let argname = (*pt.pat).clone();
                 let aty = supersuperfy(&pt.ty, self.levels);
@@ -131,12 +137,14 @@ impl<'a> Builder<'a> {
             output.clone()
         };
         let merged_generics = if let Some(g) = self.struct_generics {
-            merge_generics(g, &self.sig.generics)
+            merge_generics(g, &call_generics)
         } else {
+            // TODO: consider using call_generics here
             self.sig.generics.clone()
         };
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
             merged_generics,
+            // TODO: consider using declosured_inputs here
             &self.sig.inputs,
             &ReturnType::Type(<Token![->]>::default(),
                               Box::new(owned_output.clone()))
@@ -160,6 +168,8 @@ impl<'a> Builder<'a> {
             argnames,
             argty,
             attrs: self.attrs.to_vec(),
+            call_exprs,
+            call_generics,
             call_vis: expectation_visibility(self.vis, call_levels),
             egenerics,
             fn_params,
@@ -249,6 +259,11 @@ pub(crate) struct MockFunction {
     argty: Vec<Type>,
     /// any attributes on the original function, like #[inline]
     attrs: Vec<Attribute>,
+    /// Expressions that should be used for Expectation::call's arguments
+    // TODO: turn into a vec?
+    call_exprs: Punctuated<TokenStream, Token![,]>,
+    /// Generics used for the expectation call
+    call_generics: Generics,
     /// Visibility of the mock function itself
     call_vis: Visibility,
     /// Type Generics of the Expectation object
@@ -302,10 +317,11 @@ impl MockFunction {
     pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
         let argnames = &self.argnames;
         let attrs = self.format_attrs(true);
+        let call_exprs = &self.call_exprs;
         let (_, tg, _) = if self.is_method_generic() || self.is_static() {
             &self.egenerics
         } else {
-            &self.sig.generics
+            &self.call_generics
         }.split_for_impl();
         let tbf = tg.as_turbofish();
         let name = self.name();
@@ -346,19 +362,18 @@ impl MockFunction {
                          * generic parameters with UnwindSafe
                          */
                         /* std::panic::catch_unwind(|| */
-                        __mockall_guard.#call#tbf(#(#argnames),*)
+                        __mockall_guard.#call#tbf(#call_exprs)
                         /*)*/
                     }.expect(#no_match_msg)
                 }
             )
         } else {
             // TODO:
-            // * call_exprs (declosurefy)
             // * Add fn_docstr
             quote!(
                 #attrs
                 #vis #sig {
-                    self.#substruct_obj #name.#call#tbf(#(#argnames),*)
+                    self.#substruct_obj #name.#call#tbf(#call_exprs)
                     .expect(#no_match_msg)
                 }
 
@@ -430,9 +445,9 @@ impl MockFunction {
         let (_, tg, _) = if self.is_method_generic() {
             &self.egenerics
         } else {
-            &self.sig.generics
+            &self.call_generics
         }.split_for_impl();
-        let (ig, _, wc) = self.sig.generics.split_for_impl();
+        let (ig, _, wc) = self.call_generics.split_for_impl();
         let tbf = tg.as_turbofish();
         let vis = &self.call_vis;
 
@@ -532,19 +547,25 @@ impl MockFunction {
     }
 
     fn is_expectation_generic(&self) -> bool {
-        !self.fn_params.is_empty()
-    }
-
-    /// Is the mock method generic (as opposed to a non-generic method of a
-    /// generic mock struct)?
-    fn is_method_generic(&self) -> bool {
-        self.sig.generics.params.iter().any(|p| {
+        self.egenerics.params.iter().any(|p| {
             if let GenericParam::Type(_) = p {
                 true
             } else {
                 false
             }
-        }) || self.sig.generics.where_clause.is_some()
+        }) || self.egenerics.where_clause.is_some()
+    }
+
+    /// Is the mock method generic (as opposed to a non-generic method of a
+    /// generic mock struct)?
+    fn is_method_generic(&self) -> bool {
+        self.call_generics.params.iter().any(|p| {
+            if let GenericParam::Type(_) = p {
+                true
+            } else {
+                false
+            }
+        }) || self.call_generics.where_clause.is_some()
     }
 
     fn outer_mod_path(&self, modname: Option<&Ident>) -> Path {
@@ -1376,7 +1397,7 @@ impl<'a> ToTokens for Context<'a> {
         let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
         let (s_ig, s_tg, s_wc) = self.f.struct_generics.split_for_impl();
-        let mut meth_generics = self.f.sig.generics.clone();
+        let mut meth_generics = self.f.call_generics.clone();
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
