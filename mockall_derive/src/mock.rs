@@ -141,9 +141,14 @@ impl Parse for Mock {
                 syn::TraitItem::Method(meth) => {
                     methods.push(tim2iim(meth, &vis))
                 },
-                _ => {
-                    return Err(input.error("Unsupported in this context"));
-                }
+                syn::TraitItem::Const(c) => compile_error(c.span(),
+                    "mock! does not support associated constants"),
+                syn::TraitItem::Type(t) => compile_error(t.span(),
+                    "mock! does not support associated types on the struct"),
+                syn::TraitItem::Macro(m) => compile_error(m.span(),
+                    "mock! does not support macro invocations"),
+                x => compile_error(x.span(),
+                    "Unrecognized item.  mock! only supports trait items in this position"),
             }
         }
 
@@ -606,4 +611,35 @@ mod t {
         assert!(output.contains(r#"#[doc="Traitmethoddocs"]fnbar"#));
     }
 
+    #[test]
+    #[should_panic(expected = "mock! does not support associated constants")]
+    fn associated_const() {
+        let code = r#"F { const X: i32 = 42; }"#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        do_mock(ts);
+    }
+
+    #[test]
+    #[should_panic(expected = "mock! does not support associated types on the struct")]
+    fn associated_type_in_struct() {
+        let code = r#"F { type X = u32; }"#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        do_mock(ts);
+    }
+
+    #[test]
+    #[should_panic(expected = "mock! does not support macro invocations")]
+    fn macro_invocation() {
+        let code = r#"F { bang!(); }"#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        do_mock(ts);
+    }
+
+    #[test]
+    #[should_panic(expected = "mock! only supports trait items in this position")]
+    fn method_with_vis() {
+        let code = r#"F { pub fn foo(&self) -> u32; }"#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        do_mock(ts);
+    }
 }
