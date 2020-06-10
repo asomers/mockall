@@ -429,6 +429,7 @@ fn gen_struct<T>(attrs: &[syn::Attribute],
     let (ig, tg, wc) = generics.split_for_impl();
     quote!(
         #[allow(non_snake_case)]
+        #[allow(clippy::unused_unit)]
         #[doc(hidden)]
         pub mod #mod_ident {
             use super::*;

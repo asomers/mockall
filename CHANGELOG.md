@@ -29,6 +29,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   was omitted as an oversight from PR #47.
   ([#141](https://github.com/asomers/mockall/pull/141))
 
+- Suppressed `unused unit` warnings from Clippy in the latest nightly.
+  ([#148](https://github.com/asomers/mockall/pull/148))
+
 ### Removed
 
 ## [0.7.1] - 3 May 2020
