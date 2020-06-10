@@ -362,6 +362,7 @@ fn mock_foreign(attrs: Attrs, foreign_mod: ItemForeignMod) -> TokenStream {
         pub fn checkpoint() { #cp_body }).to_tokens(&mut body);
     quote!(
         #[allow(missing_docs)]
+        #[allow(clippy::unused_unit)]
         pub mod #modname {
             use super::*;
             #body
@@ -639,6 +640,7 @@ fn mock_module(mod_: ItemMod) -> TokenStream {
     };
     quote!(
         #docstr
+        #[allow(clippy::unused_unit)]
         pub mod #modname { #body })
 }
 
