@@ -123,7 +123,6 @@ impl From<ItemImpl> for MockableStruct {
             if bang.is_some() {
                 compile_error(bang.span(), "Unsupported by automock");
             }
-            assert!(path.segments.last().unwrap().arguments.is_empty(), "TODO");
 
             // Regenerate the trait that this block is implementing
             let generics = &item_impl.generics;
