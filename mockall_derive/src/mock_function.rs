@@ -72,7 +72,7 @@ impl<'a> Builder<'a> {
 
         // TODO: add a test case that tests declosurefy and supersuperfy in
         // combination.
-        let (call_generics, declosured_inputs, call_exprs) =
+        let (declosured_generics, declosured_inputs, call_exprs) =
             declosurefy(&self.sig.generics, &self.sig.inputs);
 
         for fa in declosured_inputs.iter() {
@@ -137,7 +137,7 @@ impl<'a> Builder<'a> {
             output.clone()
         };
         let merged_generics = if let Some(g) = self.struct_generics {
-            merge_generics(g, &call_generics)
+            merge_generics(g, &declosured_generics)
         } else {
             // TODO: consider using call_generics here
             self.sig.generics.clone()
@@ -145,6 +145,12 @@ impl<'a> Builder<'a> {
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
             merged_generics,
             // TODO: consider using declosured_inputs here
+            &self.sig.inputs,
+            &ReturnType::Type(<Token![->]>::default(),
+                              Box::new(owned_output.clone()))
+        );
+        let (call_generics, _, _) = split_lifetimes(
+            declosured_generics,
             &self.sig.inputs,
             &ReturnType::Type(<Token![->]>::default(),
                               Box::new(owned_output.clone()))
@@ -442,6 +448,7 @@ impl MockFunction {
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
         let inner_mod_ident = self.inner_mod_ident();
+        //let (_, tg, _) = &self.egenerics.split_for_impl();
         let (_, tg, _) = if self.is_method_generic() {
             &self.egenerics
         } else {
