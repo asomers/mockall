@@ -250,7 +250,6 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
         }
     }
 
-    let (ig, _, wc) = meth_types.expectation_generics.split_for_impl();
     let tbf_g = if meth_types.is_static || meth_types.is_expectation_generic {
         // For generic and static methods only, the trait's generic parameters
         // become generic parameters of the method.
@@ -261,6 +260,9 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     let (tbf_tg, _, _) = split_lifetimes(tbf_g, &inputs, &sig.output);
     let (_, tg, _) = tbf_tg.split_for_impl();
     let call_turbofish = tg.as_turbofish();
+    let (expect_tg, _, _) = split_lifetimes(meth_types.expectation_generics,
+                                            &inputs, &sig.output);
+    let (ig, _, wc) = expect_tg.split_for_impl();
     let no_match_msg = format!("{}::{}: No matching expectation found",
         mock_struct_name, ident);
     if meth_types.is_static {
