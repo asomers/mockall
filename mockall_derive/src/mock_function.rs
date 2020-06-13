@@ -2109,6 +2109,7 @@ impl<'a> ToTokens for RefExpectations<'a> {
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
+        let owned_output = &self.f.owned_output;
         let predexprs = &self.f.predexprs;
         let v = &self.f.privmod_vis;
         quote!(
@@ -2170,12 +2171,6 @@ impl<'a> ToTokens for RefMutExpectations<'a> {
                 }
 
             }
-            // The Senc + Sync are required for downcast, since Expectation
-            // stores an Option<#owned_output>
-            impl #ig
-                ::mockall::AnyExpectations for Expectations #tg
-                where #owned_output: Send + Sync
-            {}
         ).to_tokens(tokens);
     }
 }
@@ -2272,11 +2267,21 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
         let generics = merge_generics(&self.f.egenerics,
                                       &self.f.rlifetimes);
         let (ig, tg, wc) = generics.split_for_impl();
+        let owned_output = &self.f.owned_output;
+        // TODO: test a generic static methd that returns a reference and
+        // has a where clause
+        let any_wc = if self.f.return_ref || self.f.return_refmut {
+            // The Senc + Sync are required for downcast, since Expectation
+            // stores an Option<#owned_output>
+            quote!(where #owned_output: Send + Sync)
+        } else {
+            quote!(#wc)
+        };
         let tbf = tg.as_turbofish();
         let output = &self.f.output;
         let v = &self.f.privmod_vis;
         quote!(
-            impl #ig ::mockall::AnyExpectations for Expectations #tg #wc {}
+            impl #ig ::mockall::AnyExpectations for Expectations #tg #any_wc {}
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #v fn call #ig (&self, #(#argnames: #argty, )* )
@@ -2293,7 +2298,7 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
                 }
 
                 /// Create a new Expectation.
-                #v fn expect #ig (&mut self) -> &mut Expectation #tg #wc
+                #v fn expect #ig (&mut self) -> &mut Expectation #tg #any_wc
                 {
                     self.store.entry(::mockall::Key::new::<(#(#argty, )*)>())
                         .or_insert_with(|| Box::new(Expectations #tbf::new()))
