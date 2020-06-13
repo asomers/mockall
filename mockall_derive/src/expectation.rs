@@ -946,6 +946,7 @@ impl<'a> StaticExpectation<'a> {
         let tbf = tg.as_turbofish();
         let v = &self.common.vis;
         quote!(
+            impl #ig ::mockall::AnyExpectations for Expectations #tg #wc {}
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #v fn call #ig (&self, #(#argnames: #argty, )* )
@@ -971,7 +972,6 @@ impl<'a> StaticExpectation<'a> {
                         .expect()
                 }
             }
-            impl #ig ::mockall::AnyExpectations for Expectations #tg #wc {}
         )
     }
 
@@ -1640,6 +1640,11 @@ impl<'a> RefExpectation<'a> {
         let v = &self.common.vis;
 
         quote!(
+            // The Senc + Sync are required for downcast, since Expectation
+            // stores an Option<#output>
+            impl #ig ::mockall::AnyExpectations for Expectations #tg
+                    where #output: Send + Sync
+            {}
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #v fn call #ig (&self, #(#argnames: #argty,)*)
@@ -1669,11 +1674,6 @@ impl<'a> RefExpectation<'a> {
                         .expect()
                 }
             }
-            // The Senc + Sync are required for downcast, since Expectation
-            // stores an Option<#output>
-            impl #ig ::mockall::AnyExpectations for Expectations #tg
-                    where #output: Send + Sync
-            {}
         )
     }
 
@@ -1850,12 +1850,6 @@ impl<'a> RefMutExpectation<'a> {
                         )
                 }
             }
-            // The Senc + Sync are required for downcast, since Expectation
-            // stores an Option<#output>
-            impl #ig
-                ::mockall::AnyExpectations for Expectations #tg
-                where #output: Send + Sync
-            {}
         )
     }
     fn extra_uses(&self) -> TokenStream { TokenStream::new() }
@@ -1869,6 +1863,12 @@ impl<'a> RefMutExpectation<'a> {
         let v = &self.common.vis;
 
         quote!(
+            // The Senc + Sync are required for downcast, since Expectation
+            // stores an Option<#output>
+            impl #ig
+                ::mockall::AnyExpectations for Expectations #tg
+                where #output: Send + Sync
+            {}
             impl GenericExpectations {
                 /// Simulating calling the real method.
                 #v fn call_mut #ig (&mut self, #(#argnames: #argty, )* )
