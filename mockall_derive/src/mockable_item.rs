@@ -98,6 +98,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                                 // Add an explicit "-> ()" for perfect
                                 // compatibility with 0.7.0.  TODO: remove this
                                 // after merging the 2020_refactor branch
+                                // https://github.com/asomers/mockall/issues/149
                                 let rarrow = Token![->](sig.output.span());
                                 let unit = Type::Tuple(TypeTuple{
                                     paren_token: token::Paren::default(),
