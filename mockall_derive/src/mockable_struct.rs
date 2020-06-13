@@ -3,6 +3,70 @@ use super::*;
 use quote::ToTokens;
 use syn::parse::{Parse, ParseStream};
 
+/// Filter a generics list, keeping only the elements specified by path_args
+/// e.g. filter_generics(<A: Copy, B: Clone>, <A>) -> <A: Copy>
+fn filter_generics(g: &Generics, path_args: &PathArguments)
+    -> Generics
+{
+    let mut params = Punctuated::new();
+    match path_args {
+        PathArguments::None => ()/* No generics selected */,
+        PathArguments::Parenthesized(p) => {
+            compile_error(p.span(),
+                          "Mockall does not support mocking Fn objects");
+        },
+        PathArguments::AngleBracketed(abga) => {
+            let args = &abga.args;
+            if g.where_clause.is_some() {
+                compile_error(g.where_clause.span(),
+                    "Mockall does not yet support where clauses here");
+                return g.clone();
+            }
+            for param in g.params.iter() {
+                match param {
+                    GenericParam::Type(tp) => {
+                        let matches = |ga: &GenericArgument| {
+                            if let GenericArgument::Type(
+                                Type::Path(type_path)) = ga
+                            {
+                                type_path.path.is_ident(&tp.ident)
+                            } else {
+                                false
+                            }
+                        };
+                        if args.iter().any(matches) {
+                            params.push(param.clone())
+                        }
+                    },
+                    GenericParam::Lifetime(ld) => {
+                        let matches = |ga: &GenericArgument| {
+                            if let GenericArgument::Lifetime(lt) = ga {
+                                *lt == ld.lifetime
+                            } else {
+                                false
+                            }
+                        };
+                        if args.iter().any(matches) {
+                            params.push(param.clone())
+                        }
+                    },
+                    GenericParam::Const(_) => ()/* Ignore */,
+                }
+            }
+        }
+    };
+    if params.is_empty() {
+        Generics::default()
+    } else {
+        Generics {
+            lt_token: Some(Token![<](g.span())),
+            params,
+            gt_token: Some(Token![>](g.span())),
+            where_clause: None
+        }
+    }
+}
+
 fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
         if path.segments.len() != 1 {
             compile_error(path.span(),
@@ -127,6 +191,7 @@ impl From<ItemImpl> for MockableStruct {
             // Regenerate the trait that this block is implementing
             let generics = &item_impl.generics;
             let traitname = &path.segments.last().unwrap().ident;
+            let trait_path_args = &path.segments.last().unwrap().arguments;
             let mut items = Vec::new();
             let mut attrs = Attrs::default();
             for item in item_impl.items.into_iter() {
@@ -165,7 +230,7 @@ impl From<ItemImpl> for MockableStruct {
                 auto_token: None,
                 trait_token: Token![trait](Span::call_site()),
                 ident: traitname.clone(),
-                generics: generics.clone(),
+                generics: filter_generics(&item_impl.generics, trait_path_args),
                 colon_token: None,
                 supertraits: Punctuated::new(),
                 brace_token: token::Brace::default(),
