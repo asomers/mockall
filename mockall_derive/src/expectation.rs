@@ -2,6 +2,7 @@
 
 use super::*;
 use quote::ToTokens;
+use std::str::FromStr;
 
 /// Convert a special reference type like "&str" into a reference to its owned
 /// type like "&String".
@@ -685,7 +686,7 @@ impl<'a> Expectation<'a> {
 
         let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
             generics,
-            args,
+            args.iter(),
             &ReturnType::Type(<Token![->]>::default(), Box::new(output.clone()))
         );
         for p in egenerics.params.iter_mut() {
@@ -1080,7 +1081,23 @@ impl<'a> StaticExpectation<'a> {
             .split_for_impl();
 
         // Add a lifetime parameter, needed by MutexGuard
-        let mut meth_generics = self.common.meth_generics.clone();
+        // XXX Creating these separate types is hacky, but this code isn't
+        // needed in the 2020_refactor branch, so it's only temporary.
+        let fn_args = self.common.argty.iter()
+        .map(|ty| FnArg::Typed(PatType {
+            attrs: Vec::new(),
+            pat: Box::new(Pat::Verbatim(TokenStream::from_str("don't care")
+                                        .unwrap())),
+            colon_token: <Token![:]>::default(),
+            ty: Box::new(ty.clone())
+        })).collect::<Vec<_>>();
+        let rt = ReturnType::Type(<Token![->]>::default(),
+                                  Box::new(self.common.output.clone()));
+        let (mut meth_generics, _, _) = split_lifetimes(
+            self.common.meth_generics.clone(),
+            fn_args.iter(),
+            &rt);
+
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );

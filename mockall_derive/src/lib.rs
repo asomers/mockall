@@ -702,9 +702,9 @@ fn lifetimes_to_generics(lv: Vec<GenericParam>) -> Generics {
 /// Split a generics list into three: one for type generics, one for lifetime
 /// generics that relate to the arguments only, and one for lifetime generics
 /// that relate to the return type.
-fn split_lifetimes(
+fn split_lifetimes<'a, A: Iterator<Item=&'a FnArg>>(
     generics: Generics,
-    args: &Punctuated<FnArg, Token![,]>,
+    args: A,
     rt: &ReturnType)
     -> (Generics, Generics, Generics)
 {
@@ -714,7 +714,7 @@ fn split_lifetimes(
 
     // Check which lifetimes are referenced by the arguments
     let mut alts = HashSet::<Lifetime>::default();
-    for arg in args {
+    for arg in args.into_iter() {
         match arg {
             FnArg::Receiver(r) => {
                 if let Some((_, olt)) = &r.reference {
@@ -841,7 +841,7 @@ fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
     };
     let inputs = demutify(&sig.inputs);
     let (no_lt_g, _, rlg) = split_lifetimes(merged_generics,
-                                            &sig.inputs, &sig.output);
+                                            sig.inputs.iter(), &sig.output);
     let with_ret_lt_g = merge_generics(&no_lt_g, &rlg);
     for fn_arg in expectation_inputs.iter() {
         match fn_arg {
