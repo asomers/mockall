@@ -213,7 +213,7 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     let private_meth_ident = format_ident!("__{}", &ident);
     let mut meth_types = method_types(sig, Some(generics));
     let merged_g = merge_generics(&generics, &meth_types.expectation_generics);
-    let inputs = &meth_types.inputs;
+    let inputs: &Punctuated<FnArg, Token![,]> = &meth_types.inputs;
     let output = &mut meth_types.output;
     if let ReturnType::Type(_, ty) = output {
         deselfify(ty, mock_struct_name, generics);
@@ -257,11 +257,11 @@ fn gen_mock_method(mock_struct_name: &syn::Ident,
     } else {
         &meth_types.expectation_generics
     }.clone();
-    let (tbf_tg, _, _) = split_lifetimes(tbf_g, &inputs, &sig.output);
+    let (tbf_tg, _, _) = split_lifetimes(tbf_g, inputs.iter(), &sig.output);
     let (_, tg, _) = tbf_tg.split_for_impl();
     let call_turbofish = tg.as_turbofish();
     let (expect_tg, _, _) = split_lifetimes(meth_types.expectation_generics,
-                                            &inputs, &sig.output);
+                                            inputs.iter(), &sig.output);
     let (ig, _, wc) = expect_tg.split_for_impl();
     let no_match_msg = format!("{}::{}: No matching expectation found",
         mock_struct_name, ident);
