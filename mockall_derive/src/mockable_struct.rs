@@ -144,6 +144,22 @@ pub(crate) struct MockableStruct {
     pub traits: Vec<ItemTrait>
 }
 
+impl MockableStruct {
+    /// Return the type generics of this struct, not including lifetimes
+    pub fn type_generics(&self) -> Generics {
+        let params = self.generics.type_params()
+        .cloned()
+        .map(|tp| GenericParam::Type(tp))
+        .collect::<Punctuated<_, _>>();
+        Generics {
+            lt_token: self.generics.lt_token.clone(),
+            params,
+            gt_token: self.generics.gt_token.clone(),
+            where_clause: self.generics.where_clause.clone(),
+        }
+    }
+}
+
 impl From<(Attrs, ItemTrait)> for MockableStruct {
     fn from((attrs, item_trait): (Attrs, ItemTrait)) -> MockableStruct {
         let trait_ = attrs.substitute_trait(&item_trait);

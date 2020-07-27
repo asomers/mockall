@@ -42,6 +42,20 @@ fn destrify(ty: &mut Type) {
     }
 }
 
+/// Extract just the type generics from a Generics object
+fn type_generics(generics: &Generics) -> Generics {
+    let params = generics.type_params()
+    .cloned()
+    .map(|tp| GenericParam::Type(tp))
+    .collect::<Punctuated<_, _>>();
+    Generics {
+        lt_token: generics.lt_token.clone(),
+        params,
+        gt_token: generics.gt_token.clone(),
+        where_clause: generics.where_clause.clone(),
+    }
+}
+
 /// Build a MockFunction.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Builder<'a> {
@@ -169,6 +183,7 @@ impl<'a> Builder<'a> {
         let call_levels = self.call_levels.unwrap_or(self.levels);
         let struct_generics = self.struct_generics.cloned()
             .unwrap_or(Generics::default());
+        let type_generics = type_generics(&struct_generics);
         MockFunction {
             alifetimes,
             argnames,
@@ -193,6 +208,7 @@ impl<'a> Builder<'a> {
             struct_: self.struct_.cloned(),
             struct_generics,
             trait_: self.trait_.cloned(),
+            type_generics,
             privmod_vis: expectation_visibility(self.vis, self.levels)
         }
     }
@@ -308,6 +324,8 @@ pub(crate) struct MockFunction {
     struct_generics: Generics,
     /// Name of this method's trait, if the method comes from a trait
     trait_: Option<Ident>,
+    /// Type generics of the mock structure
+    type_generics: Generics,
     /// Visibility of the expectation and its methods
     privmod_vis: Visibility
 }
@@ -422,7 +440,7 @@ impl MockFunction {
                 .unwrap_or(String::new()),
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
-        let (_, tg, wc) = self.struct_generics.split_for_impl();
+        let (_, tg, wc) = self.type_generics.split_for_impl();
         let outer_mod_path = self.outer_mod_path(modname);
         let v = &self.call_vis;
         quote!(
@@ -1403,7 +1421,7 @@ impl<'a> ToTokens for Context<'a> {
         e_generics.gt_token.get_or_insert(<Token![>]>::default());
         let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
-        let (s_ig, s_tg, s_wc) = self.f.struct_generics.split_for_impl();
+        let (ty_ig, ty_tg, ty_wc) = self.f.type_generics.split_for_impl();
         let mut meth_generics = self.f.call_generics.clone();
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
@@ -1430,7 +1448,7 @@ impl<'a> ToTokens for Context<'a> {
             /// provide any form of synchronization, so multiple tests that set
             /// expectations on the same static method must provide their own.
             #[must_use = "Context only serves to create expectations" ]
-            #v struct Context #s_ig #s_wc {
+            #v struct Context #ty_ig #ty_wc {
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
                 // generics are not, unlike PhantomData<generics>
@@ -1438,7 +1456,7 @@ impl<'a> ToTokens for Context<'a> {
                     Box<dyn Fn(#ctx_fn_params) -> () + Send>
                 >
             }
-            impl #s_ig Context #s_tg #s_wc {
+            impl #ty_ig Context #ty_tg #ty_wc {
                 /// Verify that all current expectations for this method are
                 /// satisfied and clear them.
                 #v fn checkpoint(&self) {
@@ -1461,12 +1479,12 @@ impl<'a> ToTokens for Context<'a> {
                     ExpectationGuard::new(EXPECTATIONS.lock().unwrap())
                 }
             }
-            impl #s_ig Default for Context #s_tg #s_wc {
+            impl #ty_ig Default for Context #ty_tg #ty_wc {
                 fn default() -> Self {
                     Context {_phantom: std::marker::PhantomData}
                 }
             }
-            impl #s_ig Drop for Context #s_tg #s_wc {
+            impl #ty_ig Drop for Context #ty_tg #ty_wc {
                 fn drop(&mut self) {
                     if !std::thread::panicking() {
                         Self::do_checkpoint()

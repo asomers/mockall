@@ -173,7 +173,7 @@ impl From<MockableStruct> for MockItemStruct {
     fn from(mockable: MockableStruct) -> MockItemStruct {
         let mock_ident = gen_mod_ident(&mockable.name, None);
         let modname = gen_mod_ident(&mockable.original_name, None);
-        let generics = mockable.generics;
+        let generics = mockable.generics.clone();
         let struct_name = &mockable.name;
         let vis = mockable.vis;
         let has_new = mockable.methods.iter()
@@ -221,7 +221,7 @@ impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let attrs = &self.attrs;
         let struct_name = &self.name;
-        let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
+        let (ig, tg, wc) = self.generics.split_for_impl();
         let modname = &self.modname;
         let calls = self.methods.calls(Some(modname));
         let method_checkpoints = self.methods.checkpoints();
