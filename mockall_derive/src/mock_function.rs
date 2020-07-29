@@ -344,7 +344,6 @@ impl MockFunction {
     // Supplying modname is an unfortunately hack.  Ideally MockFunction
     // wouldn't need to know that.
     pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
-        let argnames = &self.argnames;
         let attrs = self.format_attrs(true);
         let call_exprs = &self.call_exprs;
         let (_, tg, _) = if self.is_method_generic() || self.is_static() {
@@ -445,7 +444,7 @@ impl MockFunction {
                 .unwrap_or(String::new()),
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
-        let (_, tg, wc) = self.type_generics.split_for_impl();
+        let (_, tg, _) = self.type_generics.split_for_impl();
         let outer_mod_path = self.outer_mod_path(modname);
         let v = &self.call_vis;
         quote!(
@@ -470,7 +469,6 @@ impl MockFunction {
         let name = self.name();
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
-        let inner_mod_ident = self.inner_mod_ident();
         let (_, tg, _) = if self.is_method_generic() {
             &self.egenerics
         } else {
@@ -628,7 +626,6 @@ impl MockFunction {
 
     /// Generate code for this function's private module
     pub fn priv_module(&self) -> impl ToTokens {
-        let argnames = &self.argnames;
         let attrs = self.format_attrs(false);
         let common = &Common{f: self};
         let context = &Context{f: self};
@@ -647,8 +644,6 @@ impl MockFunction {
             Box::new(StaticExpectations{f: self})
         };
         let generic_expectations = GenericExpectations{f: self};
-        let fn_ident = &self.name();
-        let fn_docstr = format!("Mock version of the `{}` function", fn_ident);
         // TODO: ExpectationGuard for generic methods
         let guard: Box<dyn ToTokens> = if self.is_expectation_generic() {
             Box::new(GenericExpectationGuard{f: self})
@@ -656,16 +651,12 @@ impl MockFunction {
             Box::new(ConcreteExpectationGuard{f: self})
         };
         let matcher = &Matcher{f: self};
-        let mod_ident = &self.mod_ident;
         let std_mutexguard = if self.is_static {
             quote!(use ::std::sync::MutexGuard;)
         } else {
             quote!()
         };
         let inner_mod_ident = self.inner_mod_ident();
-        let no_match_msg = format!("{}::{}: No matching expectation found",
-            mod_ident, fn_ident);
-        let orig_signature = &self.sig;
         let rfunc: Box<dyn ToTokens> = if self.return_ref {
             Box::new(RefRfunc{f: self})
         } else if self.return_refmut {
@@ -1042,16 +1033,7 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
 
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let ltdef = LifetimeDef::new(
-            Lifetime::new("'__mockall_lt", Span::call_site())
-        );
-        let mut e_generics = self.f.egenerics.clone();
-        e_generics.lt_token.get_or_insert(<Token![<]>::default());
-        e_generics.params.push(GenericParam::Lifetime(ltdef));
-        e_generics.gt_token.get_or_insert(<Token![>]>::default());
-        let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
-        let (ei_ig, _, _) = e_generics.split_for_impl();
+        let (_, tg, _) = self.f.egenerics.split_for_impl();
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
@@ -1062,12 +1044,9 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
         } else {
             quote!(self.guard)
         };
-        let fn_params = &self.f.fn_params;
         let hrtb = self.f.hrtb();
-        let inner_mod_ident = self.f.inner_mod_ident();
         let output = &self.f.output;
         let predty = &self.f.predty;
-        let tbf = tg.as_turbofish();
         let with_generics_idents = (0..self.f.predty.len())
             .map(|i| format_ident!("MockallMatcher{}", i))
             .collect::<Vec<_>>();
@@ -1211,10 +1190,8 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
             return;
         }
 
-        let argnames = &self.f.argnames;
-        let argty = &self.f.argty;
         let common_methods = ExpectationGuardCommonMethods{f: self.f};
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let (_, tg, _) = self.f.egenerics.split_for_impl();
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
@@ -1224,35 +1201,6 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
         e_generics.gt_token.get_or_insert(<Token![>]>::default());
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
         let (ei_ig, _, _) = e_generics.split_for_impl();
-        let expectations = if self.f.is_expectation_generic() {
-            quote!(self.guard
-                   .store
-                   .get_mut(&::mockall::Key::new::<(#(#argty, )*)>())
-                   .unwrap()
-                   .downcast_mut::<Expectations #tg>()
-                   .unwrap())
-        } else {
-            quote!(self.guard)
-        };
-        let fn_params = &self.f.fn_params;
-        let hrtb = self.f.hrtb();
-        let inner_mod_ident = self.f.inner_mod_ident();
-        let output = &self.f.output;
-        let predty = &self.f.predty;
-        let tbf = tg.as_turbofish();
-        let with_generics_idents = (0..self.f.predty.len())
-            .map(|i| format_ident!("MockallMatcher{}", i))
-            .collect::<Vec<_>>();
-        let with_generics = TokenStream::from_iter(
-            with_generics_idents.iter().zip(self.f.predty.iter())
-            .map(|(id, mt)|
-                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
-            )
-        );
-        let with_args = TokenStream::from_iter(
-            self.f.argnames.iter().zip(with_generics_idents.iter())
-            .map(|(argname, id)| quote!(#argname: #id, ))
-        );
         let v = &self.f.privmod_vis;
         quote!(
             ::mockall::lazy_static! {
@@ -1308,10 +1256,9 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
             return;
         }
 
-        let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let common_methods = ExpectationGuardCommonMethods{f: self.f};
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let (_, tg, _) = self.f.egenerics.split_for_impl();
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
@@ -1321,50 +1268,9 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
         egenerics.gt_token.get_or_insert(<Token![>]>::default());
         let (e_ig, e_tg, e_wc) = egenerics.split_for_impl();
         let (ei_ig, _, _) = egenerics.split_for_impl();
-        let expectations = if self.f.is_expectation_generic() {
-            quote!(self.guard
-                   .store
-                   .get_mut(&::mockall::Key::new::<(#(#argty, )*)>())
-                   .unwrap()
-                   .downcast_mut::<Expectations #tg>()
-                   .unwrap())
-        } else {
-            quote!(self.guard)
-        };
         let fn_params = &self.f.fn_params;
-        let hrtb = self.f.hrtb();
-        let inner_mod_ident = self.f.inner_mod_ident();
-        let output = &self.f.output;
-        let predty = &self.f.predty;
         let tbf = tg.as_turbofish();
-        let with_generics_idents = (0..self.f.predty.len())
-            .map(|i| format_ident!("MockallMatcher{}", i))
-            .collect::<Vec<_>>();
-        let with_generics = TokenStream::from_iter(
-            with_generics_idents.iter().zip(self.f.predty.iter())
-            .map(|(id, mt)|
-                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
-            )
-        );
-        let with_args = TokenStream::from_iter(
-            self.f.argnames.iter().zip(with_generics_idents.iter())
-            .map(|(argname, id)| quote!(#argname: #id, ))
-        );
         let v = &self.f.privmod_vis;
-        let new_method = if self.f.is_expectation_generic() {
-            quote!(
-            )
-        } else {
-            quote!(
-                #v fn new(mut __mockall_guard: MutexGuard<'__mockall_lt, Expectations #tg>)
-                    -> Self
-                {
-                    __mockall_guard.expect(); // Drop the &Expectation
-                    let __mockall_i = __mockall_guard.0.len() - 1;
-                    ExpectationGuard{guard: __mockall_guard, i: __mockall_i}
-                }
-            )
-        };
         quote!(
             ::mockall::lazy_static! {
                 #v static ref EXPECTATIONS:
@@ -1426,7 +1332,7 @@ impl<'a> ToTokens for Context<'a> {
         egenerics.lt_token.get_or_insert(<Token![<]>::default());
         egenerics.params.push(GenericParam::Lifetime(ltdef));
         egenerics.gt_token.get_or_insert(<Token![>]>::default());
-        let (e_ig, e_tg, e_wc) = egenerics.split_for_impl();
+        let (_, e_tg, _) = egenerics.split_for_impl();
         let (ty_ig, ty_tg, ty_wc) = self.f.type_generics.split_for_impl();
         let mut meth_generics = self.f.call_generics.clone();
         let ltdef = LifetimeDef::new(
@@ -1836,11 +1742,8 @@ struct RefExpectation<'a> {
 impl<'a> ToTokens for RefExpectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationMethods{f: &self.f};
-        let argnames = &self.f.argnames;
-        let argty = &self.f.argty;
-        let hrtb = self.f.hrtb();
         let ident_str = self.f.ident_str();
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let (_, tg, _) = self.f.egenerics.split_for_impl();
         // TODO: replace e_* with *
         let (e_ig, e_tg, e_wc) = self.f.egenerics.split_for_impl();
 
@@ -1906,12 +1809,10 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
         let common_methods = CommonExpectationMethods{f: &self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
-        let hrtb = self.f.hrtb();
         let ident_str = self.f.ident_str();
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let (ig, tg, _) = self.f.egenerics.split_for_impl();
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = &self.f.alifetimes;
-        let owned_output = &self.f.owned_output;
         let owned_output = &self.f.owned_output;
         let v = &self.f.privmod_vis;
         quote!(
@@ -1919,7 +1820,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
             /// returning references.  This is the type returned by the
             /// `expect_*` methods.
             #v struct Expectation #ig {
-                common: Common #tg,
+                common: Common #common_tg,
                 rfunc: Rfunc #tg
             }
 
@@ -2141,7 +2042,6 @@ impl<'a> ToTokens for RefExpectations<'a> {
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
-        let owned_output = &self.f.owned_output;
         let predexprs = &self.f.predexprs;
         let v = &self.f.privmod_vis;
         quote!(
@@ -2179,7 +2079,6 @@ impl<'a> ToTokens for RefMutExpectations<'a> {
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let lg = &self.f.alifetimes;
-        let owned_output = &self.f.owned_output;
         let output = &self.f.output;
         let predexprs = &self.f.predexprs;
         let v = &self.f.privmod_vis;

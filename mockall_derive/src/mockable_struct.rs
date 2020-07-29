@@ -1,6 +1,5 @@
 // vim: tw=80
 use super::*;
-use quote::ToTokens;
 use syn::parse::{Parse, ParseStream};
 
 /// Filter a generics list, keeping only the elements specified by path_args
@@ -142,22 +141,6 @@ pub(crate) struct MockableStruct {
     pub original_name: Ident,
     pub vis: Visibility,
     pub traits: Vec<ItemTrait>
-}
-
-impl MockableStruct {
-    /// Return the type generics of this struct, not including lifetimes
-    pub fn type_generics(&self) -> Generics {
-        let params = self.generics.type_params()
-        .cloned()
-        .map(|tp| GenericParam::Type(tp))
-        .collect::<Punctuated<_, _>>();
-        Generics {
-            lt_token: self.generics.lt_token.clone(),
-            params,
-            gt_token: self.generics.gt_token.clone(),
-            where_clause: self.generics.where_clause.clone(),
-        }
-    }
 }
 
 impl From<(Attrs, ItemTrait)> for MockableStruct {

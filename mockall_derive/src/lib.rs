@@ -23,7 +23,7 @@ use syn::{
 };
 
 mod automock;
-mod expectation;
+//mod expectation;
 mod mock_function;
 mod mock_item;
 mod mock_item_struct;
@@ -35,36 +35,6 @@ use crate::mockable_struct::MockableStruct;
 use crate::mock_item::MockItem;
 use crate::mock_item_struct::MockItemStruct;
 use crate::mockable_item::MockableItem;
-use crate::expectation::Expectation;
-
-#[derive(Debug)]
-struct MethodTypes {
-    is_static: bool,
-    /// Is the Expectation type generic?  This can be true even if the method is
-    /// not generic.
-    is_expectation_generic: bool,
-    /// Type of Expectation returned by the expect method
-    expectation: Type,
-    /// Generics applicable to the Expectation object
-    expectation_generics: Generics,
-    /// Input types for the Expectation object
-    expectation_inputs: Punctuated<FnArg, Token![,]>,
-    /// Type of Expectations container used by the expect method, without its
-    /// generics fields
-    expectations: Type,
-    /// Type of Expectations object stored in the mock structure, with generics
-    /// fields
-    expect_obj: Type,
-    /// Method to call when invoking the expectation
-    call: Ident,
-    /// Expressions that should be used for Expectation::call's arguments
-    call_exprs: Punctuated<TokenStream, Token![,]>,
-    /// Method's argument list
-    inputs: Punctuated<FnArg, Token![,]>,
-    /// Output type of the Expectation, which may be a little bit more general
-    /// than the output type of the original method
-    output: ReturnType,
-}
 
 cfg_if! {
     // proc-macro2's Span::unstable method requires the nightly feature, and it
@@ -482,19 +452,6 @@ fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
     out
 }
 
-/// Return a new Generics object based on the given one but with lifetimes
-/// removed
-fn strip_generics_lifetimes(generics: &Generics) -> Generics {
-    Generics {
-        lt_token: generics.lt_token,
-        gt_token: generics.gt_token,
-        where_clause: generics.where_clause.clone(),
-        params: generics.type_params()
-            .map(|generics| GenericParam::Type(generics.clone()))
-            .collect::<Punctuated<GenericParam, Token![,]>>()
-    }
-}
-
 fn supersuperfy_path(path: &mut Path, levels: i32) {
         if let Some(t) = path.segments.first() {
             if t.ident == "super" {
@@ -825,101 +782,6 @@ fn expectation_visibility(vis: &Visibility, levels: i32)
         },
         _ => vis.clone()
     }
-}
-
-/// Extract useful data about a method
-///
-/// # Arguments
-///
-/// * `sig`:            Signature of the original method
-/// * `generics`:       Generics of the method's parent trait or structure,
-///                     _not_ the method itself.
-fn method_types(sig: &Signature, generics: Option<&Generics>) -> MethodTypes {
-    let mut is_static = true;
-    let ident = &sig.ident;
-    let private_meth_ident = format_ident!("__{}", &ident);
-    let (expectation_generics, expectation_inputs, call_exprs) =
-        declosurefy(&sig.generics, &sig.inputs);
-    let merged_generics = if let Some(g) = generics {
-        merge_generics(&g, &expectation_generics)
-    } else {
-        sig.generics.clone()
-    };
-    let mut inputs = sig.inputs.clone();
-    demutify(&mut inputs);
-    let (no_lt_g, _, rlg) = split_lifetimes(merged_generics,
-                                            &sig.inputs, &sig.output);
-    let with_ret_lt_g = merge_generics(&no_lt_g, &rlg);
-    for fn_arg in expectation_inputs.iter() {
-        match fn_arg {
-            FnArg::Typed(_) => {},
-            FnArg::Receiver(_) => {
-                is_static = false;
-            },
-        }
-    }
-
-    let call = match &sig.output {
-        ReturnType::Default => {
-            format_ident!("call")
-        },
-        ReturnType::Type(_, ty) => {
-            match ty.as_ref() {
-                Type::Reference(r) => {
-                    if let Some(ref lt) = r.lifetime {
-                        if lt.ident != "static" {
-                            compile_error(r.span(), "Non-'static non-'self lifetimes are not yet supported");
-                        }
-                    }
-                    if r.mutability.is_some() {
-                        format_ident!("call_mut")
-                    } else {
-                        format_ident!("call")
-                    }
-                },
-                _ => format_ident!("call")
-            }
-        }
-    };
-
-    let is_expectation_generic = expectation_generics.params.iter()
-        .any(|p| {
-            if let GenericParam::Type(_) = p {
-                true
-            } else {
-                false
-            }
-        }) ||
-        expectation_generics.where_clause.is_some();
-
-    let expectation_ident = format_ident!("Expectation");
-    let expectations_ident = if is_expectation_generic {
-        format_ident!("GenericExpectations")
-    } else {
-        format_ident!("Expectations")
-    };
-    let expectations = parse2(
-        quote!(#private_meth_ident::#expectations_ident)
-    ).unwrap();
-
-    // Replace any generic lifetimes of the Expectation's type with 'static
-    // TODO: in the future, only replace those lifetimes that _don't_ appear
-    // in the original trait's or struct's signature.
-    let expectation_g = staticize(&with_ret_lt_g);
-    let (_, expectation_tg, _) = expectation_g.split_for_impl();
-    let expect_ts = quote!(#private_meth_ident::#expectation_ident #expectation_tg);
-    let expect_obj = if is_expectation_generic {
-        parse2(quote!(#expectations))
-    } else {
-        parse2(quote!(#expectations #expectation_tg))
-    }.unwrap();
-    let expectation: Type = parse2(expect_ts).unwrap();
-    let mut output = sig.output.clone();
-    deimplify(&mut output);
-
-    MethodTypes{is_static, is_expectation_generic, expectation,
-                expectation_generics, expectation_inputs, expectations, call,
-                expect_obj, call_exprs, inputs, output}
 }
 
 fn staticize(generics: &Generics) -> Generics {

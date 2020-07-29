@@ -1,6 +1,5 @@
 // vim: tw=80
-use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, format_ident, quote};
+use quote::{ToTokens, quote};
 use syn::{
     *,
     spanned::Spanned
@@ -87,7 +86,6 @@ impl MockTrait {
     pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
         let (ig, tg, wc) = self.struct_generics.split_for_impl();
         let (_, t_tg, _) = self.trait_generics.split_for_impl();
-        let ss_modname = format_ident!("{}_{}", &modname, self.name);
         let calls = self.methods.iter()
                 .map(|meth| meth.call(Some(modname)))
                 .collect::<Vec<_>>();

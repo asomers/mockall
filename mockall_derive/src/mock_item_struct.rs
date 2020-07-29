@@ -12,7 +12,7 @@ fn phantom_default_inits(generics: &Generics) -> Vec<TokenStream> {
     generics.params
     .iter()
     .enumerate()
-    .map(|(count, param)| {
+    .map(|(count, _param)| {
         let phident = format_ident!("_t{}", count);
         quote!(#phident: ::std::marker::PhantomData)
     }).collect()
