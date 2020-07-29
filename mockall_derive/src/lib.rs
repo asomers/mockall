@@ -620,9 +620,9 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
         }
     }
 
-    let mut out = if x.lt_token.is_none() {
+    let mut out = if x.lt_token.is_none() && x.where_clause.is_none() {
         y.clone()
-    } else if y.lt_token.is_none() {
+    } else if y.lt_token.is_none() && y.where_clause.is_none() {
         x.clone()
     } else {
         let mut out = x.clone();
@@ -1023,6 +1023,21 @@ mod merge_generics {
     #[test]
     fn lhs_only() {
         let mut g1: Generics = parse2(quote!(<T: 'static, V: Copy> )).unwrap();
+        let wc1: WhereClause = parse2(quote!(where T: Default)).unwrap();
+        g1.where_clause = Some(wc1.clone());
+
+        let g2 = Generics::default();
+
+        let gm = super::merge_generics(&g1, &g2);
+        let gm_wc = &gm.where_clause;
+
+        assert_eq!(quote!(#g1 #wc1).to_string(),
+                   quote!(#gm #gm_wc).to_string());
+    }
+
+    #[test]
+    fn lhs_wc_only() {
+        let mut g1 = Generics::default();
         let wc1: WhereClause = parse2(quote!(where T: Default)).unwrap();
         g1.where_clause = Some(wc1.clone());
 
