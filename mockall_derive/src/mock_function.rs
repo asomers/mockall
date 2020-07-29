@@ -156,7 +156,7 @@ impl<'a> Builder<'a> {
             // TODO: consider using call_generics here
             self.sig.generics.clone()
         };
-        let (mut egenerics, alifetimes, rlifetimes) = split_lifetimes(
+        let (mut cgenerics, alifetimes, rlifetimes) = split_lifetimes(
             merged_generics,
             // TODO: consider using declosured_inputs here
             &self.sig.inputs,
@@ -171,12 +171,14 @@ impl<'a> Builder<'a> {
         );
         // TODO: reconsider adding 'static bounds.  It isn't required for most
         // methods.  See PR #114
-        for p in egenerics.params.iter_mut() {
+        for p in cgenerics.params.iter_mut() {
             if let GenericParam::Type(tp) = p {
                 let static_bound = Lifetime::new("'static", Span::call_site());
                 tp.bounds.push(TypeParamBound::Lifetime(static_bound));
             }
         }
+        let egenerics = merge_generics(&cgenerics, &rlifetimes);
+
         let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
             egenerics.type_params().map(|tp| tp.ident.clone())
         );
@@ -193,6 +195,7 @@ impl<'a> Builder<'a> {
             call_generics,
             call_vis: expectation_visibility(self.vis, call_levels),
             egenerics,
+            cgenerics,
             fn_params,
             is_static,
             mod_ident: self.parent.unwrap_or(&Ident::new("FIXME", Span::call_site())).clone(),
@@ -288,8 +291,10 @@ pub(crate) struct MockFunction {
     call_generics: Generics,
     /// Visibility of the mock function itself
     call_vis: Visibility,
-    /// Type Generics of the Expectation object
+    /// Generics of the Expectation object
     egenerics: Generics,
+    /// Generics of the Common object
+    cgenerics: Generics,
     /// The mock function's generic types as a list of types
     fn_params: Punctuated<Ident, Token![,]>,
     /// Is this for a static method or free function?
@@ -466,7 +471,6 @@ impl MockFunction {
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
         let inner_mod_ident = self.inner_mod_ident();
-        //let (_, tg, _) = &self.egenerics.split_for_impl();
         let (_, tg, _) = if self.is_method_generic() {
             &self.egenerics
         } else {
@@ -511,12 +515,13 @@ impl MockFunction {
     /// Return the name of this function's expecation object
     pub fn expectation_obj(&self) -> impl ToTokens {
         let inner_mod_ident = self.inner_mod_ident();
-        if self.is_expectation_generic() {
-            let (_, tg, _) = self.egenerics.split_for_impl();
-            quote!(#inner_mod_ident::Expectation #tg)
-        } else {
-            quote!(#inner_mod_ident::Expectation)
-        }
+        // staticize any lifetimes.  This is necessary for methods that return
+        // non-static types, because the Expectation itself must be 'static.
+        // TODO: in the future, only replace those lifetimes that _don't_ appear
+        // in the original trait's or struct's signature.
+        let segenerics = staticize(&self.egenerics);
+        let (_, tg, _) = segenerics.split_for_impl();
+        quote!(#inner_mod_ident::Expectation #tg)
     }
 
     /// Return the name of this function's expecations object
@@ -536,7 +541,12 @@ impl MockFunction {
         if self.is_method_generic() {
             quote!(#attrs #name: #modname::#expectations_obj)
         } else {
-            let (_, tg, _) = self.egenerics.split_for_impl();
+            // staticize any lifetimes.  This is necessary for methods that
+            // return non-static types, because the Expectation itself must be
+            // 'static.  TODO: in the future, only replace those lifetimes that
+            // _don't_ appear in the original trait's or struct's signature.
+            let segenerics = staticize(&self.egenerics);
+            let (_, tg, _) = segenerics.split_for_impl();
             quote!(#attrs #name: #modname::#expectations_obj #tg)
         }
     }
@@ -699,7 +709,7 @@ impl<'a> ToTokens for Common<'a> {
         let predty = &self.f.predty;
         let hrtb = self.f.hrtb();
         let ident_str = self.f.ident_str();
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let (ig, tg, wc) = self.f.cgenerics.split_for_impl();
         let lg = &self.f.alifetimes;
         let refpredty = &self.f.refpredty;
         let with_generics_idents = (0..self.f.predty.len())
@@ -1040,9 +1050,8 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
         e_generics.lt_token.get_or_insert(<Token![<]>::default());
         e_generics.params.push(GenericParam::Lifetime(ltdef));
         e_generics.gt_token.get_or_insert(<Token![>]>::default());
-        let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
-        let (ei_ig, _, _) = ei_generics.split_for_impl();
+        let (ei_ig, _, _) = e_generics.split_for_impl();
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
@@ -1213,9 +1222,8 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
         e_generics.lt_token.get_or_insert(<Token![<]>::default());
         e_generics.params.push(GenericParam::Lifetime(ltdef));
         e_generics.gt_token.get_or_insert(<Token![>]>::default());
-        let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
         let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
-        let (ei_ig, _, _) = ei_generics.split_for_impl();
+        let (ei_ig, _, _) = e_generics.split_for_impl();
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
@@ -1307,13 +1315,12 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
-        let mut e_generics = self.f.egenerics.clone();
-        e_generics.lt_token.get_or_insert(<Token![<]>::default());
-        e_generics.params.push(GenericParam::Lifetime(ltdef));
-        e_generics.gt_token.get_or_insert(<Token![>]>::default());
-        let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
-        let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
-        let (ei_ig, _, _) = ei_generics.split_for_impl();
+        let mut egenerics = self.f.egenerics.clone();
+        egenerics.lt_token.get_or_insert(<Token![<]>::default());
+        egenerics.params.push(GenericParam::Lifetime(ltdef));
+        egenerics.gt_token.get_or_insert(<Token![>]>::default());
+        let (e_ig, e_tg, e_wc) = egenerics.split_for_impl();
+        let (ei_ig, _, _) = egenerics.split_for_impl();
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
@@ -1415,12 +1422,11 @@ impl<'a> ToTokens for Context<'a> {
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
-        let mut e_generics = self.f.egenerics.clone();
-        e_generics.lt_token.get_or_insert(<Token![<]>::default());
-        e_generics.params.push(GenericParam::Lifetime(ltdef));
-        e_generics.gt_token.get_or_insert(<Token![>]>::default());
-        let ei_generics = merge_generics(&e_generics, &self.f.rlifetimes);
-        let (e_ig, e_tg, e_wc) = e_generics.split_for_impl();
+        let mut egenerics = self.f.egenerics.clone();
+        egenerics.lt_token.get_or_insert(<Token![<]>::default());
+        egenerics.params.push(GenericParam::Lifetime(ltdef));
+        egenerics.gt_token.get_or_insert(<Token![>]>::default());
+        let (e_ig, e_tg, e_wc) = egenerics.split_for_impl();
         let (ty_ig, ty_tg, ty_wc) = self.f.type_generics.split_for_impl();
         let mut meth_generics = self.f.call_generics.clone();
         let ltdef = LifetimeDef::new(
@@ -1501,7 +1507,7 @@ struct Matcher<'a> {
 
 impl<'a> ToTokens for Matcher<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let (ig, tg, wc) = self.f.cgenerics.split_for_impl();
         let argnames = &self.f.argnames;
         let braces = argnames.iter()
             .fold(String::new(), |mut acc, _argname| {
@@ -1746,9 +1752,7 @@ impl<'a> ToTokens for StaticRfunc<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let fn_params = &self.f.fn_params;
-        let generics = merge_generics(&self.f.egenerics,
-                                      &self.f.rlifetimes);
-        let (ig, tg, wc) = generics.split_for_impl();
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let hrtb = self.f.hrtb();
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
@@ -1837,7 +1841,10 @@ impl<'a> ToTokens for RefExpectation<'a> {
         let hrtb = self.f.hrtb();
         let ident_str = self.f.ident_str();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let common_tg = &tg; // TODO: get the generics right
+        // TODO: replace e_* with *
+        let (e_ig, e_tg, e_wc) = self.f.egenerics.split_for_impl();
+
+        let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
         let owned_output = &self.f.owned_output;
@@ -1846,12 +1853,12 @@ impl<'a> ToTokens for RefExpectation<'a> {
             /// Expectation type for methods taking a `&self` argument and
             /// returning immutable references.  This is the type returned by
             /// the `expect_*` methods.
-            #v struct Expectation #ig #wc {
+            #v struct Expectation #e_ig #e_wc {
                 common: Common #common_tg,
                 rfunc: Rfunc #tg,
             }
 
-            impl #ig Expectation #tg #wc {
+            impl #e_ig Expectation #e_tg #e_wc {
                 // TODO: reenable docs after merging 2020_refactor branch
                 ///// Call this [`Expectation`] as if it were the real method.
                 //#[doc(hidden)]
@@ -1876,7 +1883,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
 
                 #common_methods
             }
-            impl #ig Default for Expectation #tg #wc
+            impl #e_ig Default for Expectation #e_tg #e_wc
             {
                 fn default() -> Self {
                     Expectation {
@@ -1902,7 +1909,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
         let hrtb = self.f.hrtb();
         let ident_str = self.f.ident_str();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let common_tg = &tg; // TODO: get the generics right
+        let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = &self.f.alifetimes;
         let owned_output = &self.f.owned_output;
         let owned_output = &self.f.owned_output;
@@ -1989,7 +1996,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
         let hrtb = self.f.hrtb();
         let ident_str = self.f.ident_str();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let common_tg = &tg; // TODO: get the generics right
+        let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
         let v = &self.f.privmod_vis;
@@ -2289,9 +2296,7 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
-        let generics = merge_generics(&self.f.egenerics,
-                                      &self.f.rlifetimes);
-        let (ig, tg, wc) = generics.split_for_impl();
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let owned_output = &self.f.owned_output;
         // TODO: test a generic static methd that returns a reference and
         // has a where clause
