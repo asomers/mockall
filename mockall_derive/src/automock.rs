@@ -242,12 +242,11 @@ impl Parse for Attrs {
     }
 }
 
-/// Test cases for `#[automock]`.
+/// Unit tests for `Attrs`.
 #[cfg(test)]
 mod t {
-    use std::str::FromStr;
-    use pretty_assertions::assert_eq;
     use super::super::*;
+    use pretty_assertions::assert_eq;
 
     fn check_substitute_type(attrs: TokenStream, input: TokenStream,
         expected: TokenStream)
@@ -264,68 +263,5 @@ mod t {
         check_substitute_type(quote!(type T = u32;),
                               quote!(<Self as Foo>::T),
                               quote!(u32));
-    }
-
-    #[test]
-    fn doc_comments() {
-        let code = r#"
-            mod foo {
-                /// Function docs
-                pub fn bar() { unimplemented!() }
-            }
-        "#;
-        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
-        let output = do_automock(attrs_ts, ts)
-            .to_string()
-            // Strip spaces so we don't get test regressions due to minor
-            // formatting changes
-            .replace(" ", "");
-        assert!(output.contains(r#"#[doc="Functiondocs"]pubfnbar"#));
-    }
-
-    #[test]
-    fn method_visibility() {
-        let code = r#"
-        impl Foo {
-            fn foo(&self) {}
-            pub fn bar(&self) {}
-            pub(super) fn baz(&self) {}
-            pub(crate) fn bang(&self) {}
-            pub(in super::x) fn bean(&self) {}
-        }"#;
-        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
-        let output = do_automock(attrs_ts, ts).to_string();
-        assert!(!output.contains("pub fn foo"));
-        assert!(!output.contains("pub fn expect_foo"));
-        assert!(output.contains("pub fn bar"));
-        assert!(output.contains("pub fn expect_bar"));
-        assert!(output.contains("pub ( super ) fn baz"));
-        assert!(output.contains("pub ( super ) fn expect_baz"));
-        assert!(output.contains("pub ( crate ) fn bang"));
-        assert!(output.contains("pub ( crate ) fn expect_bang"));
-        assert!(output.contains("pub ( in super :: x ) fn bean"));
-        assert!(output.contains("pub ( in super :: x ) fn expect_bean"));
-    }
-
-    #[test]
-    #[should_panic(expected = "can only mock inline modules")]
-    fn external_module() {
-        let code = r#"mod foo;"#;
-        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
-        do_automock(attrs_ts, ts).to_string();
-    }
-
-    #[test]
-    fn trait_visibility() {
-        let code = r#"
-        pub(super) trait Foo {}
-        "#;
-        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
-        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
-        let output = do_automock(attrs_ts, ts).to_string();
-        assert!(output.contains("pub ( super ) struct MockFoo"));
     }
 }

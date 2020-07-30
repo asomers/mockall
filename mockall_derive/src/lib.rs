@@ -818,9 +818,14 @@ pub fn mock(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     -> proc_macro::TokenStream
 {
+    let attrs: proc_macro2::TokenStream = attrs.into();
     let input: proc_macro2::TokenStream = input.into();
+    do_automock(attrs, input).into()
+}
+
+fn do_automock(attrs: TokenStream, input: TokenStream) -> TokenStream {
     let mut output = input.clone();
-    let attrs: Attrs = match parse2(attrs.into()) {
+    let attrs: Attrs = match parse2(attrs) {
         Ok(a) => a,
         Err(err) => {
             return err.to_compile_error().into();
@@ -833,12 +838,82 @@ pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
         }
     };
     output.extend(mock_it((attrs, item)));
-    output.into()
+    output
 }
 
 #[cfg(test)]
 mod t {
     use super::*;
+
+/// Various tests for overall code generation that are hard or impossible to
+/// write as integration tests
+mod automock {
+    use std::str::FromStr;
+    use super::super::*;
+
+    #[test]
+    fn doc_comments() {
+        let code = r#"
+            mod foo {
+                /// Function docs
+                pub fn bar() { unimplemented!() }
+            }
+        "#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        let output = do_automock(attrs_ts, ts)
+            .to_string()
+            // Strip spaces so we don't get test regressions due to minor
+            // formatting changes
+            .replace(" ", "");
+        assert!(output.contains(r#"#[doc="Functiondocs"]pubfnbar"#));
+    }
+
+    #[test]
+    fn method_visibility() {
+        let code = r#"
+        impl Foo {
+            fn foo(&self) {}
+            pub fn bar(&self) {}
+            pub(super) fn baz(&self) {}
+            pub(crate) fn bang(&self) {}
+            pub(in super::x) fn bean(&self) {}
+        }"#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        let output = do_automock(attrs_ts, ts).to_string();
+        assert!(!output.contains("pub fn foo"));
+        assert!(!output.contains("pub fn expect_foo"));
+        assert!(output.contains("pub fn bar"));
+        assert!(output.contains("pub fn expect_bar"));
+        assert!(output.contains("pub ( super ) fn baz"));
+        assert!(output.contains("pub ( super ) fn expect_baz"));
+        assert!(output.contains("pub ( crate ) fn bang"));
+        assert!(output.contains("pub ( crate ) fn expect_bang"));
+        assert!(output.contains("pub ( in super :: x ) fn bean"));
+        assert!(output.contains("pub ( in super :: x ) fn expect_bean"));
+    }
+
+    #[test]
+    #[should_panic(expected = "can only mock inline modules")]
+    fn external_module() {
+        let code = r#"mod foo;"#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        do_automock(attrs_ts, ts).to_string();
+    }
+
+    #[test]
+    fn trait_visibility() {
+        let code = r#"
+        pub(super) trait Foo {}
+        "#;
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let output = do_automock(attrs_ts, ts).to_string();
+        assert!(output.contains("pub ( super ) struct MockFoo"));
+    }
+}
 
 mod merge_generics {
     use super::*;
