@@ -46,12 +46,12 @@ fn destrify(ty: &mut Type) {
 fn type_generics(generics: &Generics) -> Generics {
     let params = generics.type_params()
     .cloned()
-    .map(|tp| GenericParam::Type(tp))
+    .map(GenericParam::Type)
     .collect::<Punctuated<_, _>>();
     Generics {
-        lt_token: generics.lt_token.clone(),
+        lt_token: generics.lt_token,
         params,
-        gt_token: generics.gt_token.clone(),
+        gt_token: generics.gt_token,
         where_clause: generics.where_clause.clone(),
     }
 }
@@ -97,7 +97,7 @@ impl<'a> Builder<'a> {
                     predexprs.push(quote!(#argname));
                     predty.push((*tr.elem).clone());
                     let tr2 = Type::Reference(TypeReference {
-                        and_token: tr.and_token.clone(),
+                        and_token: tr.and_token,
                         lifetime: None,
                         mutability: None,
                         elem: tr.elem.clone()
@@ -118,7 +118,6 @@ impl<'a> Builder<'a> {
                 argty.push(aty.clone());
             } else {
                 is_static = false;
-                ()    // Strip out the "&self" argument
             }
         }
         let mut return_ref = false;
@@ -184,7 +183,7 @@ impl<'a> Builder<'a> {
         );
         let call_levels = self.call_levels.unwrap_or(self.levels);
         let struct_generics = self.struct_generics.cloned()
-            .unwrap_or(Generics::default());
+            .unwrap_or_default();
         let type_generics = type_generics(&struct_generics);
         MockFunction {
             alifetimes,
@@ -440,8 +439,7 @@ impl MockFunction {
     pub fn context_fn(&self, modname: Option<&Ident>) -> impl ToTokens {
         let attrs = self.format_attrs(false);
         let context_docstr = format!("Create a [`Context`]({}struct.Context.html) for mocking the `{}` method",
-            modname.map(|m| format!("{}/", m))
-                .unwrap_or(String::new()),
+            modname.map(|m| format!("{}/", m)).unwrap_or_default(),
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
         let (_, tg, _) = self.type_generics.split_for_impl();
@@ -1338,7 +1336,7 @@ impl<'a> ToTokens for Context<'a> {
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
-        meth_generics.params.push(GenericParam::Lifetime(ltdef.clone()));
+        meth_generics.params.push(GenericParam::Lifetime(ltdef));
         let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
         let ctx_fn_params = Punctuated::<Ident, Token![,]>::from_iter(
             self.f.struct_generics.type_params().map(|tp| tp.ident.clone())

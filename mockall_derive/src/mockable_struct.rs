@@ -292,7 +292,7 @@ impl Parse for MockableStruct {
 
         Ok(
             MockableStruct {
-                attrs: attrs,
+                attrs,
                 vis,
                 name,
                 generics,
