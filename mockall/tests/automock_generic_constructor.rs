@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A non-generic struct can have a generic constructor method
+#![allow(unused)]
 
 use mockall::*;
 

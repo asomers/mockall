@@ -14,6 +14,8 @@ mock! {
         fn foo<'a>(&self) -> X<'a>;
         // XXX static methods don't work yet.
         // fn bar<'a>() -> X<'a>;
+        // TODO: add test cases for methods returning immutable and mutable
+        // references and for generic methods
     }
 }
 
