@@ -111,6 +111,7 @@ impl ToTokens for MockItemModule {
         let mut body = TokenStream::new();
         let mut cp_body = TokenStream::new();
         let modname = &self.mock_ident;
+        let vis = &self.vis;
 
         for item in self.content.iter() {
             match item {
@@ -148,7 +149,7 @@ impl ToTokens for MockItemModule {
             // TODO: remove the allow unused_unit
             // https://github.com/asomers/mockall/issues/149
             #[allow(clippy::unused_unit)]
-            pub mod #modname {
+            #vis mod #modname {
                 #body
         }).to_tokens(tokens);
     }
