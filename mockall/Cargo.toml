@@ -12,6 +12,9 @@ edition = "2018"
 description = """
 A powerful mock object library for Rust.
 """
+exclude = [
+  "/tools/*"
+]
 
 [package.metadata.docs.rs]
 features = ["nightly"]
