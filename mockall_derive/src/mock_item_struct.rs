@@ -267,9 +267,6 @@ impl ToTokens for MockItemStruct {
         let vis = &self.vis;
         quote!(
             #[allow(non_snake_case)]
-            // TODO: remove the allow unused_unit
-            // https://github.com/asomers/mockall/issues/149
-            #[allow(clippy::unused_unit)]
             #[doc(hidden)]
             pub mod #modname {
                 use super::*;
@@ -345,9 +342,6 @@ impl ToTokens for MockItemTraitImpl {
         let priv_mods = self.methods.priv_mods();
         quote!(
             #[allow(non_snake_case)]
-            // TODO: remove the allow unused_unit
-            // https://github.com/asomers/mockall/issues/149
-            #[allow(clippy::unused_unit)]
             #[doc(hidden)]
             pub mod #modname {
                 use super::*;
