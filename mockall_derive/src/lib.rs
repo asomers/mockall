@@ -828,13 +828,13 @@ fn do_automock(attrs: TokenStream, input: TokenStream) -> TokenStream {
     let attrs: Attrs = match parse2(attrs) {
         Ok(a) => a,
         Err(err) => {
-            return err.to_compile_error().into();
+            return err.to_compile_error();
         }
     };
     let item: Item = match parse2(input) {
         Ok(item) => item,
         Err(err) => {
-            return err.to_compile_error().into();
+            return err.to_compile_error();
         }
     };
     output.extend(mock_it((attrs, item)));
