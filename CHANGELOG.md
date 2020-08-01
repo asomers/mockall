@@ -7,6 +7,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 ### Changed
 ### Fixed
+### Removed
+
+## [0.7.2] - 28 July 2020
+### Added
+### Changed
+### Fixed
 
 - Fixed handling function attributes.  They already worked on methods, but not
   foreign functions or module functions.
@@ -24,6 +30,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - Fixed mocking methods with complicated types including a `super::` component.
   ([#137](https://github.com/asomers/mockall/pull/137))
+
+- Mocked generic static methods can now use `return_const`.  This capability
+  was omitted as an oversight from PR #47.
+  ([#141](https://github.com/asomers/mockall/pull/141))
+
+- Suppressed `unused unit` warnings from Clippy in the latest nightly.
+  ([#148](https://github.com/asomers/mockall/pull/148))
 
 ### Removed
 
