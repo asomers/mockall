@@ -91,22 +91,8 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                                 *pt.ty = supersuperfy(&*pt.ty, 1);
                             }
                         }
-                        match &mut sig.output {
-                            ReturnType::Type(_, ty) =>
-                                **ty = supersuperfy(&*ty, 1),
-                            ReturnType::Default => {
-                                // Add an explicit "-> ()" for perfect
-                                // compatibility with 0.7.0.  TODO: remove this
-                                // after merging the 2020_refactor branch
-                                // https://github.com/asomers/mockall/issues/149
-                                let rarrow = Token![->](sig.output.span());
-                                let unit = Type::Tuple(TypeTuple{
-                                    paren_token: token::Paren::default(),
-                                    elems: Punctuated::new()
-                                });
-                                sig.output = ReturnType::Type(rarrow,
-                                                              Box::new(unit));
-                            }
+                        if let ReturnType::Type(_, ty) = &mut sig.output {
+                                **ty = supersuperfy(&*ty, 1);
                         }
 
                         // Foreign functions are always unsafe.  Mock foreign

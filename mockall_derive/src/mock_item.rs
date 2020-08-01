@@ -146,9 +146,6 @@ impl ToTokens for MockItemModule {
         };
         quote!(
             #docstr
-            // TODO: remove the allow unused_unit
-            // https://github.com/asomers/mockall/issues/149
-            #[allow(clippy::unused_unit)]
             #vis mod #modname {
                 #body
         }).to_tokens(tokens);

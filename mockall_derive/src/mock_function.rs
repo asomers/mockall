@@ -42,6 +42,21 @@ fn destrify(ty: &mut Type) {
     }
 }
 
+/// Return the owned version of the input.
+fn ownify(ty: &Type) -> Type {
+    if let Type::Reference(ref tr) = &ty {
+        if tr.lifetime.as_ref().map_or(false, |lt| lt.ident == "static")
+        {
+            // Just a static expectation
+            ty.clone()
+        } else {
+            *tr.elem.clone()
+        }
+    } else {
+        ty.clone()
+    }
+}
+
 /// Extract just the type generics from a Generics object
 fn type_generics(generics: &Generics) -> Generics {
     let params = generics.type_params()
@@ -120,8 +135,6 @@ impl<'a> Builder<'a> {
                 is_static = false;
             }
         }
-        let mut return_ref = false;
-        let mut return_refmut = false;
         let output = match self.sig.output {
             ReturnType::Default => Type::Tuple(TypeTuple {
                     paren_token: token::Paren::default(),
@@ -133,21 +146,18 @@ impl<'a> Builder<'a> {
                 output_ty
             }
         };
-        let owned_output = if let Type::Reference(ref tr) = &output {
-            if tr.lifetime.as_ref().map_or(false, |lt| lt.ident == "static")
+        let owned_output = ownify(&output);
+        let mut return_ref = false;
+        let mut return_refmut = false;
+        if let Type::Reference(ref tr) = &output {
+            if tr.lifetime.as_ref().map_or(true, |lt| lt.ident != "static")
             {
-                // Just a static expectation
-                output.clone()
-            } else {
                 if tr.mutability.is_none() {
                     return_ref = true;
                 } else {
                     return_refmut = true;
                 }
-                *tr.elem.clone()
             }
-        } else {
-            output.clone()
         };
         let merged_generics = if let Some(g) = self.struct_generics {
             merge_generics(g, &declosured_generics)
@@ -1224,6 +1234,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
                 i: usize
             }
 
+            #[allow(clippy::unused_unit)]
             impl #ei_ig ExpectationGuard #e_tg #e_wc
             {
                 // Should only be called from the mockall_derive generated
@@ -1284,6 +1295,7 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
                 _phantom: ::std::marker::PhantomData<(#fn_params)>,
             }
 
+            #[allow(clippy::unused_unit)]
             impl #ei_ig ExpectationGuard #e_tg #e_wc
             {
                 // Should only be called from the mockall_derive generated
@@ -1363,7 +1375,7 @@ impl<'a> ToTokens for Context<'a> {
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
                 // generics are not, unlike PhantomData<generics>
                 _phantom: ::std::marker::PhantomData<
-                    Box<dyn Fn(#ctx_fn_params) -> () + Send>
+                    Box<dyn Fn(#ctx_fn_params) + Send>
                 >
             }
             impl #ty_ig Context #ty_tg #ty_wc {
@@ -1453,7 +1465,7 @@ impl<'a> ToTokens for Matcher<'a> {
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
                 // generics are not, unlike PhantomData<generics>
-                _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
+                _Phantom(Box<dyn Fn(#fn_params) + Send>)
             }
             impl #ig Matcher #tg #wc {
                 fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
@@ -1524,7 +1536,7 @@ impl<'a> ToTokens for RefRfunc<'a> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Mutex<Box<dyn Fn(#fn_params) -> () + Send>>)
+                _Phantom(Mutex<Box<dyn Fn(#fn_params) + Send>>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -1580,6 +1592,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
             "Can only return default values for types that impl std::Default";
 
         quote!(
+            #[allow(clippy::unused_unit)]
             enum Rfunc #ig #wc {
                 Default(Option<#owned_output>),
                 Mut((Box<dyn FnMut(#(#argty, )*) -> #owned_output + Send + Sync>),
@@ -1593,7 +1606,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Mutex<Box<dyn Fn(#fn_params) -> () + Send>>)
+                _Phantom(Mutex<Box<dyn Fn(#fn_params) + Send>>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -1661,6 +1674,7 @@ impl<'a> ToTokens for StaticRfunc<'a> {
         let lg = &self.f.alifetimes;
         let output = &self.f.output;
         quote!(
+            #[allow(clippy::unused_unit)]
             enum Rfunc #ig #wc {
                 Default,
                 // Indicates that a `return_once` expectation has already
@@ -1679,7 +1693,7 @@ impl<'a> ToTokens for StaticRfunc<'a> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Box<dyn Fn(#fn_params) -> () + Send>)
+                _Phantom(Box<dyn Fn(#fn_params) + Send>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -1759,6 +1773,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
                 rfunc: Rfunc #tg,
             }
 
+            #[allow(clippy::unused_unit)]
             impl #e_ig Expectation #e_tg #e_wc {
                 // TODO: reenable docs after merging 2020_refactor branch
                 ///// Call this [`Expectation`] as if it were the real method.
@@ -1822,6 +1837,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
                 rfunc: Rfunc #tg
             }
 
+            #[allow(clippy::unused_unit)]
             impl #ig Expectation #tg {
                 /// Simulating calling the real method for this expectation
                 #v fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
@@ -1907,6 +1923,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                 rfunc: Mutex<Rfunc #tg>,
             }
 
+            #[allow(clippy::unused_unit)]
             impl #ig Expectation #tg #wc {
                 /// Call this [`Expectation`] as if it were the real method.
                 #[doc(hidden)]
