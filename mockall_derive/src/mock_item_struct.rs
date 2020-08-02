@@ -267,7 +267,7 @@ impl ToTokens for MockItemStruct {
         let vis = &self.vis;
         quote!(
             #[allow(non_snake_case)]
-            #[doc(hidden)]
+            #[allow(missing_docs)]
             pub mod #modname {
                 use super::*;
                 #(#priv_mods)*
@@ -342,7 +342,7 @@ impl ToTokens for MockItemTraitImpl {
         let priv_mods = self.methods.priv_mods();
         quote!(
             #[allow(non_snake_case)]
-            #[doc(hidden)]
+            #[allow(missing_docs)]
             pub mod #modname {
                 use super::*;
                 #(#priv_mods)*
