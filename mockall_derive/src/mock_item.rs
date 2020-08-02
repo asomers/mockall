@@ -140,7 +140,8 @@ impl ToTokens for MockItemModule {
                 let inner = format!("Mock version of the `{}` module", ident);
                 quote!( #[doc = #inner])
             } else {
-                // TODO: write doc string
+                // Typically an extern FFI block.  Not really anything good we
+                // can put in the doc string.
                 quote!(#[allow(missing_docs)])
             }
         };

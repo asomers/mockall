@@ -388,6 +388,7 @@ impl MockFunction {
         if self.is_static {
             let outer_mod_path = self.outer_mod_path(modname);
             quote!(
+                // Don't add a doc string.  The original is included in #attrs
                 #attrs
                 #vis #sig {
                     {
@@ -405,9 +406,8 @@ impl MockFunction {
                 }
             )
         } else {
-            // TODO:
-            // * Add fn_docstr
             quote!(
+                // Don't add a doc string.  The original is included in #attrs
                 #attrs
                 #vis #sig {
                     self.#substruct_obj #name.#call#tbf(#call_exprs)
@@ -448,8 +448,9 @@ impl MockFunction {
     // wouldn't need to know that.
     pub fn context_fn(&self, modname: Option<&Ident>) -> impl ToTokens {
         let attrs = self.format_attrs(false);
-        let context_docstr = format!("Create a [`Context`]({}struct.Context.html) for mocking the `{}` method",
+        let context_docstr = format!("Create a [`Context`]({}{}/struct.Context.html) for mocking the `{}` method",
             modname.map(|m| format!("{}/", m)).unwrap_or_default(),
+            self.inner_mod_ident(),
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
         let (_, tg, _) = self.type_generics.split_for_impl();
@@ -477,6 +478,7 @@ impl MockFunction {
         let name = self.name();
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
+        let funcname = &self.sig.ident;
         let (_, tg, _) = if self.is_method_generic() {
             &self.egenerics
         } else {
@@ -499,16 +501,12 @@ impl MockFunction {
         } else {
             quote!()
         };
-        // TODO:
-        // * substructs
-        // * Fancy generics alternatives
-        // * Fix "#mod_ident" in the doc string
+        let docstr = format!("Create an [`Expectation`]({}/{}/struct.Expectation.html) for mocking the `{}` method",
+            modname, self.inner_mod_ident(), funcname);
         quote!(
             #must_use
+            #[doc = #docstr]
             #attrs
-            /// Create an
-            /// [`Expectation`](#mod_ident/ident/struct.Expectation.html) for
-            /// mocking the `ident` method
             #vis fn #expect_ident #ig(&mut self)
                -> &mut #modname::#expectation_obj
                #wc
@@ -615,7 +613,6 @@ impl MockFunction {
         } else {
             Path { leading_colon: None, segments: Punctuated::new() }
         };
-        //let mut path = Path::from(PathSegment::from(modname.clone()));
         path.segments.push(PathSegment::from(self.inner_mod_ident()));
         path
     }
@@ -1775,9 +1772,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
 
             #[allow(clippy::unused_unit)]
             impl #e_ig Expectation #e_tg #e_wc {
-                // TODO: reenable docs after merging 2020_refactor branch
-                ///// Call this [`Expectation`] as if it were the real method.
-                //#[doc(hidden)]
+                /// Call this [`Expectation`] as if it were the real method.
                 #v fn call #lg (&self) -> #output
                 {
                     self.common.call();
