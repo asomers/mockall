@@ -56,7 +56,7 @@ cfg_if! {
 // If there are any closures in the argument list, turn them into boxed
 // functions
 fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
-    (Generics, Punctuated<FnArg, Token![,]>, Punctuated<TokenStream, Token![,]>)
+    (Generics, Vec<FnArg>, Vec<TokenStream>)
 {
     let mut hm = HashMap::new();
 
@@ -131,7 +131,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     };
 
     // Next substitute Box<Fn> into the arguments
-    let outargs = Punctuated::from_iter(args.iter().map(|arg| {
+    let outargs = args.iter().map(|arg| {
         if let FnArg::Typed(pt) = arg {
             let mut immutable_pt = pt.clone();
             demutify_arg(&mut immutable_pt);
@@ -153,11 +153,11 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
         } else {
             arg.clone()
         }
-    }));
+    }).collect();
 
     // Finally, Box any closure arguments
     // use filter_map to remove the &self argument
-    let callargs = Punctuated::from_iter(args.iter().filter_map(|arg| {
+    let callargs = args.iter().filter_map(|arg| {
         match arg {
             FnArg::Typed(pt) => {
                 let mut pt2 = pt.clone();
@@ -171,7 +171,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
             },
             FnArg::Receiver(_) => None,
         }
-    }));
+    }).collect();
     (outg, outargs, callargs)
 }
 
