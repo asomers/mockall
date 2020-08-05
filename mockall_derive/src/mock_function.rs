@@ -186,7 +186,8 @@ impl<'a> Builder<'a> {
                 tp.bounds.push(TypeParamBound::Lifetime(static_bound));
             }
         }
-        let egenerics = merge_generics(&cgenerics, &rlifetimes);
+        let rlg = lifetimes_to_generics(&rlifetimes);
+        let egenerics = merge_generics(&cgenerics, &rlg);
 
         let fn_params = egenerics.type_params()
             .map(|tp| tp.ident.clone())
@@ -215,7 +216,6 @@ impl<'a> Builder<'a> {
             refpredty,
             return_ref,
             return_refmut,
-            rlifetimes,
             sig: self.sig.clone(),
             struct_: self.struct_.cloned(),
             struct_generics,
@@ -284,9 +284,9 @@ impl<'a> Builder<'a> {
 
 #[derive(Clone)]
 pub(crate) struct MockFunction {
-    /// Lifetime Generics of the mocked method that relate to the arguments but
-    /// not the return value
-    alifetimes: Generics,
+    /// Lifetimes of the mocked method that relate to the arguments but not the
+    /// return value
+    alifetimes: Punctuated<LifetimeDef, token::Comma>,
     /// Names of the method arguments
     argnames: Vec<Pat>,
     /// Types of the method arguments
@@ -327,8 +327,6 @@ pub(crate) struct MockFunction {
     return_refmut: bool,
     /// References to every type in `predty`.
     refpredty: Vec<Type>,
-    /// Lifetime Generics of the mocked method that relate to the return value
-    rlifetimes: Generics,
     /// The signature of the mockable function
     sig: Signature,
     /// Name of the parent structure, if any
@@ -565,13 +563,16 @@ impl MockFunction {
         out
     }
 
-    // TODO: return a Syn object instead of a TokenStream
-    fn hrtb(&self) -> TokenStream {
-        if self.alifetimes.params.is_empty() {
-            TokenStream::default()
+    fn hrtb(&self) -> Option<BoundLifetimes> {
+        if self.alifetimes.is_empty() {
+            None
         } else {
-            let ig = &self.alifetimes;
-            quote!(for #ig)
+            Some(BoundLifetimes {
+                lifetimes: self.alifetimes.clone(),
+                lt_token: <Token![<]>::default(),
+                gt_token: <Token![>]>::default(),
+                .. Default::default()
+            })
         }
     }
 
@@ -705,7 +706,7 @@ impl<'a> ToTokens for Common<'a> {
         let hrtb = self.f.hrtb();
         let ident_str = self.f.ident_str();
         let (ig, tg, wc) = self.f.cgenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let refpredty = &self.f.refpredty;
         let with_generics_idents = (0..self.f.predty.len())
             .map(|i| format_ident!("MockallMatcher{}", i))
@@ -852,7 +853,7 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let hrtb = self.f.hrtb();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let predty = &self.f.predty;
         let with_generics_idents = (0..self.f.predty.len())
             .map(|i| format_ident!("MockallMatcher{}", i))
@@ -1436,7 +1437,7 @@ impl<'a> ToTokens for Matcher<'a> {
             .map(|i| {
                 syn::Index::from(i)
             }).collect::<Vec<_>>();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let pred_matches = TokenStream::from_iter(
             argnames.iter().enumerate()
             .map(|(i, argname)| {
@@ -1515,7 +1516,7 @@ impl<'a> ToTokens for RefRfunc<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let fn_params = &self.f.fn_params;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let owned_output = &self.f.owned_output;
 
         #[cfg(not(feature = "nightly_derive"))]
@@ -1576,7 +1577,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
         let argty = &self.f.argty;
         let fn_params = &self.f.fn_params;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let owned_output = &self.f.owned_output;
         let output = &self.f.output;
 
@@ -1667,7 +1668,7 @@ impl<'a> ToTokens for StaticRfunc<'a> {
         let fn_params = &self.f.fn_params;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let hrtb = self.f.hrtb();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let output = &self.f.output;
         quote!(
             #[allow(clippy::unused_unit)]
@@ -1756,7 +1757,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
         let (e_ig, e_tg, e_wc) = self.f.egenerics.split_for_impl();
 
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let output = &self.f.output;
         let owned_output = &self.f.owned_output;
         let v = &self.f.privmod_vis;
@@ -1819,7 +1820,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
         let ident_str = self.f.ident_str();
         let (ig, tg, _) = self.f.egenerics.split_for_impl();
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let owned_output = &self.f.owned_output;
         let v = &self.f.privmod_vis;
         quote!(
@@ -1906,7 +1907,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
         let ident_str = self.f.ident_str();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let output = &self.f.output;
         let v = &self.f.privmod_vis;
         quote!(
@@ -2049,7 +2050,7 @@ impl<'a> ToTokens for RefExpectations<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let output = &self.f.output;
         let predexprs = &self.f.predexprs;
         let v = &self.f.privmod_vis;
@@ -2087,7 +2088,7 @@ impl<'a> ToTokens for RefMutExpectations<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let output = &self.f.output;
         let predexprs = &self.f.predexprs;
         let v = &self.f.privmod_vis;
@@ -2126,7 +2127,7 @@ impl<'a> ToTokens for StaticExpectations<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let lg = &self.f.alifetimes;
+        let lg = lifetimes_to_generics(&self.f.alifetimes);
         let output = &self.f.output;
         let predexprs = &self.f.predexprs;
         let v = &self.f.privmod_vis;
