@@ -646,32 +646,35 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
 }
 
 /// Transform a Vec of lifetimes into a Generics
-fn lifetimes_to_generics(lv: Vec<GenericParam>) -> Generics {
+fn lifetimes_to_generics(lv: &Punctuated<LifetimeDef, Token![,]>)-> Generics {
     if lv.is_empty() {
             Generics::default()
     } else {
+        let params = lv.iter()
+            .map(|lt| GenericParam::Lifetime(lt.clone()))
+            .collect();
         Generics {
             lt_token: Some(Token![<](lv[0].span())),
             gt_token: Some(Token![>](lv[0].span())),
-            params: Punctuated::from_iter(lv.into_iter()),
-            // XXX this assumes that none of the lifetimes are referenced by the
-            // where clause
+            params,
             where_clause: None
         }
     }
 }
 
-/// Split a generics list into three: one for type generics, one for lifetime
-/// generics that relate to the arguments only, and one for lifetime generics
-/// that relate to the return type.
+/// Split a generics list into three: one for type generics, one for lifetimes
+/// that relate to the arguments only, and one for lifetimes that relate to the
+/// return type.
 fn split_lifetimes(
     generics: Generics,
     args: &Punctuated<FnArg, Token![,]>,
     rt: &ReturnType)
-    -> (Generics, Generics, Generics)
+    -> (Generics,
+        Punctuated<LifetimeDef, token::Comma>,
+        Punctuated<LifetimeDef, token::Comma>)
 {
     if generics.lt_token.is_none() {
-        return (generics, Generics::default(), Generics::default());
+        return (generics, Default::default(), Default::default());
     }
 
     // Check which lifetimes are referenced by the arguments
@@ -698,14 +701,14 @@ fn split_lifetimes(
     };
 
     let mut tv = Vec::new();
-    let mut alv = Vec::new();
-    let mut rlv = Vec::new();
+    let mut alv = Punctuated::new();
+    let mut rlv = Punctuated::new();
     for p in generics.params {
         match &p {
             GenericParam::Lifetime(ltd) if rlts.contains(&ltd.lifetime) =>
-                rlv.push(p),
+                rlv.push(ltd.clone()),
             GenericParam::Lifetime(ltd) if alts.contains(&ltd.lifetime) =>
-                alv.push(p),
+                alv.push(ltd.clone()),
             GenericParam::Lifetime(_) => {
                 // Probably a lifetime parameter from the impl block that isn't
                 // used by this particular method
@@ -713,9 +716,6 @@ fn split_lifetimes(
             _ => tv.push(p)
         }
     }
-
-    let alg = lifetimes_to_generics(alv);
-    let rlg = lifetimes_to_generics(rlv);
 
     let tg = if tv.is_empty() {
         Generics::default()
@@ -730,7 +730,7 @@ fn split_lifetimes(
         }
     };
 
-    (tg, alg, rlg)
+    (tg, alv, rlv)
 }
 
 /// Return the visibility that should be used for expectation!, given the
