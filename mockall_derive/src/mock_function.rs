@@ -188,9 +188,9 @@ impl<'a> Builder<'a> {
         }
         let egenerics = merge_generics(&cgenerics, &rlifetimes);
 
-        let fn_params = Punctuated::<Ident, Token![,]>::from_iter(
-            egenerics.type_params().map(|tp| tp.ident.clone())
-        );
+        let fn_params = egenerics.type_params()
+            .map(|tp| tp.ident.clone())
+            .collect();
         let call_levels = self.call_levels.unwrap_or(self.levels);
         let struct_generics = self.struct_generics.cloned()
             .unwrap_or_default();
@@ -294,8 +294,7 @@ pub(crate) struct MockFunction {
     /// any attributes on the original function, like #[inline]
     attrs: Vec<Attribute>,
     /// Expressions that should be used for Expectation::call's arguments
-    // TODO: turn into a vec?
-    call_exprs: Punctuated<TokenStream, Token![,]>,
+    call_exprs: Vec<TokenStream>,
     /// Generics used for the expectation call
     call_generics: Generics,
     /// Visibility of the mock function itself
@@ -305,7 +304,7 @@ pub(crate) struct MockFunction {
     /// Generics of the Common object
     cgenerics: Generics,
     /// The mock function's generic types as a list of types
-    fn_params: Punctuated<Ident, Token![,]>,
+    fn_params: Vec<Ident>,
     /// Is this for a static method or free function?
     is_static: bool,
     /// name of the function's parent module
@@ -400,7 +399,7 @@ impl MockFunction {
                          * generic parameters with UnwindSafe
                          */
                         /* std::panic::catch_unwind(|| */
-                        __mockall_guard.#call#tbf(#call_exprs)
+                        __mockall_guard.#call#tbf(#(#call_exprs,)*)
                         /*)*/
                     }.expect(#no_match_msg)
                 }
@@ -410,7 +409,7 @@ impl MockFunction {
                 // Don't add a doc string.  The original is included in #attrs
                 #attrs
                 #vis #sig {
-                    self.#substruct_obj #name.#call#tbf(#call_exprs)
+                    self.#substruct_obj #name.#call#tbf(#(#call_exprs,)*)
                     .expect(#no_match_msg)
                 }
 
@@ -1289,7 +1288,7 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
             #v struct ExpectationGuard #e_ig #e_wc{
                 guard: MutexGuard<'__mockall_lt, GenericExpectations>,
                 i: usize,
-                _phantom: ::std::marker::PhantomData<(#fn_params)>,
+                _phantom: ::std::marker::PhantomData<(#(#fn_params,)*)>,
             }
 
             #[allow(clippy::unused_unit)]
@@ -1462,7 +1461,7 @@ impl<'a> ToTokens for Matcher<'a> {
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
                 // generics are not, unlike PhantomData<generics>
-                _Phantom(Box<dyn Fn(#fn_params) + Send>)
+                _Phantom(Box<dyn Fn(#(#fn_params,)*) + Send>)
             }
             impl #ig Matcher #tg #wc {
                 fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
@@ -1533,7 +1532,7 @@ impl<'a> ToTokens for RefRfunc<'a> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Mutex<Box<dyn Fn(#fn_params) + Send>>)
+                _Phantom(Mutex<Box<dyn Fn(#(#fn_params,)*) + Send>>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -1603,7 +1602,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Mutex<Box<dyn Fn(#fn_params) + Send>>)
+                _Phantom(Mutex<Box<dyn Fn(#(#fn_params,)*) + Send>>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -1690,7 +1689,7 @@ impl<'a> ToTokens for StaticRfunc<'a> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Box<dyn Fn(#fn_params) + Send>)
+                _Phantom(Box<dyn Fn(#(#fn_params,)*) + Send>)
             }
 
             impl #ig  Rfunc #tg #wc {
