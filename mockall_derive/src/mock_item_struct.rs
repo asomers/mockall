@@ -84,14 +84,13 @@ impl Methods {
     }
 
     /// Return a fragment of code to initialize struct fields during default()
-    fn default_inits(&self, modname: &Ident) -> Vec<TokenStream> {
+    fn default_inits(&self) -> Vec<TokenStream> {
         self.0.iter()
             .filter(|meth| !meth.is_static())
             .map(|meth| {
                 let name = meth.name();
                 let attrs = meth.format_attrs(false);
-                let expectations_obj = &meth.expectations_obj();
-                quote!(#attrs #name: #modname::#expectations_obj::default())
+                quote!(#attrs #name: Default::default())
             }).collect::<Vec<_>>()
     }
 
@@ -254,10 +253,9 @@ impl ToTokens for MockItemStruct {
         let mut default_inits = substructs.iter()
             .map(|ss| {
                 let fieldname = &ss.fieldname;
-                let tyname = &ss.name;
-                quote!(#fieldname: #tyname::default())
+                quote!(#fieldname: Default::default())
             }).collect::<Vec<_>>();
-        default_inits.extend(self.methods.default_inits(&modname));
+        default_inits.extend(self.methods.default_inits());
         default_inits.extend(self.phantom_default_inits());
         let trait_impls = self.traits.iter()
             .map(|ss| {
@@ -283,8 +281,6 @@ impl ToTokens for MockItemStruct {
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
-                        // TODO: try removing the type names, and just use
-                        // "default"
                         #(#default_inits),*
                     }
                 }
@@ -335,7 +331,7 @@ impl ToTokens for MockItemTraitImpl {
         let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
         let modname = &self.modname;
         let method_checkpoints = self.methods.checkpoints();
-        let mut default_inits = self.methods.default_inits(&modname);
+        let mut default_inits = self.methods.default_inits();
         default_inits.extend(self.phantom_default_inits());
         let mut field_definitions = self.methods.field_definitions(&modname);
         field_definitions.extend(self.phantom_fields());
