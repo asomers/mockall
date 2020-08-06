@@ -1752,9 +1752,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationMethods{f: &self.f};
         let ident_str = self.f.ident_str();
-        let (_, tg, _) = self.f.egenerics.split_for_impl();
-        // TODO: replace e_* with *
-        let (e_ig, e_tg, e_wc) = self.f.egenerics.split_for_impl();
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
 
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = lifetimes_to_generics(&self.f.alifetimes);
@@ -1765,13 +1763,13 @@ impl<'a> ToTokens for RefExpectation<'a> {
             /// Expectation type for methods taking a `&self` argument and
             /// returning immutable references.  This is the type returned by
             /// the `expect_*` methods.
-            #v struct Expectation #e_ig #e_wc {
+            #v struct Expectation #ig #wc {
                 common: Common #common_tg,
                 rfunc: Rfunc #tg,
             }
 
             #[allow(clippy::unused_unit)]
-            impl #e_ig Expectation #e_tg #e_wc {
+            impl #ig Expectation #tg #wc {
                 /// Call this [`Expectation`] as if it were the real method.
                 #v fn call #lg (&self) -> #output
                 {
@@ -1794,7 +1792,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
 
                 #common_methods
             }
-            impl #e_ig Default for Expectation #e_tg #e_wc
+            impl #ig Default for Expectation #tg #wc
             {
                 fn default() -> Self {
                     Expectation {
