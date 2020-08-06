@@ -1042,6 +1042,10 @@
 //! [`predicates`]: predicate/index.html
 
 #![cfg_attr(feature = "nightly", feature(specialization))]
+// Allow the incomplete_feature warning for specialization.  We know it's
+// incomplete; that's why it's guarded by the "nightly" feature.
+#![cfg_attr(feature = "nightly", allow(incomplete_features))]
+
 #![cfg_attr(feature = "nightly", feature(doc_cfg))]
 #![deny(intra_doc_link_resolution_failure)]
 

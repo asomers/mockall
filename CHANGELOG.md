@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 ### Changed
 ### Fixed
+- Suppressed `incomplete_features` warnings in the latest nightly.
+  ([#161](https://github.com/asomers/mockall/pull/161))
+
 ### Removed
 
 ## [0.7.2] - 28 July 2020
