@@ -563,6 +563,15 @@ impl MockFunction {
         out
     }
 
+    /// Human-readable name of the mock function
+    fn funcname(&self) -> String {
+        if let Some(si) = &self.struct_ {
+            format!("{}::{}", si, self.name())
+        } else {
+            format!("{}", self.name())
+        }
+    }
+
     fn hrtb(&self) -> Option<BoundLifetimes> {
         if self.alifetimes.is_empty() {
             None
@@ -573,15 +582,6 @@ impl MockFunction {
                 gt_token: <Token![>]>::default(),
                 .. Default::default()
             })
-        }
-    }
-
-    // TODO: choose a better name
-    fn ident_str(&self) -> String {
-        if let Some(si) = &self.struct_ {
-            format!("{}::{}", si, self.name())
-        } else {
-            format!("{}", self.name())
         }
     }
 
@@ -704,7 +704,7 @@ impl<'a> ToTokens for Common<'a> {
         let argnames = &self.f.argnames;
         let predty = &self.f.predty;
         let hrtb = self.f.hrtb();
-        let ident_str = self.f.ident_str();
+        let funcname = self.f.funcname();
         let (ig, tg, wc) = self.f.cgenerics.split_for_impl();
         let lg = lifetimes_to_generics(&self.f.alifetimes);
         let refpredty = &self.f.refpredty;
@@ -749,7 +749,7 @@ impl<'a> ToTokens for Common<'a> {
                         .unwrap_or_else(|m| {
                             let desc = format!("{}",
                                                self.matcher.lock().unwrap());
-                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                            panic!("{}: Expectation({}) {}", #funcname, desc,
                                 m);
                         });
                     self.verify_sequence();
@@ -834,7 +834,7 @@ impl<'a> ToTokens for Common<'a> {
                     {
                         let desc = format!("{}", self.matcher.lock().unwrap());
                         panic!("{}: Expectation({}) called fewer than {} times",
-                               #ident_str,
+                               #funcname,
                                desc,
                                self.times.minimum());
                     }
@@ -1751,7 +1751,7 @@ struct RefExpectation<'a> {
 impl<'a> ToTokens for RefExpectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationMethods{f: &self.f};
-        let ident_str = self.f.ident_str();
+        let funcname = self.f.funcname();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
 
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
@@ -1777,7 +1777,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
                     self.rfunc.call().unwrap_or_else(|m| {
                         let desc = format!("{}",
                                            self.common.matcher.lock().unwrap());
-                        panic!("{}: Expectation({}) {}", #ident_str, desc,
+                        panic!("{}: Expectation({}) {}", #funcname, desc,
                             m);
                     })
                 }
@@ -1815,7 +1815,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
         let common_methods = CommonExpectationMethods{f: &self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
-        let ident_str = self.f.ident_str();
+        let funcname = self.f.funcname();
         let (ig, tg, _) = self.f.egenerics.split_for_impl();
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = lifetimes_to_generics(&self.f.alifetimes);
@@ -1840,7 +1840,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
                     let desc = format!("{}",
                         self.common.matcher.lock().unwrap());
                     self.rfunc.call_mut(#(#argnames, )*).unwrap_or_else(|m| {
-                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                            panic!("{}: Expectation({}) {}", #funcname, desc,
                                    m);
                     })
                 }
@@ -1902,7 +1902,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let hrtb = self.f.hrtb();
-        let ident_str = self.f.ident_str();
+        let funcname = self.f.funcname();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = lifetimes_to_generics(&self.f.alifetimes);
@@ -1927,7 +1927,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                         .unwrap_or_else(|message| {
                             let desc = format!("{}",
                                 self.common.matcher.lock().unwrap());
-                            panic!("{}: Expectation({}) {}", #ident_str, desc,
+                            panic!("{}: Expectation({}) {}", #funcname, desc,
                                    message);
                         })
                 }
