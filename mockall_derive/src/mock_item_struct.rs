@@ -328,7 +328,7 @@ impl ToTokens for MockItemTraitImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let attrs_nodocs = format_attrs(&self.attrs, false);
         let struct_name = &self.name;
-        let (ig, tg, wc) = self.generics.split_for_impl(); //TODO
+        let (ig, tg, wc) = self.generics.split_for_impl();
         let modname = &self.modname;
         let method_checkpoints = self.methods.checkpoints();
         let mut default_inits = self.methods.default_inits();
