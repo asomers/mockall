@@ -12,10 +12,21 @@ struct X<'a>(&'a u32);
 mock! {
     Thing {
         fn foo<'a>(&self) -> X<'a>;
+
         // XXX static methods don't work yet.
         // fn bar<'a>() -> X<'a>;
-        // TODO: add test cases for methods returning immutable and mutable
-        // references and for generic methods
+
+        fn baz<'a>(&self) -> &X<'a>;
+
+        // Methods returning a mutable reference to a non-static value won't
+        // work unless 'a is static.  I doubt there are any real-life methods
+        // that fit this pattern; open an issue if you find one.
+        // fn bang<'a>(&mut self) -> &mut X<'a>;
+
+        // Generic methods can't return non-static values either, because
+        // Mockall requires generic methods' generic parameters to implement
+        // std::any::Any, which means they must be 'static.
+        //fn bean<'a, T: 'static>(&self, t: T) -> X<'a>;
     }
 }
 
@@ -28,6 +39,17 @@ fn return_static() {
         .return_const(x);
 
     assert_eq!(42u32, *thing.foo().0);
+}
+
+#[test]
+fn return_static_ref() {
+    const D: u32 = 42;
+    let x = X(&D);
+    let mut thing = MockThing::new();
+    thing.expect_baz()
+        .return_const(x);
+
+    assert_eq!(42u32, *(*thing.baz()).0);
 }
 
 // It isn't possible to safely set an expectation for a non-'static return value
