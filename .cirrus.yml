@@ -1,38 +1,34 @@
 test_task:
-  name: cargo test 
   matrix:
-    - container:
-       image: rust:1.36.0
-    - container:
-       image: rust:latest
-    - container:
-       image: rustlang/rust:nightly
+    - name: 1.36.0
+      container:
+        image: rust:1.36.0
+    - name: stable
+      container:
+        image: rust:latest
+    - name: nightly
+      container:
+        image: rustlang/rust:nightly
+      env:
+        CARGO_ARGS: --all-features
   cargo_cache:
     folder: $CARGO_HOME/registry
   build_script:
-    - if rustc --version | grep -q nightly; then
-    -   cargo build --all-features --all
-    - else
-    -   cargo build --all
-    - fi
+    - cargo build $CARGO_ARGS --all
   test_script:
-    - if rustc --version | grep -q nightly; then
-    -   cargo test --all-features --all
-    - else
-    -   cargo test --all
-    - fi
+    - cargo test $CARGO_ARGS --all
+  example_script:
+    - cargo test $CARGO_ARGS --all --examples
   doc_script:
-    - if rustc --version | grep -q nightly; then
-    -   cargo doc --no-deps --all-features --all
-    - else
-    -   cargo doc --no-deps --all
-    - fi
+    - cargo doc $CARGO_ARGS --no-deps --all
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 minver_task:
   name: minver
   depends_on:
-    - cargo test
+    - 1.36.0
+    - stable
+    - nightly
   matrix:
     - container:
        image: rustlang/rust:nightly
