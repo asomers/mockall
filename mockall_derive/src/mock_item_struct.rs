@@ -95,7 +95,6 @@ pub(crate) struct MockItemStruct {
     /// Inherent methods of the mock struct
     methods: Methods,
     /// Name of the overall module that holds all of the mock stuff
-    // TODO: base this on name so we can get rid of MockableStruct.original_name
     modname: Ident,
     name: Ident,
     /// Is this a whole MockStruct or just a substructure for a trait impl?
@@ -134,7 +133,7 @@ impl MockItemStruct {
 
 impl From<MockableStruct> for MockItemStruct {
     fn from(mockable: MockableStruct) -> MockItemStruct {
-        let modname = gen_mod_ident(&mockable.original_name, None);
+        let modname = gen_mod_ident(&mockable.name, None);
         let generics = mockable.generics.clone();
         let struct_name = &mockable.name;
         let vis = mockable.vis;
@@ -279,7 +278,6 @@ pub(crate) struct MockItemTraitImpl {
     /// Inherent methods of the mock struct
     methods: Methods,
     /// Name of the overall module that holds all of the mock stuff
-    // TODO: base this on name so we can get rid of MockableStruct.original_name
     modname: Ident,
     name: Ident,
     /// Name of the field of this type in the parent's structure
