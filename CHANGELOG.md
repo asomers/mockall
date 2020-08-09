@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 ### Changed
 ### Fixed
+- Fixed mocking generic methods returning mutable references.
+  ([#165](https://github.com/asomers/mockall/pull/165))
+
 - Suppressed `incomplete_features` warnings in the latest nightly.
   ([#161](https://github.com/asomers/mockall/pull/161))
 

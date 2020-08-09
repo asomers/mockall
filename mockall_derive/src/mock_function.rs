@@ -1816,7 +1816,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let funcname = self.f.funcname();
-        let (ig, tg, _) = self.f.egenerics.split_for_impl();
+        let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
         let lg = lifetimes_to_generics(&self.f.alifetimes);
         let owned_output = &self.f.owned_output;
@@ -1825,13 +1825,13 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
             /// Expectation type for methods taking a `&mut self` argument and
             /// returning references.  This is the type returned by the
             /// `expect_*` methods.
-            #v struct Expectation #ig {
+            #v struct Expectation #ig #wc {
                 common: Common #common_tg,
                 rfunc: Rfunc #tg
             }
 
             #[allow(clippy::unused_unit)]
-            impl #ig Expectation #tg {
+            impl #ig Expectation #tg #wc {
                 /// Simulating calling the real method for this expectation
                 #v fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
                     -> &mut #owned_output
@@ -1878,7 +1878,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
 
                 #common_methods
             }
-            impl #ig Default for Expectation #tg
+            impl #ig Default for Expectation #tg #wc
             {
                 fn default() -> Self {
                     Expectation {
@@ -2217,18 +2217,29 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
         let tbf = tg.as_turbofish();
         let output = &self.f.output;
         let v = &self.f.privmod_vis;
+        let (call, get, self_, downcast) = if self.f.return_refmut {
+            (format_ident!("call_mut"),
+             format_ident!("get_mut"),
+             quote!(&mut self),
+             format_ident!("downcast_mut"))
+        } else {
+            (format_ident!("call"),
+             format_ident!("get"),
+             quote!(&self),
+             format_ident!("downcast_ref"))
+        };
         quote!(
             impl #ig ::mockall::AnyExpectations for Expectations #tg #any_wc {}
             impl GenericExpectations {
                 /// Simulating calling the real method.
-                #v fn call #ig (&self, #(#argnames: #argty, )* )
+                #v fn #call #ig (#self_, #(#argnames: #argty, )* )
                     -> Option<#output> #wc
                 {
-                    self.store.get(&::mockall::Key::new::<(#(#argty, )*)>())
+                    self.store.#get(&::mockall::Key::new::<(#(#argty, )*)>())
                         .map(|__mockall_e| {
-                            __mockall_e.downcast_ref::<Expectations #tg>()
+                            __mockall_e.#downcast::<Expectations #tg>()
                             .unwrap()
-                            .call(#(#argnames, )*)
+                            .#call(#(#argnames, )*)
                         // TODO: use Option::flatten once it stabilizes
                         // https://github.com/rust-lang/rust/issues/60258
                         }).and_then(std::convert::identity)
