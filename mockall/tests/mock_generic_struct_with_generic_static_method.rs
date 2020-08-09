@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A generic struct with a generic method on a different parameter
+#![deny(warnings)]
 
 use mockall::*;
 use std::sync::Mutex;

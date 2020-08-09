@@ -1,5 +1,6 @@
 // vim: tw=80
 //! generic structs with bounds on their generic parameters
+#![deny(warnings)]
 
 use mockall::*;
 

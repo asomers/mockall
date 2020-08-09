@@ -1,6 +1,7 @@
 // vim: tw=80
 //! Clone-like methods (non-static method with Self return type) need the return
 //! type to be deselfified.
+#![deny(warnings)]
 
 use mockall::*;
 

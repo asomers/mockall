@@ -2,6 +2,7 @@
 //! Attributes are applied to the mock object, too.
 #![allow(unused)]
 #![cfg_attr(feature = "nightly", feature(proc_macro_hygiene))]
+#![deny(warnings)]
 
 use cfg_if::cfg_if;
 

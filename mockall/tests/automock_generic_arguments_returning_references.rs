@@ -1,5 +1,6 @@
 // vim: tw=80
 //! generic methods with generic arguments returning immutable references
+#![deny(warnings)]
 
 use mockall::*;
 

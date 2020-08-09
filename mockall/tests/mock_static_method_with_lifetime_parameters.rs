@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A static generic method whose only generic parameter is a lifetime parameter
+#![deny(warnings)]
 
 use mockall::*;
 use std::sync::Mutex;

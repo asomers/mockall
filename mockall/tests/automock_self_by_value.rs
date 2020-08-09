@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method that consumes self
+#![deny(warnings)]
 
 use mockall::*;
 

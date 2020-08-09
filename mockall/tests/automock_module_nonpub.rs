@@ -1,5 +1,6 @@
 // vim: tw=80
 //! bare functions can use non-public types, as long as the object's visibility is compatible.
+#![deny(warnings)]
 
 // mocking modules requires the proc_macro_hygiene feature in the _consumer_
 // code

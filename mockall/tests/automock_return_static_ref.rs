@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method that returns an immutable 'static reference
+#![deny(warnings)]
 
 use mockall::*;
 

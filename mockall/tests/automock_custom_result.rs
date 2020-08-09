@@ -2,6 +2,7 @@
 //! It should be possible to use a custom Result type in the signature of a
 //! mocked method.  Regression test for
 //! https://github.com/asomers/mockall/issues/73
+#![deny(warnings)]
 
 use mockall::*;
 

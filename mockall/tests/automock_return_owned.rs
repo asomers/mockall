@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method that returns ownership of a value, rather than returning by Copy
+#![deny(warnings)]
 
 use mockall::*;
 

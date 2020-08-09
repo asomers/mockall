@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A generic method may have non-generic reference arguments
+#![deny(warnings)]
 
 use mockall::*;
 

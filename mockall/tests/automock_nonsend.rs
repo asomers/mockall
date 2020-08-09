@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method may have non-Send arguments and/or return values
+#![deny(warnings)]
 
 use mockall::*;
 use std::rc::Rc;

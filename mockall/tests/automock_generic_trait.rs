@@ -1,5 +1,6 @@
 // vim: tw=80
 //! generic traits
+#![deny(warnings)]
 
 use mockall::*;
 

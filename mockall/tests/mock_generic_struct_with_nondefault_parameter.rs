@@ -1,6 +1,7 @@
 // vim: tw=80
 //! mock a generic struct and instantiate it with a parameter type that does not
 //! implement Default
+#![deny(warnings)]
 
 use mockall::*;
 

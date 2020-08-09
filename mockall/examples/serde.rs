@@ -21,6 +21,7 @@
 //! can mock a struct that implements Serde traits by manually implementing
 //! `Serialize` and `Deserialize` in terms of non-generic methods, using a
 //! surrogate object for the expectations.
+#![deny(warnings)]
 
 use mockall::*;
 use serde::{Deserialize, Deserializer};

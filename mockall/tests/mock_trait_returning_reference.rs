@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A trait with a method that returns an immutable reference
+#![deny(warnings)]
 
 use mockall::*;
 

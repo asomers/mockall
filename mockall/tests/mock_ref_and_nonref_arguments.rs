@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method that has both a reference and a nonreference argument
+#![deny(warnings)]
 
 use mockall::*;
 

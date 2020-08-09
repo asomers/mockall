@@ -1,4 +1,5 @@
 // vim: tw=80
+#![deny(warnings)]
 use mockall::*;
 
 struct G<T> where T: Copy {t: T}

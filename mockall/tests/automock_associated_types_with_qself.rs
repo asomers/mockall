@@ -1,5 +1,6 @@
 // vim: tw=80
 //! automatic-style mocking with associated types, with QSelf
+#![deny(warnings)]
 
 use mockall::*;
 

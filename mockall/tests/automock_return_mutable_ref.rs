@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method that returns a mutable reference
+#![deny(warnings)]
 
 use mockall::*;
 

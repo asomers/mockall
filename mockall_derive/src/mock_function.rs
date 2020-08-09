@@ -2265,9 +2265,7 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
                             __mockall_e.#downcast::<Expectations #tg>()
                             .unwrap()
                             .#call(#(#argnames, )*)
-                        // TODO: use Option::flatten once it stabilizes
-                        // https://github.com/rust-lang/rust/issues/60258
-                        }).and_then(std::convert::identity)
+                        }).flatten()
                 }
 
                 /// Create a new Expectation.

@@ -2,6 +2,7 @@
 //! A specializing method is a non-generic method of a generic struct that
 //! places additional bounds on the struct's generic types via a where
 //! clause.
+#![deny(warnings)]
 
 use mockall::*;
 

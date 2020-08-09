@@ -1,5 +1,6 @@
 // vim: tw=80
 //! Mocking an entire module of functions
+#![deny(warnings)]
 
 // mocking modules requires the proc_macro_hygiene feature in the _consumer_
 // code

@@ -1,6 +1,7 @@
 // vim: tw=80
 //! A generic struct with bounds on its generic parameters can have a
 //! constructor method
+#![deny(warnings)]
 
 use mockall::*;
 

@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A struct with generic parameters bounded by a where clause
+#![deny(warnings)]
 
 use mockall::*;
 

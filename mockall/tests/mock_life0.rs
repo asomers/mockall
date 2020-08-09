@@ -1,6 +1,7 @@
 // vim: tw=80
 //! mock a method whose self parameter has an explicit lifetime
 //! https://github.com/asomers/mockall/issues/95
+#![deny(warnings)]
 
 use mockall::*;
 

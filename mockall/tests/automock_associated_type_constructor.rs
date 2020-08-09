@@ -1,6 +1,7 @@
 // vim: tw=80
-/// A constructor that returns Self as an associated type of some other trait.
-/// This is very useful when working with Futures.
+//! A constructor that returns Self as an associated type of some other trait.
+//! This is very useful when working with Futures.
+#![deny(warnings)]
 
 use mockall::*;
 

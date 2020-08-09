@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method with mutable arguments
+#![deny(warnings)]
 
 use mockall::*;
 

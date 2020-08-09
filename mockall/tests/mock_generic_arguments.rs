@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A struct with a generic method that has generic arguments
+#![deny(warnings)]
 
 use mockall::*;
 
