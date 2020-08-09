@@ -679,7 +679,6 @@ impl MockFunction {
             Box::new(StaticExpectations{f: self})
         };
         let generic_expectations = GenericExpectations{f: self};
-        // TODO: ExpectationGuard for generic methods
         let guard: Box<dyn ToTokens> = if self.is_expectation_generic() {
             Box::new(GenericExpectationGuard{f: self})
         } else {
