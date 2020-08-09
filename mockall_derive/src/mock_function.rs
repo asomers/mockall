@@ -201,7 +201,7 @@ impl<'a> Builder<'a> {
         } else {
             declosured_generics.clone()
         };
-        let (mut cgenerics, alifetimes, rlifetimes) = split_lifetimes(
+        let (cgenerics, alifetimes, rlifetimes) = split_lifetimes(
             merged_generics,
             &declosured_inputs,
             &ReturnType::Type(<Token![->]>::default(),
@@ -213,14 +213,6 @@ impl<'a> Builder<'a> {
             &ReturnType::Type(<Token![->]>::default(),
                               Box::new(owned_output.clone()))
         );
-        // TODO: reconsider adding 'static bounds.  It isn't required for most
-        // methods.  See PR #114
-        for p in cgenerics.params.iter_mut() {
-            if let GenericParam::Type(tp) = p {
-                let static_bound = Lifetime::new("'static", Span::call_site());
-                tp.bounds.push(TypeParamBound::Lifetime(static_bound));
-            }
-        }
         let rlg = lifetimes_to_generics(&rlifetimes);
         let egenerics = merge_generics(&cgenerics, &rlg);
 
