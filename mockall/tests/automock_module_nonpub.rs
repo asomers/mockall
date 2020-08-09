@@ -39,6 +39,14 @@ cfg_if::cfg_if! {
                         unimplemented!()
                     }
                 }
+
+                #[test]
+                fn returning() {
+                    let ctx = mock_m::foo_context();
+                    ctx.expect()
+                        .returning(|x| x);
+                    mock_m::foo(PubCrateT());
+                }
             }
         }
     }

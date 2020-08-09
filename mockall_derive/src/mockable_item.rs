@@ -142,10 +142,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
 impl From<ItemMod> for MockableModule {
     fn from(mod_: ItemMod) -> MockableModule {
         let span = mod_.span();
-        // TODO: in the future, consider mocking non-public modules
-        let vis = Visibility::Public(VisPublic{
-            pub_token: Token![pub](mod_.vis.span())
-        });
+        let vis = mod_.vis;
         let mock_ident = format_ident!("mock_{}", mod_.ident);
         let orig_ident = Some(mod_.ident);
         let mod_token = mod_.mod_token;
