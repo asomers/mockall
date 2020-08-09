@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 ### Changed
 ### Fixed
+- Fixed mocking modules including functions that use "impl Trait" or mutable
+  arguments.
+  ([#169](https://github.com/asomers/mockall/pull/169))
+
 - Fixed mocking methods whose generic types include `super::`.
   ([#167](https://github.com/asomers/mockall/pull/167))
 

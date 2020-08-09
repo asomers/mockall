@@ -1,6 +1,20 @@
 // vim: tw=80
 use super::*;
 
+/// Performs transformations on a function to make it mockable
+fn mockable_fn(mut item_fn: ItemFn) -> ItemFn {
+    deimplify(&mut item_fn.sig.output);
+    item_fn
+}
+
+/// Performs transformations on an Item to make it mockable
+fn mockable_item(item: Item) -> Item {
+    match item {
+        Item::Fn(item_fn) => Item::Fn(mockable_fn(item_fn)),
+        x => x
+    }
+}
+
 /// An item that's ready to be mocked.
 ///
 /// It should be functionally identical or near-identical to the original item,
@@ -135,14 +149,15 @@ impl From<ItemMod> for MockableModule {
         let orig_ident = Some(mod_.ident);
         let mod_token = mod_.mod_token;
         let content = if let Some((_, content)) = mod_.content {
-            content
+            content.into_iter()
+            .map(|c| mockable_item(c))
+            .collect()
         } else {
             compile_error(span,
             "automock can only mock inline modules, not modules from another file");
             Vec::new()
         };
         // TODO: demutify funcs
-        // TODO: deimplify funcs
         MockableModule { vis, mock_ident, mod_token, orig_ident, content }
     }
 }
