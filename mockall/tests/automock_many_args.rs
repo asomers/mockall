@@ -2,6 +2,7 @@
 //! mockall should be able to mock methods with at least 16 arguments
 #![allow(clippy::too_many_arguments)]    // Good job, Clippy!
 #![allow(clippy::type_complexity)]
+#![deny(warnings)]
 
 use mockall::{automock, predicate::*};
 

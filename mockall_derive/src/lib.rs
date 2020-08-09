@@ -6,6 +6,7 @@
 //! crate.
 
 #![cfg_attr(feature = "nightly_derive", feature(proc_macro_diagnostic))]
+#![cfg_attr(test, deny(warnings))]
 extern crate proc_macro;
 
 use cfg_if::cfg_if;
@@ -23,7 +24,6 @@ use syn::{
 };
 
 mod automock;
-//mod expectation;
 mod mock_function;
 mod mock_item;
 mod mock_item_struct;

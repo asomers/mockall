@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A generic struct with a where clause
+#![deny(warnings)]
 
 // An explicit clone is required so as not to return by move
 #![allow(clippy::clone_on_copy)]

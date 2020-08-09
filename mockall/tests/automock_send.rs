@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A mock object should be Send
+#![deny(warnings)]
 
 use mockall::*;
 

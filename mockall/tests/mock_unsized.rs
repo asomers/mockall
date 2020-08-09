@@ -1,5 +1,6 @@
 // vim: tw=80
 //! All types of predicate should work for methods with unsized arguments
+#![deny(warnings)]
 
 use mockall::*;
 

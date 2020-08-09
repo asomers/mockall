@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A trait with a constructor method
+#![deny(warnings)]
 
 use mockall::*;
 

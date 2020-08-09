@@ -1,6 +1,7 @@
 // vim: tw=80
 //! A method with a closure argument can be mocked, by turning the closure into
 //! a Boxed Fn.
+#![deny(warnings)]
 
 use mockall::*;
 

@@ -1,6 +1,7 @@
 // vim: tw=80
 //! methods can use non-public types, as long as the object's visibility is
 //! compatible.
+#![deny(warnings)]
 
 use mockall::*;
 

@@ -1,5 +1,6 @@
 // vim: tw=80
 //! a method that returns impl Trait
+#![deny(warnings)]
 
 use mockall::*;
 use std::fmt::Debug;

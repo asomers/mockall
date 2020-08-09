@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A struct with a method that returns an immutable static reference
+#![deny(warnings)]
 
 use mockall::*;
 

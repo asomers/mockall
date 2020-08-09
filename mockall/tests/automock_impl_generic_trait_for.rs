@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A generic struct that implements a generic trait
+#![deny(warnings)]
 
 use mockall::*;
 

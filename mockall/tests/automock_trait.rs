@@ -1,5 +1,6 @@
 // vim: tw=80
 //! automocking a trait
+#![deny(warnings)]
 
 use mockall::*;
 

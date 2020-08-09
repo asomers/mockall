@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A struct that implements a trait that inherits another trait
+#![deny(warnings)]
 
 use mockall::*;
 

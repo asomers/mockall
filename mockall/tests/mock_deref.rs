@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method that returns a type which is a common target for std::ops::Deref
+#![deny(warnings)]
 
 use mockall::*;
 

@@ -4,6 +4,8 @@
 //!
 //! The tests really just check that the visibility of the functions and
 //! expectations functions is correct.
+#![deny(warnings)]
+
 #[allow(unused)]
 mod outer {
     struct SuperT();

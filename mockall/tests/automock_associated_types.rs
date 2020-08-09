@@ -1,5 +1,6 @@
 // vim: tw=80
 //! automatic-style mocking with associated types
+#![deny(warnings)]
 
 use mockall::*;
 

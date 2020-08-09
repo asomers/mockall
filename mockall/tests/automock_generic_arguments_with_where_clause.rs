@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A method with generic arguments bounded by a where clause
+#![deny(warnings)]
 
 use mockall::*;
 

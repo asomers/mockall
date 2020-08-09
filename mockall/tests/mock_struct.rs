@@ -1,6 +1,7 @@
 // vim: tw=80
 //! Structs can be mocked with mock!  This is useful when the struct's original
 //! definition is not accessible.
+#![deny(warnings)]
 
 use mockall::*;
 

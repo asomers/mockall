@@ -1,6 +1,7 @@
 // vim: tw=80
 //! A method that takes mutable reference arguments, returning information
 //! through its arguments like C functions often do.
+#![deny(warnings)]
 
 use mockall::*;
 

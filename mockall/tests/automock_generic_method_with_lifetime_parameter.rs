@@ -1,6 +1,7 @@
 // vim: tw=80
 //! A generic method whose only generic parameter is a lifetime parameter is,
 //! from Mockall's perspective, pretty much the same as a non-generic method.
+#![deny(warnings)]
 
 use mockall::*;
 

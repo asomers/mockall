@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A struct with methods that take arguments by reference
+#![deny(warnings)]
 
 use mockall::*;
 

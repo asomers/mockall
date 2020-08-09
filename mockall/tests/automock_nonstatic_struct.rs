@@ -1,5 +1,6 @@
 // vim: tw=80
 //! Mock a struct with a lifetime parameter
+#![deny(warnings)]
 
 use mockall::*;
 

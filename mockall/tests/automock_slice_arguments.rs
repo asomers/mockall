@@ -1,5 +1,6 @@
 // vim: tw=80
 //! a method with slice arguments
+#![deny(warnings)]
 
 use mockall::*;
 

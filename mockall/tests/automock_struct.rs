@@ -1,5 +1,6 @@
 // vim: tw=80
 //! automocking a struct
+#![deny(warnings)]
 
 use mockall::*;
 

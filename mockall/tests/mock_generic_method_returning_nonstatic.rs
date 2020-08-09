@@ -3,6 +3,7 @@
 //! special case.  Mockall can only mock such methods if the expectation is
 //! 'static.
 //! https://github.com/asomers/mockall/issues/76
+#![deny(warnings)]
 
 use mockall::*;
 

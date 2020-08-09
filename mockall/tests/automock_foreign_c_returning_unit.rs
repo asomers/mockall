@@ -1,5 +1,6 @@
 // vim: tw=80
-///! Ensure that foreign functions can return ()
+//! Ensure that foreign functions can return ()
+#![deny(warnings)]
 
 use mockall::*;
 

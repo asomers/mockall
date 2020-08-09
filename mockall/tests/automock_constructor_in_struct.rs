@@ -1,5 +1,6 @@
 // vim: tw=80
 //! A struct with a constructor method
+#![deny(warnings)]
 
 use mockall::*;
 
