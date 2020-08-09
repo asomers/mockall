@@ -7,6 +7,7 @@ use mockall::*;
 #[allow(unused)]
 mod outer {
     struct SuperT();
+    trait SuperTrait {}
 
     mod inner {
         use super::super::mock;
@@ -24,6 +25,12 @@ mod outer {
                 fn staticbaz(x: super::SuperT) -> super::SuperT;
                 fn bang(&self, x: crate::outer::SuperT) -> crate::outer::SuperT;
                 fn bean(&self, x: self::PrivT) -> self::PrivT;
+                fn goo<T: super::SuperTrait + 'static>(t: T);
+                fn goo_wc<T>(t: T) where T: super::SuperTrait + 'static;
+                fn boob<F: Fn(u32) -> super::SuperT + 'static>(&self, f: F)
+                    -> u32;
+                fn boobwc<F>(&self, f: F) -> u32
+                    where F: Fn(u32) -> super::SuperT + 'static;
             }
         }
     }

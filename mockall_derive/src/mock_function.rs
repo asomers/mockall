@@ -133,9 +133,7 @@ impl<'a> Builder<'a> {
         let mut predty = Vec::new();
         let mut refpredty = Vec::new();
 
-        // TODO: add a test case that tests declosurefy and supersuperfy in
-        // combination.
-        let (declosured_generics, declosured_inputs, call_exprs) =
+        let (mut declosured_generics, declosured_inputs, call_exprs) =
             declosurefy(&self.sig.generics, &self.sig.inputs);
 
         for fa in declosured_inputs.iter() {
@@ -180,6 +178,7 @@ impl<'a> Builder<'a> {
                 output_ty
             }
         };
+        supersuperfy_generics(&mut declosured_generics, self.levels);
         let owned_output = ownify(&output);
         let mut return_ref = false;
         let mut return_refmut = false;
