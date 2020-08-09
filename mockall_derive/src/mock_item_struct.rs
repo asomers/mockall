@@ -134,7 +134,6 @@ impl MockItemStruct {
 
 impl From<MockableStruct> for MockItemStruct {
     fn from(mockable: MockableStruct) -> MockItemStruct {
-        let mock_ident = gen_mod_ident(&mockable.name, None);
         let modname = gen_mod_ident(&mockable.original_name, None);
         let generics = mockable.generics.clone();
         let struct_name = &mockable.name;
@@ -155,7 +154,6 @@ impl From<MockableStruct> for MockItemStruct {
             .map(|meth|
                 mock_function::Builder::new(&meth.sig, &meth.vis)
                     .attrs(&meth.attrs)
-                    .parent(&mock_ident)
                     .struct_(&struct_name)
                     .struct_generics(&generics)
                     .levels(2)
