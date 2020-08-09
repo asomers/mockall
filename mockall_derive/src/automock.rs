@@ -117,10 +117,14 @@ impl Attrs {
                         compile_error(path.span(),
                             "QSelf is a work in progress");
                     }
-                    let last_seg = path.path.segments.pop().unwrap();
-                    let to_sub = &last_seg.value().ident;
-                    let penultimate_seg = path.path.segments.pop().unwrap();
-                    let qident = &penultimate_seg.value().ident;
+
+                    let mut seg_iter = path.path.segments.iter().rev();
+                    let last_seg = seg_iter.next().unwrap();
+                    let to_sub = &last_seg.ident;
+                    let penultimate_seg = seg_iter.next().unwrap();
+                    let qident = &penultimate_seg.ident;
+                    drop(seg_iter);
+
                     if qident != traitname {
                         compile_error(qident.span(),
                             "Mockall does not support QSelf substitutions except for the trait being mocked");
