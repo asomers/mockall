@@ -199,19 +199,17 @@ impl<'a> Builder<'a> {
         let merged_generics = if let Some(g) = self.struct_generics {
             merge_generics(g, &declosured_generics)
         } else {
-            // TODO: consider using call_generics here
-            self.sig.generics.clone()
+            declosured_generics.clone()
         };
         let (mut cgenerics, alifetimes, rlifetimes) = split_lifetimes(
             merged_generics,
-            // TODO: consider using declosured_inputs here
-            &self.sig.inputs,
+            &declosured_inputs,
             &ReturnType::Type(<Token![->]>::default(),
                               Box::new(owned_output.clone()))
         );
         let (call_generics, _, _) = split_lifetimes(
             declosured_generics,
-            &self.sig.inputs,
+            &declosured_inputs,
             &ReturnType::Type(<Token![->]>::default(),
                               Box::new(owned_output.clone()))
         );
