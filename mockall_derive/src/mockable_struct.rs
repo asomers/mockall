@@ -137,8 +137,6 @@ pub(crate) struct MockableStruct {
     /// Inherent methods of the mockable struct
     pub methods: Vec<ImplItemMethod>,
     pub name: Ident,
-    /// Name of the original struct.
-    pub original_name: Ident,
     pub vis: Visibility,
     pub traits: Vec<ItemTrait>
 }
@@ -150,7 +148,6 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
         let vis = trait_.vis.clone();
         let name = gen_mock_ident(&trait_.ident);
         let generics = trait_.generics.clone();
-        let original_name = trait_.ident.clone();
         let traits = vec![mockable_trait(trait_, &name, &generics)];
         MockableStruct {
             attrs,
@@ -158,7 +155,6 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
             name,
             generics,
             methods: Vec::new(),
-            original_name,
             traits
         }
     }
@@ -166,16 +162,15 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
 
 impl From<ItemImpl> for MockableStruct {
     fn from(item_impl: ItemImpl) -> MockableStruct {
-        let (name, original_name) = match *item_impl.self_ty {
+        let name = match *item_impl.self_ty {
             Type::Path(type_path) => {
                 let n = find_ident_from_path(&type_path.path).0;
-                (gen_mock_ident(&n), n)
+                gen_mock_ident(&n)
             },
             x => {
                 compile_error(x.span(),
                     "mockall_derive only supports mocking traits and structs");
-                (Ident::new("", Span::call_site()),
-                 Ident::new("", Span::call_site()))
+                Ident::new("", Span::call_site())
             }
         };
         let mut methods = Vec::new();
@@ -251,7 +246,6 @@ impl From<ItemImpl> for MockableStruct {
             name,
             generics: item_impl.generics,
             methods,
-            original_name,
             traits,
             vis
         }
@@ -297,7 +291,6 @@ impl Parse for MockableStruct {
                 name,
                 generics,
                 methods,
-                original_name,
                 traits
             }
         )
