@@ -726,7 +726,7 @@ fn lifetimes_to_generics(lv: &Punctuated<LifetimeDef, Token![,]>)-> Generics {
 /// return type.
 fn split_lifetimes(
     generics: Generics,
-    args: &Punctuated<FnArg, Token![,]>,
+    args: &[FnArg],
     rt: &ReturnType)
     -> (Generics,
         Punctuated<LifetimeDef, token::Comma>,
