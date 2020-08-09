@@ -45,7 +45,8 @@ impl Attrs {
         }
     }
 
-    fn substitute_path_segment(&self, seg: &mut PathSegment) {
+    fn substitute_path_segment(&self, seg: &mut PathSegment, traitname: &Ident)
+    {
         match &mut seg.arguments {
             PathArguments::None => /* nothing to do */(),
             PathArguments::Parenthesized(p) => {
@@ -56,10 +57,10 @@ impl Attrs {
                 for arg in abga.args.iter_mut() {
                     match arg {
                         GenericArgument::Type(ty) => {
-                            self.substitute_type(ty)
+                            self.substitute_type(ty, traitname)
                         },
                         GenericArgument::Binding(binding) => {
-                            self.substitute_type(&mut binding.ty);
+                            self.substitute_type(&mut binding.ty, traitname);
                         },
                         _ => {
                             /*
@@ -74,31 +75,31 @@ impl Attrs {
     }
 
     /// Recursively substitute types in the input
-    fn substitute_type(&self, ty: &mut Type) {
+    fn substitute_type(&self, ty: &mut Type, traitname: &Ident) {
         match ty {
             Type::Slice(s) => {
-                self.substitute_type(s.elem.as_mut())
+                self.substitute_type(s.elem.as_mut(), traitname)
             },
             Type::Array(a) => {
-                self.substitute_type(a.elem.as_mut())
+                self.substitute_type(a.elem.as_mut(), traitname)
             },
             Type::Ptr(p) => {
-                self.substitute_type(p.elem.as_mut())
+                self.substitute_type(p.elem.as_mut(), traitname)
             },
             Type::Reference(r) => {
-                self.substitute_type(r.elem.as_mut())
+                self.substitute_type(r.elem.as_mut(), traitname)
             },
             Type::BareFn(bfn) => {
                 for fn_arg in bfn.inputs.iter_mut() {
-                    self.substitute_type(&mut fn_arg.ty);
+                    self.substitute_type(&mut fn_arg.ty, traitname);
                 }
                 if let ReturnType::Type(_, ref mut ty) = &mut bfn.output {
-                    self.substitute_type(ty);
+                    self.substitute_type(ty, traitname);
                 }
             },
             Type::Tuple(tuple) => {
                 for elem in tuple.elems.iter_mut() {
-                    self.substitute_type(elem)
+                    self.substitute_type(elem, traitname)
                 }
             }
             Type::Path(path) => {
@@ -118,8 +119,12 @@ impl Attrs {
                     }
                     let last_seg = path.path.segments.pop().unwrap();
                     let to_sub = &last_seg.value().ident;
-                    let _ident = path.path.segments.pop().unwrap().value();
-                    // TODO: check that the ident is the name of this type
+                    let penultimate_seg = path.path.segments.pop().unwrap();
+                    let qident = &penultimate_seg.value().ident;
+                    if qident != traitname {
+                        compile_error(qident.span(),
+                            "Mockall does not support QSelf substitutions except for the trait being mocked");
+                    }
                     let new_type = self.attrs.get(to_sub)
                         .expect("Unknown type substitution for QSelf");
                     *ty = new_type.clone();
@@ -127,25 +132,25 @@ impl Attrs {
                     *ty = newty;
                 } else {
                     for seg in path.path.segments.iter_mut() {
-                        self.substitute_path_segment(seg);
+                        self.substitute_path_segment(seg, &traitname);
                     }
                 }
             },
             Type::TraitObject(to) => {
                 for bound in to.bounds.iter_mut() {
-                    self.substitute_type_param_bound(bound);
+                    self.substitute_type_param_bound(bound, traitname);
                 }
             },
             Type::ImplTrait(it) => {
                 for bound in it.bounds.iter_mut() {
-                    self.substitute_type_param_bound(bound);
+                    self.substitute_type_param_bound(bound, traitname);
                 }
             },
             Type::Paren(p) => {
-                self.substitute_type(p.elem.as_mut())
+                self.substitute_type(p.elem.as_mut(), traitname)
             },
             Type::Group(g) => {
-                self.substitute_type(g.elem.as_mut())
+                self.substitute_type(g.elem.as_mut(), traitname)
             },
             Type::Macro(_) | Type::Verbatim(_) => {
                 compile_error(ty.span(),
@@ -158,12 +163,15 @@ impl Attrs {
         }
     }
 
-    fn substitute_type_param_bound(&self, bound: &mut TypeParamBound) {
+    fn substitute_type_param_bound(&self,
+                                   bound: &mut TypeParamBound,
+                                   traitname: &Ident)
+    {
         if let TypeParamBound::Trait(t) = bound {
             match self.get_path(&t.path) {
                 None => {
                     for seg in t.path.segments.iter_mut() {
-                        self.substitute_path_segment(seg);
+                        self.substitute_path_segment(seg, &traitname);
                     }
                 },
                 Some(Type::Path(type_path)) => {
@@ -197,11 +205,11 @@ impl Attrs {
                     let sig = &mut method.sig;
                     for fn_arg in sig.inputs.iter_mut() {
                         if let FnArg::Typed(arg) = fn_arg {
-                            self.substitute_type(&mut arg.ty);
+                            self.substitute_type(&mut arg.ty, &item.ident);
                         }
                     }
                     if let ReturnType::Type(_, ref mut ty) = &mut sig.output {
-                        self.substitute_type(ty);
+                        self.substitute_type(ty, &item.ident);
                     }
                 },
                 _ => {
@@ -248,13 +256,16 @@ mod t {
     use super::super::*;
     use pretty_assertions::assert_eq;
 
-    fn check_substitute_type(attrs: TokenStream, input: TokenStream,
+    fn check_substitute_type(
+        attrs: TokenStream,
+        input: TokenStream,
+        traitname: Ident,
         expected: TokenStream)
     {
         let _self: super::Attrs = parse2(attrs).unwrap();
         let mut in_ty: Type = parse2(input).unwrap();
         let expect_ty: Type = parse2(expected).unwrap();
-        _self.substitute_type(&mut in_ty);
+        _self.substitute_type(&mut in_ty, &traitname);
         assert_eq!(in_ty, expect_ty);
     }
 
@@ -262,6 +273,16 @@ mod t {
     fn qself() {
         check_substitute_type(quote!(type T = u32;),
                               quote!(<Self as Foo>::T),
+                              format_ident!("Foo"),
+                              quote!(u32));
+    }
+
+    #[test]
+    #[should_panic(expected = "Mockall does not support QSelf substitutions except for the trait being mocked")]
+    fn qself_other() {
+        check_substitute_type(quote!(type T = u32;),
+                              quote!(<Self as AsRef>::T),
+                              format_ident!("Foo"),
                               quote!(u32));
     }
 }
