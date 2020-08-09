@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 ### Changed
+- Mocked modules now have the same visibility as the original module.
+  ([#169](https://github.com/asomers/mockall/pull/169))
+
 ### Fixed
 - Fixed mocking modules including functions that use "impl Trait" or mutable
   arguments.
