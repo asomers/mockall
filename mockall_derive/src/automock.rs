@@ -125,9 +125,12 @@ impl Attrs {
                         compile_error(qident.span(),
                             "Mockall does not support QSelf substitutions except for the trait being mocked");
                     }
-                    let new_type = self.attrs.get(to_sub)
-                        .expect("Unknown type substitution for QSelf");
-                    *ty = new_type.clone();
+                    if let Some(new_type) = self.attrs.get(to_sub) {
+                        *ty = new_type.clone();
+                    } else {
+                        compile_error(to_sub.span(),
+                            "Unknown type substitution for QSelf");
+                    }
                 } else if let Some(newty) = self.get_path(&path.path) {
                     *ty = newty;
                 } else {
@@ -282,6 +285,15 @@ mod t {
     fn qself_other() {
         check_substitute_type(quote!(type T = u32;),
                               quote!(<Self as AsRef>::T),
+                              format_ident!("Foo"),
+                              quote!(u32));
+    }
+
+    #[test]
+    #[should_panic(expected = "Unknown type substitution for QSelf")]
+    fn unknown_substitution() {
+        check_substitute_type(quote!(type T = u32;),
+                              quote!(<Self as Foo>::Q),
                               format_ident!("Foo"),
                               quote!(u32));
     }
