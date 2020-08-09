@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 ### Changed
 ### Fixed
+- Fixed mocking generic methods with where clauses returning references.
+  ([#166](https://github.com/asomers/mockall/pull/166))
+
 - Fixed mocking generic methods returning mutable references.
   ([#165](https://github.com/asomers/mockall/pull/165))
 

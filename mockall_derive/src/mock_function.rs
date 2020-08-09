@@ -57,6 +57,40 @@ fn ownify(ty: &Type) -> Type {
     }
 }
 
+/// Add Send + Sync to a where clause
+fn send_syncify(wc: &mut Option<WhereClause>, bounded_ty: Type) {
+    let mut bounds = Punctuated::new();
+    bounds.push(TypeParamBound::Trait(TraitBound {
+        paren_token: None,
+        modifier: TraitBoundModifier::None,
+        lifetimes: None,
+        path: Path::from(format_ident!("Send"))
+    }));
+    bounds.push(TypeParamBound::Trait(TraitBound {
+        paren_token: None,
+        modifier: TraitBoundModifier::None,
+        lifetimes: None,
+        path: Path::from(format_ident!("Sync"))
+    }));
+    if wc.is_none() {
+        *wc = Some(WhereClause {
+            where_token: <Token![where]>::default(),
+            predicates: Punctuated::new()
+        });
+    }
+    wc.as_mut().unwrap()
+    .predicates.push(
+        WherePredicate::Type(
+            PredicateType {
+                lifetimes: None,
+                bounded_ty,
+                colon_token: Default::default(),
+                bounds
+            }
+        )
+    );
+}
+
 /// Extract just the type generics from a Generics object
 fn type_generics(generics: &Generics) -> Generics {
     let params = generics.type_params()
@@ -159,6 +193,10 @@ impl<'a> Builder<'a> {
                 }
             }
         };
+        if is_static && (return_ref || return_refmut) {
+            compile_error(self.sig.span(),
+                "Mockall cannot mock static methods that return non-'static references.  It's unclear what the return value's lifetime should be.");
+        }
         let merged_generics = if let Some(g) = self.struct_generics {
             merge_generics(g, &declosured_generics)
         } else {
@@ -482,6 +520,12 @@ impl MockFunction {
             &self.call_generics
         }.split_for_impl();
         let (ig, _, wc) = self.call_generics.split_for_impl();
+        let mut wc = wc.cloned();
+        if self.is_method_generic() && (self.return_ref || self.return_refmut) {
+            // Add Senc + Sync, required for downcast, since Expectation
+            // stores an Option<#owned_output>
+            send_syncify(&mut wc, self.owned_output.clone());
+        }
         let tbf = tg.as_turbofish();
         let vis = &self.call_vis;
 
@@ -2204,16 +2248,12 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
-        let owned_output = &self.f.owned_output;
-        // TODO: test a generic static methd that returns a reference and
-        // has a where clause
-        let any_wc = if self.f.return_ref || self.f.return_refmut {
-            // The Senc + Sync are required for downcast, since Expectation
+        let mut any_wc = wc.cloned();
+        if self.f.return_ref || self.f.return_refmut {
+            // Add Senc + Sync, required for downcast, since Expectation
             // stores an Option<#owned_output>
-            quote!(where #owned_output: Send + Sync)
-        } else {
-            quote!(#wc)
-        };
+            send_syncify(&mut any_wc, self.f.owned_output.clone());
+        }
         let tbf = tg.as_turbofish();
         let output = &self.f.output;
         let v = &self.f.privmod_vis;
