@@ -551,8 +551,6 @@ impl MockFunction {
         let inner_mod_ident = self.inner_mod_ident();
         // staticize any lifetimes.  This is necessary for methods that return
         // non-static types, because the Expectation itself must be 'static.
-        // TODO: in the future, only replace those lifetimes that _don't_ appear
-        // in the original trait's or struct's signature.
         let segenerics = staticize(&self.egenerics);
         let (_, tg, _) = segenerics.split_for_impl();
         quote!(#inner_mod_ident::Expectation #tg)
@@ -577,8 +575,7 @@ impl MockFunction {
         } else {
             // staticize any lifetimes.  This is necessary for methods that
             // return non-static types, because the Expectation itself must be
-            // 'static.  TODO: in the future, only replace those lifetimes that
-            // _don't_ appear in the original trait's or struct's signature.
+            // 'static.
             let segenerics = staticize(&self.egenerics);
             let (_, tg, _) = segenerics.split_for_impl();
             quote!(#attrs #name: #modname::#expectations_obj #tg)
