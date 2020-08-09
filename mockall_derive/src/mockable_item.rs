@@ -31,7 +31,6 @@ impl From<(Attrs, Item)> for MockableItem {
 
 impl From<MockableStruct> for MockableItem {
     fn from(mock: MockableStruct) -> MockableItem {
-        // TODO: stuff like deselfify
         MockableItem::Struct(mock)
     }
 }
