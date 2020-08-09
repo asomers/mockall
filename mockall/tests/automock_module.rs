@@ -4,6 +4,7 @@
 // mocking modules requires the proc_macro_hygiene feature in the _consumer_
 // code
 #![cfg_attr(feature = "nightly", feature(proc_macro_hygiene))]
+#![deny(warnings)]
 
 use cfg_if::cfg_if;
 
@@ -22,6 +23,8 @@ cfg_if! {
                 pub fn bar1(_x: T) -> i64 {unimplemented!()}
                 // Module functions should be able to use impl Trait, too
                 pub fn baz() -> impl std::fmt::Debug + Send { unimplemented!()}
+                // Module functions can use mutable arguments
+                pub fn bean(mut x: u32) { unimplemented!() }
             }
 
             #[test]

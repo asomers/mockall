@@ -3,6 +3,7 @@ use super::*;
 
 /// Performs transformations on a function to make it mockable
 fn mockable_fn(mut item_fn: ItemFn) -> ItemFn {
+    demutify(&mut item_fn.sig.inputs);
     deimplify(&mut item_fn.sig.output);
     item_fn
 }
@@ -157,7 +158,6 @@ impl From<ItemMod> for MockableModule {
             "automock can only mock inline modules, not modules from another file");
             Vec::new()
         };
-        // TODO: demutify funcs
         MockableModule { vis, mock_ident, mod_token, orig_ident, content }
     }
 }
