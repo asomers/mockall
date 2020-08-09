@@ -20,6 +20,8 @@ cfg_if! {
                 pub fn bar(_x: T) -> i64 {unimplemented!()}
                 // We must have a separate method for every should_panic test
                 pub fn bar1(_x: T) -> i64 {unimplemented!()}
+                // Module functions should be able to use impl Trait, too
+                pub fn baz() -> impl std::fmt::Debug + Send { unimplemented!()}
             }
 
             #[test]
@@ -38,6 +40,14 @@ cfg_if! {
                 ctx.expect()
                     .returning(|x| i64::from(x) + 1);
                 assert_eq!(5, mock_foo::bar(4));
+            }
+
+            #[test]
+            fn impl_trait() {
+                let ctx = mock_foo::baz_context();
+                ctx.expect()
+                    .returning(|| Box::new(4));
+                format!("{:?}", mock_foo::baz());
             }
         }
     }
