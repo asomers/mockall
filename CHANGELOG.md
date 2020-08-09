@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 ### Changed
 ### Fixed
+- Fixed mocking methods whose generic types include `super::`.
+  ([#167](https://github.com/asomers/mockall/pull/167))
+
 - Fixed mocking generic methods with where clauses returning references.
   ([#166](https://github.com/asomers/mockall/pull/166))
 

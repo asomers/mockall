@@ -453,19 +453,48 @@ fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
 }
 
 fn supersuperfy_path(path: &mut Path, levels: i32) {
-        if let Some(t) = path.segments.first() {
-            if t.ident == "super" {
-                let mut ident = format_ident!("super");
-                ident.set_span(path.segments.span());
-                let ps = PathSegment {
-                    ident,
-                    arguments: PathArguments::None
-                };
-                for _ in 0..levels {
-                    path.segments.insert(0, ps.clone());
-                }
+    if let Some(t) = path.segments.first() {
+        if t.ident == "super" {
+            let mut ident = format_ident!("super");
+            ident.set_span(path.segments.span());
+            let ps = PathSegment {
+                ident,
+                arguments: PathArguments::None
+            };
+            for _ in 0..levels {
+                path.segments.insert(0, ps.clone());
             }
         }
+    }
+    if let Some(t) = path.segments.last_mut() {
+        match &mut t.arguments {
+            PathArguments::None => (),
+            PathArguments::AngleBracketed(ref mut abga) => {
+                for arg in abga.args.iter_mut() {
+                    match arg {
+                        GenericArgument::Type(ref mut ty) => {
+                            *ty = supersuperfy(ty, levels);
+                        },
+                        GenericArgument::Binding(ref mut binding) => {
+                            binding.ty = supersuperfy(&binding.ty, levels);
+                        },
+                        GenericArgument::Constraint(ref mut constraint) => {
+                            supersuperfy_bounds(&mut constraint.bounds, levels);
+                        },
+                        _ => (),
+                    }
+                }
+            },
+            PathArguments::Parenthesized(ref mut pga) => {
+                for input in pga.inputs.iter_mut() {
+                    *input = supersuperfy(&input, levels);
+                }
+                if let ReturnType::Type(_, ref mut ty) = pga.output {
+                    *ty = Box::new(supersuperfy(&ty, levels));
+                }
+            },
+        }
+    }
 }
 
 /// Replace any references to `super::X` in `original` with `super::super::X`.
@@ -533,6 +562,36 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
     }
     recurse(&mut output, levels);
     output
+}
+
+fn supersuperfy_generics(generics: &mut Generics, levels: i32) {
+    for param in generics.params.iter_mut() {
+        if let GenericParam::Type(tp) = param {
+            supersuperfy_bounds(&mut tp.bounds, levels);
+            if let Some(ty) = tp.default.as_mut() {
+                *ty = supersuperfy(ty, levels);
+            }
+        }
+    }
+    if let Some(wc) = generics.where_clause.as_mut() {
+        for wp in wc.predicates.iter_mut() {
+            if let WherePredicate::Type(pt) = wp {
+                pt.bounded_ty = supersuperfy(&pt.bounded_ty, levels);
+                supersuperfy_bounds(&mut pt.bounds, levels);
+            }
+        }
+    }
+}
+
+fn supersuperfy_bounds(
+    bounds: &mut Punctuated<TypeParamBound, Token![+]>,
+    levels: i32)
+{
+    for bound in bounds.iter_mut() {
+        if let TypeParamBound::Trait(tb) = bound {
+            supersuperfy_path(&mut tb.path, levels);
+        }
+    }
 }
 
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
@@ -1073,6 +1132,14 @@ mod supersuperfy {
     }
 
     #[test]
+    fn angle_bracketed_generic_arguments() {
+        check_supersuperfy(
+            quote!(mod_::T<super::X>),
+            quote!(mod_::T<super::super::X>)
+        );
+    }
+
+    #[test]
     fn ptr() {
         check_supersuperfy(
             quote!(*const super::X),
@@ -1113,4 +1180,81 @@ mod supersuperfy {
     }
 }
 
+mod supersuperfy_generics {
+    use super::*;
+
+    fn check_supersuperfy_generics(
+        orig: TokenStream,
+        orig_wc: TokenStream,
+        expected: TokenStream,
+        expected_wc: TokenStream)
+    {
+        let mut orig_g: Generics = parse2(orig).unwrap();
+        orig_g.where_clause = parse2(orig_wc).unwrap();
+        let mut expected_g: Generics = parse2(expected).unwrap();
+        expected_g.where_clause = parse2(expected_wc).unwrap();
+        let mut output: Generics = orig_g.clone();
+        supersuperfy_generics(&mut output, 1);
+        let (o_ig, o_tg, o_wc) = output.split_for_impl();
+        let (e_ig, e_tg, e_wc) = expected_g.split_for_impl();
+        assert_eq!(format!("{}", quote!(#o_ig)), format!("{}", quote!(#e_ig)));
+        assert_eq!(format!("{}", quote!(#o_tg)), format!("{}", quote!(#e_tg)));
+        assert_eq!(format!("{}", quote!(#o_wc)), format!("{}", quote!(#e_wc)));
+    }
+
+    #[test]
+    fn default() {
+        check_supersuperfy_generics(
+            quote!(<T: X = super::Y>), quote!(),
+            quote!(<T: X = super::super::Y>), quote!(),
+        );
+    }
+
+    #[test]
+    fn empty() {
+        check_supersuperfy_generics(quote!(), quote!(), quote!(), quote!());
+    }
+
+    #[test]
+    fn everything() {
+        check_supersuperfy_generics(
+            quote!(<T: super::A = super::B>),
+            quote!(where super::C: super::D),
+            quote!(<T: super::super::A = super::super::B>),
+            quote!(where super::super::C: super::super::D),
+        );
+    }
+
+    #[test]
+    fn bound() {
+        check_supersuperfy_generics(
+            quote!(<T: super::A>), quote!(),
+            quote!(<T: super::super::A>), quote!(),
+        );
+    }
+
+    #[test]
+    fn closure() {
+        check_supersuperfy_generics(
+            quote!(<F: Fn(u32) -> super::SuperT>), quote!(),
+            quote!(<F: Fn(u32) -> super::super::SuperT>), quote!(),
+        );
+    }
+
+    #[test]
+    fn wc_bounded_ty() {
+        check_supersuperfy_generics(
+            quote!(), quote!(where super::T: X),
+            quote!(), quote!(where super::super::T: X),
+        );
+    }
+
+    #[test]
+    fn wc_bounds() {
+        check_supersuperfy_generics(
+            quote!(), quote!(where T: super::X),
+            quote!(), quote!(where T: super::super::X),
+        );
+    }
+}
 }
