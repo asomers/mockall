@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+- Support mocking methods with trait object arguments that use implicit
+  lifetimes
+  ([#174](https://github.com/asomers/mockall/pull/174))
+
 ### Changed
 - Raised the minimum supported Rust version (MSRV) to 1.40.0.
   ([#170](https://github.com/asomers/mockall/pull/170))
