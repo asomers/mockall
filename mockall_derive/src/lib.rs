@@ -163,7 +163,9 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
                 let mut pt2 = pt.clone();
                 demutify_arg(&mut pt2);
                 let pat = &pt2.pat;
-                if hm.contains_key(&pt.ty) {
+                if pat_is_self(pat) {
+                    None
+                } else if hm.contains_key(&pt.ty) {
                     Some(quote!(Box::new(#pat)))
                 } else {
                     Some(quote!(#pat))
@@ -450,6 +452,15 @@ fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
         }
     }
     out
+}
+
+/// Determine if this Pat is any kind of `self` binding
+fn pat_is_self(pat: &Pat) -> bool {
+    if let Pat::Ident(pi) = pat {
+        pi.ident == "self"
+    } else {
+        false
+    }
 }
 
 fn supersuperfy_path(path: &mut Path, levels: i32) {

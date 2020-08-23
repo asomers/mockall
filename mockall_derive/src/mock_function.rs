@@ -139,6 +139,11 @@ impl<'a> Builder<'a> {
         for fa in declosured_inputs.iter() {
             if let FnArg::Typed(pt) = fa {
                 let argname = (*pt.pat).clone();
+                if pat_is_self(&argname) {
+                    // A weird receiver like `Box<Self>`
+                    is_static = false;
+                    continue;
+                }
                 let aty = supersuperfy(&pt.ty, self.levels);
                 if let Type::Reference(ref tr) = aty {
                     predexprs.push(quote!(#argname));

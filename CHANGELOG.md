@@ -5,8 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+- Support mocking methods with arbitrary receivers like `self: Box<Self`
+  ([#176](https://github.com/asomers/mockall/pull/176))
+
 - Support mocking methods with trait object arguments that use implicit
-  lifetimes
+  lifetimes.
   ([#174](https://github.com/asomers/mockall/pull/174))
 
 ### Changed
