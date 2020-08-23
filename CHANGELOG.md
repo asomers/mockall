@@ -6,8 +6,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 ### Changed
-- Raised the minimum supported Rust version (MSRV) to 1.40.0.
-  ([#170](https://github.com/asomers/mockall/pull/170))
+- Raised the minimum supported Rust version (MSRV) to 1.42.0.
+  ([#175](https://github.com/asomers/mockall/pull/175))
 
 - Mocked modules now have the same visibility as the original module.
   ([#169](https://github.com/asomers/mockall/pull/169))
