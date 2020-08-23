@@ -2,6 +2,96 @@
 use super::*;
 use syn::parse::{Parse, ParseStream};
 
+/// Make any implicit lifetime parameters explicit
+fn add_lifetime_parameters(sig: &mut Signature) {
+    fn add_to_trait_object(generics: &mut Generics, var: &Pat, to: &mut TypeTraitObject) {
+        let mut has_lifetime = false;
+        for bound in to.bounds.iter() {
+            if let TypeParamBound::Lifetime(_) = bound {
+                has_lifetime = true;
+            }
+        }
+        if ! has_lifetime {
+            let arg_ident = match *var {
+                Pat::Wild(_) => {
+                    compile_error(var.span(),
+                        "Mocked methods must have named arguments");
+                    format_ident!("dont_care")
+                },
+                Pat::Ident(ref pat_ident) => {
+                    if let Some(r) = &pat_ident.by_ref {
+                        compile_error(r.span(),
+                            "Mockall does not support by-reference argument bindings");
+                    }
+                    if let Some((_at, subpat)) = &pat_ident.subpat {
+                        compile_error(subpat.span(),
+                            "Mockall does not support subpattern bindings");
+                    }
+                    pat_ident.ident.clone()
+                },
+                _ => {
+                    compile_error(var.span(),
+                        "Unsupported argument type");
+                    format_ident!("dont_care")
+                }
+            };
+            let s = format!("'__mockall_{}", arg_ident);
+            let span = Span::call_site();
+            let lt = Lifetime::new(&s, span);
+            to.bounds.push(TypeParamBound::Lifetime(lt.clone()));
+            generics.lt_token.get_or_insert(Token![<](span));
+            generics.gt_token.get_or_insert(Token![>](span));
+            let gpl = GenericParam::Lifetime(LifetimeDef::new(lt));
+            generics.params.push(gpl);
+        }
+    }
+
+    fn add_to_type(generics: &mut Generics, var: &Pat, ty: &mut Type) {
+        match ty {
+            Type::Array(ta) => add_to_type(generics, var, ta.elem.as_mut()),
+            Type::BareFn(_) => (),
+            Type::ImplTrait(_) => (),
+            Type::Path(_) => (),
+            Type::Ptr(_) => (),
+            Type::Reference(tr) => {
+                match tr.elem.as_mut() {
+                    Type::Paren(tp) => {
+                        if let Type::TraitObject(to) = tp.elem.as_mut() {
+                            add_to_trait_object(generics, var, to);
+                        } else {
+                            add_to_type(generics, var, tr.elem.as_mut());
+                        }
+                    },
+                    Type::TraitObject(to) => {
+                        add_to_trait_object(generics, var, to);
+                        // We need to wrap it in a Paren.  Otherwise it won't be
+                        // syntactically valid after we add a lifetime bound,
+                        // due to a "ambiguous `+` in a type" error
+                        *tr.elem = Type::Paren(TypeParen {
+                            paren_token: token::Paren::default(),
+                            elem: Box::new(Type::TraitObject(to.clone()))
+                        });
+                    },
+                    _ => add_to_type(generics, var, tr.elem.as_mut()),
+                }
+            },
+            Type::Slice(ts) => add_to_type(generics, var, ts.elem.as_mut()),
+            Type::Tuple(tt) => {
+                for mut ty in tt.elems.iter_mut() {
+                    add_to_type(generics, var, &mut ty)
+                }
+            },
+            _ => compile_error(ty.span(), "unsupported type in this position")
+        }
+    }
+
+    for arg in sig.inputs.iter_mut() {
+        if let FnArg::Typed(pt) = arg {
+            add_to_type(&mut sig.generics, &pt.pat, &mut pt.ty)
+        }
+    }
+}
+
 /// Filter a generics list, keeping only the elements specified by path_args
 /// e.g. filter_generics(<A: Copy, B: Clone>, <A>) -> <A: Copy>
 fn filter_generics(g: &Generics, path_args: &PathArguments)
@@ -81,6 +171,7 @@ fn mockable_method(mut meth: ImplItemMethod, name: &Ident, generics: &Generics)
     -> ImplItemMethod
 {
     demutify(&mut meth.sig.inputs);
+    add_lifetime_parameters(&mut meth.sig);
     deimplify(&mut meth.sig.output);
     if let ReturnType::Type(_, ty) = &mut meth.sig.output {
         deselfify(ty, name, generics);
@@ -95,6 +186,7 @@ fn mockable_trait_method(
     generics: &Generics)
 {
     demutify(&mut meth.sig.inputs);
+    add_lifetime_parameters(&mut meth.sig);
     deimplify(&mut meth.sig.output);
     if let ReturnType::Type(_, ty) = &mut meth.sig.output {
         deselfify(ty, name, generics);
@@ -294,5 +386,128 @@ impl Parse for MockableStruct {
                 traits
             }
         )
+    }
+}
+
+#[cfg(test)]
+mod t {
+    use super::*;
+
+mod add_lifetime_parameters {
+    use super::*;
+
+    #[test]
+    fn array() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: [&dyn T; 1]);
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: [&(dyn T + '__mockall_x); 1]);)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn bare_fn_with_named_args() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: fn(&dyn T));
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo(&self, x: fn(&dyn T));).to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn plain() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: &dyn T);
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: &(dyn T + '__mockall_x));)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn slice() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: &[&dyn T]);
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: &[&(dyn T + '__mockall_x)]);)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn tuple() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: (&dyn T, u32));
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: (&(dyn T + '__mockall_x), u32));)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn with_anonymous_lifetime() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: &(dyn T + '_));
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo(&self, x: &(dyn T + '_));).to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn with_parens() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: &(dyn T));
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: &(dyn T + '__mockall_x));)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn with_lifetime_parameter() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo<'a>(&self, x: &(dyn T + 'a));
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'a>(&self, x: &(dyn T + 'a));).to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn with_static_lifetime() {
+        let mut meth: TraitItemMethod = parse2(quote!(
+            fn foo(&self, x: &(dyn T + 'static));
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo(&self, x: &(dyn T + 'static));).to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
     }
 }
