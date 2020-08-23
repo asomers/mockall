@@ -147,7 +147,8 @@
 //!
 //! Mock objects are always `Send`.  If you need to use a return type that
 //! isn't, you can use the
-//! [`returning_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.returning_st)
+//! [`return_const_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_const_st),
+//! [`returning_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.returning_st),
 //! or
 //! [`return_once_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_once_st)
 //! methods. If you need to match arguments that are not `Send`, you can use the

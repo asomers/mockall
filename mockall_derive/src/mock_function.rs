@@ -1125,6 +1125,16 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
             }
 
             /// Just like
+            /// [`Expectation::return_const_st`](struct.Expectation.html#method.return_const_st)
+            #v fn return_const_st<MockallOutput>
+            (&mut self, __mockall_c: MockallOutput)
+                -> &mut Expectation #tg
+                where MockallOutput: Clone + Into<#output> + 'static
+            {
+                #expectations.0[self.i].return_const_st(__mockall_c)
+            }
+
+            /// Just like
             /// [`Expectation::returning`](struct.Expectation.html#method.returning)
             #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                 -> &mut Expectation #tg
@@ -1143,6 +1153,17 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
             {
                 #expectations.0[self.i].return_once(__mockall_f)
             }
+
+            /// Just like
+            /// [`Expectation::return_once_st`](struct.Expectation.html#method.return_once_st)
+            #v fn return_once_st<MockallF>(&mut self, __mockall_f: MockallF)
+                -> &mut Expectation #tg
+                where MockallF: #hrtb FnOnce(#(#argty, )*)
+                                -> #output + 'static
+            {
+                #expectations.0[self.i].return_once_st(__mockall_f)
+            }
+
 
             /// Just like
             /// [`Expectation::returning_st`](struct.Expectation.html#method.returning_st)
@@ -1961,18 +1982,43 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                 /// Return a constant value from the `Expectation`
                 ///
                 /// The output type must be `Clone`.  The compiler can't always
-                /// infer the proper type to use with this method; you will usually
-                /// need to specify it explicitly.  i.e. `return_const(42i32)`
-                /// instead of `return_const(42)`.
+                /// infer the proper type to use with this method; you will
+                /// usually need to specify it explicitly.  i.e.
+                /// `return_const(42i32)` instead of `return_const(42)`.
                 // We must use Into<#output> instead of #output because where
                 // clauses don't accept equality constraints.
                 // https://github.com/rust-lang/rust/issues/20041
                 #[allow(unused_variables)]
-                #v fn return_const<MockallOutput>(&mut self, __mockall_c: MockallOutput)
+                #v fn return_const<MockallOutput>(&mut self,
+                    __mockall_c: MockallOutput)
                     -> &mut Self
                     where MockallOutput: Clone + Into<#output> + Send + 'static
                 {
                     self.returning(move |#(#argnames, )*| __mockall_c.clone().into())
+                }
+
+                /// Single-threaded version of
+                /// [`return_const`](#method.return_const).  This is useful for
+                /// return types that are not `Send`.
+                ///
+                /// The output type must be `Clone`.  The compiler can't always
+                /// infer the proper type to use with this method; you will
+                /// usually need to specify it explicitly.  i.e.
+                /// `return_const(42i32)` instead of `return_const(42)`.
+                ///
+                /// It is a runtime error to call the mock method from a
+                /// different thread than the one that originally called this
+                /// method.
+                // We must use Into<#output> instead of #output because where
+                // clauses don't accept equality constraints.
+                // https://github.com/rust-lang/rust/issues/20041
+                #[allow(unused_variables)]
+                #v fn return_const_st<MockallOutput>(&mut self,
+                    __mockall_c: MockallOutput)
+                    -> &mut Self
+                    where MockallOutput: Clone + Into<#output> + 'static
+                {
+                    self.returning_st(move |#(#argnames, )*| __mockall_c.clone().into())
                 }
 
                 /// Supply an `FnOnce` closure that will provide the return
