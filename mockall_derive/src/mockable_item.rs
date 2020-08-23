@@ -148,7 +148,7 @@ impl From<ItemMod> for MockableModule {
         let mod_token = mod_.mod_token;
         let content = if let Some((_, content)) = mod_.content {
             content.into_iter()
-            .map(|c| mockable_item(c))
+            .map(mockable_item)
             .collect()
         } else {
             compile_error(span,

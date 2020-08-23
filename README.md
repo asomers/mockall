@@ -62,7 +62,7 @@ See the [API docs](https://docs.rs/mockall) for more information.
 
 # Minimum Supported Rust Version (MSRV)
 
-Mockall is supported on Rust 1.36.0 and higher.  Mockall's MSRV will not be
+Mockall is supported on Rust 1.42.0 and higher.  Mockall's MSRV will not be
 changed in the future without bumping the major or minor version.
 
 # License

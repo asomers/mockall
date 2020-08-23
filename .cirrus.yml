@@ -1,8 +1,8 @@
 test_task:
   matrix:
-    - name: 1.40.0
+    - name: 1.42.0
       container:
-        image: rust:1.40.0
+        image: rust:1.42.0
     - name: stable
       container:
         image: rust:latest
@@ -26,7 +26,7 @@ test_task:
 minver_task:
   name: minver
   depends_on:
-    - 1.40.0
+    - 1.42.0
     - stable
     - nightly
   matrix:
