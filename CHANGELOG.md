@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+- Better support for non-Send types:
+  * Added `return_const_st` for returning non-`Send` constants, similar to
+    `returning_st`.
+  * Added `return_once_st` for static methods.  It was already available for
+    non-static methods.
+  ([#178](https://github.com/asomers/mockall/pull/178))
+
 - Support mocking methods with arbitrary receivers like `self: Box<Self`
   ([#176](https://github.com/asomers/mockall/pull/176))
 

@@ -1,66 +1,138 @@
 // vim: tw=80
-//! A method may have non-Send arguments and/or return values
+//! A method may have non-Send arguments and/or return values.
 #![deny(warnings)]
 
 use mockall::*;
+// Rc is not Send
 use std::rc::Rc;
-use std::sync::Mutex;
 
-#[automock]
-trait Foo {
-    // Rc is not Send
-    fn foo(&self, x: Rc<u32>) -> Rc<u32>;
+// Neither Send nor Clone
+pub struct NonSend(Rc<u32>);
 
-    // Rc is not Send
-    fn bar(x: Rc<u32>) -> Rc<u32>;
+mod normal_method {
+    use super::*;
+
+    #[automock]
+    trait Foo {
+        fn foo(&self, x: Rc<u32>);
+        fn bar(&self) -> Rc<u32>;
+        fn baz(&self) -> NonSend;
+    }
+
+    #[test]
+    fn return_once_st() {
+        let mut mock = MockFoo::new();
+        let r = NonSend(Rc::new(42u32));
+        mock.expect_baz()
+            .return_once_st(move || r);
+        assert_eq!(42, *mock.baz().0);
+    }
+
+    #[test]
+    fn return_const_st() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .return_const_st(Rc::new(43u32));
+        assert_eq!(43, *mock.bar());
+    }
+
+    #[test]
+    fn returning_st() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .returning_st(|| Rc::new(43u32));
+        assert_eq!(43, *mock.bar());
+    }
+
+    #[test]
+    fn withf_st() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .withf_st(|x| **x == 42)
+            .return_const(());
+        mock.foo(Rc::new(42));
+    }
 }
 
-lazy_static! {
-    static ref BAR_MTX: Mutex<()> = Mutex::new(());
+mod ref_method {
+    // ref methods don't have return_once_st because they don't return owned
+    // values, and they don't have returning_st because they don't have
+    // returning.  Instead, they only have return_const, which does not require
+    // Send.
+    // fn foo(&self) -> &Rc<u32>;
 }
 
-#[test]
-fn returning_st() {
-    let mut mock = MockFoo::new();
-    let y = Rc::new(43u32);
-    mock.expect_foo()
-        .returning_st(move |_| y.clone());
-    let x = Rc::new(42u32);
-    assert_eq!(43, *mock.foo(x).as_ref());
+mod refmut_method {
+    use super::*;
+
+    #[automock]
+    trait Foo {
+        fn foo(&mut self, x: Rc<u32>);
+        fn bar(&mut self) -> &mut Rc<u32>;
+    }
+
+    // refmut methods don't have return_once_st because they don't return owned
+    // values.
+    #[test]
+    fn returning_st() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar()
+            .returning_st(|| Rc::new(43u32));
+        assert_eq!(43, **mock.bar());
+    }
+
+    #[test]
+    fn withf_st() {
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .withf_st(|x| **x == 42)
+            .return_const(());
+        mock.foo(Rc::new(42));
+    }
 }
 
-#[test]
-fn returning_st_static() {
-    let _m = BAR_MTX.lock().unwrap();
+pub mod static_method {
+    #![allow(unused)]   // https://github.com/asomers/mockall/issues/177
+    use super::*;
 
-    let mock = MockFoo::bar_context();
-    let y = Rc::new(43u32);
-    mock.expect()
-        .returning_st(move |_| y.clone());
-    let x = Rc::new(42u32);
-    assert_eq!(43, *MockFoo::bar(x).as_ref());
-}
+    #[automock]
+    trait Foo {
+        fn foo(x: Rc<u32>);
+        fn bar() -> Rc<u32>;
+        fn baz() -> NonSend;
+    }
 
-#[test]
-fn withf_st() {
-    let mut mock = MockFoo::new();
-    let x = Rc::new(42u32);
-    let argument = x.clone();
-    mock.expect_foo()
-        .withf_st(move |x| *x == argument)
-        .returning_st(|_| Rc::new(43u32));
-    assert_eq!(43, *mock.foo(x).as_ref());
-}
+    #[test]
+    fn return_once_st() {
+        let ctx = MockFoo::baz_context();
+        let r = NonSend(Rc::new(42u32));
+        ctx.expect()
+            .return_once_st(move || r);
+        assert_eq!(42, *MockFoo::baz().0);
+    }
 
-#[test]
-fn withf_st_static() {
-    let _m = BAR_MTX.lock().unwrap();
+    #[test]
+    fn returning_st() {
+        let ctx = MockFoo::bar_context();
+        ctx.expect()
+            .returning_st(|| Rc::new(42));
+        assert_eq!(42, *MockFoo::bar());
+    }
 
-    let mock = MockFoo::bar_context();
-    let x = Rc::new(42u32);
-    let argument = x.clone();
-    mock.expect()
-        .withf_st(move |x| *x == argument)
-        .returning_st(|_| Rc::new(43u32));
-    assert_eq!(43, *MockFoo::bar(x).as_ref());
+    #[test]
+    fn return_const_st() {
+        let ctx = MockFoo::bar_context();
+        ctx.expect()
+            .return_const_st(Rc::new(42));
+        assert_eq!(42, *MockFoo::bar());
+    }
+
+    #[test]
+    fn withf_st() {
+        let ctx = MockFoo::foo_context();
+        ctx.expect()
+            .withf_st(|x| **x == 42)
+            .return_const(());
+        MockFoo::foo(Rc::new(42));
+    }
 }
