@@ -1,7 +1,7 @@
 // vim: tw=80
 //! Proc Macros for use with Mockall
 //!
-//! You probably don't want to use this crate directly.  Instead, you use use
+//! You probably don't want to use this crate directly.  Instead, you should use
 //! its reexports via the [`mockall`](https://docs.rs/mockall/latest/mockall)
 //! crate.
 

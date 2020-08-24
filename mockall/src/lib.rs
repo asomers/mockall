@@ -76,12 +76,12 @@
 //! default values of their return types, if their return types implement
 //! `Default`.).  For methods that return a `static` value, the macros will
 //! generate an `Expectation` struct like
-//! [`this`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html).
+//! [`this`](examples::__mock_MockFoo_Foo::__foo::Expectation).
 //! There are two ways to set such an expectation's return value: with a
 //! constant
-//! ([`return_const`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_const))
+//! ([`return_const`](examples::__mock_MockFoo_Foo::__foo::Expectation::return_const))
 //! or a closure
-//! ([`returning`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.returning)).
+//! ([`returning`](examples::__mock_MockFoo_Foo::__foo::Expectation::returning)).
 //! A closure will take the method's arguments by value.
 //!
 //! ```
@@ -100,7 +100,7 @@
 //! ```
 //!
 //! Additionally, constants that aren't `Clone` can be returned with the
-//! [`return_once`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_once)
+//! [`return_once`](examples::__mock_MockFoo_Foo::__foo::Expectation::return_once)
 //! method.
 //!
 //! ```
@@ -147,12 +147,12 @@
 //!
 //! Mock objects are always `Send`.  If you need to use a return type that
 //! isn't, you can use the
-//! [`return_const_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_const_st),
-//! [`returning_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.returning_st),
+//! [`return_const_st`](examples::__mock_MockFoo_Foo::__foo::Expectation::return_const_st),
+//! [`returning_st`](examples::__mock_MockFoo_Foo::__foo::Expectation::returning_st),
 //! or
-//! [`return_once_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.return_once_st)
+//! [`return_once_st`](examples::__mock_MockFoo_Foo::__foo::Expectation::return_once_st),
 //! methods. If you need to match arguments that are not `Send`, you can use the
-//! [`withf_st`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.withf_st)
+//! [`withf_st`](examples::__mock_MockFoo_Foo::__foo::Expectation::withf_st)
 //! These take a non-`Send` object and add runtime access checks.  The wrapped
 //! object will be `Send`, but accessing it from multiple threads will cause a
 //! runtime panic.
@@ -199,9 +199,9 @@
 //! mock.foo(0);    // Panics!
 //! ```
 //!
-//! See [`predicates`] for a list of Mockall's builtin predicate functions.
+//! See [`predicate`] for a list of Mockall's builtin predicate functions.
 //! For convenience,
-//! [`withf`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.withf)
+//! [`withf`](examples::__mock_MockFoo_Foo::__foo::Expectation::withf)
 //! is a shorthand for setting the commonly used
 //! [`function`] predicate.  The arguments to the predicate function are the
 //! method's arguments, *by reference*.  For example:
@@ -295,8 +295,8 @@
 //! ```
 //!
 //! See also
-//! [`never`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.never) and
-//! [`times`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/foo/struct.Expectation.html#method.times).
+//! [`never`](examples::__mock_MockFoo_Foo::__foo::Expectation::never) and
+//! [`times`](examples::__mock_MockFoo_Foo::__foo::Expectation::times).
 //!
 //! ## Sequences
 //!
@@ -428,10 +428,10 @@
 //! ```
 //!
 //! Methods that take a `&self` argument use an `Expectation` class like
-//! [this](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/bar/struct.Expectation.html),
+//! [this](examples::__mock_MockFoo_Foo::__bar::Expectation),
 //! which
 //! gets its return value from the
-//! [`return_const`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/bar/struct.Expectation.html#method.return_const) method.
+//! [`return_const`](examples::__mock_MockFoo_Foo::__bar::Expectation::return_const) method.
 //!
 //! ```
 //! # use mockall::*;
@@ -453,12 +453,12 @@
 //! ```
 //!
 //! Methods that take a `&mut self` argument use an `Expectation` class like
-//! [this](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/baz/struct.Expectation.html),
+//! [this](examples::__mock_MockFoo_Foo::__baz::Expectation),
 //! class, regardless of whether the return value is actually mutable.  They can
 //! take their return value either from the
-//! [`return_var`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/baz/struct.Expectation.html#method.return_var)
+//! [`return_var`](examples::__mock_MockFoo_Foo::__baz::Expectation::return_var)
 //! or
-//! [`returning`](https://docs.rs/mockall_examples/latest/mockall_examples/__mock_Foo_Foo/baz/struct.Expectation.html#method.returning)
+//! [`returning`](examples::__mock_MockFoo_Foo::__baz::Expectation::returning)
 //! methods.
 //!
 //! ```
@@ -482,17 +482,16 @@
 //! ```
 //!
 //! Unsized types that are common targets for
-//! [`Deref`](https://doc.rust-lang.org/stable/std/ops/trait.Deref.html)
+//! [`Deref`](core::ops::Deref)
 //! are special.  Mockall
 //! will automatically use the type's owned form for the Expectation.
 //! Currently, the
-//! [`CStr`](https://doc.rust-lang.org/stable/std/ffi/struct.CStr.html),
-//! [`OsStr`](https://doc.rust-lang.org/stable/std/ffi/struct.OsStr.html),
-//! [`Path`](https://doc.rust-lang.org/stable/std/path/struct.Path.html),
+//! [`CStr`](std::ffi::CStr),
+//! [`OsStr`](std::ffi::OsStr),
+//! [`Path`](std::path::Path),
 //! and
-//! [`str`](https://doc.rust-lang.org/stable/std/primitive.str.html)
-//! types are
-//! supported.  Using this feature is automatic:
+//! [`str`](std::str)
+//! types are supported.  Using this feature is automatic:
 //!
 //! ```
 //! # use mockall::*;
@@ -1033,14 +1032,14 @@
 //!
 //! For additional examples of Mockall in action, including detailed
 //! documentation on the autogenerated methods, see
-//! [`mockall_examples`](https://docs.rs/mockall_examples/latest/mockall_examples/).
+//! [`examples`](examples).
 //!
 //! [`Predicate`]: trait.Predicate.html
 //! [`Sequence`]: Sequence
 //! [`cfg-if`]: https://crates.io/crates/cfg-if
 //! [`function`]: predicate/fn.function.html
 //! [`mock!`]: macro.mock.html
-//! [`predicates`]: predicate/index.html
+//! [`predicate`]: predicate/index.html
 
 #![cfg_attr(feature = "nightly", feature(specialization))]
 // Allow the incomplete_feature warning for specialization.  We know it's
@@ -1081,6 +1080,11 @@ pub use predicates::{
 };
 #[doc(hidden)]
 pub use predicates_tree::CaseTreeExt;
+
+#[cfg(doc)]
+extern crate self as mockall;
+#[cfg(doc)]
+pub mod examples;
 
 /// Automatically generate mock types for structs and traits.
 ///
