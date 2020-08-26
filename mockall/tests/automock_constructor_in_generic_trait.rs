@@ -1,6 +1,5 @@
 // vim: tw=80
 //! A generic trait with a non-generic constructor method.
-#![allow(unused)]
 #![deny(warnings)]
 
 use mockall::*;

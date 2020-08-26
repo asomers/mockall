@@ -2,7 +2,6 @@
 //! A struct with a constructor method named "new" that has arguments.
 //! mockall should mock the provided method, and not autogenerate a 0-argument
 //! "new" method.
-#![allow(unused)]
 #![deny(warnings)]
 
 use mockall::*;

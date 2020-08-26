@@ -92,7 +92,6 @@ mod refmut_method {
 }
 
 pub mod static_method {
-    #![allow(unused)]   // https://github.com/asomers/mockall/issues/177
     use super::*;
 
     #[automock]
