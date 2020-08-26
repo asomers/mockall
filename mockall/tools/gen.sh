@@ -11,5 +11,5 @@ if [ -z "$t" ]; then
 	exit 2
 fi
 
-env MOCKALL_DEBUG=1 cargo check --all-features --test $t > ${PP}/$t.rs; rustfmt ${PP}/$t.rs
+env MOCKALL_DEBUG=1 cargo check --all-features --test $t > ${PP}/$t.rs; rustfmt --edition 2018 ${PP}/$t.rs
 echo "diff stat: " `diff ${PP_OLD}/$t.rs ${PP}/$t.rs | wc`

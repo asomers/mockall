@@ -12,5 +12,5 @@ cd ${TOOLSDIR}/../tests
 #exit 0
 for t in `ls *.rs | sed 's/\.rs//'`; do
 	env MOCKALL_DEBUG=1 cargo +nightly check --all-features --test $t > ${ODIR}/$t.rs || break;
-	rustfmt ${ODIR}/$t.rs ;
+	rustfmt --edition 2018 ${ODIR}/$t.rs ;
 done
