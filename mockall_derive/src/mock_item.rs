@@ -131,8 +131,8 @@ impl ToTokens for MockItemModule {
         }
 
         quote!(
-            /// Verify that all current expectations for this function are
-            /// satisfied and clear them.
+            /// Verify that all current expectations for every function in
+            /// this module are satisfied and clear them.
             pub fn checkpoint() { #cp_body }
         ).to_tokens(&mut body);
         let docstr = {
