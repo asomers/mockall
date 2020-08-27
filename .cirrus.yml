@@ -1,4 +1,5 @@
 test_task:
+  only_if: $CIRRUS_BRANCH == 'master'
   matrix:
     - name: 1.42.0
       container:
@@ -24,6 +25,7 @@ test_task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 minver_task:
+  only_if: $CIRRUS_BRANCH == 'master'
   name: minver
   depends_on:
     - 1.42.0
