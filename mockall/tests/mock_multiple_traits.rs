@@ -1,6 +1,5 @@
 // vim: tw=80
 //! A struct that implements multiple traits
-#![allow(unused)]
 #![deny(warnings)]
 
 use mockall::*;

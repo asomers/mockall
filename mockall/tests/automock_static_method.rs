@@ -1,6 +1,5 @@
 // vim: tw=80
 //! automocking a trait with a static method
-#![allow(unused)]
 #![deny(warnings)]
 
 use mockall::*;

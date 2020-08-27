@@ -55,6 +55,12 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
 struct Methods(Vec<MockFunction>);
 
 impl Methods {
+    /// Are all of these methods static?
+    fn all_static(&self) -> bool {
+        self.0.iter()
+            .all(|meth| meth.is_static())
+    }
+
     fn checkpoints(&self) -> Vec<impl ToTokens> {
         self.0.iter()
             .filter(|meth| !meth.is_static())
@@ -208,10 +214,12 @@ impl ToTokens for MockItemStruct {
                     name: format_ident!("{}_{}", &self.name, trait_.name()),
                 }
             }).collect::<Vec<_>>();
-        let substruct_expectations = self.traits.iter()
-            .map(|trait_| format_ident!("{}_expectations", trait_.name()))
+        let substruct_expectations = substructs.iter()
+            .filter(|ss| !ss.all_static())
+            .map(|ss| ss.fieldname.clone())
             .collect::<Vec<_>>();
         let mut field_definitions = substructs.iter()
+            .filter(|ss| !ss.all_static())
             .map(|ss| {
                 let fieldname = &ss.fieldname;
                 let tyname = &ss.name;
@@ -220,6 +228,7 @@ impl ToTokens for MockItemStruct {
         field_definitions.extend(self.methods.field_definitions(&modname));
         field_definitions.extend(self.phantom_fields());
         let mut default_inits = substructs.iter()
+            .filter(|ss| !ss.all_static())
             .map(|ss| {
                 let fieldname = &ss.fieldname;
                 quote!(#fieldname: Default::default())
@@ -285,6 +294,11 @@ pub(crate) struct MockItemTraitImpl {
 }
 
 impl MockItemTraitImpl {
+    /// Are all of this traits's methods static?
+    fn all_static(&self) -> bool {
+        self.methods.all_static()
+    }
+
     fn phantom_default_inits(&self) -> Vec<TokenStream> {
         phantom_default_inits(&self.generics)
     }

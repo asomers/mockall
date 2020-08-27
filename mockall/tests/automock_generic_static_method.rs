@@ -1,6 +1,5 @@
 // vim: tw=80
 //! generic static methods with generic arguments
-#![allow(unused)]
 #![deny(warnings)]
 
 use mockall::*;
