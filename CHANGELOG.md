@@ -5,6 +5,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+- Compatibility with the `#[async_trait]` macro.
+  ([#183](https://github.com/asomers/mockall/pull/183))
+
 - Better support for non-Send types:
   * Added `return_const_st` for returning non-`Send` constants, similar to
     `returning_st`.

@@ -187,7 +187,9 @@ impl From<MockableStruct> for MockItemStruct {
 
 impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let attrs = &self.attrs;
+        let attrs = AttrFormatter::new(&self.attrs)
+            .async_trait(false)
+            .format();
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl();
         let modname = &self.modname;
@@ -313,6 +315,7 @@ impl MockItemTraitImpl {
 impl ToTokens for MockItemTraitImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let attrs = AttrFormatter::new(&self.attrs)
+            .async_trait(false)
             .doc(false)
             .format();
         let struct_name = &self.name;

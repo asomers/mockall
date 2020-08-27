@@ -84,6 +84,7 @@ impl MockTrait {
     // Supplying modname is an unfortunately hack.  Ideally MockTrait
     // wouldn't need to know that.
     pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
+        let attrs = &self.attrs;
         let (ig, tg, wc) = self.struct_generics.split_for_impl();
         let (_, t_tg, _) = self.trait_generics.split_for_impl();
         let calls = self.methods.iter()
@@ -101,6 +102,7 @@ impl MockTrait {
         let structname = &self.structname;
         let types = &self.types;
         quote!(
+            #(#attrs)*
             impl #ig #name #t_tg for #structname #tg #wc {
                 #(#types)*
                 #(#calls)*
