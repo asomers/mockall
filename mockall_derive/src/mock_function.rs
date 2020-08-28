@@ -324,7 +324,7 @@ pub(crate) struct MockFunction {
     /// Types of the method arguments
     argty: Vec<Type>,
     /// any attributes on the original function, like #[inline]
-    attrs: Vec<Attribute>,
+    pub attrs: Vec<Attribute>,
     /// Expressions that should be used for Expectation::call's arguments
     call_exprs: Vec<TokenStream>,
     /// Generics used for the expectation call
@@ -382,7 +382,7 @@ impl MockFunction {
     // Supplying modname is an unfortunately hack.  Ideally MockFunction
     // wouldn't need to know that.
     pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
-        let attrs = self.format_attrs(true);
+        let attrs = AttrFormatter::new(&self.attrs).format();
         let call_exprs = &self.call_exprs;
         let (_, tg, _) = if self.is_method_generic() || self.is_static() {
             &self.egenerics
@@ -418,7 +418,7 @@ impl MockFunction {
             let outer_mod_path = self.outer_mod_path(modname);
             quote!(
                 // Don't add a doc string.  The original is included in #attrs
-                #attrs
+                #(#attrs)*
                 #vis #sig {
                     {
                         let __mockall_guard = #outer_mod_path::EXPECTATIONS
@@ -437,7 +437,7 @@ impl MockFunction {
         } else {
             quote!(
                 // Don't add a doc string.  The original is included in #attrs
-                #attrs
+                #(#attrs)*
                 #vis #sig {
                     self.#substruct_obj #name.#call#tbf(#(#call_exprs,)*)
                     .expect(#no_match_msg)
@@ -449,11 +449,13 @@ impl MockFunction {
 
     /// Return this method's contribution to its parent's checkpoint method
     pub fn checkpoint(&self) -> impl ToTokens {
-        let attrs = self.format_attrs(false);
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
         let inner_mod_ident = self.inner_mod_ident();
         if self.is_static {
             quote!(
-                #attrs
+                #(#attrs)*
                 {
                     let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
                         .unwrap()
@@ -462,9 +464,8 @@ impl MockFunction {
                 }
             )
         } else {
-            let attrs = self.format_attrs(false);
             let name = &self.name();
-            quote!(#attrs { self.#name.checkpoint(); })
+            quote!(#(#attrs)* { self.#name.checkpoint(); })
         }
     }
 
@@ -476,7 +477,9 @@ impl MockFunction {
     // Supplying modname is an unfortunately hack.  Ideally MockFunction
     // wouldn't need to know that.
     pub fn context_fn(&self, modname: Option<&Ident>) -> impl ToTokens {
-        let attrs = self.format_attrs(false);
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
         let context_docstr = format!("Create a [`Context`]({}{}/struct.Context.html) for mocking the `{}` method",
             modname.map(|m| format!("{}/", m)).unwrap_or_default(),
             self.inner_mod_ident(),
@@ -486,7 +489,7 @@ impl MockFunction {
         let outer_mod_path = self.outer_mod_path(modname);
         let v = &self.call_vis;
         quote!(
-            #attrs
+            #(#attrs)*
             #[doc = #context_docstr]
             #v fn #context_ident() -> #outer_mod_path::Context #tg
             {
@@ -503,7 +506,9 @@ impl MockFunction {
     // Supplying modname is an unfortunately hack.  Ideally MockFunction
     // wouldn't need to know that.
     pub fn expect(&self, modname: &Ident) -> impl ToTokens {
-        let attrs = self.format_attrs(false);
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
         let name = self.name();
         let expect_ident = format_ident!("expect_{}", &name);
         let expectation_obj = self.expectation_obj();
@@ -541,7 +546,7 @@ impl MockFunction {
         quote!(
             #must_use
             #[doc = #docstr]
-            #attrs
+            #(#attrs)*
             #vis fn #expect_ident #ig(&mut self)
                -> &mut #modname::#expectation_obj
                #wc
@@ -573,29 +578,20 @@ impl MockFunction {
 
     pub fn field_definition(&self, modname: Option<&Ident>) -> TokenStream {
         let name = self.name();
-        let attrs = self.format_attrs(false);
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
         let expectations_obj = &self.expectations_obj();
         if self.is_method_generic() {
-            quote!(#attrs #name: #modname::#expectations_obj)
+            quote!(#(#attrs)* #name: #modname::#expectations_obj)
         } else {
             // staticize any lifetimes.  This is necessary for methods that
             // return non-static types, because the Expectation itself must be
             // 'static.
             let segenerics = staticize(&self.egenerics);
             let (_, tg, _) = segenerics.split_for_impl();
-            quote!(#attrs #name: #modname::#expectations_obj #tg)
+            quote!(#(#attrs)* #name: #modname::#expectations_obj #tg)
         }
-    }
-
-    pub fn format_attrs(&self, include_docs: bool) -> impl ToTokens {
-        let mut out = TokenStream::new();
-        for attr in &self.attrs {
-            let is_doc = attr.path.get_ident().map(|i| i == "doc").unwrap_or(false);
-            if !is_doc || include_docs {
-                attr.to_tokens(&mut out);
-            }
-        }
-        out
     }
 
     /// Human-readable name of the mock function
@@ -658,7 +654,9 @@ impl MockFunction {
 
     /// Generate code for this function's private module
     pub fn priv_module(&self) -> impl ToTokens {
-        let attrs = self.format_attrs(false);
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
         let common = &Common{f: self};
         let context = &Context{f: self};
         let expectation: Box<dyn ToTokens> = if self.return_ref {
@@ -696,7 +694,7 @@ impl MockFunction {
             Box::new(StaticRfunc{f: self})
         };
         quote!(
-            #attrs
+            #(#attrs)*
             #[allow(missing_docs)]
             pub mod #inner_mod_ident {
                 use super::*;

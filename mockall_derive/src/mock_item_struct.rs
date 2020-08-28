@@ -74,8 +74,10 @@ impl Methods {
             .filter(|meth| !meth.is_static())
             .map(|meth| {
                 let name = meth.name();
-                let attrs = meth.format_attrs(false);
-                quote!(#attrs #name: Default::default())
+                let attrs = AttrFormatter::new(&meth.attrs)
+                    .doc(false)
+                    .format();
+                quote!(#(#attrs)* #name: Default::default())
             }).collect::<Vec<_>>()
     }
 
@@ -310,7 +312,9 @@ impl MockItemTraitImpl {
 
 impl ToTokens for MockItemTraitImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let attrs_nodocs = format_attrs(&self.attrs, false);
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl();
         let modname = &self.modname;
@@ -330,7 +334,7 @@ impl ToTokens for MockItemTraitImpl {
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
-            #attrs_nodocs
+            #(#attrs)*
             struct #struct_name #ig #wc
             {
                 #(#field_definitions),*
