@@ -490,6 +490,7 @@
 //! [`CStr`](std::ffi::CStr),
 //! [`OsStr`](std::ffi::OsStr),
 //! [`Path`](std::path::Path),
+//! [`Slice`][std::slice],
 //! and
 //! [`str`](std::str)
 //! types are supported.  Using this feature is automatic:

@@ -15,6 +15,7 @@ trait Foo {
     fn desc(&self) -> &OsStr;
     fn path(&self) -> &Path;
     fn text(&self) -> &'static str;
+    fn slice(&self) -> &[i32];
 }
 
 mod return_const {
@@ -61,5 +62,13 @@ mod return_const {
         let mut mock = MockFoo::new();
         mock.expect_text().return_const(TEXT);
         assert_eq!("abcd", mock.text());
+    }
+
+    #[test]
+    fn slice() {
+        let r = vec![1, 2, 3];
+        let mut mock = MockFoo::new();
+        mock.expect_slice().return_const(r);
+        assert_eq!(&[1, 2, 3], mock.slice());
     }
 }

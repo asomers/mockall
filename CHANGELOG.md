@@ -5,6 +5,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+- Methods returning slices can now be mocked.  Their expectations take `Vec`s.
+  ([#185](https://github.com/asomers/mockall/pull/185))
+
 - Compatibility with the `#[async_trait]` macro.
   ([#183](https://github.com/asomers/mockall/pull/183))
 
