@@ -10,6 +10,7 @@ use mockall::*;
 #[async_trait]
 pub trait Foo {
     async fn foo(&self) -> u32;
+    async fn bar() -> u32;
 }
 
 
@@ -19,4 +20,12 @@ fn return_const() {
     mock.expect_foo()
         .return_const(42u32);
     assert_eq!(block_on(mock.foo()), 42);
+}
+
+#[test]
+fn static_method() {
+    let ctx = MockFoo::bar_context();
+    ctx.expect()
+        .return_const(42u32);
+    assert_eq!(block_on(MockFoo::bar()), 42);
 }
