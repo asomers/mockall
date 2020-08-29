@@ -53,6 +53,76 @@ cfg_if! {
     }
 }
 
+fn deanonymize_lifetime(lt: &mut Lifetime) {
+    if lt.ident == "_" {
+        lt.ident = format_ident!("static");
+    }
+}
+
+fn deanonymize_path(path: &mut Path) {
+    for seg in path.segments.iter_mut() {
+        match &mut seg.arguments {
+            PathArguments::None => (),
+            PathArguments::AngleBracketed(abga) => {
+                for ga in abga.args.iter_mut() {
+                    if let GenericArgument::Lifetime(lt) = ga {
+                        deanonymize_lifetime(lt)
+                    }
+                }
+            },
+            _ => compile_error(seg.arguments.span(),
+                "Methods returning functions are TODO"),
+        }
+    }
+}
+
+/// Replace any references to the anonymous lifetime `'_` with `'static`.
+fn deanonymize(literal_type: &mut Type) {
+    match literal_type {
+        Type::Array(ta) => deanonymize(ta.elem.as_mut()),
+        Type::BareFn(tbf) => {
+            if let ReturnType::Type(_, ref mut bt) = tbf.output {
+                deanonymize(bt.as_mut());
+            }
+            for input in tbf.inputs.iter_mut() {
+                deanonymize(&mut input.ty);
+            }
+        },
+        Type::Group(tg) => deanonymize(tg.elem.as_mut()),
+        Type::Infer(_) => (),
+        Type::Never(_) => (),
+        Type::Paren(tp) => deanonymize(tp.elem.as_mut()),
+        Type::Path(tp) => {
+            if let Some(ref _qself) = tp.qself {
+                compile_error(tp.span(), "QSelf is TODO");
+            }
+            deanonymize_path(&mut tp.path);
+        },
+        Type::Ptr(tptr) => deanonymize(tptr.elem.as_mut()),
+        Type::Reference(tr) => {
+            if let Some(lt) = tr.lifetime.as_mut() {
+                deanonymize_lifetime(lt)
+            }
+            deanonymize(tr.elem.as_mut());
+        },
+        Type::Slice(s) => deanonymize(s.elem.as_mut()),
+        Type::TraitObject(tto) => {
+            for tpb in tto.bounds.iter_mut() {
+                match tpb {
+                    TypeParamBound::Trait(tb) => deanonymize_path(&mut tb.path),
+                    TypeParamBound::Lifetime(lt) => deanonymize_lifetime(lt),
+                }
+            }
+        },
+        Type::Tuple(tt) => {
+            for ty in tt.elems.iter_mut() {
+                deanonymize(ty)
+            }
+        }
+        x => compile_error(x.span(), "Unimplemented type for deanonymize")
+    }
+}
+
 // If there are any closures in the argument list, turn them into boxed
 // functions
 fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->

@@ -175,6 +175,7 @@ fn mockable_method(mut meth: ImplItemMethod, name: &Ident, generics: &Generics)
     deimplify(&mut meth.sig.output);
     if let ReturnType::Type(_, ty) = &mut meth.sig.output {
         deselfify(ty, name, generics);
+        deanonymize(ty);
     }
     meth
 }
@@ -190,6 +191,7 @@ fn mockable_trait_method(
     deimplify(&mut meth.sig.output);
     if let ReturnType::Type(_, ty) = &mut meth.sig.output {
         deselfify(ty, name, generics);
+        deanonymize(ty);
     }
 }
 
