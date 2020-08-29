@@ -205,6 +205,28 @@ fn mockable_trait(mut trait_: ItemTrait, name: &Ident, generics: &Generics)
     trait_
 }
 
+/// Converts a TraitItemConst into an ImplItemConst
+fn tic2iic(tic: TraitItemConst, vis: &syn::Visibility) -> ImplItemConst {
+    let span = tic.span();
+    let (eq_token, expr) = tic.default.unwrap_or_else(|| {
+        compile_error(span,
+            "Mocked associated consts must have a default implementation");
+        (<Token![=]>::default(), Expr::Verbatim(TokenStream::new()))
+    });
+    ImplItemConst {
+        attrs: tic.attrs,
+        vis: vis.clone(),
+        defaultness: None,
+        const_token: tic.const_token,
+        ident: tic.ident,
+        colon_token: tic.colon_token,
+        ty: tic.ty,
+        eq_token,
+        expr,
+        semi_token: tic.semi_token
+    }
+}
+
 /// Converts a TraitItemMethod into an ImplItemMethod
 fn tim2iim(m: syn::TraitItemMethod, vis: &syn::Visibility)
     -> syn::ImplItemMethod
@@ -225,6 +247,7 @@ fn tim2iim(m: syn::TraitItemMethod, vis: &syn::Visibility)
 
 pub(crate) struct MockableStruct {
     pub attrs: Vec<Attribute>,
+    pub consts: Vec<ImplItemConst>,
     pub generics: Generics,
     /// Inherent methods of the mockable struct
     pub methods: Vec<ImplItemMethod>,
@@ -243,6 +266,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
         let traits = vec![mockable_trait(trait_, &name, &generics)];
         MockableStruct {
             attrs,
+            consts: Vec::new(),
             vis,
             name,
             generics,
@@ -265,6 +289,7 @@ impl From<ItemImpl> for MockableStruct {
                 Ident::new("", Span::call_site())
             }
         };
+        let mut consts = Vec::new();
         let mut methods = Vec::new();
         let pub_token = Token![pub](Span::call_site());
         let vis = Visibility::Public(VisPublic{pub_token});
@@ -282,6 +307,21 @@ impl From<ItemImpl> for MockableStruct {
             let mut attrs = Attrs::default();
             for item in item_impl.items.into_iter() {
                 match item {
+                    ImplItem::Const(iic) =>
+                        items.push(
+                            TraitItem::Const(TraitItemConst {
+                                attrs: iic.attrs,
+                                const_token: iic.const_token,
+                                ident: iic.ident,
+                                colon_token: iic.colon_token,
+                                ty: iic.ty,
+                                default: Some((
+                                    iic.eq_token,
+                                    iic.expr
+                                )),
+                                semi_token: iic.semi_token
+                            })
+                        ),
                     ImplItem::Method(meth) =>
                         items.push(
                             TraitItem::Method(TraitItemMethod {
@@ -326,15 +366,19 @@ impl From<ItemImpl> for MockableStruct {
             traits.push(mockable_trait(trait_, traitname, &generics));
         } else {
             for item in item_impl.items.into_iter() {
-                if let ImplItem::Method(meth) = item {
-                    methods.push(
-                        mockable_method(meth, &name, &item_impl.generics)
-                    );
+                match item {
+                    ImplItem::Method(meth) =>
+                        methods.push(
+                            mockable_method(meth, &name, &item_impl.generics)
+                        ),
+                    ImplItem::Const(iic) => consts.push(iic),
+                    x => compile_error(x.span(), "TODO 2"),
                 }
             }
         };
         MockableStruct {
             attrs: item_impl.attrs,
+            consts,
             name,
             generics: item_impl.generics,
             methods,
@@ -356,6 +400,7 @@ impl Parse for MockableStruct {
 
         let impl_content;
         let _brace_token = braced!(impl_content in input);
+        let mut consts = Vec::new();
         let mut methods = Vec::new();
         while !impl_content.is_empty() {
             let method: syn::TraitItem = impl_content.parse()?;
@@ -364,6 +409,7 @@ impl Parse for MockableStruct {
                     mockable_trait_method(&mut meth, &name, &generics);
                     methods.push(tim2iim(meth, &vis))
                 },
+                TraitItem::Const(iic) => consts.push(tic2iic(iic, &vis)),
                 _ => {
                     return Err(input.error("Unsupported in this context"));
                 }
@@ -379,6 +425,7 @@ impl Parse for MockableStruct {
         Ok(
             MockableStruct {
                 attrs,
+                consts,
                 vis,
                 name,
                 generics,
