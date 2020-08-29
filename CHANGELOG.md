@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased] - ReleaseDate
+## [0.8.0] - 29 August 2020
 ### Added
 - Added support for mocking structs and traits with associated constants.
   ([#187](https://github.com/asomers/mockall/pull/187))
