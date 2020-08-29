@@ -37,6 +37,32 @@ fn destrify(ty: &mut Type) {
                 *tr.elem = pathbuf_ty,
             Type::Path(ref path) if *path == str_ty =>
                 *tr.elem = string_ty,
+            Type::Slice(ts) => {
+                let inner = (*ts.elem).clone();
+                let mut segments = Punctuated::new();
+                segments.push(format_ident!("std").into());
+                segments.push(format_ident!("vec").into());
+                let mut v: PathSegment = format_ident!("Vec").into();
+                let mut abga_args = Punctuated::new();
+                abga_args.push(GenericArgument::Type(inner));
+                v.arguments = PathArguments::AngleBracketed(
+                    AngleBracketedGenericArguments {
+                        colon2_token: None,
+                        lt_token: Token![<](Span::call_site()),
+                        args: abga_args,
+                        gt_token: Token![>](Span::call_site()),
+                    }
+                );
+                segments.push(v);
+
+                *tr.elem = Type::Path(TypePath {
+                    qself: None,
+                    path: Path {
+                        leading_colon: Some(Token![::](Span::call_site())),
+                        segments
+                    }
+                });
+            },
             _ => (), // Nothing to do
         };
     }
