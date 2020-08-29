@@ -21,7 +21,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
     non-static methods.
   ([#178](https://github.com/asomers/mockall/pull/178))
 
-- Support mocking methods with arbitrary receivers like `self: Box<Self`
+- Support mocking methods with arbitrary receivers like `self: Box<Self>`
   ([#176](https://github.com/asomers/mockall/pull/176))
 
 - Support mocking methods with trait object arguments that use implicit
