@@ -93,6 +93,13 @@ mod refmut_method {
 
 pub mod static_method {
     use super::*;
+    use std::sync::Mutex;
+
+    lazy_static! {
+        static ref FOO_MTX: Mutex<()> = Mutex::new(());
+        static ref BAR_MTX: Mutex<()> = Mutex::new(());
+        static ref BAZ_MTX: Mutex<()> = Mutex::new(());
+    }
 
     #[automock]
     trait Foo {
@@ -103,6 +110,7 @@ pub mod static_method {
 
     #[test]
     fn return_once_st() {
+        let _guard = BAZ_MTX.lock().unwrap();
         let ctx = MockFoo::baz_context();
         let r = NonSend(Rc::new(42u32));
         ctx.expect()
@@ -112,6 +120,7 @@ pub mod static_method {
 
     #[test]
     fn returning_st() {
+        let _guard = BAR_MTX.lock().unwrap();
         let ctx = MockFoo::bar_context();
         ctx.expect()
             .returning_st(|| Rc::new(42));
@@ -120,6 +129,7 @@ pub mod static_method {
 
     #[test]
     fn return_const_st() {
+        let _guard = BAR_MTX.lock().unwrap();
         let ctx = MockFoo::bar_context();
         ctx.expect()
             .return_const_st(Rc::new(42));
@@ -128,6 +138,7 @@ pub mod static_method {
 
     #[test]
     fn withf_st() {
+        let _guard = FOO_MTX.lock().unwrap();
         let ctx = MockFoo::foo_context();
         ctx.expect()
             .withf_st(|x| **x == 42)
