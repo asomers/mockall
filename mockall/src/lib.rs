@@ -45,6 +45,7 @@
 //! * [`Static methods`](#static-methods)
 //! * [`Foreign functions`](#foreign-functions)
 //! * [`Modules`](#modules)
+//! * [`Async Traits`](#async-traits)
 //! * [`Crate features`](#crate-features)
 //! * [`Examples`](#examples)
 //!
@@ -996,6 +997,38 @@
 //!         ctx.expect()
 //!             .returning(|x| i64::from(x + 1));
 //!         assert_eq!(5, inner::bar(4));
+//!     }
+//! }
+//! # fn main() {}
+//! ```
+//!
+//! ## Async Traits
+//!
+//! Async traits aren't yet (as of 1.47.0) a part of the Rust language.  But
+//! they're available from the
+//! [`async_trait`](https://docs.rs/async-trait/0.1.38/async_trait/) crate.
+//! Mockall is compatible with this crate, with two important limitations:
+//!
+//! * The `#[automock]` attribute must appear _before_ the `#[async_trait]`
+//! attribute.
+//!
+//! * The `#[async_trait]` macro must be imported with its canonical name.
+//!
+//! ```
+//! # use async_trait::async_trait;
+//! # use mockall::*;
+//! // async_trait works with both #[automock]
+//! #[automock]
+//! #[async_trait]
+//! pub trait Foo {
+//!    async fn foo(&self) -> u32;
+//! }
+//! // and mock!
+//! mock! {
+//!     pub Bar {}
+//!     #[async_trait]
+//!     trait Foo {
+//!         async fn foo(&self) -> u32;
 //!     }
 //! }
 //! # fn main() {}

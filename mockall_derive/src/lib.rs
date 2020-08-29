@@ -443,15 +443,49 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
     }
 }
 
-fn format_attrs(attrs: &[syn::Attribute], include_docs: bool) -> TokenStream {
-    let mut out = TokenStream::new();
-    for attr in attrs {
-        let is_doc = attr.path.get_ident().map(|i| i == "doc").unwrap_or(false);
-        if !is_doc || include_docs {
-            attr.to_tokens(&mut out);
+
+struct AttrFormatter<'a>{
+    attrs: &'a [Attribute],
+    async_trait: bool,
+    doc: bool,
+}
+
+impl<'a> AttrFormatter<'a> {
+    fn new(attrs: &'a [Attribute]) -> AttrFormatter<'a> {
+        Self {
+            attrs,
+            async_trait: true,
+            doc: true
         }
     }
-    out
+
+    fn async_trait(&mut self, allowed: bool) -> &mut Self {
+        self.async_trait = allowed;
+        self
+    }
+
+    fn doc(&mut self, allowed: bool) -> &mut Self {
+        self.doc = allowed;
+        self
+    }
+
+    // XXX This logic requires that attributes are imported with their
+    // standard names.
+    fn format(&mut self) -> Vec<Attribute> {
+        self.attrs.iter()
+            .cloned()
+            .filter(|attr|
+                ( self.doc ||
+                    attr.path.get_ident()
+                    .map(|i| i != "doc")
+                    .unwrap_or(false)
+                ) && (self.async_trait ||
+                    attr.path.get_ident()
+                    .map(|i| i != "async_trait")
+                    .unwrap_or(false)
+                )
+            ).collect()
+    }
 }
 
 /// Determine if this Pat is any kind of `self` binding
