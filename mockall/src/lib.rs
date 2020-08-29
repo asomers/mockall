@@ -1156,6 +1156,24 @@ pub mod examples;
 /// }
 /// ```
 ///
+/// You can also mock a trait impl on a struct:
+/// ```
+/// # use mockall_derive::*;
+/// pub trait Foo {
+///     fn foo(&self, key: i16);
+/// }
+/// struct Bar{}
+/// #[automock]
+/// impl Foo for Bar {
+///     fn foo(&self, key: i16){
+///         // ...
+///         # unimplemented!()
+///     }
+/// }
+///
+/// let mock = MockBar::new();
+/// ```
+///
 /// Mocking a trait with associated types requires adding a metaitem to the
 /// attribute:
 /// ```

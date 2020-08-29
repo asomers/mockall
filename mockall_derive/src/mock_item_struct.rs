@@ -97,6 +97,7 @@ impl Methods {
 
 pub(crate) struct MockItemStruct {
     attrs: Vec<Attribute>,
+    consts: Vec<ImplItemConst>,
     generics: Generics,
     /// Does the original struct have a `new` method?
     has_new: bool,
@@ -174,6 +175,7 @@ impl From<MockableStruct> for MockItemStruct {
 
         MockItemStruct {
             attrs: mockable.attrs,
+            consts: mockable.consts,
             generics,
             has_new,
             methods,
@@ -190,6 +192,7 @@ impl ToTokens for MockItemStruct {
         let attrs = AttrFormatter::new(&self.attrs)
             .async_trait(false)
             .format();
+        let consts = &self.consts;
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl();
         let modname = &self.modname;
@@ -269,6 +272,7 @@ impl ToTokens for MockItemStruct {
             }
             #(#substructs)*
             impl #ig #struct_name #tg #wc {
+                #(#consts)*
                 #(#calls)*
                 #(#contexts)*
                 #(#expects)*

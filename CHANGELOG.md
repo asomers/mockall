@@ -5,6 +5,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+- Added support for mocking structs and traits with associated constants.
+  ([#187](https://github.com/asomers/mockall/pull/187))
+
 - Methods returning slices can now be mocked.  Their expectations take `Vec`s.
   ([#185](https://github.com/asomers/mockall/pull/185))
 

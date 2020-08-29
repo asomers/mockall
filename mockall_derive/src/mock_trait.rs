@@ -12,6 +12,7 @@ use crate::{
 
 pub(crate) struct MockTrait {
     pub attrs: Vec<Attribute>,
+    pub consts: Vec<TraitItemConst>,
     pub struct_generics: Generics,
     pub trait_generics: Generics,
     pub methods: Vec<MockFunction>,
@@ -37,13 +38,17 @@ impl MockTrait {
                trait_: ItemTrait,
                vis: &Visibility) -> Self
     {
+        let mut consts = Vec::new();
         let mut methods = Vec::new();
         let mut types = Vec::new();
         for ti in trait_.items.into_iter() {
             match ti {
-                TraitItem::Const(_) => {
-                    // const items can easily be added by the user in a separate
-                    // impl block
+                TraitItem::Const(tic) => {
+                    if tic.default.is_none() {
+                        compile_error(tic.span(),
+                            "When mocking trait associated constants, a default value must be given");
+                    }
+                    consts.push(tic);
                 },
                 TraitItem::Method(tim) => {
                     let mf = mock_function::Builder::new(&tim.sig, &vis)
@@ -67,6 +72,7 @@ impl MockTrait {
         }
         MockTrait {
             attrs: trait_.attrs,
+            consts,
             struct_generics: struct_generics.clone(),
             trait_generics: trait_.generics,
             methods,
@@ -76,7 +82,7 @@ impl MockTrait {
         }
     }
 
-    /// Generate code for the expect_ method
+    /// Generate code for the trait implementation on the mock struct
     ///
     /// # Arguments
     ///
@@ -87,6 +93,7 @@ impl MockTrait {
         let attrs = &self.attrs;
         let (ig, tg, wc) = self.struct_generics.split_for_impl();
         let (_, t_tg, _) = self.trait_generics.split_for_impl();
+        let consts = &self.consts;
         let calls = self.methods.iter()
                 .map(|meth| meth.call(Some(modname)))
                 .collect::<Vec<_>>();
@@ -104,6 +111,7 @@ impl MockTrait {
         quote!(
             #(#attrs)*
             impl #ig #name #t_tg for #structname #tg #wc {
+                #(#consts)*
                 #(#types)*
                 #(#calls)*
             }
