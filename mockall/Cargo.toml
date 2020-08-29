@@ -30,7 +30,7 @@ fragile = "1.0"
 lazy_static = "1.1"
 predicates = "1.0.2"
 predicates-tree = "1.0"
-mockall_derive = { version = "= 0.7.2", path = "../mockall_derive" }
+mockall_derive = { version = "= 0.8.0", path = "../mockall_derive" }
 
 [dev-dependencies]
 async-trait = "0.1.38"
