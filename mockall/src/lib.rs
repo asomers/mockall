@@ -581,12 +581,13 @@
 //! Mockall mocks structs as well as traits.  The problem here is a namespace
 //! problem: it's hard to supply the mock object to your code under test,
 //! because it has a different name.  The solution is to alter import paths
-//! during test.  The [`cfg-if`] crate helps.
+//! during test.  The easiest way to do that is with the
+//! [`mockall_double`](https://docs.rs/mockall/latest/mockall_double) crate.
 //!
 //! [`#[automock]`](attr.automock.html)
 //! works for structs that have a single `impl` block:
 //! ```no_run
-//! # use cfg_if::cfg_if;
+//! use mockall_double::double;
 //! mod thing {
 //!     use mockall::automock;
 //!     pub struct Thing{}
@@ -599,13 +600,8 @@
 //!     }
 //! }
 //!
-//! cfg_if! {
-//!     if #[cfg(test)] {
-//!         use self::thing::MockThing as Thing;
-//!     } else {
-//!         use self::thing::Thing;
-//!     }
-//! }
+//! #[double]
+//! use thing::Thing;
 //!
 //! fn do_stuff(thing: &Thing) -> u32 {
 //!     thing.foo()
@@ -913,11 +909,12 @@
 //!
 //! In addition to mocking types, Mockall can also derive mocks for
 //! entire modules of Rust functions.  Mockall will generate a new module named
-//! "mock_xxx", if "xxx" is the original module's name.
+//! "mock_xxx", if "xxx" is the original module's name.  You can also use
+//! `#[double]` to selectively import the mock module.
 //!
 //! ```
 //! # use mockall::*;
-//! # use cfg_if::cfg_if;
+//! # use mockall_double::*;
 //! mod outer {
 //!     use mockall::automock;
 //!     #[automock()]
@@ -929,13 +926,8 @@
 //!     }
 //! }
 //!
-//! cfg_if! {
-//!     if #[cfg(test)] {
-//!         use outer::mock_inner as inner;
-//!     } else {
-//!         use outer::inner;
-//!     }
-//! }
+//! #[double]
+//! use outer::inner;
 //!
 //! #[cfg(test)]
 //! mod t {
@@ -956,12 +948,10 @@
 //!
 //! One reason to mock modules is when working with foreign functions.  Modules
 //! may contain foreign functions, even though structs and traits may not.  Like
-//! static methods, the expectations are global.  Like mocking structs, you'll
-//! probably have to fiddle with your imports to make the mock function
-//! accessible.
+//! static methods, the expectations are global.
 //!
 //! ```
-//! # use cfg_if::cfg_if;
+//! # use mockall_double::*;
 //! mod outer {
 //!     # use mockall::*;
 //!     #[automock]
@@ -972,13 +962,8 @@
 //!     }
 //! }
 //!
-//! cfg_if! {
-//!     if #[cfg(test)] {
-//!         use outer::mock_ffi as ffi;
-//!     } else {
-//!         use outer::ffi;
-//!     }
-//! }
+//! #[double]
+//! use outer::ffi;
 //!
 //! fn do_stuff() -> i64 {
 //!     unsafe{ ffi::foo(42) }

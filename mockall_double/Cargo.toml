@@ -1,0 +1,25 @@
+[package]
+name = "mockall_double"
+version = "0.1.0"
+authors = ["Alan Somers <asomers@gmail.com>"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/asomers/mockall"
+categories = ["development-tools::testing"]
+keywords = ["mock", "mocking", "testing"]
+documentation = "https://docs.rs/mockall_derive"
+edition = "2018"
+description = """
+Test double adapter for Mockall
+"""
+
+[lib]
+proc-macro = true
+
+[features]
+nightly = ["proc-macro2/nightly"]
+
+[dependencies]
+cfg-if = "0.1.6"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "1.0.15", features = ["extra-traits", "full"] }

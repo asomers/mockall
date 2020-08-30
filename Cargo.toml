@@ -1,2 +1,2 @@
 [workspace]
-members = ["mockall", "mockall_derive"]
+members = ["mockall", "mockall_derive", "mockall_double"]
