@@ -1,5 +1,6 @@
 // vim: tw=80
 //! Methods that take receivers like Box<Self> instead of &self
+#![allow(clippy::borrowed_box, clippy::boxed_local)]
 #![deny(warnings)]
 
 use mockall::*;
