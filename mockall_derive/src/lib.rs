@@ -1315,7 +1315,7 @@ mod supersuperfy_generics {
         orig_g.where_clause = parse2(orig_wc).unwrap();
         let mut expected_g: Generics = parse2(expected).unwrap();
         expected_g.where_clause = parse2(expected_wc).unwrap();
-        let mut output: Generics = orig_g.clone();
+        let mut output: Generics = orig_g;
         supersuperfy_generics(&mut output, 1);
         let (o_ig, o_tg, o_wc) = output.split_for_impl();
         let (e_ig, e_tg, e_wc) = expected_g.split_for_impl();
