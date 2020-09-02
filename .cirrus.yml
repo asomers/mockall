@@ -29,6 +29,7 @@ minver_task:
     - 1.42.0
     - stable
     - nightly
+    - clippy
   matrix:
     - container:
        image: rustlang/rust:nightly
@@ -37,4 +38,15 @@ minver_task:
   test_script:
     - cargo update -Zminimal-versions
     - cargo test --all-features --all
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+clippy_task:
+  name: clippy
+  matrix:
+    - container:
+       image: rust:latest
+  cargo_cache:
+    folder: $CARGO_HOME/registry
+  lint_script:
+    - cargo clippy --all-targets --workspace -- -D warnings
   before_cache_script: rm -rf $CARGO_HOME/registry/index
