@@ -1,8 +1,8 @@
 // vim: tw=80
 //! A powerful mock object library for Rust.
 //!
-//! Mockall provides provides tools to create mock versions of almost any trait
-//! or struct.  They can be used in unit tests as a stand-in for the real
+//! Mockall provides tools to create mock versions of almost any trait
+//! or struct. They can be used in unit tests as a stand-in for the real
 //! object.
 //!
 //! # Usage
