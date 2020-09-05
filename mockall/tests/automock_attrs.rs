@@ -1,31 +1,24 @@
 // vim: tw=80
 //! Attributes are applied to the mock object, too.
 #![allow(unused)]
-#![cfg_attr(feature = "nightly", feature(proc_macro_hygiene))]
 #![deny(warnings)]
-
-use cfg_if::cfg_if;
 
 use mockall::*;
 
-cfg_if! {
-    if #[cfg(feature = "nightly")] {
-        #[automock]
-        mod m {
-            #[cfg(target_os = "multics")]
-            pub fn bloob(x: DoesNotExist) -> i64 {unimplemented!()}
-            #[cfg(not(target_os = "multics"))]
-            pub fn blarg(x: i32) -> i64 {unimplemented!()}
-        }
+#[automock]
+mod m {
+    #[cfg(target_os = "multics")]
+    pub fn bloob(x: DoesNotExist) -> i64 {unimplemented!()}
+    #[cfg(not(target_os = "multics"))]
+    pub fn blarg(x: i32) -> i64 {unimplemented!()}
+}
 
-        #[test]
-        fn returning() {
-            let ctx = mock_m::blarg_context();
-            ctx.expect()
-                .returning(|x| i64::from(x) + 1);
-            assert_eq!(5, mock_m::blarg(4));
-        }
-    }
+#[test]
+fn returning() {
+    let ctx = mock_m::blarg_context();
+    ctx.expect()
+        .returning(|x| i64::from(x) + 1);
+    assert_eq!(5, mock_m::blarg(4));
 }
 
 pub struct A{}
