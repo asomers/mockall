@@ -975,26 +975,6 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
                 self
             }
 
-            /// Allow this expectation to be called any number of times
-            ///
-            /// This behavior is the default, but the method is provided in case the
-            /// default behavior changes.
-            #[deprecated(since = "0.3.0", note = "Use times instead")]
-            #v fn times_any(&mut self) -> &mut Self {
-                self.common.times(..);
-                self
-            }
-
-            /// Allow this expectation to be called any number of times within a
-            /// given range
-            #[deprecated(since = "0.3.0", note = "Use times instead")]
-            #v fn times_range(&mut self, __mockall_range: Range<usize>)
-                -> &mut Self
-            {
-                self.common.times(__mockall_range);
-                self
-            }
-
             /// Set matching crieteria for this Expectation.
             ///
             /// The matching predicate can be anything implemening the
@@ -1208,22 +1188,6 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
                 where MockallR: Into<::mockall::TimesRange>
             {
                 #expectations.0[self.i].times(__mockall_r)
-            }
-
-            /// Just like
-            /// [`Expectation::times_any`](struct.Expectation.html#method.times_any)
-            #[deprecated(since = "0.3.0", note = "Use times instead")]
-            #v fn times_any(&mut self) -> &mut Expectation #tg {
-                #expectations.0[self.i].times(..)
-            }
-
-            /// Just like
-            /// [`Expectation::times_range`](struct.Expectation.html#method.times_range)
-            #[deprecated(since = "0.3.0", note = "Use times instead")]
-            #v fn times_range(&mut self, __mockall_range: Range<usize>)
-                -> &mut Expectation #tg
-            {
-                #expectations.0[self.i].times(__mockall_range)
             }
 
             /// Just like
