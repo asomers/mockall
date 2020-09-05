@@ -959,14 +959,10 @@
 //! ## Modules
 //!
 //! In addition to mocking foreign functions, Mockall can also derive mocks for
-//! entire modules of Rust functions,  This requires the **nightly** feature,
-//! and it requires the consuming crate to enable `feature(proc_macro_hygiene)`.
-//! Usage is the same as when mocking foreign functions, except that the mock
-//! module name is automatically derived.
+//! entire modules of Rust functions.  Usage is the same as when mocking foreign
+//! functions, except that the mock module name is automatically derived.
 //!
-#![cfg_attr(feature = "nightly", doc = "```")]
-#![cfg_attr(not(feature = "nightly"), doc = "```ignore")]
-//! #![feature(proc_macro_hygiene)]
+//! ```
 //! # use mockall::*;
 //! # use cfg_if::cfg_if;
 //! mod outer {

@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - ReleaseDate
 ### Added
+
+- `#[automock]` now works on modules even without the `nightly` feature, and no
+  longer requires `#[feature(proc_macro_hygiene)]`
+  ([#198](https://github.com/asomers/mockall/pull/198))
+
 ### Changed
 ### Fixed
 
