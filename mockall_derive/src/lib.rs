@@ -7,7 +7,6 @@
 
 #![cfg_attr(feature = "nightly_derive", feature(proc_macro_diagnostic))]
 #![cfg_attr(test, deny(warnings))]
-extern crate proc_macro;
 
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
