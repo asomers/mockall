@@ -13,6 +13,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Removed
 
+- Removed `times_any` and `times_range` methods from Expectations.  They've
+  been deprecated since 0.3.0.
+  ([#196](https://github.com/asomers/mockall/pull/196))
+
 ## [0.8.0] - 29 August 2020
 ### Added
 - Added support for mocking structs and traits with associated constants.
