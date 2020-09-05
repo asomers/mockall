@@ -29,3 +29,8 @@ syn = { version = "1.0.15", features = ["extra-traits", "full"] }
 
 [dev-dependencies]
 pretty_assertions = "0.5"
+
+# Skip tagging and pushing.  Those will be done by the mockall crate
+[package.metadata.release]
+disable-tag = true
+disable-push = true
