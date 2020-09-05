@@ -821,6 +821,7 @@ impl<'a> ToTokens for Common<'a> {
                     self.times.is_done()
                 }
 
+                #[allow(clippy::ptr_arg)]
                 fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
                     self.matcher.lock().unwrap().matches(#(#argnames, )*)
                 }
@@ -934,6 +935,7 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
             }
 
             /// Validate this expectation's matcher.
+            #[allow(clippy::ptr_arg)]
             fn matches #lg (&self, #(#argnames: &#predty, )*) -> bool {
                 self.common.matches(#(#argnames, )*)
             }
@@ -1536,6 +1538,7 @@ impl<'a> ToTokens for Matcher<'a> {
                 _Phantom(Box<dyn Fn(#(#fn_params,)*) + Send>)
             }
             impl #ig Matcher #tg #wc {
+                #[allow(clippy::ptr_arg)]
                 fn matches #lg (&self, #( #argnames: &#predty, )*) -> bool {
                     match self {
                         Matcher::Always => true,
