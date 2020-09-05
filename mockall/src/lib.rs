@@ -43,8 +43,8 @@
 //! * [`Multiple and inherited traits`](#multiple-and-inherited-traits)
 //! * [`External traits`](#external-traits)
 //! * [`Static methods`](#static-methods)
-//! * [`Foreign functions`](#foreign-functions)
 //! * [`Modules`](#modules)
+//! * [`Foreign functions`](#foreign-functions)
 //! * [`Async Traits`](#async-traits)
 //! * [`Crate features`](#crate-features)
 //! * [`Examples`](#examples)
@@ -909,58 +909,11 @@
 //! every mock struct.  But it *won't* do that when mocking a struct that
 //! already has a method named `new`.
 //!
-//! ## Foreign functions
-//!
-//! Mockall can also mock foreign functions.  Like static methods, the
-//! expectations are global.  And like mocking structs, you'll probably have to
-//! fiddle with your imports to make the mock function accessible.  Finally,
-//! like associated types, you'll need to provide some extra info to
-//! [`#[automock]`](attr.automock.html)
-//! to make it work.
-//!
-//! ```no_run
-//! # use mockall::*;
-//! # use cfg_if::cfg_if;
-//! mod ffi {
-//!     use mockall::automock;
-//!     #[automock(mod mock;)]
-//!     extern "C" {
-//!         pub fn foo(x: u32) -> i64;
-//!     }
-//! }
-//!
-//! cfg_if! {
-//!     if #[cfg(test)] {
-//!         use self::ffi::mock::foo;
-//!     } else {
-//!         use self::ffi::foo;
-//!     }
-//! }
-//!
-//! fn do_stuff() -> i64 {
-//!     unsafe{ foo(42) }
-//! }
-//!
-//! #[cfg(test)]
-//! mod t {
-//!     use super::*;
-//!
-//!     #[test]
-//!     fn test_foo() {
-//!         let ctx = ffi::mock::foo_context();
-//!         ctx.expect()
-//!             .returning(|x| i64::from(x + 1));
-//!         assert_eq!(43, do_stuff());
-//!     }
-//! }
-//! # fn main() {}
-//! ```
-//!
 //! ## Modules
 //!
-//! In addition to mocking foreign functions, Mockall can also derive mocks for
-//! entire modules of Rust functions.  Usage is the same as when mocking foreign
-//! functions, except that the mock module name is automatically derived.
+//! In addition to mocking types, Mockall can also derive mocks for
+//! entire modules of Rust functions.  Mockall will generate a new module named
+//! "mock_xxx", if "xxx" is the original module's name.
 //!
 //! ```
 //! # use mockall::*;
@@ -994,6 +947,53 @@
 //!         ctx.expect()
 //!             .returning(|x| i64::from(x + 1));
 //!         assert_eq!(5, inner::bar(4));
+//!     }
+//! }
+//! # fn main() {}
+//! ```
+//!
+//! ### Foreign functions
+//!
+//! One reason to mock modules is when working with foreign functions.  Modules
+//! may contain foreign functions, even though structs and traits may not.  Like
+//! static methods, the expectations are global.  Like mocking structs, you'll
+//! probably have to fiddle with your imports to make the mock function
+//! accessible.
+//!
+//! ```
+//! # use cfg_if::cfg_if;
+//! mod outer {
+//!     # use mockall::*;
+//!     #[automock]
+//!     pub mod ffi {
+//!         extern "C" {
+//!             pub fn foo(x: u32) -> i64;
+//!         }
+//!     }
+//! }
+//!
+//! cfg_if! {
+//!     if #[cfg(test)] {
+//!         use outer::mock_ffi as ffi;
+//!     } else {
+//!         use outer::ffi;
+//!     }
+//! }
+//!
+//! fn do_stuff() -> i64 {
+//!     unsafe{ ffi::foo(42) }
+//! }
+//!
+//! #[cfg(test)]
+//! mod t {
+//!     use super::*;
+//!
+//!     #[test]
+//!     fn test_foo() {
+//!         let ctx = ffi::foo_context();
+//!         ctx.expect()
+//!             .returning(|x| i64::from(x + 1));
+//!         assert_eq!(43, do_stuff());
 //!     }
 //! }
 //! # fn main() {}

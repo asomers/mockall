@@ -3,10 +3,12 @@
 
 use mockall::*;
 
-#[automock(mod mock_ffi;)]
-extern "Rust" {
-    #[allow(unused)]
-    fn foo(x: u32) -> i64;
+#[automock]
+mod ffi {
+    extern "Rust" {
+        #[allow(unused)]
+        pub fn foo(x: u32) -> i64;
+    }
 }
 
 #[test]

@@ -30,14 +30,16 @@ impl A {
     #[cfg(not(target_os = "multics"))] pub fn bar(&self, _x: i32) -> i32 {0}
 }
 
-#[automock(mod mock_ffi;)]
-extern "C" {
-    // mock_ffi::baz should not be defined
-    #[cfg(target_os = "multics")]
-    fn baz(x: DoesNotExist) -> i64;
-    // mock_ffi::bean should be defined
-    #[cfg(not(target_os = "multics"))]
-    fn bean(x: u32) -> i64;
+#[automock]
+mod ffi {
+    extern "C" {
+        // mock_ffi::baz should not be defined
+        #[cfg(target_os = "multics")]
+        pub fn baz(x: DoesNotExist) -> i64;
+        // mock_ffi::bean should be defined
+        #[cfg(not(target_os = "multics"))]
+        pub fn bean(x: u32) -> i64;
+    }
 }
 
 #[test]
