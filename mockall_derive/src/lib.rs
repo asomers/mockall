@@ -1025,6 +1025,16 @@ mod automock {
     use std::str::FromStr;
     use super::super::*;
 
+    fn assert_contains(output: &str, tokens: TokenStream) {
+        let s = tokens.to_string();
+        assert!(output.contains(&s), "output does not contain {:?}", &s);
+    }
+
+    fn assert_not_contains(output: &str, tokens: TokenStream) {
+        let s = tokens.to_string();
+        assert!(!output.contains(&s), "output does not contain {:?}", &s);
+    }
+
     #[test]
     fn doc_comments() {
         let code = r#"
@@ -1035,12 +1045,8 @@ mod automock {
         "#;
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
-        let output = do_automock(attrs_ts, ts)
-            .to_string()
-            // Strip spaces so we don't get test regressions due to minor
-            // formatting changes
-            .replace(" ", "");
-        assert!(output.contains(r#"#[doc="Functiondocs"]pubfnbar"#));
+        let output = do_automock(attrs_ts, ts).to_string();
+        assert_contains(&output, quote!(#[doc=" Function docs"] pub fn bar));
     }
 
     #[test]
@@ -1056,16 +1062,17 @@ mod automock {
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
-        assert!(!output.contains("pub fn foo"));
-        assert!(!output.contains("pub fn expect_foo"));
-        assert!(output.contains("pub fn bar"));
-        assert!(output.contains("pub fn expect_bar"));
-        assert!(output.contains("pub ( super ) fn baz"));
-        assert!(output.contains("pub ( super ) fn expect_baz"));
-        assert!(output.contains("pub ( crate ) fn bang"));
-        assert!(output.contains("pub ( crate ) fn expect_bang"));
-        assert!(output.contains("pub ( in super :: x ) fn bean"));
-        assert!(output.contains("pub ( in super :: x ) fn expect_bean"));
+        assert_not_contains(&output, quote!(pub fn foo));
+        assert_not_contains(&output, quote!(pub fn expect_foo));
+        assert_not_contains(&output, quote!(pub fn expect_foo));
+        assert_contains(&output, quote!(pub fn bar));
+        assert_contains(&output, quote!(pub fn expect_bar));
+        assert_contains(&output, quote!(pub(super) fn baz));
+        assert_contains(&output, quote!(pub(super) fn expect_baz));
+        assert_contains(&output, quote!(pub ( crate ) fn bang));
+        assert_contains(&output, quote!(pub ( crate ) fn expect_bang));
+        assert_contains(&output, quote!(pub ( in super :: x ) fn bean));
+        assert_contains(&output, quote!(pub ( in super :: x ) fn expect_bean));
     }
 
     #[test]
@@ -1085,7 +1092,7 @@ mod automock {
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
-        assert!(output.contains("pub ( super ) struct MockFoo"));
+        assert_contains(&output, quote!(pub ( super ) struct MockFoo));
     }
 }
 
@@ -1183,8 +1190,8 @@ mod supersuperfy {
         let orig_ty: Type = parse2(orig).unwrap();
         let expected_ty: Type = parse2(expected).unwrap();
         let output = supersuperfy(&orig_ty, 1);
-        assert_eq!(format!("{}", quote!(#output)),
-                   format!("{}", quote!(#expected_ty)));
+        assert_eq!(quote!(#output).to_string(),
+                   quote!(#expected_ty).to_string());
     }
 
     #[test]
@@ -1214,8 +1221,8 @@ mod supersuperfy {
             elem: Box::new(parse2(quote!(super::super::T)).unwrap())
         };
         let output = supersuperfy(&Type::Group(orig), 1);
-        assert_eq!(format!("{}", quote!(#output)),
-                   format!("{}", quote!(#expected)));
+        assert_eq!(quote!(#output).to_string(),
+                   quote!(#expected).to_string());
     }
 
     // Just check that it doesn't panic
@@ -1312,9 +1319,9 @@ mod supersuperfy_generics {
         supersuperfy_generics(&mut output, 1);
         let (o_ig, o_tg, o_wc) = output.split_for_impl();
         let (e_ig, e_tg, e_wc) = expected_g.split_for_impl();
-        assert_eq!(format!("{}", quote!(#o_ig)), format!("{}", quote!(#e_ig)));
-        assert_eq!(format!("{}", quote!(#o_tg)), format!("{}", quote!(#e_tg)));
-        assert_eq!(format!("{}", quote!(#o_wc)), format!("{}", quote!(#e_wc)));
+        assert_eq!(quote!(#o_ig).to_string(), quote!(#e_ig).to_string());
+        assert_eq!(quote!(#o_tg).to_string(), quote!(#e_tg).to_string());
+        assert_eq!(quote!(#o_wc).to_string(), quote!(#e_wc).to_string());
     }
 
     #[test]
