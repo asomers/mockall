@@ -7,10 +7,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - `#[automock]` now works on modules even without the `nightly` feature, and no
-  longer requires `#[feature(proc_macro_hygiene)]`
+  longer requires `#[feature(proc_macro_hygiene)]`.
   ([#198](https://github.com/asomers/mockall/pull/198))
 
 ### Changed
+
+- Changed the syntax for mocking foreign functions.  Instead of using
+  `#[automock]` directly on the `extern` block, you must wrap the `extern`
+  block in a module, and `#[automock]` that module.  The old method is
+  deprecated.
+  ([#201](https://github.com/asomers/mockall/pull/201))
+
 ### Fixed
 
 - Fixed Clippy warnings for mocked methods with `Vec` or `String` arguments.

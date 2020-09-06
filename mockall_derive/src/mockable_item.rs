@@ -51,6 +51,7 @@ impl From<MockableStruct> for MockableItem {
 }
 
 pub(crate) struct MockableModule {
+    pub attrs: TokenStream,
     pub vis: Visibility,
     pub mock_ident: Ident,
     pub mod_token: token::Mod,
@@ -70,6 +71,9 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
         let vis = Visibility::Public(VisPublic{
             pub_token: <Token![pub]>::default()
         });
+        let attrs = quote!(
+            #[deprecated(since = "0.9.0", note = "Using automock directly on an extern block is deprecated.  Instead, wrap the extern block in a module, and automock that, like #[automoock] mod ffi { extern \"C\" { fn foo ... } }")]
+        );
         let mut content = vec![
             // When mocking extern blocks, we pretend that they're modules, so
             // we need a "use super::*;" to ensure that types can resolve
@@ -135,7 +139,14 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                     }
                 }
             }));
-        MockableModule { vis, mock_ident, mod_token, orig_ident, content }
+        MockableModule {
+            attrs,
+            vis,
+            mock_ident,
+            mod_token,
+            orig_ident,
+            content
+        }
     }
 }
 
@@ -155,6 +166,13 @@ impl From<ItemMod> for MockableModule {
             "automock can only mock inline modules, not modules from another file");
             Vec::new()
         };
-        MockableModule { vis, mock_ident, mod_token, orig_ident, content }
+        MockableModule {
+            attrs: TokenStream::new(),
+            vis,
+            mock_ident,
+            mod_token,
+            orig_ident,
+            content
+        }
     }
 }

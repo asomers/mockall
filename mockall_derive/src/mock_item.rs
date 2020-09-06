@@ -40,6 +40,7 @@ enum MockItemContent {
 }
 
 pub(crate) struct MockItemModule {
+    attrs: TokenStream,
     vis: Visibility,
     mock_ident: Ident,
     orig_ident: Option<Ident>,
@@ -50,19 +51,23 @@ impl From<MockableModule> for MockItemModule {
     fn from(mod_: MockableModule) -> MockItemModule {
         let mock_ident = mod_.mock_ident.clone();
         let orig_ident = mod_.orig_ident;
-        let content = mod_.content.into_iter().filter_map(|item| {
+        let mut content = Vec::new();
+        for item in mod_.content.into_iter() {
             let span = item.span();
             match item {
                 Item::ExternCrate(_) | Item::Impl(_) =>
                 {
                     // Ignore
-                    None
                 },
                 Item::Static(is) => {
-                    Some(MockItemContent::Tokens(is.into_token_stream()))
+                    content.push(
+                        MockItemContent::Tokens(is.into_token_stream())
+                    );
                 },
                 Item::Const(ic) => {
-                    Some(MockItemContent::Tokens(ic.into_token_stream()))
+                    content.push(
+                        MockItemContent::Tokens(ic.into_token_stream())
+                    );
                 },
                 Item::Fn(f) => {
                     let mf = mock_function::Builder::new(&f.sig, &f.vis)
@@ -71,33 +76,55 @@ impl From<MockableModule> for MockItemModule {
                         .levels(1)
                         .call_levels(0)
                         .build();
-                    Some(MockItemContent::Fn(mf))
+                    content.push(MockItemContent::Fn(mf));
                 },
-                Item::Mod(_) | Item::ForeignMod(_)
+                Item::ForeignMod(ifm) => {
+                    for item in ifm.items {
+                        if let ForeignItem::Fn(mut f) = item {
+                            // Foreign functions are always unsafe.  Mock
+                            // foreign functions should be unsafe too, to
+                            // prevent "warning: unused unsafe" messages.
+                            f.sig.unsafety = Some(Token![unsafe](f.span()));
+                            let mf = mock_function::Builder::new(&f.sig, &f.vis)
+                                .attrs(&f.attrs)
+                                .parent(&mock_ident)
+                                .levels(1)
+                                .call_levels(0)
+                                .build();
+                            content.push(MockItemContent::Fn(mf));
+                        } else {
+                            compile_error(item.span(),
+                                "Mockall does not yet support  this type in this position.  Please open an issue with your use case at https://github.com/asomers/mockall");
+                        }
+                    }
+                },
+                Item::Mod(_)
                     | Item::Struct(_) | Item::Enum(_)
                     | Item::Union(_) | Item::Trait(_) =>
                 {
                     compile_error(span,
                         "Mockall does not yet support deriving nested mocks");
-                    None
                 },
                 Item::Type(ty) => {
-                    Some(MockItemContent::Tokens(ty.into_token_stream()))
+                    content.push(
+                        MockItemContent::Tokens(ty.into_token_stream())
+                    );
                 },
                 Item::TraitAlias(ta) => {
-                    Some(MockItemContent::Tokens(ta.into_token_stream()))
+                    content.push
+                        (MockItemContent::Tokens(ta.into_token_stream())
+                    );
                 },
                 Item::Use(u) => {
-                    Some(MockItemContent::Tokens(u.into_token_stream()))
+                    content.push(
+                        MockItemContent::Tokens(u.into_token_stream())
+                    );
                 },
-                _ => {
-                    compile_error(span, "Unsupported item");
-                    None
-                }
+                _ => compile_error(span, "Unsupported item")
             }
-        }).collect::<Vec<_>>();
-
+        }
         MockItemModule {
+            attrs: mod_.attrs,
             vis: mod_.vis,
             mock_ident: mod_.mock_ident,
             orig_ident,
@@ -110,6 +137,7 @@ impl ToTokens for MockItemModule {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let mut body = TokenStream::new();
         let mut cp_body = TokenStream::new();
+        let attrs = &self.attrs;
         let modname = &self.mock_ident;
         let vis = &self.vis;
 
@@ -146,6 +174,7 @@ impl ToTokens for MockItemModule {
             }
         };
         quote!(
+            #attrs
             #docstr
             #vis mod #modname {
                 #body

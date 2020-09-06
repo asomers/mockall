@@ -1,25 +1,18 @@
 // vim: tw=80
+//! automock can work directly on extern blocks, though it's deprecated
+#![allow(deprecated)]
 #![deny(warnings)]
 
 use mockall::*;
 
-#[automock]
-mod ffi {
-    extern "C" {
-        pub(super) fn foo(x: u32) -> i64;
-        // Every should_panic method needs to operate on a separate method so it
-        // doesn't poison other tests
-        #[allow(unused)]
-        pub(super) fn foo1(x: u32) -> i64;
-    }
-}
-
-// Ensure we can still use the original mocked function
-#[allow(dead_code)]
-fn normal_usage() {
-    unsafe {
-        ffi::foo(42);
-    }
+#[automock(mod mock_ffi;)]
+extern "C" {
+    #[allow(unused)]
+    fn foo(x: u32) -> i64;
+    // Every should_panic method needs to operate on a separate method so it
+    // doesn't poison other tests
+    #[allow(unused)]
+    fn foo1(x: u32) -> i64;
 }
 
 #[test]
