@@ -5,17 +5,20 @@ test_task:
         image: rust:1.42.0
       env:
         RUSTFLAGS: -Dwarnings
+        RUSTDOCFLAGS: -Dwarnings
     - name: stable
       container:
         image: rust:latest
       env:
         RUSTFLAGS: -Dwarnings
+        RUSTDOCFLAGS: -Dwarnings
     - name: nightly
       container:
         image: rustlang/rust:nightly
       env:
         CARGO_ARGS: --all-features
         RUSTFLAGS: -Dwarnings
+        RUSTDOCFLAGS: -Dwarnings
   cargo_cache:
     folder: $CARGO_HOME/registry
   build_script:
@@ -39,6 +42,7 @@ minver_task:
     image: rustlang/rust:nightly
   env:
     RUSTFLAGS: -Dwarnings
+    RUSTDOCFLAGS: -Dwarnings
   cargo_cache:
     folder: $CARGO_HOME/registry
   test_script:
