@@ -1081,7 +1081,6 @@
 #![cfg_attr(feature = "nightly", allow(incomplete_features))]
 
 #![cfg_attr(feature = "nightly", feature(doc_cfg))]
-#![deny(broken_intra_doc_links)]
 #![cfg_attr(test, deny(warnings))]
 
 use downcast::*;
