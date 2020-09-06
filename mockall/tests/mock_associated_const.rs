@@ -19,7 +19,7 @@ mock! {
         const Y: i32 = 69;
         fn foo(&self);
     }
-    trait Foo {
+    impl Foo for Foo {
         const X: i32 = 42;
     }
 }

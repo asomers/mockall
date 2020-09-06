@@ -19,7 +19,7 @@ mock!{
         fn foo(&self);
     }
     /// Trait docs
-    trait Tr {
+    impl Tr for Foo {
         /// Trait method docs
         fn bar(&self);
     }

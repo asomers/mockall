@@ -14,7 +14,6 @@ pub(crate) struct MockTrait {
     pub attrs: Vec<Attribute>,
     pub consts: Vec<ImplItemConst>,
     pub struct_generics: Generics,
-    pub trait_generics: Generics,
     pub methods: Vec<MockFunction>,
     pub path: Path,
     structname: Ident,
@@ -47,13 +46,7 @@ impl MockTrait {
             compile_error(impl_.span(), "impl block must implement a trait");
             Path::from(format_ident!("__mockall_invalid"))
         };
-        let ident = if let Some(ident) = path.get_ident() {
-            ident.clone()
-        } else {
-            compile_error(path.span(),
-                "impl block's trait must be imported directly into the local namespace with `use`");
-            format_ident!("__mockall_invalid")
-        };
+        let ident = &path.segments.last().unwrap().ident;
 
         for ii in impl_.items.into_iter() {
             match ii {
@@ -67,7 +60,7 @@ impl MockTrait {
                         .call_levels(0)
                         .struct_(structname)
                         .struct_generics(struct_generics)
-                        .trait_(&ident)
+                        .trait_(ident)
                         .build();
                     methods.push(mf);
                 },
@@ -84,7 +77,6 @@ impl MockTrait {
             attrs: impl_.attrs,
             consts,
             struct_generics: struct_generics.clone(),
-            trait_generics: impl_.generics,
             methods,
             path,
             structname: structname.clone(),
@@ -102,7 +94,6 @@ impl MockTrait {
     pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
         let attrs = &self.attrs;
         let (ig, tg, wc) = self.struct_generics.split_for_impl();
-        let (_, t_tg, _) = self.trait_generics.split_for_impl();
         let consts = &self.consts;
         let calls = self.methods.iter()
                 .map(|meth| meth.call(Some(modname)))
@@ -120,7 +111,7 @@ impl MockTrait {
         let types = &self.types;
         quote!(
             #(#attrs)*
-            impl #ig #path #t_tg for #structname #tg #wc {
+            impl #ig #path for #structname #tg #wc {
                 #(#consts)*
                 #(#types)*
                 #(#calls)*

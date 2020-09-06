@@ -9,7 +9,7 @@ trait Foo {
 
 mock! {
     Bar<T: Copy + 'static> {}
-    trait Foo {
+    impl<T: Copy + 'static> Foo for Bar<T> {
         fn foo(&self, x: u32) -> u32;
     }
 }

@@ -743,11 +743,11 @@
 //!     // Structure to mock
 //!     C {}
 //!     // First trait to implement on C
-//!     trait A {
+//!     impl A for C {
 //!         fn foo(&self);
 //!     }
 //!     // Second trait to implement on C
-//!     trait B: A {
+//!     impl B for C {
 //!         fn bar(&self);
 //!     }
 //! }
@@ -770,7 +770,7 @@
 //! # use mockall::*;
 //! mock! {
 //!     MyStruct {}     // Name of the mock struct, less the "Mock" prefix
-//!     trait Clone {   // definition of the trait to mock
+//!     impl Clone for MyStruct {   // specification of the trait to mock
 //!         fn clone(&self) -> Self;
 //!     }
 //! }
@@ -1009,7 +1009,7 @@
 //! mock! {
 //!     pub Bar {}
 //!     #[async_trait]
-//!     trait Foo {
+//!     impl Foo for Bar {
 //!         async fn foo(&self) -> u32;
 //!     }
 //! }
@@ -1201,8 +1201,8 @@ pub use mockall_derive::automock;
 /// * Real structure name and generics fields
 /// * 0 or more methods of the structure, written without bodies, enclosed in a
 ///   {} block
-/// * 0 or more traits to implement for the structure, written like normal
-///   traits
+/// * 0 or more impl blocks implementing traits on the structure, also without
+///   bodies.
 ///
 /// # Examples
 ///
@@ -1216,7 +1216,7 @@ pub use mockall_derive::automock;
 ///     pub MyStruct<T: Clone + 'static> {
 ///         fn bar(&self) -> u8;
 ///     }
-///     trait Foo {
+///     impl Foo for MyStruct {
 ///         fn foo(&self, x: u32);
 ///     }
 /// }
@@ -1230,7 +1230,7 @@ pub use mockall_derive::automock;
 /// # use mockall_derive::mock;
 /// mock!{
 ///     pub Rc<T: 'static> {}
-///     trait AsRef<T> {
+///     impl<T: 'static> AsRef<T> for Rc<T> {
 ///         fn as_ref(&self) -> &T;
 ///     }
 /// }
@@ -1241,7 +1241,7 @@ pub use mockall_derive::automock;
 /// # use mockall_derive::mock;
 /// mock!{
 ///     pub Rc<Q: 'static> {}
-///     trait AsRef<T: 'static> {
+///     impl<T: 'static> AsRef<T> for Rc<T> {
 ///         fn as_ref(&self) -> &T;
 ///     }
 /// }
@@ -1255,7 +1255,7 @@ pub use mockall_derive::automock;
 /// # use mockall_derive::mock;
 /// mock!{
 ///     MyIter {}
-///     trait Iterator {
+///     impl Iterator for MyIter {
 ///         type Item=u32;
 ///
 ///         fn next(&mut self) -> Option<u32>;
@@ -1268,7 +1268,7 @@ pub use mockall_derive::automock;
 /// # use mockall_derive::mock;
 /// mock!{
 ///     MyIter {}
-///     trait Iterator {
+///     impl Iterator for MyIter {
 ///         type Item=u32;
 ///
 ///         fn next(&mut self) -> Option<<Self as Iterator>::Item>;

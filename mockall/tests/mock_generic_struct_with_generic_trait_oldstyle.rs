@@ -1,5 +1,7 @@
 // vim: tw=80
+//! A generic struct with a generic trait, using the <= 0.8.0 syntax
 #![deny(warnings)]
+#![allow(deprecated)]
 
 use mockall::*;
 
@@ -8,7 +10,7 @@ trait Foo<T: 'static> {
 }
 mock! {
     Bar<T: 'static, Z: 'static> {}
-    impl<T: 'static, Z: 'static> Foo<T> for Bar<T, Z> {
+    trait Foo<T: 'static> {
         fn foo(&self, x: T) -> T;
     }
 }

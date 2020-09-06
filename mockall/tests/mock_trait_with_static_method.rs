@@ -9,7 +9,7 @@ trait Bar {
 
 mock!{
     pub Foo {}
-    trait Bar {
+    impl Bar for Foo {
         fn baz(x: u32) -> u64;
     }
 }

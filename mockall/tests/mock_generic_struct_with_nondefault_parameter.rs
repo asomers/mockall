@@ -12,7 +12,7 @@ trait Foo<T: 'static> {
 }
 mock! {
     ExternalStruct<T: 'static> {}
-    trait Foo<T: 'static> {
+    impl<T: 'static> Foo<T> for ExternalStruct<T> {
         fn foo(&self) -> T;
     }
 }

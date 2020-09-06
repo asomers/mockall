@@ -218,7 +218,8 @@ impl ToTokens for MockItemStruct {
                     fieldname: format_ident!("{}_expectations", trait_.name()),
                     methods: Methods(trait_.methods.clone()),
                     modname: format_ident!("{}_{}", &self.modname, trait_.name()),
-                    name: format_ident!("{}_{}", &self.name, trait_.name()),
+                    name: format_ident!("{}_{}", &self.name, trait_.name(),
+                        span = trait_.name().span()),
                 }
             }).collect::<Vec<_>>();
         let substruct_expectations = substructs.iter()

@@ -14,10 +14,10 @@ trait B: A {
 
 mock!{
     B {}
-    trait A {
+    impl A for B {
         fn foo(&self);
     }
-    trait B {
+    impl B for B {
         fn bar(&self);
     }
 }

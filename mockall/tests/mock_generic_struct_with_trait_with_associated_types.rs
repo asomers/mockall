@@ -5,7 +5,7 @@ use mockall::*;
 
 mock! {
     Foo<T: 'static> {}
-    trait Iterator {
+    impl<T: 'static> Iterator for Foo<T> {
         type Item=T;
         fn next(&mut self) -> Option<T>;
     }

@@ -9,7 +9,7 @@ trait Foo {
 
 mock!{
     MyStruct {}
-    trait Foo {
+    impl Foo for MyStruct {
         fn foo<T: 'static>(&self, t: T) -> &u32;
     }
 }
