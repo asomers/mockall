@@ -3,14 +3,19 @@ test_task:
     - name: 1.42.0
       container:
         image: rust:1.42.0
+      env:
+        RUSTFLAGS: -Dwarnings
     - name: stable
       container:
         image: rust:latest
+      env:
+        RUSTFLAGS: -Dwarnings
     - name: nightly
       container:
         image: rustlang/rust:nightly
       env:
         CARGO_ARGS: --all-features
+        RUSTFLAGS: -Dwarnings
   cargo_cache:
     folder: $CARGO_HOME/registry
   build_script:
@@ -30,9 +35,10 @@ minver_task:
     - stable
     - nightly
     - clippy
-  matrix:
-    - container:
-       image: rustlang/rust:nightly
+  container:
+    image: rustlang/rust:nightly
+  env:
+    RUSTFLAGS: -Dwarnings
   cargo_cache:
     folder: $CARGO_HOME/registry
   test_script:
