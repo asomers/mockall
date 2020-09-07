@@ -3,10 +3,6 @@
 
 use mockall::*;
 
-trait Foo {
-    fn foo<O>(&self) -> O;
-}
-
 mock! {
     Foo {
         fn foo<O: 'static>(&self) -> O;

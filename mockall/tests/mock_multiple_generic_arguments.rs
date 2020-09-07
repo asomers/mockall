@@ -3,9 +3,6 @@
 
 use mockall::*;
 
-trait Foo {
-    fn foo<T, Q>(&self, t: T, q: Q);
-}
 
 mock! {
     Foo {
