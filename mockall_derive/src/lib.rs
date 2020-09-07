@@ -976,15 +976,20 @@ fn mock_it<M: Into<MockableItem>>(inputs: M) -> TokenStream
     ts
 }
 
-#[proc_macro]
-pub fn mock(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let item: MockableStruct = match syn::parse2(input.into()) {
+fn do_mock(input: TokenStream) -> TokenStream
+{
+    let item: MockableStruct = match syn::parse2(input) {
         Ok(mock) => mock,
         Err(err) => {
-            return err.to_compile_error().into();
+            return err.to_compile_error();
         }
     };
-    mock_it(item).into()
+    mock_it(item)
+}
+
+#[proc_macro]
+pub fn mock(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    do_mock(input.into()).into()
 }
 
 #[proc_macro_attribute]
@@ -1018,21 +1023,59 @@ fn do_automock(attrs: TokenStream, input: TokenStream) -> TokenStream {
 mod t {
     use super::*;
 
+fn assert_contains(output: &str, tokens: TokenStream) {
+    let s = tokens.to_string();
+    assert!(output.contains(&s), "output does not contain {:?}", &s);
+}
+
+fn assert_not_contains(output: &str, tokens: TokenStream) {
+    let s = tokens.to_string();
+    assert!(!output.contains(&s), "output does not contain {:?}", &s);
+}
+
+/// Various tests for overall code generation that are hard or impossible to
+/// write as integration tests
+mod mock {
+    use std::str::FromStr;
+    use super::super::*;
+    use super::*;
+
+    #[test]
+    fn inherent_method_visibility() {
+        let code = r#"
+            Foo {
+                fn foo(&self);
+                pub fn bar(&self);
+                pub(crate) fn baz(&self);
+                pub(super) fn bean(&self);
+                pub(in crate::outer) fn boom(&self);
+            }
+        "#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let output = do_mock(ts).to_string();
+        assert_not_contains(&output, quote!(pub fn foo));
+        assert!(!output.contains(") fn foo"));
+        assert_contains(&output, quote!(pub fn bar));
+        assert_contains(&output, quote!(pub(crate) fn baz));
+        assert_contains(&output, quote!(pub(super) fn bean));
+        assert_contains(&output, quote!(pub(in crate::outer) fn boom));
+
+        assert_not_contains(&output, quote!(pub fn expect_foo));
+        assert!(!output.contains("pub fn expect_foo"));
+        assert!(!output.contains(") fn expect_foo"));
+        assert_contains(&output, quote!(pub fn expect_bar));
+        assert_contains(&output, quote!(pub(crate) fn expect_baz));
+        assert_contains(&output, quote!(pub(super) fn expect_bean));
+        assert_contains(&output, quote!(pub(in crate::outer) fn expect_boom));
+    }
+}
+
 /// Various tests for overall code generation that are hard or impossible to
 /// write as integration tests
 mod automock {
     use std::str::FromStr;
     use super::super::*;
-
-    fn assert_contains(output: &str, tokens: TokenStream) {
-        let s = tokens.to_string();
-        assert!(output.contains(&s), "output does not contain {:?}", &s);
-    }
-
-    fn assert_not_contains(output: &str, tokens: TokenStream) {
-        let s = tokens.to_string();
-        assert!(!output.contains(&s), "output does not contain {:?}", &s);
-    }
+    use super::*;
 
     #[test]
     fn doc_comments() {
@@ -1062,8 +1105,9 @@ mod automock {
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
         assert_not_contains(&output, quote!(pub fn foo));
+        assert!(!output.contains(") fn foo"));
         assert_not_contains(&output, quote!(pub fn expect_foo));
-        assert_not_contains(&output, quote!(pub fn expect_foo));
+        assert!(!output.contains(") fn expect_foo"));
         assert_contains(&output, quote!(pub fn bar));
         assert_contains(&output, quote!(pub fn expect_bar));
         assert_contains(&output, quote!(pub(super) fn baz));

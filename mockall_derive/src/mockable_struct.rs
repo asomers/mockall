@@ -467,13 +467,13 @@ impl Parse for MockableStruct {
         let mut consts = Vec::new();
         let mut methods = Vec::new();
         while !impl_content.is_empty() {
-            let method: syn::TraitItem = impl_content.parse()?;
-            match method {
-                syn::TraitItem::Method(mut meth) => {
-                    mockable_trait_method(&mut meth, &name, &generics);
-                    methods.push(tim2iim(meth, &vis))
+            let item: ImplItem = impl_content.parse()?;
+            match item {
+                ImplItem::Method(mut iim) => {
+                    mockable_method(&mut iim, &name, &generics);
+                    methods.push(iim);
                 },
-                TraitItem::Const(iic) => consts.push(tic2iic(iic, &vis)),
+                ImplItem::Const(iic) => consts.push(iic),
                 _ => {
                     return Err(input.error("Unsupported in this context"));
                 }
