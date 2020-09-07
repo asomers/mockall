@@ -93,8 +93,8 @@ fn deanonymize(literal_type: &mut Type) {
         Type::Never(_) => (),
         Type::Paren(tp) => deanonymize(tp.elem.as_mut()),
         Type::Path(tp) => {
-            if let Some(ref _qself) = tp.qself {
-                compile_error(tp.span(), "QSelf is TODO");
+            if let Some(ref mut qself) = tp.qself {
+                deanonymize(qself.ty.as_mut());
             }
             deanonymize_path(&mut tp.path);
         },
@@ -316,8 +316,8 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
             }
         }
         Type::Path(type_path) => {
-            if let Some(ref _qself) = type_path.qself {
-                compile_error(type_path.span(), "QSelf is TODO");
+            if let Some(ref mut qself) = type_path.qself {
+                deselfify(qself.ty.as_mut(), actual, generics);
             }
             let p = &mut type_path.path;
             for seg in p.segments.iter_mut() {
@@ -567,20 +567,8 @@ fn pat_is_self(pat: &Pat) -> bool {
     }
 }
 
-fn supersuperfy_path(path: &mut Path, levels: i32) {
-    if let Some(t) = path.segments.first() {
-        if t.ident == "super" {
-            let mut ident = format_ident!("super");
-            ident.set_span(path.segments.span());
-            let ps = PathSegment {
-                ident,
-                arguments: PathArguments::None
-            };
-            for _ in 0..levels {
-                path.segments.insert(0, ps.clone());
-            }
-        }
-    }
+/// Add `levels` `super::` to the path.  Return the number of levels added.
+fn supersuperfy_path(path: &mut Path, levels: usize) -> usize {
     if let Some(t) = path.segments.last_mut() {
         match &mut t.arguments {
             PathArguments::None => (),
@@ -610,12 +598,30 @@ fn supersuperfy_path(path: &mut Path, levels: i32) {
             },
         }
     }
+    if let Some(t) = path.segments.first() {
+        if t.ident == "super" {
+            let mut ident = format_ident!("super");
+            ident.set_span(path.segments.span());
+            let ps = PathSegment {
+                ident,
+                arguments: PathArguments::None
+            };
+            for _ in 0..levels {
+                path.segments.insert(0, ps.clone());
+            }
+            levels
+        } else {
+            0
+        }
+    } else {
+        0
+    }
 }
 
 /// Replace any references to `super::X` in `original` with `super::super::X`.
-fn supersuperfy(original: &Type, levels: i32) -> Type {
+fn supersuperfy(original: &Type, levels: usize) -> Type {
     let mut output = original.clone();
-    fn recurse(t: &mut Type, levels: i32) {
+    fn recurse(t: &mut Type, levels: usize) {
         match t {
             Type::Slice(s) => {
                 recurse(s.elem.as_mut(), levels);
@@ -643,10 +649,11 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
                 }
             }
             Type::Path(type_path) => {
-                if let Some(ref _qself) = type_path.qself {
-                    compile_error(type_path.span(), "QSelf is TODO");
+                let added = supersuperfy_path(&mut type_path.path, levels);
+                if let Some(ref mut qself) = type_path.qself {
+                    recurse(qself.ty.as_mut(), levels);
+                    qself.position += added;
                 }
-                supersuperfy_path(&mut type_path.path, levels);
             },
             Type::Paren(p) => {
                 recurse(p.elem.as_mut(), levels);
@@ -664,7 +671,7 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
             Type::TraitObject(tto) => {
                 for bound in tto.bounds.iter_mut() {
                     if let TypeParamBound::Trait(tb) = bound {
-                        supersuperfy_path(&mut tb.path, levels)
+                        supersuperfy_path(&mut tb.path, levels);
                     }
                 }
             },
@@ -679,7 +686,7 @@ fn supersuperfy(original: &Type, levels: i32) -> Type {
     output
 }
 
-fn supersuperfy_generics(generics: &mut Generics, levels: i32) {
+fn supersuperfy_generics(generics: &mut Generics, levels: usize) {
     for param in generics.params.iter_mut() {
         if let GenericParam::Type(tp) = param {
             supersuperfy_bounds(&mut tp.bounds, levels);
@@ -700,7 +707,7 @@ fn supersuperfy_generics(generics: &mut Generics, levels: i32) {
 
 fn supersuperfy_bounds(
     bounds: &mut Punctuated<TypeParamBound, Token![+]>,
-    levels: i32)
+    levels: usize)
 {
     for bound in bounds.iter_mut() {
         if let TypeParamBound::Trait(tb) = bound {
@@ -913,10 +920,9 @@ fn split_lifetimes(
 /// # Arguments
 /// - `vis`:    Original visibility of the item
 /// - `levels`: How many modules will the mock item be nested in?
-fn expectation_visibility(vis: &Visibility, levels: i32)
+fn expectation_visibility(vis: &Visibility, levels: usize)
     -> Visibility
 {
-    debug_assert!(levels >= 0);
     if levels == 0 {
         return vis.clone();
     }
@@ -1096,6 +1102,35 @@ mod automock {
     }
 }
 
+mod deselfify {
+    use super::*;
+
+    fn check_deselfify(
+        orig_ts: TokenStream,
+        actual_ts: TokenStream,
+        generics_ts: TokenStream,
+        expected_ts: TokenStream)
+    {
+        let mut ty: Type = parse2(orig_ts).unwrap();
+        let actual: Ident = parse2(actual_ts).unwrap();
+        let generics: Generics = parse2(generics_ts).unwrap();
+        let expected: Type = parse2(expected_ts).unwrap();
+        deselfify(&mut ty, &actual, &generics);
+        assert_eq!(quote!(#ty).to_string(),
+                   quote!(#expected).to_string());
+    }
+
+    #[test]
+    fn qself() {
+        check_deselfify(
+            quote!(<Self as Self>::Self),
+            quote!(Foo),
+            quote!(),
+            quote!(<Foo as Foo>::Foo)
+        );
+    }
+}
+
 mod merge_generics {
     use super::*;
 
@@ -1250,6 +1285,14 @@ mod supersuperfy {
         check_supersuperfy(
             quote!(::super::SuperT<u32>),
             quote!(::super::super::SuperT<u32>)
+        );
+    }
+
+    #[test]
+    fn path_with_qself() {
+        check_supersuperfy(
+            quote!(<super::X as super::Y>::Foo<u32>),
+            quote!(<super::super::X as super::super::Y>::Foo<u32>),
         );
     }
 
