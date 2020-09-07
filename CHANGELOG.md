@@ -26,6 +26,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- `mock!` now requires visibility specifiers for inherent methods.
+  ([#207](https://github.com/asomers/mockall/pull/207))
+
 - Changed the syntax for mocking foreign functions.  Instead of using
   `#[automock]` directly on the `extern` block, you must wrap the `extern`
   block in a module, and `#[automock]` that module.  The old method is
