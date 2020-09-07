@@ -14,7 +14,7 @@ mock! {
     Foo<T: 'static> where T: Clone {
         fn foo(&self, t: T) -> T;
     }
-    trait Bar {
+    impl<T: 'static> Bar for Foo<T> where T: Clone {
         fn bar(&self);
     }
 }

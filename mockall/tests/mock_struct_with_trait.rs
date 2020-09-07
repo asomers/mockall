@@ -9,7 +9,7 @@ trait Foo {
 
 mock!{
     pub Bar {}
-    trait Foo {
+    impl Foo for Bar {
         fn foo(&self, x: u32) -> i64;
     }
 }

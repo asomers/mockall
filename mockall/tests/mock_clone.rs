@@ -7,7 +7,7 @@ use mockall::*;
 
 mock! {
     pub A {}
-    trait Clone {
+    impl Clone for A {
         fn clone(&self) -> Self;
     }
 }

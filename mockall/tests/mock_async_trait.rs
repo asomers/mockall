@@ -14,7 +14,7 @@ pub trait Foo {
 mock! {
     pub Bar { }
     #[async_trait]
-    trait Foo {
+    impl Foo for Bar {
         async fn foo(&self) -> u32;
     }
 }

@@ -10,7 +10,7 @@ trait Foo {
 
 mock! {
     pub Bar {}
-    trait Foo {
+    impl Foo for Bar {
         fn foo(&self) -> &u32;
     }
 }

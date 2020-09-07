@@ -17,7 +17,7 @@ mock! {
     Foo {
         fn inherent_method(&self) -> X<'_>;
     }
-    trait T {
+    impl T for Foo {
         fn trait_method(&self) -> X<'_>;
     }
 }

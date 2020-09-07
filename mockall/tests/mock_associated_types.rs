@@ -5,7 +5,7 @@ use mockall::*;
 
 mock! {
     MyIter {}
-    trait Iterator {
+    impl Iterator for MyIter {
         type Item=u32;
 
         fn next(&mut self) -> Option<u32>;

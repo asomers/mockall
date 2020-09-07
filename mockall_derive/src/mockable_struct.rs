@@ -166,9 +166,20 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
         (last_seg.ident.clone(), last_seg.arguments.clone())
 }
 
+/// Performs transformations on the ItemImpl to make it mockable
+fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
+    -> ItemImpl
+{
+    for item in impl_.items.iter_mut() {
+        if let ImplItem::Method(ref mut iim) = item {
+            mockable_method(iim, name, generics);
+        }
+    }
+    impl_
+}
+
 /// Performs transformations on the method to make it mockable
-fn mockable_method(mut meth: ImplItemMethod, name: &Ident, generics: &Generics)
-    -> ImplItemMethod
+fn mockable_method(meth: &mut ImplItemMethod, name: &Ident, generics: &Generics)
 {
     demutify(&mut meth.sig.inputs);
     add_lifetime_parameters(&mut meth.sig);
@@ -177,7 +188,6 @@ fn mockable_method(mut meth: ImplItemMethod, name: &Ident, generics: &Generics)
         deselfify(ty, name, generics);
         deanonymize(ty);
     }
-    meth
 }
 
 /// Performs transformations on the method to make it mockable
@@ -195,16 +205,49 @@ fn mockable_trait_method(
     }
 }
 
-/// Performs transformations on the trait to make it mockable
-fn mockable_trait(mut trait_: ItemTrait, name: &Ident, generics: &Generics)
-    -> ItemTrait
+/// Generates a mockable item impl from a trait method definition
+fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
+    -> ItemImpl
 {
-    for item in trait_.items.iter_mut() {
-        if let TraitItem::Method(tim) = item {
-            mockable_trait_method(tim, name, generics);
+    let items = trait_.items.into_iter()
+    .map(|ti| {
+        match ti {
+            TraitItem::Method(mut tim) => {
+                mockable_trait_method(&mut tim, name, generics);
+                ImplItem::Method(tim2iim(tim, &Visibility::Inherited))
+            },
+            TraitItem::Const(tic) => {
+                ImplItem::Const(tic2iic(tic, &Visibility::Inherited))
+            },
+            TraitItem::Type(tit) => {
+                ImplItem::Type(tit2iit(tit, &Visibility::Inherited))
+            },
+            _ => {
+                compile_error(ti.span(), "Unsupported in this context");
+                ImplItem::Verbatim(TokenStream::new())
+            }
         }
+    }).collect::<Vec<_>>();
+    let mut path = Path::from(trait_.ident);
+    let (_, tg, _) = trait_.generics.split_for_impl();
+    if let Ok(abga) = parse2::<AngleBracketedGenericArguments>(quote!(#tg)) {
+        // TODO: delete this ugly hack when we remove the ability to mock traits
+        // with the old syntax
+        path.segments.last_mut().unwrap().arguments =
+            PathArguments::AngleBracketed(abga);
     }
-    trait_
+    ItemImpl {
+        attrs: trait_.attrs,
+        defaultness: None,
+        unsafety: trait_.unsafety,
+        impl_token: <Token![impl]>::default(),
+        generics: trait_.generics,
+        trait_: Some((None, path, <Token![for]>::default())),
+        // For now, self_ty is unused
+        self_ty: Box::new(Type::Verbatim(TokenStream::new())),
+        brace_token: trait_.brace_token,
+        items
+    }
 }
 
 /// Converts a TraitItemConst into an ImplItemConst
@@ -246,6 +289,26 @@ fn tim2iim(m: syn::TraitItemMethod, vis: &syn::Visibility)
     }
 }
 
+/// Converts a TraitItemType into an ImplItemType
+fn tit2iit(tit: TraitItemType, vis: &Visibility) -> ImplItemType {
+    let span = tit.span();
+    let (eq_token, ty) = tit.default.unwrap_or_else(|| {
+        compile_error(span,
+            "associated types in mock! must be fully specified");
+        (token::Eq::default(), Type::Verbatim(TokenStream::new()))
+    });
+    ImplItemType {
+        attrs: tit.attrs,
+        vis: vis.clone(),
+        defaultness: None,
+        type_token: tit.type_token,
+        ident: tit.ident,
+        generics: tit.generics,
+        eq_token,
+        ty,
+        semi_token: tit.semi_token,
+    }
+}
 
 pub(crate) struct MockableStruct {
     pub attrs: Vec<Attribute>,
@@ -255,7 +318,7 @@ pub(crate) struct MockableStruct {
     pub methods: Vec<ImplItemMethod>,
     pub name: Ident,
     pub vis: Visibility,
-    pub traits: Vec<ItemTrait>
+    pub impls: Vec<ItemImpl>
 }
 
 impl From<(Attrs, ItemTrait)> for MockableStruct {
@@ -265,7 +328,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
         let vis = trait_.vis.clone();
         let name = gen_mock_ident(&trait_.ident);
         let generics = trait_.generics.clone();
-        let traits = vec![mockable_trait(trait_, &name, &generics)];
+        let impls = vec![mockable_trait(trait_, &name, &generics)];
         MockableStruct {
             attrs,
             consts: Vec::new(),
@@ -273,7 +336,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
             name,
             generics,
             methods: Vec::new(),
-            traits
+            impls
         }
     }
 }
@@ -295,7 +358,7 @@ impl From<ItemImpl> for MockableStruct {
         let mut methods = Vec::new();
         let pub_token = Token![pub](Span::call_site());
         let vis = Visibility::Public(VisPublic{pub_token});
-        let mut traits = Vec::new();
+        let mut impls = Vec::new();
         if let Some((bang, path, _)) = item_impl.trait_ {
             if bang.is_some() {
                 compile_error(bang.span(), "Unsupported by automock");
@@ -365,14 +428,14 @@ impl From<ItemImpl> for MockableStruct {
                 items
             };
             let trait_ = attrs.substitute_trait(&trait_);
-            traits.push(mockable_trait(trait_, traitname, &generics));
+            impls.push(mockable_trait(trait_, traitname, &generics));
         } else {
             for item in item_impl.items.into_iter() {
                 match item {
-                    ImplItem::Method(meth) =>
-                        methods.push(
-                            mockable_method(meth, &name, &item_impl.generics)
-                        ),
+                    ImplItem::Method(mut meth) => {
+                        mockable_method(&mut meth, &name, &item_impl.generics);
+                        methods.push(meth)
+                    },
                     ImplItem::Const(iic) => consts.push(iic),
                     x => compile_error(x.span(), "TODO 2"),
                 }
@@ -384,7 +447,7 @@ impl From<ItemImpl> for MockableStruct {
             name,
             generics: item_impl.generics,
             methods,
-            traits,
+            impls,
             vis
         }
     }
@@ -399,7 +462,6 @@ impl Parse for MockableStruct {
         let wc: Option<syn::WhereClause> = input.parse()?;
         generics.where_clause = wc;
         let name = gen_mock_ident(&original_name);
-
         let impl_content;
         let _brace_token = braced!(impl_content in input);
         let mut consts = Vec::new();
@@ -418,10 +480,26 @@ impl Parse for MockableStruct {
             }
         }
 
-        let mut traits = Vec::new();
+        let mut impls = Vec::new();
         while !input.is_empty() {
-            let trait_: syn::ItemTrait = input.parse()?;
-            traits.push(mockable_trait(trait_, &name, &generics));
+            let item: Item = input.parse()?;
+            match item {
+                Item::Trait(it) => {
+                    let note = "Deprecated mock! syntax.  Instead of \"trait X\", write \"impl X for Y\".  See PR #205";
+                    let mut impl_ = mockable_trait(it, &name, &generics);
+                    impl_.attrs.push(Attribute {
+                        pound_token: <token::Pound>::default(),
+                        style: AttrStyle::Outer,
+                        bracket_token: token::Bracket::default(),
+                        path: Path::from(format_ident!("deprecated")),
+                        tokens: quote!((since = "0.9.0", note = #note)),
+                    });
+                    impls.push(impl_)
+                },
+                Item::Impl(ii) =>
+                    impls.push(mockable_item_impl(ii, &name, &generics)),
+                _ => return Err(input.error("Unsupported in this context")),
+            }
         }
 
         Ok(
@@ -432,7 +510,7 @@ impl Parse for MockableStruct {
                 name,
                 generics,
                 methods,
-                traits
+                impls
             }
         )
     }

@@ -8,8 +8,8 @@ trait A {}
 trait B {}
 mock!{
     MultiTrait {}
-    trait A  {}
-    trait B  {}
+    impl A for MultiTrait {}
+    impl B for MultiTrait {}
 }
 
 #[test]

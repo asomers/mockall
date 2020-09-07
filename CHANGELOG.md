@@ -6,6 +6,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
+- `mock!` supports a new syntax: "impl Trait for".  It has two benefits:
+  * It can implement a generic trait for specific generic type(s).
+  * It allows mocking a non-local trait.
+  The syntax looks like this:
+  ```rust
+    mock! {
+        Bar {}
+        impl Foo<i32> for Bar {
+            fn foo(&self, x: i32) -> i32;
+        }
+    }
+  ```
+  ([#205](https://github.com/asomers/mockall/pull/205))
+
 - `#[automock]` now works on modules even without the `nightly` feature, and no
   longer requires `#[feature(proc_macro_hygiene)]`.
   ([#198](https://github.com/asomers/mockall/pull/198))
