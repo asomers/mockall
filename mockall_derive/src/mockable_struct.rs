@@ -196,15 +196,41 @@ fn mockable_trait_method(
 }
 
 /// Performs transformations on the trait to make it mockable
-fn mockable_trait(mut trait_: ItemTrait, name: &Ident, generics: &Generics)
-    -> ItemTrait
+fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
+    -> ItemImpl
 {
-    for item in trait_.items.iter_mut() {
-        if let TraitItem::Method(tim) = item {
-            mockable_trait_method(tim, name, generics);
+    let items = trait_.items.into_iter()
+    .map(|ti| {
+        match ti {
+            TraitItem::Method(mut tim) => {
+                mockable_trait_method(&mut tim, name, generics);
+                ImplItem::Method(tim2iim(tim, &Visibility::Inherited))
+            },
+            TraitItem::Const(tic) => {
+                ImplItem::Const(tic2iic(tic, &Visibility::Inherited))
+            },
+            TraitItem::Type(tit) => {
+                ImplItem::Type(tit2iit(tit, &Visibility::Inherited))
+            },
+            _ => {
+                compile_error(ti.span(), "Unsupported in this context");
+                ImplItem::Verbatim(TokenStream::new())
+            }
         }
+    }).collect::<Vec<_>>();
+    let path = Path::from(trait_.ident);
+    ItemImpl {
+        attrs: trait_.attrs,
+        defaultness: None,
+        unsafety: trait_.unsafety,
+        impl_token: <Token![impl]>::default(),
+        generics: trait_.generics,
+        trait_: Some((None, path, <Token![for]>::default())),
+        // For now, self_ty is unused
+        self_ty: Box::new(Type::Verbatim(TokenStream::new())),
+        brace_token: trait_.brace_token,
+        items
     }
-    trait_
 }
 
 /// Converts a TraitItemConst into an ImplItemConst
@@ -246,6 +272,26 @@ fn tim2iim(m: syn::TraitItemMethod, vis: &syn::Visibility)
     }
 }
 
+/// Converts a TraitItemType into an ImplItemType
+fn tit2iit(tit: TraitItemType, vis: &Visibility) -> ImplItemType {
+    let span = tit.span();
+    let (eq_token, ty) = tit.default.unwrap_or_else(|| {
+        compile_error(span,
+            "associated types in mock! must be fully specified");
+        (token::Eq::default(), Type::Verbatim(TokenStream::new()))
+    });
+    ImplItemType {
+        attrs: tit.attrs,
+        vis: vis.clone(),
+        defaultness: None,
+        type_token: tit.type_token,
+        ident: tit.ident,
+        generics: tit.generics,
+        eq_token,
+        ty,
+        semi_token: tit.semi_token,
+    }
+}
 
 pub(crate) struct MockableStruct {
     pub attrs: Vec<Attribute>,
@@ -255,7 +301,7 @@ pub(crate) struct MockableStruct {
     pub methods: Vec<ImplItemMethod>,
     pub name: Ident,
     pub vis: Visibility,
-    pub traits: Vec<ItemTrait>
+    pub impls: Vec<ItemImpl>
 }
 
 impl From<(Attrs, ItemTrait)> for MockableStruct {
@@ -265,7 +311,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
         let vis = trait_.vis.clone();
         let name = gen_mock_ident(&trait_.ident);
         let generics = trait_.generics.clone();
-        let traits = vec![mockable_trait(trait_, &name, &generics)];
+        let impls = vec![mockable_trait(trait_, &name, &generics)];
         MockableStruct {
             attrs,
             consts: Vec::new(),
@@ -273,7 +319,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
             name,
             generics,
             methods: Vec::new(),
-            traits
+            impls
         }
     }
 }
@@ -295,7 +341,7 @@ impl From<ItemImpl> for MockableStruct {
         let mut methods = Vec::new();
         let pub_token = Token![pub](Span::call_site());
         let vis = Visibility::Public(VisPublic{pub_token});
-        let mut traits = Vec::new();
+        let mut impls = Vec::new();
         if let Some((bang, path, _)) = item_impl.trait_ {
             if bang.is_some() {
                 compile_error(bang.span(), "Unsupported by automock");
@@ -365,7 +411,7 @@ impl From<ItemImpl> for MockableStruct {
                 items
             };
             let trait_ = attrs.substitute_trait(&trait_);
-            traits.push(mockable_trait(trait_, traitname, &generics));
+            impls.push(mockable_trait(trait_, traitname, &generics));
         } else {
             for item in item_impl.items.into_iter() {
                 match item {
@@ -384,7 +430,7 @@ impl From<ItemImpl> for MockableStruct {
             name,
             generics: item_impl.generics,
             methods,
-            traits,
+            impls,
             vis
         }
     }
@@ -418,10 +464,10 @@ impl Parse for MockableStruct {
             }
         }
 
-        let mut traits = Vec::new();
+        let mut impls = Vec::new();
         while !input.is_empty() {
             let trait_: syn::ItemTrait = input.parse()?;
-            traits.push(mockable_trait(trait_, &name, &generics));
+            impls.push(mockable_trait(trait_, &name, &generics));
         }
 
         Ok(
@@ -432,7 +478,7 @@ impl Parse for MockableStruct {
                 name,
                 generics,
                 methods,
-                traits
+                impls
             }
         )
     }

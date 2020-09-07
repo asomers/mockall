@@ -1,5 +1,5 @@
 // vim: tw=80
-use quote::{ToTokens, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
     *,
     spanned::Spanned
@@ -12,13 +12,13 @@ use crate::{
 
 pub(crate) struct MockTrait {
     pub attrs: Vec<Attribute>,
-    pub consts: Vec<TraitItemConst>,
+    pub consts: Vec<ImplItemConst>,
     pub struct_generics: Generics,
     pub trait_generics: Generics,
     pub methods: Vec<MockFunction>,
     pub name: Ident,
     structname: Ident,
-    pub types: Vec<TraitItemType>
+    pub types: Vec<ImplItemType>
 }
 
 impl MockTrait {
@@ -31,52 +31,59 @@ impl MockTrait {
     /// # Arguments
     /// * `structname` - name of the struct that implements this trait
     /// * `struct_generics` - Generics of the parent structure
-    /// * `trait_`  -    Mockable ItemTrait
+    /// * `impl_`  -    Mockable ItemImpl for a trait
     /// * `vis`     -   Visibility of the struct
     pub fn new(structname: &Ident,
                struct_generics: &Generics,
-               trait_: ItemTrait,
+               impl_: ItemImpl,
                vis: &Visibility) -> Self
     {
         let mut consts = Vec::new();
         let mut methods = Vec::new();
         let mut types = Vec::new();
-        for ti in trait_.items.into_iter() {
-            match ti {
-                TraitItem::Const(tic) => {
-                    if tic.default.is_none() {
-                        compile_error(tic.span(),
-                            "When mocking trait associated constants, a default value must be given");
-                    }
-                    consts.push(tic);
+        let ident = if let Some((_, path, _)) = impl_.trait_ {
+            if let Some(ident) = path.get_ident() {
+                ident.clone()
+            } else {
+                compile_error(path.span(), "impl block's trait must be imported directly into the local namespace with `use`");
+                format_ident!("__mockall_invalid")
+            }
+        } else {
+            compile_error(impl_.span(), "impl block must implement a trait");
+            format_ident!("__mockall_invalid")
+        };
+        for ii in impl_.items.into_iter() {
+            match ii {
+                ImplItem::Const(iic) => {
+                    consts.push(iic);
                 },
-                TraitItem::Method(tim) => {
-                    let mf = mock_function::Builder::new(&tim.sig, &vis)
-                        .attrs(&tim.attrs)
+                ImplItem::Method(iim) => {
+                    let mf = mock_function::Builder::new(&iim.sig, &vis)
+                        .attrs(&iim.attrs)
                         .levels(2)
                         .call_levels(0)
                         .struct_(structname)
                         .struct_generics(struct_generics)
-                        .trait_(&trait_.ident)
+                        .trait_(&ident)
                         .build();
                     methods.push(mf);
                 },
-                TraitItem::Type(tit) => {
-                    types.push(tit);
+                ImplItem::Type(iit) => {
+                    types.push(iit);
                 },
                 _ => {
-                    compile_error(ti.span(),
+                    compile_error(ii.span(),
                     "This impl item is not yet supported by MockAll");
                 }
             }
         }
         MockTrait {
-            attrs: trait_.attrs,
+            attrs: impl_.attrs,
             consts,
             struct_generics: struct_generics.clone(),
-            trait_generics: trait_.generics,
+            trait_generics: impl_.generics,
             methods,
-            name: trait_.ident,
+            name: ident,
             structname: structname.clone(),
             types
         }

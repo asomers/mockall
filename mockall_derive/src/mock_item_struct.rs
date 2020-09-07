@@ -148,11 +148,11 @@ impl From<MockableStruct> for MockItemStruct {
         let vis = mockable.vis;
         let has_new = mockable.methods.iter()
             .any(|meth| meth.sig.ident == "new") ||
-            mockable.traits.iter()
-            .any(|trait_|
-                trait_.items.iter()
-                    .any(|ti| if let TraitItem::Method(tim) = ti {
-                            tim.sig.ident == "new"
+            mockable.impls.iter()
+            .any(|impl_|
+                impl_.items.iter()
+                    .any(|ii| if let ImplItem::Method(iim) = ii {
+                            iim.sig.ident == "new"
                         } else {
                             false
                         }
@@ -169,8 +169,8 @@ impl From<MockableStruct> for MockItemStruct {
                     .build()
             ).collect::<Vec<_>>());
         let structname = &mockable.name;
-        let traits = mockable.traits.into_iter()
-            .map(|t| MockTrait::new(structname, &generics, t, &vis))
+        let traits = mockable.impls.into_iter()
+            .map(|i| MockTrait::new(structname, &generics, i, &vis))
             .collect();
 
         MockItemStruct {
