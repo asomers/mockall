@@ -374,7 +374,9 @@ impl From<ItemImpl> for MockableStruct {
                             mockable_method(meth, &name, &item_impl.generics)
                         ),
                     ImplItem::Const(iic) => consts.push(iic),
-                    x => compile_error(x.span(), "TODO 2"),
+                    // Rust doesn't allow types in an inherent impl
+                    x => compile_error(x.span(),
+                        "Unsupported by Mockall in this context"),
                 }
             }
         };
