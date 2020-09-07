@@ -6,7 +6,7 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/asomers/mockall"
 categories = ["development-tools::testing"]
 keywords = ["mock", "mocking", "testing"]
-documentation = "https://docs.rs/mockall_derive"
+documentation = "https://docs.rs/mockall_double"
 edition = "2018"
 description = """
 Test double adapter for Mockall
@@ -22,4 +22,4 @@ nightly = ["proc-macro2/nightly"]
 cfg-if = "0.1.6"
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = { version = "1.0.15", features = ["extra-traits", "full"] }
+syn = { version = "1.0.15", features = ["full"] }
