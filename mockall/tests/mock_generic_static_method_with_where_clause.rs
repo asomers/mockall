@@ -5,10 +5,6 @@ use mockall::*;
 
 struct G<T> where T: Copy {t: T}
 
-trait Foo {
-    fn make_g<T>(x: T) -> G<T> where T: Copy;
-}
-
 mock! {
     Foo {
         fn make_g<T: 'static>(x: T) -> G<T> where T: Copy;

@@ -4,11 +4,6 @@
 
 use mockall::*;
 
-trait Foo {
-    fn foo<T>(&self, t: T) -> i32;
-    fn bar<T: 'static>(&self, t: T) -> i32;
-}
-
 mock! {
     Foo {
         fn foo<T: 'static>(&self, t: T) -> i32;

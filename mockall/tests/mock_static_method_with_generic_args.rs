@@ -3,10 +3,6 @@
 
 use mockall::*;
 
-trait Foo {
-    fn bar<T>(x: T);
-}
-
 mock! {
     Foo {
         fn bar<T: 'static>(x: T);
