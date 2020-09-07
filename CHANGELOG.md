@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.8.1] - ReleaseDate
+### Added
+### Changed
+### Fixed
+
+- Fixed using `<X as Y>::Z` syntax in a where clause or a return type.
+  ([#207](https://github.com/asomers/mockall/pull/207))
+
+### Removed
+
 ## [0.8.0] - 29 August 2020
 ### Added
 - Added support for mocking structs and traits with associated constants.
