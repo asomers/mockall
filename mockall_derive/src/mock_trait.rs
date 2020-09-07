@@ -16,14 +16,14 @@ pub(crate) struct MockTrait {
     pub struct_generics: Generics,
     pub trait_generics: Generics,
     pub methods: Vec<MockFunction>,
-    pub name: Ident,
+    pub path: Path,
     structname: Ident,
     pub types: Vec<ImplItemType>
 }
 
 impl MockTrait {
     pub fn name(&self) -> &Ident {
-        &self.name
+        &self.path.segments.last().unwrap().ident
     }
 
     /// Create a new MockTrait
@@ -41,17 +41,20 @@ impl MockTrait {
         let mut consts = Vec::new();
         let mut methods = Vec::new();
         let mut types = Vec::new();
-        let ident = if let Some((_, path, _)) = impl_.trait_ {
-            if let Some(ident) = path.get_ident() {
-                ident.clone()
-            } else {
-                compile_error(path.span(), "impl block's trait must be imported directly into the local namespace with `use`");
-                format_ident!("__mockall_invalid")
-            }
+        let path = if let Some((_, path, _)) = impl_.trait_ {
+            path
         } else {
             compile_error(impl_.span(), "impl block must implement a trait");
+            Path::from(format_ident!("__mockall_invalid"))
+        };
+        let ident = if let Some(ident) = path.get_ident() {
+            ident.clone()
+        } else {
+            compile_error(path.span(),
+                "impl block's trait must be imported directly into the local namespace with `use`");
             format_ident!("__mockall_invalid")
         };
+
         for ii in impl_.items.into_iter() {
             match ii {
                 ImplItem::Const(iic) => {
@@ -83,7 +86,7 @@ impl MockTrait {
             struct_generics: struct_generics.clone(),
             trait_generics: impl_.generics,
             methods,
-            name: ident,
+            path,
             structname: structname.clone(),
             types
         }
@@ -112,12 +115,12 @@ impl MockTrait {
             .filter(|meth| !meth.is_static())
             .map(|meth| meth.expect(&modname))
             .collect::<Vec<_>>();
-        let name = &self.name;
+        let path = &self.path;
         let structname = &self.structname;
         let types = &self.types;
         quote!(
             #(#attrs)*
-            impl #ig #name #t_tg for #structname #tg #wc {
+            impl #ig #path #t_tg for #structname #tg #wc {
                 #(#consts)*
                 #(#types)*
                 #(#calls)*
