@@ -9,7 +9,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Fixed
 
 - Fixed using `<X as Y>::Z` syntax in a where clause or a return type.
-  ([#207](https://github.com/asomers/mockall/pull/207))
+  ([#208](https://github.com/asomers/mockall/pull/208))
 
 ### Removed
 
