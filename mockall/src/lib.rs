@@ -1248,23 +1248,8 @@ pub use mockall_derive::automock;
 /// # fn main() {}
 /// ```
 /// Associated types can easily be mocked by specifying a concrete type in the
-/// `mock!{}` invocation.  But be careful not to reference the associated type
-/// in the signatures of any of the trait's methods; repeat the concrete type
-/// instead.  For example, do:
+/// `mock!{}` invocation.
 /// ```
-/// # use mockall_derive::mock;
-/// mock!{
-///     MyIter {}
-///     impl Iterator for MyIter {
-///         type Item=u32;
-///
-///         fn next(&mut self) -> Option<u32>;
-///     }
-/// }
-/// # fn main() {}
-/// ```
-/// *not*
-/// ```compile_fail
 /// # use mockall_derive::mock;
 /// mock!{
 ///     MyIter {}

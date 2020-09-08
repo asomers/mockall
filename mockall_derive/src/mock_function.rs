@@ -135,8 +135,8 @@ fn type_generics(generics: &Generics) -> Generics {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Builder<'a> {
     attrs: &'a [Attribute],
-    call_levels: Option<i32>,
-    levels: i32,
+    call_levels: Option<usize>,
+    levels: usize,
     parent: Option<&'a Ident>,
     sig: &'a Signature,
     struct_: Option<&'a Ident>,
@@ -285,14 +285,14 @@ impl<'a> Builder<'a> {
 
     /// How many levels of modules beneath the original function this one is
     /// nested.
-    pub fn call_levels(&mut self, levels: i32) -> &mut Self {
+    pub fn call_levels(&mut self, levels: usize) -> &mut Self {
         self.call_levels = Some(levels);
         self
     }
 
     /// How many levels of modules beneath the original function this one's
     /// private module is nested.
-    pub fn levels(&mut self, levels: i32) -> &mut Self {
+    pub fn levels(&mut self, levels: usize) -> &mut Self {
         self.levels = levels;
         self
     }
