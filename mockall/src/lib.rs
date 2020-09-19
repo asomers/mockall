@@ -507,6 +507,25 @@
 //! assert_eq!("abcd", mock.name());
 //! ```
 //!
+//! Similarly, Mockall will use a Boxed trait object for the Expectation of
+//! methods that return references to trait objects.
+//!
+//! ```
+//! # use mockall::*;
+//! # use std::fmt::Display;
+//! #[automock]
+//! trait Foo {
+//!     fn name(&self) -> &dyn Display;
+//! }
+//!
+//! # fn main() {
+//! let mut mock = MockFoo::new();
+//! mock.expect_name().return_const(Box::new("abcd"));
+//! assert_eq!("abcd", format!("{}", mock.name()));
+//! # }
+//! ```
+//!
+//!
 //! ## Impl Trait
 //!
 //! Rust 1.26.0 introduced the `impl Trait` feature.  It allows functions to

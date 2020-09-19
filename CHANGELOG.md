@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
+- Added the ability to mock methods returning references to trait objects.
+  ([#213](https://github.com/asomers/mockall/pull/213))
+
 - `mock!` supports a new syntax: "impl Trait for".  It has two benefits:
   * It can implement a generic trait for specific generic type(s).
   * It allows mocking a non-local trait.
