@@ -40,7 +40,7 @@ cfg_if! {
     // doesn't work in test mode.
     // https://github.com/alexcrichton/proc-macro2/issues/159
     if #[cfg(all(feature = "nightly_derive", not(test)))] {
-        fn compile_error(span: Span, msg: &'static str) {
+        fn compile_error(span: Span, msg: &str) {
             span.unstable()
                 .error(msg)
                 .emit();
@@ -386,9 +386,6 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
             compile_error(literal_type.span(),
                 "mockall_derive does not support this type as a return argument");
         },
-        Type::ImplTrait(_) => {
-            panic!("deimplify should've already been run on this output type");
-        },
         Type::TraitObject(tto) => {
             // Change types like `dyn Self` into `MockXXX`.  For now,
             // don't worry about multiple trait bounds, because they aren't very
@@ -407,6 +404,9 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
                     *literal_type = new_type;
                 }
             }
+        },
+        Type::ImplTrait(_) => {
+            /* Should've already been flagged as a compile_error */
         },
         Type::BareFn(_) => {
             /* Bare functions can't have Self arguments.  Nothing to do */
@@ -664,15 +664,15 @@ fn supersuperfy(original: &Type, levels: usize) -> Type {
                 compile_error(t.span(),
                     "mockall_derive does not support this type in this position");
             },
-            Type::ImplTrait(_) => {
-                panic!("deimplify should've already been run on this output type");
-            },
             Type::TraitObject(tto) => {
                 for bound in tto.bounds.iter_mut() {
                     if let TypeParamBound::Trait(tb) = bound {
                         supersuperfy_path(&mut tb.path, levels);
                     }
                 }
+            },
+            Type::ImplTrait(_) => {
+                /* Should've already been flagged as a compile error */
             },
             Type::Infer(_) | Type::Never(_) =>
             {

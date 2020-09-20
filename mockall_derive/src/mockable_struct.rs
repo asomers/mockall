@@ -188,6 +188,7 @@ fn mockable_method(meth: &mut ImplItemMethod, name: &Ident, generics: &Generics)
         deselfify(ty, name, generics);
         deanonymize(ty);
     }
+    sanity_check_sig(&meth.sig);
 }
 
 /// Performs transformations on the method to make it mockable
@@ -203,6 +204,7 @@ fn mockable_trait_method(
         deselfify(ty, name, generics);
         deanonymize(ty);
     }
+    sanity_check_sig(&meth.sig);
 }
 
 /// Generates a mockable item impl from a trait method definition
@@ -247,6 +249,21 @@ fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
         self_ty: Box::new(Type::Verbatim(TokenStream::new())),
         brace_token: trait_.brace_token,
         items
+    }
+}
+
+fn sanity_check_sig(sig: &Signature) {
+    for arg in sig.inputs.iter() {
+        if let FnArg::Typed(pt) = arg {
+            if let Type::ImplTrait(it) = pt.ty.as_ref() {
+                let bounds = &it.bounds;
+                let s = format!(
+                    "Mockall does not support \"impl trait\" in argument position.  Use \"T: {}\" instead",
+                    quote!(#bounds)
+                );
+                compile_error(it.span(), &s);
+            }
+        }
     }
 }
 
@@ -638,5 +655,18 @@ mod add_lifetime_parameters {
         );
     }
 
+}
+
+mod sanity_check_sig {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "Mockall does not support \"impl trait\" in argument position.  Use \"T: SomeTrait\" instead.")]
+    fn impl_trait() {
+        let meth: ImplItemMethod = parse2(quote!(
+            fn foo(&self, x: impl SomeTrait);
+        )).unwrap();
+        sanity_check_sig(&meth.sig);
     }
+}
 }
