@@ -3,6 +3,29 @@ use super::*;
 
 use quote::ToTokens;
 
+/// Convert a trait object reference into a reference to a Boxed trait
+fn dedynify(ty: &mut Type) {
+    if let Type::Reference(ref mut tr) = ty {
+        if let Type::TraitObject(ref tto) = tr.elem.as_ref() {
+            if let Some(lt) = &tr.lifetime {
+                if lt.ident == "static" {
+                    // For methods that return 'static references, the user can
+                    // usually actually supply one, unlike nonstatic references.
+                    // dedynify is unneeded and harmful in such cases.
+                    //
+                    // But we do need to add parens to prevent parsing errors
+                    // when methods like returning add a `+ Send` to the output
+                    // type.
+                    *tr.elem = parse2(quote!((#tto))).unwrap();
+                    return;
+                }
+            }
+
+            *tr.elem = parse2(quote!(Box<#tto>)).unwrap();
+        }
+    }
+}
+
 /// Convert a special reference type like "&str" into a reference to its owned
 /// type like "&String".
 fn destrify(ty: &mut Type) {
@@ -206,6 +229,7 @@ impl<'a> Builder<'a> {
             ReturnType::Type(_, ref ty) => {
                 let mut output_ty = supersuperfy(&**ty, self.levels);
                 destrify(&mut output_ty);
+                dedynify(&mut output_ty);
                 output_ty
             }
         };
