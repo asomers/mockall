@@ -233,8 +233,6 @@ fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
     let mut path = Path::from(trait_.ident);
     let (_, tg, _) = trait_.generics.split_for_impl();
     if let Ok(abga) = parse2::<AngleBracketedGenericArguments>(quote!(#tg)) {
-        // TODO: delete this ugly hack when we remove the ability to mock traits
-        // with the old syntax
         path.segments.last_mut().unwrap().arguments =
             PathArguments::AngleBracketed(abga);
     }
