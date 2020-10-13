@@ -39,17 +39,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#201](https://github.com/asomers/mockall/pull/201))
 
 ### Fixed
-
-- Fixed Clippy warnings for mocked methods with `Vec` or `String` arguments.
-  ([#195](https://github.com/asomers/mockall/pull/195))
-
 ### Removed
 
 - Removed `times_any` and `times_range` methods from Expectations.  They've
   been deprecated since 0.3.0.
   ([#196](https://github.com/asomers/mockall/pull/196))
 
-## [0.8.1] - ReleaseDate
+## [0.8.2] - 12 October 2020
+### Added
+### Changed
+### Fixed
+
+- Fixed Clippy warnings for mocked methods with `Vec` or `String` arguments.
+  ([#195](https://github.com/asomers/mockall/pull/195))
+
+## [0.8.1] - 7 September 2020
 ### Added
 ### Changed
 ### Fixed
