@@ -19,6 +19,13 @@ exclude = [
 [package.metadata.docs.rs]
 features = ["nightly"]
 
+[package.metadata.release]
+tag-prefix = ""
+pre-release-replacements = [
+    { file="../CHANGELOG.md", search="Unreleased", replace="{{version}}" },
+    { file="../CHANGELOG.md", search="ReleaseDate", replace="{{date}}" }
+]
+
 [features]
 # Extra features for the nightly compiler only
 nightly = ["mockall_derive/nightly_derive"]
@@ -30,7 +37,7 @@ fragile = "1.0"
 lazy_static = "1.1"
 predicates = "1.0.2"
 predicates-tree = "1.0"
-mockall_derive = { version = "= 0.8.1", path = "../mockall_derive" }
+mockall_derive = { version = "= 0.8.2", path = "../mockall_derive" }
 
 [dev-dependencies]
 async-trait = "0.1.38"
@@ -42,10 +49,3 @@ serde_json = "1.0"
 [[example]]
 name = "serde"
 crate-type = ["lib"]
-
-[package.metadata.release]
-tag-prefix = ""
-pre-release-replacements = [
-    { file="../CHANGELOG.md", search="Unreleased", replace="{{version}}" },
-    { file="../CHANGELOG.md", search="ReleaseDate", replace="{{date}}" }
-]
