@@ -264,6 +264,7 @@ impl ToTokens for MockItemStruct {
                 #(#field_definitions),*
             }
             impl #ig ::std::default::Default for #struct_name #tg #wc {
+                #[allow(clippy::default_trait_access)]
                 fn default() -> Self {
                     Self {
                         #(#default_inits),*
