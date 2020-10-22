@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.8.3] - 21 October 2020
+### Added
+### Changed
+### Fixed
+- Fixed `default_trait_access` pedantic Clippy lint in generated code.
+  ([#222](https://github.com/asomers/mockall/pull/222))
+
+### Removed
+
 ## [0.8.2] - 12 October 2020
 ### Added
 ### Changed
