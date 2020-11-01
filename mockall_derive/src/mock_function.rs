@@ -1334,7 +1334,6 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
         egenerics.params.push(GenericParam::Lifetime(ltdef));
         egenerics.gt_token.get_or_insert(<Token![>]>::default());
         let (e_ig, e_tg, e_wc) = egenerics.split_for_impl();
-        let (ei_ig, _, _) = egenerics.split_for_impl();
         let fn_params = &self.f.fn_params;
         let tbf = tg.as_turbofish();
         let v = &self.f.privmod_vis;
@@ -1354,7 +1353,7 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
             }
 
             #[allow(clippy::unused_unit)]
-            impl #ei_ig ExpectationGuard #e_tg #e_wc
+            impl #e_ig ExpectationGuard #e_tg #e_wc
             {
                 // Should only be called from the mockall_derive generated
                 // code

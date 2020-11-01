@@ -508,10 +508,101 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
             compile_error(ty.span(), "unsupported type in this context");
             HashSet::default()
         }
-
     }
 }
 
+fn find_type_idents_in_tpb(bound: &TypeParamBound) -> HashSet<Ident> {
+    let mut ret = HashSet::default();
+    if let TypeParamBound::Trait(tb) = bound {
+        ret.extend(find_type_idents_in_path(&tb.path));
+    };
+    ret
+}
+
+fn find_type_idents_in_path(path: &Path) -> HashSet<Ident> {
+    let mut ret = HashSet::default();
+    for seg in path.segments.iter() {
+        ret.insert(seg.ident.clone());
+        if let PathArguments::AngleBracketed(abga) = &seg.arguments {
+            for arg in abga.args.iter() {
+                match arg {
+                    GenericArgument::Lifetime(_) => (),
+                    GenericArgument::Type(ty) => {
+                        ret.extend(find_type_idents(&ty));
+                    },
+                    GenericArgument::Binding(b) => {
+                        ret.insert(b.ident.clone());
+                        ret.extend(find_type_idents(&b.ty));
+                    },
+                    GenericArgument::Constraint(c) => {
+                        for bound in c.bounds.iter() {
+                            ret.extend(find_type_idents_in_tpb(bound));
+                        }
+                    },
+                    GenericArgument::Const(_) => ()
+                }
+            }
+        }
+    }
+    ret
+}
+
+/// Find all idents, excluding lifetimes, that appear in the argument
+fn find_type_idents(ty: &Type) -> HashSet<Ident> {
+    match ty {
+        Type::Array(ta) => find_type_idents(ta.elem.as_ref()),
+        Type::BareFn(tbf) => {
+            let mut ret = HashSet::default();
+            for arg in tbf.inputs.iter() {
+                ret.extend(find_type_idents(&arg.ty));
+            }
+            if let ReturnType::Type(_, ty) = &tbf.output {
+                ret.extend(find_type_idents(ty.as_ref()));
+            }
+            ret
+        },
+        Type::Group(tg) => find_type_idents(tg.elem.as_ref()),
+        Type::ImplTrait(tit) => {
+            let mut ret = HashSet::default();
+            for tpb in tit.bounds.iter() {
+                ret.extend(find_type_idents_in_tpb(tpb));
+            }
+            ret
+        },
+        Type::Infer(_ti) => HashSet::default(),
+        Type::Never(_tn) => HashSet::default(),
+        Type::Paren(tp) => find_type_idents(tp.elem.as_ref()),
+        Type::Path(tp) => {
+            let mut ret = find_type_idents_in_path(&tp.path);
+            if let Some(qs) = &tp.qself {
+                ret.extend(find_type_idents(qs.ty.as_ref()));
+            }
+            ret
+        },
+        Type::Ptr(tp) => find_type_idents(tp.elem.as_ref()),
+        Type::Reference(tr) => find_type_idents(tr.elem.as_ref()),
+        Type::Slice(ts) => find_type_idents(ts.elem.as_ref()),
+        Type::TraitObject(tto) => {
+            let mut ret = HashSet::default();
+            for bound in tto.bounds.iter() {
+                ret.extend(find_type_idents_in_tpb(bound));
+            }
+            ret
+        }
+        Type::Tuple(tt) => {
+            let mut ret = HashSet::default();
+            for ty in tt.elems.iter() {
+                ret.extend(find_type_idents(ty));
+            }
+            ret
+        },
+        _ => {
+            compile_error(ty.span(), "unsupported type in this context");
+            HashSet::default()
+        }
+
+    }
+}
 
 struct AttrFormatter<'a>{
     attrs: &'a [Attribute],
@@ -857,8 +948,10 @@ fn split_lifetimes(
         return (generics, Default::default(), Default::default());
     }
 
-    // Check which lifetimes are referenced by the arguments
+    // Check which types and lifetimes are referenced by the arguments
     let mut alts = HashSet::<Lifetime>::default();
+    let mut rlts = HashSet::<Lifetime>::default();
+    let mut types = HashSet::<Ident>::default();
     for arg in args {
         match arg {
             FnArg::Receiver(r) => {
@@ -869,16 +962,16 @@ fn split_lifetimes(
                 }
             },
             FnArg::Typed(pt) => {
-                alts.extend(find_lifetimes(pt.ty.as_ref()))
+                alts.extend(find_lifetimes(pt.ty.as_ref()));
+                types.extend(find_type_idents(pt.ty.as_ref()));
             },
         };
     };
 
-    // Check which lifetimes are referenced by the return type
-    let rlts = match rt {
-        ReturnType::Default => HashSet::default(),
-        ReturnType::Type(_, ty) => find_lifetimes(ty)
-    };
+    if let ReturnType::Type(_, ty) = rt {
+        rlts.extend(find_lifetimes(ty));
+        types.extend(find_type_idents(ty));
+    }
 
     let mut tv = Vec::new();
     let mut alv = Punctuated::new();
@@ -893,7 +986,8 @@ fn split_lifetimes(
                 // Probably a lifetime parameter from the impl block that isn't
                 // used by this particular method
             },
-            _ => tv.push(p)
+            GenericParam::Type(tp) if types.contains(&tp.ident) => tv.push(p),
+            _ => (),
         }
     }
 
