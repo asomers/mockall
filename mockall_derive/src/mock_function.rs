@@ -2248,6 +2248,9 @@ impl<'a> ToTokens for GenericExpectations<'a> {
         if ! self.f.is_expectation_generic() {
             return;
         }
+        if ! self.f.is_static() && ! self.f.is_method_generic() {
+            return;
+        }
 
         let ge = StaticGenericExpectations{f: self.f};
         let v = &self.f.privmod_vis;
