@@ -933,9 +933,9 @@ fn lifetimes_to_generics(lv: &Punctuated<LifetimeDef, Token![,]>)-> Generics {
     }
 }
 
-/// Split a generics list into three: one for type generics, one for lifetimes
-/// that relate to the arguments only, and one for lifetimes that relate to the
-/// return type.
+/// Split a generics list into three: one for type generics and where predicates
+/// that relate to the signature, one for lifetimes that relate to the arguments
+/// only, and one for lifetimes that relate to the return type only.
 fn split_lifetimes(
     generics: Generics,
     args: &[FnArg],
@@ -973,23 +973,46 @@ fn split_lifetimes(
         types.extend(find_type_idents(ty));
     }
 
-    let mut tv = Vec::new();
+    let mut tv = Punctuated::new();
     let mut alv = Punctuated::new();
     let mut rlv = Punctuated::new();
-    for p in generics.params {
-        match &p {
+    for p in generics.params.into_iter() {
+        match p {
             GenericParam::Lifetime(ltd) if rlts.contains(&ltd.lifetime) =>
-                rlv.push(ltd.clone()),
+                rlv.push(ltd),
             GenericParam::Lifetime(ltd) if alts.contains(&ltd.lifetime) =>
-                alv.push(ltd.clone()),
+                alv.push(ltd),
             GenericParam::Lifetime(_) => {
                 // Probably a lifetime parameter from the impl block that isn't
                 // used by this particular method
             },
-            GenericParam::Type(tp) if types.contains(&tp.ident) => tv.push(p),
+            GenericParam::Type(ref tp) if types.contains(&tp.ident) =>
+                tv.push(p),
             _ => (),
         }
     }
+    let where_clause = generics.where_clause
+    .map(|wc| {
+        let predicates = wc.predicates.into_iter()
+         .filter(|wp| {
+            match wp {
+                WherePredicate::Type(pt) => {
+                    let ptt = find_type_idents(&pt.bounded_ty);
+                    !types.is_disjoint(&ptt)
+                },
+                WherePredicate::Lifetime(pl) => {
+                    rlts.contains(&pl.lifetime) || alts.contains(&pl.lifetime)
+                },
+                WherePredicate::Eq(_) => {
+                    // Rust doesn't currently support this (as of 1.48.0), but
+                    // including it in the output is probably less harmful than
+                    // excluding it.
+                    true
+                },
+            }
+         }).collect::<Punctuated::<_, _>>();
+        WhereClause{where_token: wc.where_token, predicates}
+    });
 
     let tg = if tv.is_empty() {
         Generics::default()
@@ -997,10 +1020,8 @@ fn split_lifetimes(
         Generics {
             lt_token: generics.lt_token,
             gt_token: generics.gt_token,
-            params: Punctuated::from_iter(tv.into_iter()),
-            // XXX this assumes that none of the lifetimes are referenced by the
-            // where clause
-            where_clause: generics.where_clause
+            params: tv,
+            where_clause
         }
     };
 
