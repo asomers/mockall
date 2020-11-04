@@ -140,20 +140,6 @@ fn send_syncify(wc: &mut Option<WhereClause>, bounded_ty: Type) {
     );
 }
 
-/// Extract just the type generics from a Generics object
-fn type_generics(generics: &Generics) -> Generics {
-    let params = generics.type_params()
-    .cloned()
-    .map(GenericParam::Type)
-    .collect::<Punctuated<_, _>>();
-    Generics {
-        lt_token: generics.lt_token,
-        params,
-        gt_token: generics.gt_token,
-        where_clause: generics.where_clause.clone(),
-    }
-}
-
 /// Build a MockFunction.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Builder<'a> {
@@ -251,33 +237,38 @@ impl<'a> Builder<'a> {
             compile_error(self.sig.span(),
                 "Mockall cannot mock static methods that return non-'static references.  It's unclear what the return value's lifetime should be.");
         }
-        let merged_generics = if let Some(g) = self.struct_generics {
-            merge_generics(g, &declosured_generics)
-        } else {
-            declosured_generics.clone()
-        };
-        let (cgenerics, alifetimes, rlifetimes) = split_lifetimes(
-            merged_generics,
+        let struct_generics = self.struct_generics.cloned()
+            .unwrap_or_default();
+        let (type_generics, salifetimes, srlifetimes) = split_lifetimes(
+            struct_generics.clone(),
             &declosured_inputs,
             &ReturnType::Type(<Token![->]>::default(),
                               Box::new(owned_output.clone()))
         );
-        let (call_generics, _, _) = split_lifetimes(
+        let srltg = lifetimes_to_generics(&srlifetimes);
+        let (call_generics, malifetimes, mrlifetimes) = split_lifetimes(
             declosured_generics,
             &declosured_inputs,
             &ReturnType::Type(<Token![->]>::default(),
                               Box::new(owned_output.clone()))
         );
-        let rlg = lifetimes_to_generics(&rlifetimes);
-        let egenerics = merge_generics(&cgenerics, &rlg);
+        let mrltg = lifetimes_to_generics(&mrlifetimes);
+        let cgenerics = merge_generics(&type_generics, &call_generics);
+        let egenerics = merge_generics(
+            &merge_generics(&cgenerics, &srltg),
+            &mrltg);
+        let alifetimes = HashSet::<LifetimeDef>::from_iter(
+                salifetimes.into_iter()
+            ).union(&HashSet::from_iter(malifetimes.into_iter()))
+            .into_iter()
+            .cloned()
+            .collect();
 
         let fn_params = egenerics.type_params()
             .map(|tp| tp.ident.clone())
             .collect();
         let call_levels = self.call_levels.unwrap_or(self.levels);
-        let struct_generics = self.struct_generics.cloned()
-            .unwrap_or_default();
-        let type_generics = type_generics(&struct_generics);
+
         MockFunction {
             alifetimes,
             argnames,

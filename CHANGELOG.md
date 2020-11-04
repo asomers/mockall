@@ -6,11 +6,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
-- Added the ability to mock generic structs with generic methods whose only
-  generic types are lifetimes.  This is useful for mocking generic structs that
-  implement traits like `Future` and `Stream`.
-  ([#226](https://github.com/asomers/mockall/pull/226))
-
 - Added the ability to mock methods returning references to trait objects.
   ([#213](https://github.com/asomers/mockall/pull/213))
 
@@ -44,6 +39,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#201](https://github.com/asomers/mockall/pull/201))
 
 ### Fixed
+
+- Fixed mocking generic structs with generic methods whose only generic types
+  are lifetimes.  This is useful for mocking generic structs that implement
+  traits like `Future` and `Stream`.
+  ([#225](https://github.com/asomers/mockall/pull/225))
+  ([#226](https://github.com/asomers/mockall/pull/226))
+  ([#228](https://github.com/asomers/mockall/pull/228))
+
 ### Removed
 
 - Removed `times_any` and `times_range` methods from Expectations.  They've
