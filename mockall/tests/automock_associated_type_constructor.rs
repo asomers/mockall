@@ -5,9 +5,8 @@
 
 use mockall::*;
 
-pub trait Future {
+pub trait MyIterator {
     type Item;
-    type Error;
 }
 
 #[allow(unused)]
@@ -15,11 +14,10 @@ pub struct Foo{}
 
 #[automock]
 impl Foo {
-    pub fn open() -> impl Future<Item=Self, Error=i32> {
+    pub fn open() -> impl MyIterator<Item=Self> {
         struct Bar {}
-        impl Future for Bar {
+        impl MyIterator for Bar {
             type Item=Foo;
-            type Error=i32;
         }
         Bar{}
     }
@@ -30,9 +28,8 @@ fn returning() {
     let ctx = MockFoo::open_context();
     ctx.expect().returning(|| {
         struct Baz {}
-        impl Future for Baz {
-            type Item=MockFoo;
-            type Error=i32;
+        impl MyIterator for Baz {
+            type Item = MockFoo;
         }
         Box::new(Baz{})
     });

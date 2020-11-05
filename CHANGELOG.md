@@ -6,6 +6,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
+- Added the ability to mock methods returning `impl Future` or `impl Stream`.
+  Unlike other traits, these two aren't very useful in a `Box`.  Instead,
+  Mockall will now change the Expectation's return type to `Pin<Box<_>>`.
+  ([#229](https://github.com/asomers/mockall/pull/229))
+
 - Added the ability to mock methods returning references to trait objects.
   ([#213](https://github.com/asomers/mockall/pull/213))
 
