@@ -29,6 +29,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Fixed mocking methods that return `Self` inside of a trait object with
+  multiple bounds.  For example: `-> impl Future<Output=Self> + Send`
+  ([#229](https://github.com/asomers/mockall/pull/229))
+
 - `mock!` now requires visibility specifiers for inherent methods.
   ([#207](https://github.com/asomers/mockall/pull/207))
 

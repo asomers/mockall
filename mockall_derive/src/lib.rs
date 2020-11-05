@@ -292,6 +292,64 @@ fn demutify_arg(arg: &mut PatType) {
     };
 }
 
+fn deselfify_path(path: &mut Path, actual: &Ident, generics: &Generics) {
+    for seg in path.segments.iter_mut() {
+        if seg.ident == "Self" {
+            seg.ident = actual.clone();
+            if let PathArguments::None = seg.arguments {
+                if !generics.params.is_empty() {
+                    let args = Punctuated::from_iter(
+                        generics.params.iter().map(|gp| {
+                            match gp {
+                                GenericParam::Type(tp) => {
+                                    let ident = tp.ident.clone();
+                                    GenericArgument::Type(
+                                        Type::Path(
+                                            TypePath {
+                                                qself: None,
+                                                path: Path::from(ident)
+                                            }
+                                        )
+                                    )
+                                },
+                                GenericParam::Lifetime(ld) =>{
+                                    GenericArgument::Lifetime(
+                                        ld.lifetime.clone()
+                                    )
+                                }
+                                _ => unimplemented!(),
+                            }
+                        })
+                    );
+                    seg.arguments = PathArguments::AngleBracketed(
+                        AngleBracketedGenericArguments {
+                            colon2_token: None,
+                            lt_token: generics.lt_token.unwrap(),
+                            args,
+                            gt_token: generics.gt_token.unwrap(),
+                        }
+                    );
+                }
+            } else {
+                compile_error(seg.arguments.span(),
+                    "Type arguments after Self are unexpected");
+            }
+        }
+        if let PathArguments::AngleBracketed(abga) = &mut seg.arguments
+        {
+            for arg in abga.args.iter_mut() {
+                match arg {
+                    GenericArgument::Type(ty) =>
+                        deselfify(ty, actual, generics),
+                    GenericArgument::Binding(b) =>
+                        deselfify(&mut b.ty, actual, generics),
+                    _ => /* Nothing to do */(),
+                }
+            }
+        }
+    }
+}
+
 /// Replace any references to `Self` in `literal_type` with `actual`.
 /// `generics` is the Generics field of the parent struct.  Useful for
 /// constructor methods.
@@ -318,63 +376,7 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
             if let Some(ref mut qself) = type_path.qself {
                 deselfify(qself.ty.as_mut(), actual, generics);
             }
-            let p = &mut type_path.path;
-            for seg in p.segments.iter_mut() {
-                if seg.ident == "Self" {
-                    seg.ident = actual.clone();
-                    if let PathArguments::None = seg.arguments {
-                        if !generics.params.is_empty() {
-                            let args = Punctuated::from_iter(
-                                generics.params.iter().map(|gp| {
-                                    match gp {
-                                        GenericParam::Type(tp) => {
-                                            let ident = tp.ident.clone();
-                                            GenericArgument::Type(
-                                                Type::Path(
-                                                    TypePath {
-                                                        qself: None,
-                                                        path: Path::from(ident)
-                                                    }
-                                                )
-                                            )
-                                        },
-                                        GenericParam::Lifetime(ld) =>{
-                                            GenericArgument::Lifetime(
-                                                ld.lifetime.clone()
-                                            )
-                                        }
-                                        _ => unimplemented!(),
-                                    }
-                                })
-                            );
-                            seg.arguments = PathArguments::AngleBracketed(
-                                AngleBracketedGenericArguments {
-                                    colon2_token: None,
-                                    lt_token: generics.lt_token.unwrap(),
-                                    args,
-                                    gt_token: generics.gt_token.unwrap(),
-
-                                }
-                            );
-                        }
-                    } else {
-                        compile_error(seg.arguments.span(),
-                            "Type arguments after Self are unexpected");
-                    }
-                }
-                if let PathArguments::AngleBracketed(abga) = &mut seg.arguments
-                {
-                    for arg in abga.args.iter_mut() {
-                        match arg {
-                            GenericArgument::Type(ty) =>
-                                deselfify(ty, actual, generics),
-                            GenericArgument::Binding(b) =>
-                                deselfify(&mut b.ty, actual, generics),
-                            _ => /* Nothing to do */(),
-                        }
-                    }
-                }
-            }
+            deselfify_path(&mut type_path.path, actual, generics);
         },
         Type::Paren(p) => {
             deselfify(p.elem.as_mut(), actual, generics);
@@ -387,21 +389,10 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
                 "mockall_derive does not support this type as a return argument");
         },
         Type::TraitObject(tto) => {
-            // Change types like `dyn Self` into `MockXXX`.  For now,
-            // don't worry about multiple trait bounds, because they aren't very
-            // useful in combination with Self.
-            if tto.bounds.len() == 1 {
-                if let TypeParamBound::Trait(t) = tto.bounds.first().unwrap() {
-                    // No need to substitute Self for the full path, because
-                    // traits can't return "impl Trait", and structs can't
-                    // return "impl Self" (because Self, in that case, isn't a
-                    // trait).  However, we do need to recurse to deselfify any
-                    // generics and associated types.
-                    let tp = TypePath{qself: None, path: t.path.clone()};
-                    let mut path = Type::Path(tp);
-                    deselfify(&mut path, actual, generics);
-                    let new_type: Type = parse2(quote!(dyn #path)).unwrap();
-                    *literal_type = new_type;
+            // Change types like `dyn Self` into `dyn MockXXX`.
+            for bound in tto.bounds.iter_mut() {
+                if let TypeParamBound::Trait(t) = bound {
+                    deselfify_path(&mut t.path, actual, generics);
                 }
             }
         },
@@ -1161,12 +1152,43 @@ mod deselfify {
     }
 
     #[test]
+    fn future() {
+        check_deselfify(
+            quote!(Box<dyn Future<Output=Self>>),
+            quote!(Foo),
+            quote!(),
+            quote!(Box<dyn Future<Output=Foo>>)
+        );
+    }
+
+    #[test]
     fn qself() {
         check_deselfify(
             quote!(<Self as Self>::Self),
             quote!(Foo),
             quote!(),
             quote!(<Foo as Foo>::Foo)
+        );
+    }
+
+    #[test]
+    fn trait_object() {
+        check_deselfify(
+            quote!(Box<dyn Self>),
+            quote!(Foo),
+            quote!(),
+            quote!(Box<dyn Foo>)
+        );
+    }
+
+    // A trait object with multiple bounds
+    #[test]
+    fn trait_object2() {
+        check_deselfify(
+            quote!(Box<dyn Self + Send>),
+            quote!(Foo),
+            quote!(),
+            quote!(Box<dyn Foo + Send>)
         );
     }
 }
