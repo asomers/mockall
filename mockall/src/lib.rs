@@ -595,6 +595,34 @@
 //!
 //! See Also [`impl-trait-for-returning-complex-types-with-ease.html`](https://rust-lang-nursery.github.io/edition-guide/rust-2018/trait-system/impl-trait-for-returning-complex-types-with-ease)
 //!
+//! ### impl Future
+//!
+//! Rust 1.36.0 added the `Future` trait.  Unlike virtually every trait that
+//! preceeded it, `Box<dyn Future>` is mostly useless.  Instead, you usually
+//! need a `Pin<Box<dyn Future>>`.  So that's what Mockall will do when you mock
+//! a method returning `impl Future` or the related `impl Stream`.  Just
+//! remember to use `pin` in your expectations, like this:
+//!
+//! ```
+//! # use mockall::*;
+//! # use std::fmt::Debug;
+//! # use futures::{Future, future};
+//! struct Foo {}
+//! #[automock]
+//! impl Foo {
+//!     fn foo(&self) -> impl Future<Output=i32> {
+//!         // ...
+//!         # future::ready(42)
+//!     }
+//! }
+//!
+//! # fn main() {
+//! let mut mock = MockFoo::new();
+//! mock.expect_foo()
+//!     .returning(|| Box::pin(future::ready(42)));
+//! # }
+//! ```
+//!
 //! ## Mocking structs
 //!
 //! Mockall mocks structs as well as traits.  The problem here is a namespace

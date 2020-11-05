@@ -246,12 +246,31 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     (outg, outargs, callargs)
 }
 
-/// Replace any "impl trait" types with "Box<dyn trait>" equivalents
+/// Replace any "impl trait" types with "Box<dyn trait>" or equivalent.
 fn deimplify(rt: &mut ReturnType) {
     if let ReturnType::Type(_, ty) = rt {
         if let Type::ImplTrait(ref tit) = &**ty {
+            let needs_pin = tit.bounds
+                .iter()
+                .any(|tpb| {
+                    if let TypeParamBound::Trait(tb) = tpb {
+                        if let Some(seg) = tb.path.segments.last() {
+                            seg.ident == "Future" || seg.ident == "Stream"
+                        } else {
+                            // It might still be a Future, but we can't guess
+                            // what names it might be imported under.  Too bad.
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                });
             let bounds = &tit.bounds;
-            *ty = parse2(quote!(Box<dyn #bounds>)).unwrap();
+            if needs_pin {
+                *ty = parse2(quote!(::std::pin::Pin<Box<dyn #bounds>>)).unwrap();
+            } else {
+                *ty = parse2(quote!(Box<dyn #bounds>)).unwrap();
+            }
         }
     }
 }
@@ -1130,6 +1149,61 @@ mod automock {
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
         assert_contains(&output, quote!(pub ( super ) struct MockFoo));
+    }
+}
+
+mod deimplify {
+    use super::*;
+
+    fn check_deimplify(orig_ts: TokenStream, expected_ts: TokenStream) {
+        let mut orig: ReturnType = parse2(orig_ts).unwrap();
+        let expected: ReturnType = parse2(expected_ts).unwrap();
+        deimplify(&mut orig);
+        assert_eq!(quote!(#orig).to_string(), quote!(#expected).to_string());
+    }
+
+    // Future is a special case
+    #[test]
+    fn impl_future() {
+        check_deimplify(
+            quote!(-> impl Future<Output=i32>),
+            quote!(-> ::std::pin::Pin<Box<dyn Future<Output=i32>>>)
+        );
+    }
+
+    // Future is a special case, wherever it appears
+    #[test]
+    fn impl_future_reverse() {
+        check_deimplify(
+            quote!(-> impl Send + Future<Output=i32>),
+            quote!(-> ::std::pin::Pin<Box<dyn Send + Future<Output=i32>>>)
+        );
+    }
+
+    // Stream is a special case
+    #[test]
+    fn impl_stream() {
+        check_deimplify(
+            quote!(-> impl Stream<Item=i32>),
+            quote!(-> ::std::pin::Pin<Box<dyn Stream<Item=i32>>>)
+        );
+    }
+
+    #[test]
+    fn impl_trait() {
+        check_deimplify(
+            quote!(-> impl Foo),
+            quote!(-> Box<dyn Foo>)
+        );
+    }
+
+    // With extra bounds
+    #[test]
+    fn impl_trait2() {
+        check_deimplify(
+            quote!(-> impl Foo + Send),
+            quote!(-> Box<dyn Foo + Send>)
+        );
     }
 }
 
