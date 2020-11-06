@@ -46,8 +46,6 @@ minver_task:
   cargo_cache:
     folder: $CARGO_HOME/registry
   test_script:
-    # Workaround Rust bug https://github.com/rust-lang/rust/issues/78660
-    - env RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && rustup toolchain install --profile minimal nightly-2020-10-27-x86_64 && rustup default nightly-2020-10-27-x86_64
     - cargo update -Zminimal-versions
     - cargo test --all-features --all
   before_cache_script: rm -rf $CARGO_HOME/registry/index
