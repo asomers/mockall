@@ -24,7 +24,7 @@ features = ["nightly"]
 nightly = ["mockall_derive/nightly_derive"]
 
 [dependencies]
-cfg-if = "0.1.6"
+cfg-if = "1.0"
 downcast = "0.10"
 fragile = "1.0"
 lazy_static = "1.1"

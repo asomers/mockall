@@ -22,7 +22,7 @@ proc-macro = true
 nightly_derive = ["proc-macro2/nightly"]
 
 [dependencies]
-cfg-if = "0.1.6"
+cfg-if = "1.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "1.0.15", features = ["extra-traits", "full"] }
