@@ -257,9 +257,9 @@ impl<'a> Builder<'a> {
         let egenerics = merge_generics(
             &merge_generics(&cgenerics, &srltg),
             &mrltg);
-        let alifetimes = HashSet::<LifetimeDef>::from_iter(
-                salifetimes.into_iter()
-            ).union(&HashSet::from_iter(malifetimes.into_iter()))
+        let alifetimes = salifetimes.into_iter()
+            .collect::<HashSet<LifetimeDef>>()
+            .union(&malifetimes.into_iter().collect::<HashSet<_>>())
             .into_iter()
             .cloned()
             .collect();
