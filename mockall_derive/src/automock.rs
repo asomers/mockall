@@ -51,7 +51,7 @@ impl Attrs {
             PathArguments::None => /* nothing to do */(),
             PathArguments::Parenthesized(p) => {
                 compile_error(p.span(),
-                    "Mockall does not support mocking Fn objects");
+                    "Mockall does not support mocking Fn objects.  See https://github.com/asomers/mockall/issues/139");
             },
             PathArguments::AngleBracketed(abga) => {
                 for arg in abga.args.iter_mut() {
