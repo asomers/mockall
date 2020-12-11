@@ -102,7 +102,7 @@ fn filter_generics(g: &Generics, path_args: &PathArguments)
         PathArguments::None => ()/* No generics selected */,
         PathArguments::Parenthesized(p) => {
             compile_error(p.span(),
-                          "Mockall does not support mocking Fn objects");
+                          "Mockall does not support mocking Fn objects.  See https://github.com/asomers/mockall/issues/139");
         },
         PathArguments::AngleBracketed(abga) => {
             let args = &abga.args;

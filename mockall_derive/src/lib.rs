@@ -872,10 +872,8 @@ fn split_lifetimes(
     for arg in args {
         match arg {
             FnArg::Receiver(r) => {
-                if let Some((_, olt)) = &r.reference {
-                    if let Some(lt) = olt {
-                        alts.insert(lt.clone());
-                    }
+                if let Some((_, Some(lt))) = &r.reference {
+                    alts.insert(lt.clone());
                 }
             },
             FnArg::Typed(pt) => {
