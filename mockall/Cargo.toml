@@ -21,7 +21,10 @@ features = ["nightly"]
 
 [features]
 # Extra features for the nightly compiler only
-nightly = ["mockall_derive/nightly_derive"]
+nightly = [
+	"mockall_derive/nightly_derive",
+	"downcast/nightly"
+]
 
 [dependencies]
 cfg-if = "1.0"
