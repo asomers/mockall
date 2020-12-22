@@ -1,6 +1,6 @@
 [package]
 name = "mockall_derive"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Alan Somers <asomers@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/asomers/mockall"
@@ -11,6 +11,11 @@ edition = "2018"
 description = """
 Procedural macros for Mockall
 """
+
+# Skip tagging and pushing.  Those will be done by the mockall crate
+[package.metadata.release]
+disable-tag = true
+disable-push = true
 
 [lib]
 proc-macro = true
@@ -29,8 +34,3 @@ syn = { version = "1.0.15", features = ["extra-traits", "full"] }
 
 [dev-dependencies]
 pretty_assertions = "0.5"
-
-# Skip tagging and pushing.  Those will be done by the mockall crate
-[package.metadata.release]
-disable-tag = true
-disable-push = true
