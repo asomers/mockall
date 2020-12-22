@@ -49,6 +49,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Fixed setting multiple expectations on generic methods whose only generic
+  type is the return.
+  ([#238](https://github.com/asomers/mockall/pull/238))
+
 - Fixed mocking generic structs with generic methods whose only generic types
   are lifetimes.  This is useful for mocking generic structs that implement
   traits like `Future` and `Stream`.
