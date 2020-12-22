@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased] - ReleaseDate
+## [0.9.0] - 2020-12-21
 ### Added
 
 - Added the ability to mock methods returning `impl Future` or `impl Stream`.
