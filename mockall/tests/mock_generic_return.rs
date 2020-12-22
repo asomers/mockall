@@ -12,6 +12,8 @@ mock! {
 #[test]
 fn returning() {
     let mut mock = MockFoo::new();
-    mock.expect_foo::<i32>().return_const(42);
+    mock.expect_foo::<i32>().return_const(42i32);
+    mock.expect_foo::<u16>().return_const(69u16);
     assert_eq!(42i32, mock.foo());
+    assert_eq!(69u16, mock.foo());
 }
