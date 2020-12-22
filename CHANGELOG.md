@@ -34,10 +34,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Fixed mocking methods that return `Self` inside of a trait object with
-  multiple bounds.  For example: `-> impl Future<Output=Self> + Send`
-  ([3400916](https://github.com/asomers/mockall/commit/34009169cf5fe5440a452f1285c20e1fb49c768c))
-
 - `mock!` now requires visibility specifiers for inherent methods.
   ([#207](https://github.com/asomers/mockall/pull/207))
 
@@ -48,6 +44,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#201](https://github.com/asomers/mockall/pull/201))
 
 ### Fixed
+
+- Fixed mocking methods that return `Self` inside of a trait object with
+  multiple bounds.  For example: `-> impl Future<Output=Self> + Send`
+  ([3400916](https://github.com/asomers/mockall/commit/34009169cf5fe5440a452f1285c20e1fb49c768c))
 
 - Fixed setting multiple expectations on generic methods whose only generic
   type is the return.
@@ -64,7 +64,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - Removed `times_any` and `times_range` methods from Expectations.  They've
   been deprecated since 0.3.0.
-  ([#196](https://github.com/asomers/mockall/pull/196))
+  ([#197](https://github.com/asomers/mockall/pull/197))
+
+## [0.8.3] - 21 October 2020
+### Added
+### Changed
+### Fixed
+
+- Suppressed `default_trait_access` pedantic Clippy lint in generated code
+  ([#222](https://github.com/asomers/mockall/pull/222))
 
 ## [0.8.2] - 12 October 2020
 ### Added
