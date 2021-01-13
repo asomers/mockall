@@ -629,7 +629,7 @@
 //! problem: it's hard to supply the mock object to your code under test,
 //! because it has a different name.  The solution is to alter import paths
 //! during test.  The easiest way to do that is with the
-//! [`mockall_double`](https://docs.rs/mockall/latest/mockall_double) crate.
+//! [`mockall_double`](https://docs.rs/mockall_double/latest) crate.
 //!
 //! [`#[automock]`](attr.automock.html)
 //! works for structs that have a single `impl` block:
