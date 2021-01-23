@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased] - ReleaseDate
+### Added
+
+- When a test fails because a mock object receives an unexpected call, the
+  error message will now show the method's arguments.  This requires the
+  `nightly` feature, and requires that the arguments implement `Debug`.
+  ([#246](https://github.com/asomers/mockall/pull/246))
+
+### Changed
+### Fixed
+### Removed
+
 ## [0.9.0] - 2020-12-21
 ### Added
 

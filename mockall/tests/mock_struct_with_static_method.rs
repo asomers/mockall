@@ -46,7 +46,12 @@ fn ctx_checkpoint() {
 
 // Expectations should be cleared when a context object drops
 #[test]
-#[should_panic(expected = "MockFoo::bar3: No matching expectation found")]
+#[cfg_attr(feature = "nightly", should_panic(
+        expected = "MockFoo::bar3(42): No matching expectation found"
+))]
+#[cfg_attr(not(feature = "nightly"), should_panic(
+        expected = "MockFoo::bar3(?): No matching expectation found"
+))]
 fn ctx_hygiene() {
     {
         let ctx0 = MockFoo::bar3_context();

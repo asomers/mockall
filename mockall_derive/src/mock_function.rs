@@ -432,12 +432,17 @@ impl MockFunction {
         }.split_for_impl();
         let tbf = tg.as_turbofish();
         let name = self.name();
-        let no_match_msg = if let Some(s) = &self.struct_ {
-            format!("{}::{}: No matching expectation found", s, name)
+        let argnames = &self.argnames;
+        let fields = vec!["{:?}"; argnames.len()].join(", ");
+        let fstr = if let Some(s) = &self.struct_ {
+            format!("{}::{}({}): No matching expectation found",
+                s, name, fields)
         } else {
-            format!("{}::{}: No matching expectation found", self.mod_ident,
-                    self.name())
+            format!("{}::{}({}): No matching expectation found",
+                self.mod_ident, self.name(), fields)
         };
+        let no_match_msg = quote!(format!(#fstr,
+            #(::mockall::MaybeDebugger(&#argnames)),*));
         let sig = &self.sig;
         let vis = if self.trait_.is_some() {
             &Visibility::Inherited
@@ -461,6 +466,7 @@ impl MockFunction {
                 // Don't add a doc string.  The original is included in #attrs
                 #(#attrs)*
                 #vis #sig {
+                    let no_match_msg = #no_match_msg;
                     {
                         let __mockall_guard = #outer_mod_path::EXPECTATIONS
                             .lock().unwrap();
@@ -472,7 +478,7 @@ impl MockFunction {
                         /* std::panic::catch_unwind(|| */
                         __mockall_guard.#call#tbf(#(#call_exprs,)*)
                         /*)*/
-                    }.expect(#no_match_msg)
+                    }.expect(&no_match_msg)
                 }
             )
         } else {
@@ -480,8 +486,9 @@ impl MockFunction {
                 // Don't add a doc string.  The original is included in #attrs
                 #(#attrs)*
                 #vis #sig {
+                    let no_match_msg = #no_match_msg;
                     self.#substruct_obj #name.#call#tbf(#(#call_exprs,)*)
-                    .expect(#no_match_msg)
+                    .expect(&no_match_msg)
                 }
 
             )

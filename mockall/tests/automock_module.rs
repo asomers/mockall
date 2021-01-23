@@ -20,7 +20,12 @@ mod m {
     }
 
     #[test]
-    #[should_panic(expected = "mock_foo::bar1: No matching expectation found")]
+    #[cfg_attr(feature = "nightly", should_panic(
+            expected = "mock_foo::bar1(5): No matching expectation found"
+    ))]
+    #[cfg_attr(not(feature = "nightly"), should_panic(
+            expected = "mock_foo::bar1(?): No matching expectation found"
+    ))]
     fn with_no_matches() {
         let ctx = mock_foo::bar1_context();
         ctx.expect()

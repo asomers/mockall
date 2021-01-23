@@ -47,7 +47,12 @@ mod with {
     }
 
     #[test]
-    #[should_panic(expected = "MockFoo::foo: No matching expectation found")]
+    #[cfg_attr(feature = "nightly", should_panic(
+            expected = "MockFoo::foo(4): No matching expectation found"
+    ))]
+    #[cfg_attr(not(feature = "nightly"), should_panic(
+            expected = "MockFoo::foo(?): No matching expectation found"
+    ))]
     fn wrong_generic_type() {
         let mut mock = MockFoo::new();
         mock.expect_foo::<i16>()
