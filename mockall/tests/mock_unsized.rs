@@ -31,7 +31,12 @@ fn with_eq() {
 }
 
 #[test]
-#[should_panic(expected = "MockFoo::foo: No matching expectation found")]
+#[cfg_attr(feature = "nightly", should_panic(
+        expected = "MockFoo::foo(\"xxx\"): No matching expectation found"
+))]
+#[cfg_attr(not(feature = "nightly"), should_panic(
+        expected = "MockFoo::foo(?): No matching expectation found"
+))]
 fn with_never() {
     let mut foo = MockFoo::new();
     foo.expect_foo()

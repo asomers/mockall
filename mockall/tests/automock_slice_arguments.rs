@@ -13,7 +13,12 @@ mod withf {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "MockFoo::foo: No matching expectation found")]
+    #[cfg_attr(feature = "nightly", should_panic(
+            expected = "MockFoo::foo([1, 2, 3, 4]): No matching expectation found"
+    ))]
+    #[cfg_attr(not(feature = "nightly"), should_panic(
+            expected = "MockFoo::foo(?): No matching expectation found"
+    ))]
     fn fail() {
         let mut mock = MockFoo::new();
         mock.expect_foo()

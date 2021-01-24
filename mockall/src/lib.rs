@@ -1114,6 +1114,7 @@
 use downcast::*;
 use std::{
     any,
+    fmt::{self, Debug, Formatter},
     marker::PhantomData,
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
           RangeToInclusive},
@@ -1353,6 +1354,31 @@ pub struct DefaultReturner<O>(PhantomData<O>);
 
             fn return_default() -> Result<O, &'static str> {
                 Err("Returning default values requires the \"nightly\" feature")
+            }
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct MaybeDebugger<'a, T>(pub &'a T);
+::cfg_if::cfg_if! {
+    if #[cfg(feature = "nightly")] {
+        impl<'a, T> Debug for MaybeDebugger<'a, T> {
+            default fn fmt(&self, f: &mut Formatter<'_>)
+                -> Result<(), fmt::Error>
+            {
+                write!(f, "?")
+            }
+        }
+        impl<'a, T: Debug> Debug for MaybeDebugger<'a, T> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+                self.0.fmt(f)
+            }
+        }
+    } else {
+        impl<'a, T> Debug for MaybeDebugger<'a, T> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+                write!(f, "?")
             }
         }
     }
