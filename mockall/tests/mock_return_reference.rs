@@ -6,7 +6,7 @@ use mockall::*;
 
 mock! {
     Foo {
-        fn foo(&self) -> &u32;
+        fn foo(&self, x: i32) -> &u32;
         fn bar(&self) -> &u32;
     }
 }
@@ -38,7 +38,7 @@ fn return_const() {
     let mut mock = MockFoo::new();
     mock.expect_foo()
         .return_const(5u32);
-    assert_eq!(5, *mock.foo());
+    assert_eq!(5, *mock.foo(4));
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn return_const() {
 fn return_default() {
     let mut mock = MockFoo::new();
     mock.expect_foo();
-    let r = mock.foo();
+    let r = mock.foo(4);
     assert_eq!(u32::default(), *r);
 }
 
@@ -63,11 +63,14 @@ mod sequence {
         mock.expect_foo()
             .times(1..3)
             .in_sequence(&mut seq);
-        mock.foo();
+        mock.foo(4);
     }
 
     #[test]
-    #[should_panic(expected = "Method sequence violation")]
+    #[cfg_attr(feature = "nightly",
+        should_panic(expected = "MockFoo::foo(4): Method sequence violation"))]
+    #[cfg_attr(not(feature = "nightly"),
+        should_panic(expected = "MockFoo::foo(?): Method sequence violation"))]
     fn fail() {
         let mut seq = Sequence::new();
         let mut mock = MockFoo::new();
@@ -81,7 +84,7 @@ mod sequence {
             .return_const(0)
             .in_sequence(&mut seq);
 
-        mock.foo();
+        mock.foo(4);
         mock.bar();
     }
 
@@ -99,7 +102,7 @@ mod sequence {
             .return_const(0)
             .in_sequence(&mut seq);
 
-        mock.foo();
+        mock.foo(4);
         mock.bar();
     }
 }

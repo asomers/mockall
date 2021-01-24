@@ -6,6 +6,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
+- When a test fails because of a method sequence violation, the error message
+  will now show the method's arguments.  This requires the `nightly` feature,
+  and requires that the arguments implement `Debug`.
+  ([#247](https://github.com/asomers/mockall/pull/247))
+
 - When a test fails because a mock object receives an unexpected call, the
   error message will now show the method's arguments.  This requires the
   `nightly` feature, and requires that the arguments implement `Debug`.

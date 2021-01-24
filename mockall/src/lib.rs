@@ -1534,8 +1534,8 @@ impl SeqHandle {
     }
 
     /// Verify that this handle was called in the correct order
-    pub fn verify(&self) {
-        self.inner.verify(self.seq);
+    pub fn verify(&self, desc: &str) {
+        self.inner.verify(self.seq, desc);
     }
 }
 
@@ -1552,9 +1552,9 @@ impl SeqInner {
     }
 
     /// Verify that the call identified by `seq` was called in the correct order
-    fn verify(&self, seq: usize) {
+    fn verify(&self, seq: usize, desc: &str) {
         assert_eq!(seq, self.satisfaction_level.load(Ordering::Relaxed),
-            "Method sequence violation")
+            "{}: Method sequence violation", desc)
     }
 }
 
