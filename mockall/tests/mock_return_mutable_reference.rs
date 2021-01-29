@@ -42,3 +42,51 @@ fn returning() {
     let r = mock.foo(0);
     assert_eq!(5, *r);
 }
+
+mod sequence {
+    use super::*;
+
+    #[test]
+    #[cfg_attr(feature = "nightly",
+        should_panic(expected = "MockFoo::foo(4): Method sequence violation"))]
+    #[cfg_attr(not(feature = "nightly"),
+        should_panic(expected = "MockFoo::foo(?): Method sequence violation"))]
+    fn fail() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .with(predicate::eq(3))
+            .times(1)
+            .return_var(0)
+            .in_sequence(&mut seq);
+
+        mock.expect_foo()
+            .with(predicate::eq(4))
+            .times(1)
+            .return_var(0)
+            .in_sequence(&mut seq);
+
+        mock.foo(4);
+    }
+
+    #[test]
+    fn ok() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .with(predicate::eq(3))
+            .times(1)
+            .return_var(0)
+            .in_sequence(&mut seq);
+
+        mock.expect_foo()
+            .with(predicate::eq(4))
+            .times(1)
+            .return_var(0)
+            .in_sequence(&mut seq);
+
+        mock.foo(3);
+        mock.foo(4);
+    }
+
+}

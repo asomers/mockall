@@ -432,17 +432,9 @@ impl MockFunction {
         }.split_for_impl();
         let tbf = tg.as_turbofish();
         let name = self.name();
-        let argnames = &self.argnames;
-        let fields = vec!["{:?}"; argnames.len()].join(", ");
-        let fstr = if let Some(s) = &self.struct_ {
-            format!("{}::{}({}): No matching expectation found",
-                s, name, fields)
-        } else {
-            format!("{}::{}({}): No matching expectation found",
-                self.mod_ident, self.name(), fields)
-        };
-        let no_match_msg = quote!(format!(#fstr,
-            #(::mockall::MaybeDebugger(&#argnames)),*));
+        let desc = self.desc();
+        let no_match_msg = quote!(format!("{}: No matching expectation found",
+            #desc));
         let sig = &self.sig;
         let vis = if self.trait_.is_some() {
             &Visibility::Inherited
@@ -544,6 +536,19 @@ impl MockFunction {
                 #outer_mod_path::Context::default()
             }
         )
+    }
+
+    /// Generate a code fragment that will print a description of the invocation
+    fn desc(&self) -> impl ToTokens {
+        let argnames = &self.argnames;
+        let name = if let Some(s) = &self.struct_ {
+            format!("{}::{}", s, self.sig.ident)
+        } else {
+            format!("{}::{}", self.mod_ident, self.sig.ident)
+        };
+        let fields = vec!["{:?}"; argnames.len()].join(", ");
+        let fstr = format!("{}({})", name, fields);
+        quote!(format!(#fstr, #(::mockall::MaybeDebugger(&#argnames)),*))
     }
 
     /// Generate code for the expect_ method
@@ -816,7 +821,7 @@ impl<'a> ToTokens for Common<'a> {
             }
 
             impl #ig Common #tg #wc {
-                fn call(&self) {
+                fn call(&self, desc: &str) {
                     self.times.call()
                         .unwrap_or_else(|m| {
                             let desc = format!("{}",
@@ -824,7 +829,7 @@ impl<'a> ToTokens for Common<'a> {
                             panic!("{}: Expectation({}) {}", #funcname, desc,
                                 m);
                         });
-                    self.verify_sequence();
+                    self.verify_sequence(desc);
                     if self.times.is_satisfied() {
                         self.satisfy_sequence()
                     }
@@ -894,9 +899,9 @@ impl<'a> ToTokens for Common<'a> {
                         );
                 }
 
-                fn verify_sequence(&self) {
+                fn verify_sequence(&self, desc: &str) {
                     if let Some(__mockall_handle) = &self.seq_handle {
-                        __mockall_handle.verify()
+                        __mockall_handle.verify(desc)
                     }
                 }
             }
@@ -1811,7 +1816,10 @@ struct RefExpectation<'a> {
 
 impl<'a> ToTokens for RefExpectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let argnames = &self.f.argnames;
+        let argty = &self.f.argty;
         let common_methods = CommonExpectationMethods{f: &self.f};
+        let desc = self.f.desc();
         let funcname = self.f.funcname();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
 
@@ -1832,9 +1840,9 @@ impl<'a> ToTokens for RefExpectation<'a> {
             #[allow(clippy::unused_unit)]
             impl #ig Expectation #tg #wc {
                 /// Call this [`Expectation`] as if it were the real method.
-                #v fn call #lg (&self) -> #output
+                #v fn call #lg (&self, #(#argnames: #argty, )*) -> #output
                 {
-                    self.common.call();
+                    self.common.call(&#desc);
                     self.rfunc.call().unwrap_or_else(|m| {
                         let desc = format!("{}",
                                            self.common.matcher.lock().unwrap());
@@ -1876,6 +1884,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
         let common_methods = CommonExpectationMethods{f: &self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
+        let desc = self.f.desc();
         let funcname = self.f.funcname();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let (_, common_tg, _) = self.f.cgenerics.split_for_impl();
@@ -1897,7 +1906,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
                 #v fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
                     -> &mut #owned_output
                 {
-                    self.common.call();
+                    self.common.call(&#desc);
                     let desc = format!("{}",
                         self.common.matcher.lock().unwrap());
                     self.rfunc.call_mut(#(#argnames, )*).unwrap_or_else(|m| {
@@ -1962,6 +1971,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
         let common_methods = CommonExpectationMethods{f: &self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
+        let desc = self.f.desc();
         let hrtb = self.f.hrtb();
         let funcname = self.f.funcname();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
@@ -1969,6 +1979,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
         let lg = lifetimes_to_generics(&self.f.alifetimes);
         let output = &self.f.output;
         let v = &self.f.privmod_vis;
+
         quote!(
             /// Expectation type for methods that return a `'static` type.
             /// This is the type returned by the `expect_*` methods.
@@ -1983,7 +1994,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                 #[doc(hidden)]
                 #v fn call #lg (&self, #(#argnames: #argty, )* ) -> #output
                 {
-                    self.common.call();
+                    self.common.call(&#desc);
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)
                         .unwrap_or_else(|message| {
                             let desc = format!("{}",
@@ -2152,7 +2163,7 @@ impl<'a> ToTokens for RefExpectations<'a> {
                               __mockall_e.matches(#(#predexprs, )*) &&
                               (!__mockall_e.is_done() || self.0.len() == 1))
                         .map(move |__mockall_e|
-                             __mockall_e.call()
+                             __mockall_e.call(#(#argnames),*)
                         )
                 }
 

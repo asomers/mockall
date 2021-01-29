@@ -236,7 +236,7 @@ mod sequence {
     }
 
     #[test]
-    #[should_panic(expected = "Method sequence violation")]
+    #[should_panic(expected = "MockFoo::baz(): Method sequence violation")]
     fn fail() {
         let mut seq = Sequence::new();
         let mut mock = MockFoo::new();
