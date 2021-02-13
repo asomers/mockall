@@ -18,6 +18,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 ### Fixed
+
+- Fixed Clippy warnings in generated code with Rustc 1.52.0.
+  ([#255](https://github.com/asomers/mockall/pull/255))
+
 ### Removed
 
 ## [0.9.0] - 2020-12-21

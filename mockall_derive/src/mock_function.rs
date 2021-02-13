@@ -894,7 +894,7 @@ impl<'a> ToTokens for Common<'a> {
                 {
                     let mut __mockall_guard = self.matcher.lock().unwrap();
                     *__mockall_guard.deref_mut() =
-                         Matcher::FuncST(
+                         Matcher::FuncSt(
                              ::mockall::Fragile::new(Box::new(__mockall_f))
                         );
                 }
@@ -1522,7 +1522,7 @@ impl<'a> ToTokens for Matcher<'a> {
                 Always,
                 Func(Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool + Send>),
                 // Version of Matcher::Func for closures that aren't Send
-                FuncST(::mockall::Fragile<Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool>>),
+                FuncSt(::mockall::Fragile<Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool>>),
                 Pred(Box<(#preds)>),
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
@@ -1536,7 +1536,7 @@ impl<'a> ToTokens for Matcher<'a> {
                         Matcher::Always => true,
                         Matcher::Func(__mockall_f) =>
                             __mockall_f(#(#argnames, )*),
-                        Matcher::FuncST(__mockall_f) =>
+                        Matcher::FuncSt(__mockall_f) =>
                             (__mockall_f.get())(#(#argnames, )*),
                         Matcher::Pred(__mockall_pred) =>
                             [#pred_matches]
@@ -1561,7 +1561,7 @@ impl<'a> ToTokens for Matcher<'a> {
                     match self {
                         Matcher::Always => write!(__mockall_fmt, "<anything>"),
                         Matcher::Func(_) => write!(__mockall_fmt, "<function>"),
-                        Matcher::FuncST(_) => write!(__mockall_fmt, "<single threaded function>"),
+                        Matcher::FuncSt(_) => write!(__mockall_fmt, "<single threaded function>"),
                         Matcher::Pred(__mockall_p) => {
                             write!(__mockall_fmt, #braces,
                                 #(__mockall_p.#indices,)*)
@@ -1661,7 +1661,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
                 Mut((Box<dyn FnMut(#(#argty, )*) -> #owned_output + Send + Sync>),
                     Option<#owned_output>),
                 // Version of Rfunc::Mut for closures that aren't Send
-                MutST((::mockall::Fragile<
+                MutSt((::mockall::Fragile<
                            Box<dyn FnMut(#(#argty, )*) -> #owned_output >>
                        ), Option<#owned_output>
                 ),
@@ -1692,7 +1692,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
                                 unreachable!()
                             }
                         },
-                        Rfunc::MutST(ref mut __mockall_f, ref mut __mockall_o)=>
+                        Rfunc::MutSt(ref mut __mockall_f, ref mut __mockall_o)=>
                         {
                             *__mockall_o = Some((__mockall_f.get_mut())(
                                     #(#argnames, )*)
@@ -1745,12 +1745,12 @@ impl<'a> ToTokens for StaticRfunc<'a> {
                 Expired,
                 Mut(Box<dyn #hrtb FnMut(#(#argty, )*) -> #output + Send>),
                 // Version of Rfunc::Mut for closures that aren't Send
-                MutST(::mockall::Fragile<
+                MutSt(::mockall::Fragile<
                     Box<dyn #hrtb FnMut(#(#argty, )*) -> #output >>
                 ),
                 Once(Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output + Send>),
                 // Version of Rfunc::Once for closure that aren't Send
-                OnceST(::mockall::Fragile<
+                OnceSt(::mockall::Fragile<
                     Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output>>
                 ),
                 // Prevent "unused type parameter" errors Surprisingly,
@@ -1775,7 +1775,7 @@ impl<'a> ToTokens for StaticRfunc<'a> {
                         Rfunc::Mut(__mockall_f) => {
                             Ok(__mockall_f( #(#argnames, )* ))
                         },
-                        Rfunc::MutST(__mockall_f) => {
+                        Rfunc::MutSt(__mockall_f) => {
                             Ok((__mockall_f.get_mut())(#(#argnames,)*))
                         },
                         Rfunc::Once(_) => {
@@ -1786,8 +1786,8 @@ impl<'a> ToTokens for StaticRfunc<'a> {
                                 unreachable!()
                             }
                         },
-                        Rfunc::OnceST(_) => {
-                            if let Rfunc::OnceST(mut __mockall_f) =
+                        Rfunc::OnceSt(_) => {
+                            if let Rfunc::OnceSt(mut __mockall_f) =
                                 mem::replace(self, Rfunc::Expired) {
                                 Ok((__mockall_f.into_inner())(#(#argnames,)*))
                             } else {
@@ -1941,7 +1941,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
                     -> &mut Self
                     where MockallF: FnMut(#(#argty, )*) -> #owned_output + 'static
                 {
-                    self.rfunc = Rfunc::MutST(
+                    self.rfunc = Rfunc::MutSt(
                         ::mockall::Fragile::new(Box::new(__mockall_f)), None);
                     self
                 }
@@ -2078,7 +2078,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        *__mockall_guard.deref_mut() = Rfunc::OnceST(
+                        *__mockall_guard.deref_mut() = Rfunc::OnceSt(
                             ::mockall::Fragile::new(Box::new(__mockall_f)));
                     }
                     self
@@ -2113,7 +2113,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
-                        *__mockall_guard.deref_mut() = Rfunc::MutST(
+                        *__mockall_guard.deref_mut() = Rfunc::MutSt(
                             ::mockall::Fragile::new(Box::new(__mockall_f)));
                     }
                     self
