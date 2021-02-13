@@ -22,6 +22,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed Clippy warnings in generated code with Rustc 1.52.0.
   ([#255](https://github.com/asomers/mockall/pull/255))
 
+- Fixed using `#[automock]` with `#[tracing::instrument]`.  The mock function
+  won't be instrumented, but at least it will compile.
+  ([#256](https://github.com/asomers/mockall/pull/256))
+
 ### Removed
 
 ## [0.9.0] - 2020-12-21
