@@ -549,20 +549,27 @@ impl<'a> AttrFormatter<'a> {
 
     // XXX This logic requires that attributes are imported with their
     // standard names.
+    #[allow(clippy::needless_bool)]
     fn format(&mut self) -> Vec<Attribute> {
         self.attrs.iter()
             .cloned()
-            .filter(|attr|
-                ( self.doc ||
-                    attr.path.get_ident()
-                    .map(|i| i != "doc")
-                    .unwrap_or(false)
-                ) && (self.async_trait ||
-                    attr.path.get_ident()
-                    .map(|i| i != "async_trait")
-                    .unwrap_or(false)
-                )
-            ).collect()
+            .filter(|attr| {
+                let i = attr.path.get_ident();
+                if i.is_none() {
+                    false
+                } else if *i.as_ref().unwrap() == "doc" {
+                    self.doc
+                } else if *i.as_ref().unwrap() == "async_trait" {
+                    self.async_trait
+                } else if *i.as_ref().unwrap() == "instrument" {
+                    // We can't usefully instrument the mock method, so just
+                    // ignore this attribute.
+                    // https://docs.rs/tracing/0.1.23/tracing/attr.instrument.html
+                    false
+                } else {
+                    true
+                }
+            }).collect()
     }
 }
 
