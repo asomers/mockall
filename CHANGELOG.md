@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased] - ReleaseDate
+## [0.9.1] - 2021-02-13
 ### Added
 
 - When a test fails because of a method sequence violation, the error message
