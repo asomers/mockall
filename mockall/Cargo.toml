@@ -13,7 +13,9 @@ description = """
 A powerful mock object library for Rust.
 """
 exclude = [
-  "/tools/*"
+  "examples/*",
+  "tests/*",
+  "tools/*"
 ]
 
 [package.metadata.docs.rs]
