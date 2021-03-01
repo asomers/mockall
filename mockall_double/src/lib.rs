@@ -1,7 +1,7 @@
 // vim: tw=80
 //! Test double adapter for use with Mockall
 //!
-//! This crate provides [`[#double]`](macro@double), which can swap in Mock
+//! This crate provides [`#[double]`](macro@double), which can swap in Mock
 //! objects for real objects while in test mode.  It's intended to be used in
 //! tandem with the [`mockall`](https://docs.rs/mockall/latest/mockall) crate.
 //! However, it is defined in its own crate so that the bulk of Mockall can
