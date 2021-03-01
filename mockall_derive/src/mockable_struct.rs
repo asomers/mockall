@@ -523,10 +523,10 @@ impl Parse for MockableStruct {
             MockableStruct {
                 attrs,
                 consts,
-                vis,
-                name,
                 generics,
                 methods,
+                name,
+                vis,
                 impls
             }
         )
