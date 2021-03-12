@@ -433,8 +433,8 @@ impl MockFunction {
         let tbf = tg.as_turbofish();
         let name = self.name();
         let desc = self.desc();
-        let no_match_msg = quote!(format!("{}: No matching expectation found",
-            #desc));
+        let no_match_msg = quote!(std::format!(
+            "{}: No matching expectation found", #desc));
         let sig = &self.sig;
         let vis = if self.trait_.is_some() {
             &Visibility::Inherited
@@ -548,7 +548,7 @@ impl MockFunction {
         };
         let fields = vec!["{:?}"; argnames.len()].join(", ");
         let fstr = format!("{}({})", name, fields);
-        quote!(format!(#fstr, #(::mockall::MaybeDebugger(&#argnames)),*))
+        quote!(std::format!(#fstr, #(::mockall::MaybeDebugger(&#argnames)),*))
     }
 
     /// Generate code for the expect_ method
@@ -754,9 +754,11 @@ impl MockFunction {
                 use ::mockall::CaseTreeExt;
                 #std_mutexguard
                 use ::std::{
+                    boxed::Box,
                     mem,
                     ops::{DerefMut, Range},
-                    sync::Mutex
+                    sync::Mutex,
+                    vec::Vec,
                 };
                 #rfunc
                 #matcher
@@ -824,8 +826,8 @@ impl<'a> ToTokens for Common<'a> {
                 fn call(&self, desc: &str) {
                     self.times.call()
                         .unwrap_or_else(|m| {
-                            let desc = format!("{}",
-                                               self.matcher.lock().unwrap());
+                            let desc = std::format!(
+                                "{}", self.matcher.lock().unwrap());
                             panic!("{}: Expectation({}) {}", #funcname, desc,
                                 m);
                         });
@@ -910,7 +912,8 @@ impl<'a> ToTokens for Common<'a> {
                 fn drop(&mut self) {
                     if !::std::thread::panicking() && !self.times.is_satisfied()
                     {
-                        let desc = format!("{}", self.matcher.lock().unwrap());
+                        let desc = std::format!(
+                            "{}", self.matcher.lock().unwrap());
                         panic!("{}: Expectation({}) called fewer than {} times",
                                #funcname,
                                desc,
@@ -1844,8 +1847,8 @@ impl<'a> ToTokens for RefExpectation<'a> {
                 {
                     self.common.call(&#desc);
                     self.rfunc.call().unwrap_or_else(|m| {
-                        let desc = format!("{}",
-                                           self.common.matcher.lock().unwrap());
+                        let desc = std::format!(
+                            "{}", self.common.matcher.lock().unwrap());
                         panic!("{}: Expectation({}) {}", #funcname, desc,
                             m);
                     })
@@ -1907,8 +1910,8 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
                     -> &mut #owned_output
                 {
                     self.common.call(&#desc);
-                    let desc = format!("{}",
-                        self.common.matcher.lock().unwrap());
+                    let desc = std::format!(
+                        "{}", self.common.matcher.lock().unwrap());
                     self.rfunc.call_mut(#(#argnames, )*).unwrap_or_else(|m| {
                             panic!("{}: Expectation({}) {}", #funcname, desc,
                                    m);
@@ -1997,8 +2000,8 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                     self.common.call(&#desc);
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)
                         .unwrap_or_else(|message| {
-                            let desc = format!("{}",
-                                self.common.matcher.lock().unwrap());
+                            let desc = std::format!(
+                                "{}", self.common.matcher.lock().unwrap());
                             panic!("{}: Expectation({}) {}", #funcname, desc,
                                    message);
                         })
