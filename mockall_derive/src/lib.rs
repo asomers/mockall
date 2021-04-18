@@ -191,6 +191,9 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
                 true
             }
         }).cloned());
+        if wc.predicates.is_empty() {
+            wc2 = None;
+        }
     }
     let outg = Generics {
         lt_token: if params.is_empty() { None } else { gen.lt_token },
