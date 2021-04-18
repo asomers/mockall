@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+### Fixed
+
+- Fixed setting simultaneous expectations with different generic types on
+  generic methods whose generic parameters appear in neither the arguments nor
+  the return type.
+  ([#272](https://github.com/asomers/mockall/pull/272))
+
 ## [0.9.1] - 2021-02-13
 ### Added
 

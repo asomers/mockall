@@ -84,6 +84,6 @@ mod returning {
         let mut mock = MockFoo::new();
         mock.expect_foody()
             .returning(|f, _g: u32| f(42));
-        assert_eq!(84, mock.foody(|x| 2 * x, 0));
+        assert_eq!(84, mock.foody(|x| 2u32 * x, 0u32));
     }
 }
