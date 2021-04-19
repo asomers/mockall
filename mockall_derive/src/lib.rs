@@ -191,6 +191,9 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
                 true
             }
         }).cloned());
+        if wc.predicates.is_empty() {
+            wc2 = None;
+        }
     }
     let outg = Generics {
         lt_token: if params.is_empty() { None } else { gen.lt_token },
@@ -727,6 +730,26 @@ fn supersuperfy_bounds(
     for bound in bounds.iter_mut() {
         if let TypeParamBound::Trait(tb) = bound {
             supersuperfy_path(&mut tb.path, levels);
+        }
+    }
+}
+
+/// Generate a suitable mockall::Key generic paramter from any Generics
+fn gen_keyid(g: &Generics) -> impl ToTokens {
+    match g.params.len() {
+        0 => quote!(),
+        1 => {
+            let (_, tg, _) = g.split_for_impl();
+            quote!(#tg)
+        },
+        _ => {
+            // Rust doesn't support variadic Generics, so mockall::Key must
+            // always have exactly one generic type.  We need to add parentheses
+            // around whatever type generics the caller passes.
+            let tps = g.type_params()
+            .map(|tp| tp.ident.clone())
+            .collect::<Punctuated::<Ident, Token![,]>>();
+            quote!(<(#tps)>)
         }
     }
 }
@@ -1269,6 +1292,31 @@ mod deselfify {
             quote!(),
             quote!(Box<dyn Foo + Send>)
         );
+    }
+}
+
+mod gen_keyid {
+    use super::*;
+
+    fn check_gen_keyid(orig: TokenStream, expected: TokenStream) {
+        let g: Generics = parse2(orig).unwrap();
+        let keyid = gen_keyid(&g);
+        assert_eq!(quote!(#keyid).to_string(), quote!(#expected).to_string());
+    }
+
+    #[test]
+    fn empty() {
+        check_gen_keyid(quote!(), quote!());
+    }
+
+    #[test]
+    fn onetype() {
+        check_gen_keyid(quote!(<T>), quote!(<T>));
+    }
+
+    #[test]
+    fn twotypes() {
+        check_gen_keyid(quote!(<T, V>), quote!(<(T, V)>));
     }
 }
 

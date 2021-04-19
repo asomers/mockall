@@ -1100,12 +1100,12 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
 
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
-        let oo = &self.f.owned_output;
         let (_, tg, _) = self.f.egenerics.split_for_impl();
+        let keyid = gen_keyid(&self.f.egenerics);
         let expectations = if self.f.is_expectation_generic() {
             quote!(self.guard
                    .store
-                   .get_mut(&::mockall::Key::new::<(#oo, #(#argty, )*)>())
+                   .get_mut(&::mockall::Key::new::#keyid())
                    .unwrap()
                    .downcast_mut::<Expectations #tg>()
                    .unwrap())
@@ -1330,9 +1330,9 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
             return;
         }
 
-        let argty = &self.f.argty;
         let common_methods = ExpectationGuardCommonMethods{f: self.f};
         let (_, tg, _) = self.f.egenerics.split_for_impl();
+        let keyid = gen_keyid(&self.f.egenerics);
         let ltdef = LifetimeDef::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
@@ -1342,7 +1342,6 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
         egenerics.gt_token.get_or_insert(<Token![>]>::default());
         let (e_ig, e_tg, e_wc) = egenerics.split_for_impl();
         let fn_params = &self.f.fn_params;
-        let oo = &self.f.owned_output;
         let tbf = tg.as_turbofish();
         let v = &self.f.privmod_vis;
         quote!(
@@ -1371,7 +1370,7 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
                 {
                     let __mockall_ee: &mut Expectations #tg =
                         __mockall_guard.store.entry(
-                            ::mockall::Key::new::<(#oo, #(#argty, )*)>()
+                            ::mockall::Key::new::#keyid()
                         ).or_insert_with(||
                             Box::new(Expectations #tbf ::new()))
                         .downcast_mut()
@@ -2307,6 +2306,7 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+        let keyid = gen_keyid(&self.f.egenerics);
         let mut any_wc = wc.cloned();
         if self.f.return_ref || self.f.return_refmut {
             // Add Senc + Sync, required for downcast, since Expectation
@@ -2314,7 +2314,6 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
             send_syncify(&mut any_wc, self.f.owned_output.clone());
         }
         let tbf = tg.as_turbofish();
-        let oo = &self.f.owned_output;
         let output = &self.f.output;
         let v = &self.f.privmod_vis;
         let (call, get, self_, downcast) = if self.f.return_refmut {
@@ -2335,7 +2334,7 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
                 #v fn #call #ig (#self_, #(#argnames: #argty, )* )
                     -> Option<#output> #wc
                 {
-                    self.store.#get(&::mockall::Key::new::<(#oo, #(#argty, )*)>())
+                    self.store.#get(&::mockall::Key::new::#keyid())
                         .map(|__mockall_e| {
                             __mockall_e.#downcast::<Expectations #tg>()
                             .unwrap()
@@ -2346,7 +2345,7 @@ impl<'a> ToTokens for StaticGenericExpectations<'a> {
                 /// Create a new Expectation.
                 #v fn expect #ig (&mut self) -> &mut Expectation #tg #any_wc
                 {
-                    self.store.entry(::mockall::Key::new::<(#oo, #(#argty, )*)>())
+                    self.store.entry(::mockall::Key::new::#keyid())
                         .or_insert_with(|| Box::new(Expectations #tbf::new()))
                         .downcast_mut::<Expectations #tg>()
                         .unwrap()
