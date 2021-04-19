@@ -1065,12 +1065,10 @@
 //!
 //! ## Crate features
 //!
-//! Mockall has a **nightly** feature.  Currently this feature has three
+//! Mockall has a **nightly** feature.  Currently this feature has two
 //! effects:
 //!
 //! * The compiler will produce better error messages.
-//!
-//! * Mocking modules will be enabled.
 //!
 //! * Expectations for methods whose return type implements `Default` needn't
 //!   have their return values explicitly set.  Instead, they will automatically
