@@ -1119,6 +1119,35 @@ mod mock {
         assert_contains(&output, quote!(pub(super) fn expect_bean));
         assert_contains(&output, quote!(pub(in crate::outer) fn expect_boom));
     }
+
+    #[test]
+    fn specific_impl() {
+        let code = r#"
+            pub Foo<T: 'static> {}
+            impl Bar for Foo<u32> {
+                fn bar(&self);
+            }
+            impl Bar for Foo<i32> {
+                fn bar(&self);
+            }
+        "#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let output = do_mock(ts).to_string();
+        assert_contains(&output, quote!(impl Bar for MockFoo<u32>));
+        assert_contains(&output, quote!(impl Bar for MockFoo<i32>));
+        // Ensure we don't duplicate the checkpoint function
+        assert_not_contains(&output, quote!(
+            self.Bar_expectations.checkpoint();
+            self.Bar_expectations.checkpoint();
+        ));
+        // The expect methods should return specific types, not generic ones
+        assert_contains(&output, quote!(
+            pub fn expect_bar(&mut self) -> &mut __mock_MockFoo_Bar::__bar::Expectation<u32>
+        ));
+        assert_contains(&output, quote!(
+            pub fn expect_bar(&mut self) -> &mut __mock_MockFoo_Bar::__bar::Expectation<i32>
+        ));
+    }
 }
 
 /// Various tests for overall code generation that are hard or impossible to

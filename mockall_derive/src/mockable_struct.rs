@@ -92,10 +92,30 @@ fn add_lifetime_parameters(sig: &mut Signature) {
     }
 }
 
+/// Add "Mock" to the front of the named type
+fn mock_ident_in_type(ty: &mut Type) {
+    match ty {
+        Type::Path(type_path) => {
+            if type_path.path.segments.len() != 1 {
+                compile_error(type_path.path.span(),
+                    "mockall_derive only supports structs defined in the current module");
+                return;
+            }
+            let ident = &mut type_path.path.segments.last_mut().unwrap().ident;
+            *ident = gen_mock_ident(ident)
+        },
+        x => {
+            compile_error(x.span(),
+                "mockall_derive only supports mocking traits and structs");
+        }
+    };
+}
+
 /// Performs transformations on the ItemImpl to make it mockable
 fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
     -> ItemImpl
 {
+    mock_ident_in_type(&mut impl_.self_ty);
     for item in impl_.items.iter_mut() {
         if let ImplItem::Method(ref mut iim) = item {
             mockable_method(iim, name, generics);
