@@ -45,6 +45,25 @@ impl Attrs {
         }
     }
 
+    pub(crate) fn substitute_item_impl(&self, item_impl: &mut ItemImpl) {
+        let (_, trait_path, _) = item_impl.trait_.as_ref()
+            .expect("Should only be called for trait item impls");
+        let trait_ident = find_ident_from_path(&trait_path).0;
+        for item in item_impl.items.iter_mut() {
+            if let ImplItem::Method(method) = item {
+                let sig = &mut method.sig;
+                for fn_arg in sig.inputs.iter_mut() {
+                    if let FnArg::Typed(arg) = fn_arg {
+                        self.substitute_type(&mut arg.ty, &trait_ident);
+                    }
+                }
+                if let ReturnType::Type(_, ref mut ty) = &mut sig.output {
+                    self.substitute_type(ty, &trait_ident);
+                }
+            }
+        }
+    }
+
     fn substitute_path_segment(&self, seg: &mut PathSegment, traitname: &Ident)
     {
         match &mut seg.arguments {
