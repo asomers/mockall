@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
+
+### Added
+
+- Added support for specific impls.  A specific impl is an implementation of a
+  trait on a generic struct with specified generic parameters.  For example,
+  `impl Foo for Bar<i32>` as opposed to `impl<T> Foo for Bar<T>`.  Mockall does
+  not yet support generic methods in such traits.
+  ([#274](https://github.com/asomers/mockall/pull/274))
+
+### Changed
+
+- Mockall is picker now about how you mock a trait on a generic struct.
+  Previously you could usually omit the generics.  Now, they're required.
+  i.e.,
+  ```rust
+  mock!{
+      MyStruct<T: Bounds> {...}
+      impl Foo for MyStruct {...}
+  }
+  ```
+  should now be written as
+  ```rust
+  mock!{
+      MyStruct<T: Bounds> {...}
+      impl<T: Bounds> Foo for MyStruct<T> {...}
+  }
+  ```
+  ([#274](https://github.com/asomers/mockall/pull/274))
+
 ### Fixed
 
 - Fixed setting simultaneous expectations with different generic types on

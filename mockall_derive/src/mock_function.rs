@@ -556,15 +556,20 @@ impl MockFunction {
     /// # Arguments
     ///
     /// * `modname`:    Name of the parent struct's private module
+    /// * `self_args`:  If supplied, these are the
+    ///                 AngleBracketedGenericArguments of the self type of the
+    ///                 trait impl.  e.g. The `T` in `impl Foo for Bar<T>`.
     // Supplying modname is an unfortunately hack.  Ideally MockFunction
     // wouldn't need to know that.
-    pub fn expect(&self, modname: &Ident) -> impl ToTokens {
+    pub fn expect(&self, modname: &Ident, self_args: Option<&PathArguments>)
+        -> impl ToTokens
+    {
         let attrs = AttrFormatter::new(&self.attrs)
             .doc(false)
             .format();
         let name = self.name();
         let expect_ident = format_ident!("expect_{}", &name);
-        let expectation_obj = self.expectation_obj();
+        let expectation_obj = self.expectation_obj(self_args);
         let funcname = &self.sig.ident;
         let (_, tg, _) = if self.is_method_generic() {
             &self.egenerics
@@ -610,13 +615,22 @@ impl MockFunction {
     }
 
     /// Return the name of this function's expecation object
-    pub fn expectation_obj(&self) -> impl ToTokens {
+    fn expectation_obj(&self, self_args: Option<&PathArguments>)
+        -> impl ToTokens
+    {
         let inner_mod_ident = self.inner_mod_ident();
-        // staticize any lifetimes.  This is necessary for methods that return
-        // non-static types, because the Expectation itself must be 'static.
-        let segenerics = staticize(&self.egenerics);
-        let (_, tg, _) = segenerics.split_for_impl();
-        quote!(#inner_mod_ident::Expectation #tg)
+        if let Some(sa) = self_args {
+            assert!(!self.is_method_generic(),
+                "specific impls with generic methods are TODO");
+            quote!(#inner_mod_ident::Expectation #sa)
+        } else {
+            // staticize any lifetimes.  This is necessary for methods that
+            // return non-static types, because the Expectation itself must be
+            // 'static.
+            let segenerics = staticize(&self.egenerics);
+            let (_, tg, _) = segenerics.split_for_impl();
+            quote!(#inner_mod_ident::Expectation #tg)
+        }
     }
 
     /// Return the name of this function's expecations object
@@ -677,7 +691,7 @@ impl MockFunction {
 
     /// Is the mock method generic (as opposed to a non-generic method of a
     /// generic mock struct)?
-    fn is_method_generic(&self) -> bool {
+    pub fn is_method_generic(&self) -> bool {
         self.call_generics.params.iter().any(|p| {
             matches!(p, GenericParam::Type(_))
         }) || self.call_generics.where_clause.is_some()

@@ -432,6 +432,16 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
     }
 }
 
+fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
+    if path.segments.len() != 1 {
+        compile_error(path.span(),
+            "mockall_derive only supports structs defined in the current module");
+        return (Ident::new("", path.span()), PathArguments::None);
+    }
+    let last_seg = path.segments.last().unwrap();
+    (last_seg.ident.clone(), last_seg.arguments.clone())
+}
+
 fn find_lifetimes_in_tpb(bound: &TypeParamBound) -> HashSet<Lifetime> {
     let mut ret = HashSet::default();
     match bound {
@@ -1108,6 +1118,35 @@ mod mock {
         assert_contains(&output, quote!(pub(crate) fn expect_baz));
         assert_contains(&output, quote!(pub(super) fn expect_bean));
         assert_contains(&output, quote!(pub(in crate::outer) fn expect_boom));
+    }
+
+    #[test]
+    fn specific_impl() {
+        let code = r#"
+            pub Foo<T: 'static> {}
+            impl Bar for Foo<u32> {
+                fn bar(&self);
+            }
+            impl Bar for Foo<i32> {
+                fn bar(&self);
+            }
+        "#;
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let output = do_mock(ts).to_string();
+        assert_contains(&output, quote!(impl Bar for MockFoo<u32>));
+        assert_contains(&output, quote!(impl Bar for MockFoo<i32>));
+        // Ensure we don't duplicate the checkpoint function
+        assert_not_contains(&output, quote!(
+            self.Bar_expectations.checkpoint();
+            self.Bar_expectations.checkpoint();
+        ));
+        // The expect methods should return specific types, not generic ones
+        assert_contains(&output, quote!(
+            pub fn expect_bar(&mut self) -> &mut __mock_MockFoo_Bar::__bar::Expectation<u32>
+        ));
+        assert_contains(&output, quote!(
+            pub fn expect_bar(&mut self) -> &mut __mock_MockFoo_Bar::__bar::Expectation<i32>
+        ));
     }
 }
 

@@ -1,4 +1,5 @@
 // vim: tw=80
+use proc_macro2::Span;
 use quote::{ToTokens, format_ident, quote};
 use syn::{
     *,
@@ -13,16 +14,19 @@ use crate::{
 pub(crate) struct MockTrait {
     pub attrs: Vec<Attribute>,
     pub consts: Vec<ImplItemConst>,
-    pub struct_generics: Generics,
+    pub generics: Generics,
     pub methods: Vec<MockFunction>,
-    pub path: Path,
-    structname: Ident,
+    /// Fully-qualified name of the trait
+    pub trait_path: Path,
+    /// Path on which the trait is implemented.  Usually will be the same as
+    /// structname, but might include concrete generic parameters.
+    self_path: PathSegment,
     pub types: Vec<ImplItemType>
 }
 
 impl MockTrait {
     pub fn name(&self) -> &Ident {
-        &self.path.segments.last().unwrap().ident
+        &self.trait_path.segments.last().unwrap().ident
     }
 
     /// Create a new MockTrait
@@ -40,13 +44,22 @@ impl MockTrait {
         let mut consts = Vec::new();
         let mut methods = Vec::new();
         let mut types = Vec::new();
-        let path = if let Some((_, path, _)) = impl_.trait_ {
+        let trait_path = if let Some((_, path, _)) = impl_.trait_ {
             path
         } else {
             compile_error(impl_.span(), "impl block must implement a trait");
             Path::from(format_ident!("__mockall_invalid"))
         };
-        let ident = &path.segments.last().unwrap().ident;
+        let trait_ident = &trait_path.segments.last().unwrap().ident;
+        let self_path = match *impl_.self_ty {
+            Type::Path(mut type_path) =>
+                type_path.path.segments.pop().unwrap().into_value(),
+            x => {
+                compile_error(x.span(),
+                    "mockall_derive only supports mocking traits and structs");
+                PathSegment::from(Ident::new("", Span::call_site()))
+            }
+        };
 
         for ii in impl_.items.into_iter() {
             match ii {
@@ -60,7 +73,7 @@ impl MockTrait {
                         .call_levels(0)
                         .struct_(structname)
                         .struct_generics(struct_generics)
-                        .trait_(ident)
+                        .trait_(trait_ident)
                         .build();
                     methods.push(mf);
                 },
@@ -76,10 +89,10 @@ impl MockTrait {
         MockTrait {
             attrs: impl_.attrs,
             consts,
-            struct_generics: struct_generics.clone(),
+            generics: impl_.generics,
             methods,
-            path,
-            structname: structname.clone(),
+            trait_path,
+            self_path,
             types
         }
     }
@@ -93,8 +106,9 @@ impl MockTrait {
     // wouldn't need to know that.
     pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
         let attrs = &self.attrs;
-        let (ig, tg, wc) = self.struct_generics.split_for_impl();
+        let (ig, _tg, wc) = self.generics.split_for_impl();
         let consts = &self.consts;
+        let path_args = &self.self_path.arguments;
         let calls = self.methods.iter()
                 .map(|meth| meth.call(Some(modname)))
                 .collect::<Vec<_>>();
@@ -104,19 +118,25 @@ impl MockTrait {
             .collect::<Vec<_>>();
         let expects = self.methods.iter()
             .filter(|meth| !meth.is_static())
-            .map(|meth| meth.expect(&modname))
-            .collect::<Vec<_>>();
-        let path = &self.path;
-        let structname = &self.structname;
+            .map(|meth| {
+                if meth.is_method_generic() {
+                    // Specific impls with generic methods are TODO.
+                    meth.expect(&modname, None)
+                } else {
+                    meth.expect(&modname, Some(path_args))
+                }
+            }).collect::<Vec<_>>();
+        let trait_path = &self.trait_path;
+        let self_path = &self.self_path;
         let types = &self.types;
         quote!(
             #(#attrs)*
-            impl #ig #path for #structname #tg #wc {
+            impl #ig #trait_path for #self_path #wc {
                 #(#consts)*
                 #(#types)*
                 #(#calls)*
             }
-            impl #ig #structname #tg #wc {
+            impl #ig #self_path #wc {
                 #(#expects)*
                 #(#contexts)*
             }

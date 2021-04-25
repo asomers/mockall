@@ -1262,7 +1262,7 @@ pub use mockall_derive::automock;
 ///     pub MyStruct<T: Clone + 'static> {
 ///         fn bar(&self) -> u8;
 ///     }
-///     impl Foo for MyStruct {
+///     impl<T: Clone + 'static> Foo for MyStruct<T> {
 ///         fn foo(&self, x: u32);
 ///     }
 /// }

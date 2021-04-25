@@ -2,6 +2,7 @@
 use super::*;
 
 use quote::ToTokens;
+use std::collections::HashSet;
 
 use crate::{
     mock_function::MockFunction,
@@ -49,6 +50,22 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
             }
         }
     }).collect()
+}
+
+/// Filter out multiple copies of the same trait, even if they're implemented on
+/// different types.
+fn unique_trait_iter<'a, I: Iterator<Item = &'a MockTrait>>(i: I)
+    -> impl Iterator<Item = &'a MockTrait>
+{
+    let mut hs = HashSet::<Path>::default();
+    i.filter(move |mt| {
+        if hs.contains(&mt.trait_path) {
+            false
+        } else {
+            hs.insert(mt.trait_path.clone());
+            true
+        }
+    })
 }
 
 /// A collection of methods defined in one spot
@@ -205,12 +222,12 @@ impl ToTokens for MockItemStruct {
             .collect::<Vec<_>>();
         let expects = self.methods.0.iter()
             .filter(|meth| !meth.is_static())
-            .map(|meth| meth.expect(modname))
+            .map(|meth| meth.expect(modname, None))
             .collect::<Vec<_>>();
         let method_checkpoints = self.methods.checkpoints();
         let new_method = self.new_method();
         let priv_mods = self.methods.priv_mods();
-        let substructs = self.traits.iter()
+        let substructs = unique_trait_iter(self.traits.iter())
             .map(|trait_| {
                 MockItemTraitImpl {
                     attrs: trait_.attrs.clone(),

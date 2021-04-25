@@ -92,84 +92,30 @@ fn add_lifetime_parameters(sig: &mut Signature) {
     }
 }
 
-/// Filter a generics list, keeping only the elements specified by path_args
-/// e.g. filter_generics(<A: Copy, B: Clone>, <A>) -> <A: Copy>
-fn filter_generics(g: &Generics, path_args: &PathArguments)
-    -> Generics
-{
-    let mut params = Punctuated::new();
-    match path_args {
-        PathArguments::None => ()/* No generics selected */,
-        PathArguments::Parenthesized(p) => {
-            compile_error(p.span(),
-                          "Mockall does not support mocking Fn objects.  See https://github.com/asomers/mockall/issues/139");
+/// Add "Mock" to the front of the named type
+fn mock_ident_in_type(ty: &mut Type) {
+    match ty {
+        Type::Path(type_path) => {
+            if type_path.path.segments.len() != 1 {
+                compile_error(type_path.path.span(),
+                    "mockall_derive only supports structs defined in the current module");
+                return;
+            }
+            let ident = &mut type_path.path.segments.last_mut().unwrap().ident;
+            *ident = gen_mock_ident(ident)
         },
-        PathArguments::AngleBracketed(abga) => {
-            let args = &abga.args;
-            if g.where_clause.is_some() {
-                compile_error(g.where_clause.span(),
-                    "Mockall does not yet support where clauses here");
-                return g.clone();
-            }
-            for param in g.params.iter() {
-                match param {
-                    GenericParam::Type(tp) => {
-                        let matches = |ga: &GenericArgument| {
-                            if let GenericArgument::Type(
-                                Type::Path(type_path)) = ga
-                            {
-                                type_path.path.is_ident(&tp.ident)
-                            } else {
-                                false
-                            }
-                        };
-                        if args.iter().any(matches) {
-                            params.push(param.clone())
-                        }
-                    },
-                    GenericParam::Lifetime(ld) => {
-                        let matches = |ga: &GenericArgument| {
-                            if let GenericArgument::Lifetime(lt) = ga {
-                                *lt == ld.lifetime
-                            } else {
-                                false
-                            }
-                        };
-                        if args.iter().any(matches) {
-                            params.push(param.clone())
-                        }
-                    },
-                    GenericParam::Const(_) => ()/* Ignore */,
-                }
-            }
+        x => {
+            compile_error(x.span(),
+                "mockall_derive only supports mocking traits and structs");
         }
     };
-    if params.is_empty() {
-        Generics::default()
-    } else {
-        Generics {
-            lt_token: Some(Token![<](g.span())),
-            params,
-            gt_token: Some(Token![>](g.span())),
-            where_clause: None
-        }
-    }
-}
-
-fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
-        if path.segments.len() != 1 {
-            compile_error(path.span(),
-                "mockall_derive only supports structs defined in the current module");
-            return (Ident::new("", path.span()), PathArguments::None);
-        }
-        let last_seg = path.segments.last().unwrap();
-        (last_seg.ident.clone(), last_seg.arguments.clone())
 }
 
 /// Performs transformations on the ItemImpl to make it mockable
 fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
     -> ItemImpl
 {
+    mock_ident_in_type(&mut impl_.self_ty);
     for item in impl_.items.iter_mut() {
         if let ImplItem::Method(ref mut iim) = item {
             mockable_method(iim, name, generics);
@@ -230,21 +176,30 @@ fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
             }
         }
     }).collect::<Vec<_>>();
-    let mut path = Path::from(trait_.ident);
-    let (_, tg, _) = trait_.generics.split_for_impl();
-    if let Ok(abga) = parse2::<AngleBracketedGenericArguments>(quote!(#tg)) {
-        path.segments.last_mut().unwrap().arguments =
+    let mut trait_path = Path::from(trait_.ident);
+    let mut struct_path = Path::from(name.clone());
+    let (_, stg, _) = generics.split_for_impl();
+    let (_, ttg, _) = trait_.generics.split_for_impl();
+    if let Ok(abga) = parse2::<AngleBracketedGenericArguments>(quote!(#stg)) {
+        struct_path.segments.last_mut().unwrap().arguments =
             PathArguments::AngleBracketed(abga);
     }
+    if let Ok(abga) = parse2::<AngleBracketedGenericArguments>(quote!(#ttg)) {
+        trait_path.segments.last_mut().unwrap().arguments =
+            PathArguments::AngleBracketed(abga);
+    }
+    let self_ty = Box::new(Type::Path(TypePath{
+        qself: None,
+        path: struct_path,
+    }));
     ItemImpl {
         attrs: trait_.attrs,
         defaultness: None,
         unsafety: trait_.unsafety,
         impl_token: <Token![impl]>::default(),
-        generics: trait_.generics,
-        trait_: Some((None, path, <Token![for]>::default())),
-        // For now, self_ty is unused
-        self_ty: Box::new(Type::Verbatim(TokenStream::new())),
+        generics: generics.clone(),
+        trait_: Some((None, trait_path, <Token![for]>::default())),
+        self_ty,
         brace_token: trait_.brace_token,
         items
     }
@@ -357,8 +312,8 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
 }
 
 impl From<ItemImpl> for MockableStruct {
-    fn from(item_impl: ItemImpl) -> MockableStruct {
-        let name = match *item_impl.self_ty {
+    fn from(mut item_impl: ItemImpl) -> MockableStruct {
+        let name = match &*item_impl.self_ty {
             Type::Path(type_path) => {
                 let n = find_ident_from_path(&type_path.path).0;
                 gen_mock_ident(&n)
@@ -369,81 +324,36 @@ impl From<ItemImpl> for MockableStruct {
                 Ident::new("", Span::call_site())
             }
         };
+        let attrs = item_impl.attrs.clone();
         let mut consts = Vec::new();
+        let generics = item_impl.generics.clone();
         let mut methods = Vec::new();
         let pub_token = Token![pub](Span::call_site());
         let vis = Visibility::Public(VisPublic{pub_token});
         let mut impls = Vec::new();
-        if let Some((bang, path, _)) = item_impl.trait_ {
+        if let Some((bang, _path, _)) = &item_impl.trait_ {
             if bang.is_some() {
                 compile_error(bang.span(), "Unsupported by automock");
             }
 
-            // Regenerate the trait that this block is implementing
-            let generics = &item_impl.generics;
-            let traitname = &path.segments.last().unwrap().ident;
-            let trait_path_args = &path.segments.last().unwrap().arguments;
-            let mut items = Vec::new();
+            // Substitute any associated types in this ItemImpl.
+            // NB: this would not be necessary if the user always fully
+            // qualified them, e.g. `<Self as MyTrait>::MyType`
             let mut attrs = Attrs::default();
-            for item in item_impl.items.into_iter() {
+            for item in item_impl.items.iter() {
                 match item {
-                    ImplItem::Const(iic) =>
-                        items.push(
-                            TraitItem::Const(TraitItemConst {
-                                attrs: iic.attrs,
-                                const_token: iic.const_token,
-                                ident: iic.ident,
-                                colon_token: iic.colon_token,
-                                ty: iic.ty,
-                                default: Some((
-                                    iic.eq_token,
-                                    iic.expr
-                                )),
-                                semi_token: iic.semi_token
-                            })
-                        ),
-                    ImplItem::Method(meth) =>
-                        items.push(
-                            TraitItem::Method(TraitItemMethod {
-                                attrs: meth.attrs,
-                                sig: meth.sig,
-                                default: None,
-                                semi_token: Some(Token![;](Span::call_site()))
-                            })
-                        ),
+                    ImplItem::Const(_iic) =>
+                        (),
+                    ImplItem::Method(_meth) =>
+                        (),
                     ImplItem::Type(ty) => {
                         attrs.attrs.insert(ty.ident.clone(), ty.ty.clone());
-                        items.push(
-                            TraitItem::Type(TraitItemType {
-                                attrs: ty.attrs,
-                                type_token: ty.type_token,
-                                ident: ty.ident,
-                                generics: ty.generics,
-                                colon_token: None,
-                                bounds: Punctuated::new(),
-                                default: Some((ty.eq_token, ty.ty.clone())),
-                                semi_token: ty.semi_token
-                            })
-                        );
                     },
                     x => compile_error(x.span(), "Unsupported by automock")
                 }
             }
-            let trait_ = ItemTrait {
-                attrs: item_impl.attrs.clone(),
-                vis: vis.clone(),
-                unsafety: item_impl.unsafety,
-                auto_token: None,
-                trait_token: Token![trait](Span::call_site()),
-                ident: traitname.clone(),
-                generics: filter_generics(&item_impl.generics, trait_path_args),
-                colon_token: None,
-                supertraits: Punctuated::new(),
-                brace_token: token::Brace::default(),
-                items
-            };
-            let trait_ = attrs.substitute_trait(&trait_);
-            impls.push(mockable_trait(trait_, traitname, &generics));
+            attrs.substitute_item_impl(&mut item_impl);
+            impls.push(mockable_item_impl(item_impl, &name, &generics));
         } else {
             for item in item_impl.items.into_iter() {
                 match item {
@@ -459,13 +369,13 @@ impl From<ItemImpl> for MockableStruct {
             }
         };
         MockableStruct {
-            attrs: item_impl.attrs,
+            attrs,
             consts,
-            name,
-            generics: item_impl.generics,
+            generics,
             methods,
+            name,
+            vis,
             impls,
-            vis
         }
     }
 }
