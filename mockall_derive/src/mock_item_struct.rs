@@ -232,10 +232,12 @@ impl ToTokens for MockItemStruct {
                 MockItemTraitImpl {
                     attrs: trait_.attrs.clone(),
                     generics: self.generics.clone(),
-                    fieldname: format_ident!("{}_expectations", trait_.name()),
+                    fieldname: format_ident!("{}_expectations",
+                                             trait_.ss_name()),
                     methods: Methods(trait_.methods.clone()),
-                    modname: format_ident!("{}_{}", &self.modname, trait_.name()),
-                    name: format_ident!("{}_{}", &self.name, trait_.name()),
+                    modname: format_ident!("{}_{}", &self.modname,
+                                           trait_.ss_name()),
+                    name: format_ident!("{}_{}", &self.name, trait_.ss_name()),
                 }
             }).collect::<Vec<_>>();
         let substruct_expectations = substructs.iter()
@@ -260,9 +262,10 @@ impl ToTokens for MockItemStruct {
         default_inits.extend(self.methods.default_inits());
         default_inits.extend(self.phantom_default_inits());
         let trait_impls = self.traits.iter()
-            .map(|ss| {
-                let modname = format_ident!("{}_{}", &self.modname, ss.name());
-                ss.trait_impl(&modname)
+            .map(|trait_| {
+                let modname = format_ident!("{}_{}", &self.modname,
+                                            trait_.ss_name());
+                trait_.trait_impl(&modname)
             }).collect::<Vec<_>>();
         let vis = &self.vis;
         quote!(
