@@ -790,19 +790,18 @@ impl<'a> ToTokens for Common<'a> {
         let with_generics_idents = (0..self.f.predty.len())
             .map(|i| format_ident!("MockallMatcher{}", i))
             .collect::<Vec<_>>();
-        let with_generics = TokenStream::from_iter(
-            with_generics_idents.iter().zip(self.f.predty.iter())
+        let with_generics = with_generics_idents.iter()
+            .zip(self.f.predty.iter())
             .map(|(id, mt)|
                 quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
-            )
-        );
-        let with_args = TokenStream::from_iter(
-            self.f.argnames.iter().zip(with_generics_idents.iter())
+            ).collect::<TokenStream>();
+        let with_args = self.f.argnames.iter()
+            .zip(with_generics_idents.iter())
             .map(|(argname, id)| quote!(#argname: #id, ))
-        );
-        let boxed_withargs = TokenStream::from_iter(
-            argnames.iter().map(|aa| quote!(Box::new(#aa), ))
-        );
+            .collect::<TokenStream>();
+        let boxed_withargs = argnames.iter()
+            .map(|aa| quote!(Box::new(#aa), ))
+            .collect::<TokenStream>();
         quote!(
             /// Holds the stuff that is independent of the output type
             struct Common #ig #wc {
@@ -939,16 +938,15 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
         let with_generics_idents = (0..self.f.predty.len())
             .map(|i| format_ident!("MockallMatcher{}", i))
             .collect::<Vec<_>>();
-        let with_generics = TokenStream::from_iter(
-            with_generics_idents.iter().zip(self.f.predty.iter())
+        let with_generics = with_generics_idents.iter()
+            .zip(self.f.predty.iter())
             .map(|(id, mt)|
                 quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
-            )
-        );
-        let with_args = TokenStream::from_iter(
-            self.f.argnames.iter().zip(with_generics_idents.iter())
+            ).collect::<TokenStream>();
+        let with_args = self.f.argnames.iter()
+            .zip(with_generics_idents.iter())
             .map(|(argname, id)| quote!(#argname: #id, ))
-        );
+            .collect::<TokenStream>();
         let v = &self.f.privmod_vis;
         quote!(
             /// Add this expectation to a
@@ -1118,16 +1116,15 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
         let with_generics_idents = (0..self.f.predty.len())
             .map(|i| format_ident!("MockallMatcher{}", i))
             .collect::<Vec<_>>();
-        let with_generics = TokenStream::from_iter(
-            with_generics_idents.iter().zip(self.f.predty.iter())
+        let with_generics = with_generics_idents.iter()
+            .zip(self.f.predty.iter())
             .map(|(id, mt)|
                 quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
-            )
-        );
-        let with_args = TokenStream::from_iter(
-            self.f.argnames.iter().zip(with_generics_idents.iter())
+            ).collect::<TokenStream>();
+        let with_args = self.f.argnames.iter()
+            .zip(with_generics_idents.iter())
             .map(|(argname, id)| quote!(#argname: #id, ))
-        );
+            .collect::<TokenStream>();
         let v = &self.f.privmod_vis;
         quote!(
             /// Just like
@@ -1414,9 +1411,9 @@ impl<'a> ToTokens for Context<'a> {
         );
         meth_generics.params.push(GenericParam::Lifetime(ltdef));
         let (meth_ig, _meth_tg, meth_wc) = meth_generics.split_for_impl();
-        let ctx_fn_params = Punctuated::<Ident, Token![,]>::from_iter(
-            self.f.struct_generics.type_params().map(|tp| tp.ident.clone())
-        );
+        let ctx_fn_params = self.f.struct_generics.type_params()
+            .map(|tp| tp.ident.clone())
+            .collect::<Punctuated::<Ident, Token![,]>>();
         let v = &self.f.privmod_vis;
 
         #[cfg(not(feature = "nightly_derive"))]
@@ -1505,18 +1502,14 @@ impl<'a> ToTokens for Matcher<'a> {
                 syn::Index::from(i)
             }).collect::<Vec<_>>();
         let lg = lifetimes_to_generics(&self.f.alifetimes);
-        let pred_matches = TokenStream::from_iter(
-            argnames.iter().enumerate()
+        let pred_matches = argnames.iter().enumerate()
             .map(|(i, argname)| {
                 let idx = syn::Index::from(i);
                 quote!(__mockall_pred.#idx.eval(#argname),)
-            })
-        );
-        let preds = TokenStream::from_iter(
-            self.f.predty.iter().map(|t|
-                quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + Send>,)
-            )
-        );
+            }).collect::<TokenStream>();
+        let preds = self.f.predty.iter()
+            .map(|t| quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + Send>,))
+            .collect::<TokenStream>();
         let predty = &self.f.predty;
         let refpredty = &self.f.refpredty;
         quote!(
