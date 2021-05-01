@@ -1,6 +1,10 @@
 // vim: tw=80
 use proc_macro2::Span;
 use quote::{ToTokens, format_ident, quote};
+use std::{
+   collections::hash_map::DefaultHasher,
+   hash::{Hash, Hasher}
+};
 use syn::{
     *,
     spanned::Spanned
@@ -16,6 +20,8 @@ pub(crate) struct MockTrait {
     pub consts: Vec<ImplItemConst>,
     pub generics: Generics,
     pub methods: Vec<MockFunction>,
+    /// Internally-used name of the trait used.
+    pub ss_name: Ident,
     /// Fully-qualified name of the trait
     pub trait_path: Path,
     /// Path on which the trait is implemented.  Usually will be the same as
@@ -25,8 +31,23 @@ pub(crate) struct MockTrait {
 }
 
 impl MockTrait {
-    pub fn name(&self) -> &Ident {
-        &self.trait_path.segments.last().unwrap().ident
+    fn ss_name_priv(trait_path: &Path) -> Ident {
+        let path_args = &trait_path.segments.last().unwrap().arguments;
+        if path_args.is_empty() {
+            // Skip the hashing step for easie debugging of generated code
+            format_ident!("{}", trait_path.segments.last().unwrap().ident)
+        } else {
+            // Hash the path args to permit mocking structs that implement
+            // multiple traits distinguished only by their path args
+            let mut hasher = DefaultHasher::new();
+            path_args.hash(&mut hasher);
+            format_ident!("{}_{}", trait_path.segments.last().unwrap().ident,
+                hasher.finish())
+        }
+    }
+
+    pub fn ss_name(&self) -> &Ident {
+        &self.ss_name
     }
 
     /// Create a new MockTrait
@@ -50,7 +71,7 @@ impl MockTrait {
             compile_error(impl_.span(), "impl block must implement a trait");
             Path::from(format_ident!("__mockall_invalid"))
         };
-        let trait_ident = &trait_path.segments.last().unwrap().ident;
+        let ss_name = MockTrait::ss_name_priv(&trait_path);
         let self_path = match *impl_.self_ty {
             Type::Path(mut type_path) =>
                 type_path.path.segments.pop().unwrap().into_value(),
@@ -73,7 +94,7 @@ impl MockTrait {
                         .call_levels(0)
                         .struct_(structname)
                         .struct_generics(struct_generics)
-                        .trait_(trait_ident)
+                        .trait_(&ss_name)
                         .build();
                     methods.push(mf);
                 },
@@ -91,6 +112,7 @@ impl MockTrait {
             consts,
             generics: impl_.generics,
             methods,
+            ss_name,
             trait_path,
             self_path,
             types
