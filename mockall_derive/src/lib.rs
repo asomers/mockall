@@ -14,7 +14,6 @@ use quote::{ToTokens, format_ident, quote};
 use std::{
     collections::{HashMap, HashSet},
     env,
-    iter::FromIterator,
 };
 use syn::{
     *,
@@ -169,28 +168,32 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
             let ty: Type = parse2(quote!(#ident)).unwrap();
             hm.contains_key(&ty)
     };
-    let params = Punctuated::from_iter(gen.params.iter().filter(|g| {
-        if let GenericParam::Type(tp) = g {
-            !should_remove(&tp.ident)
-        } else {
-            true
-        }
-    }).cloned());
-    let mut wc2 = gen.where_clause.clone();
-    if let Some(wc) = &mut wc2 {
-        wc.predicates = Punctuated::from_iter(wc.predicates.iter().filter(|wp| {
-            if let WherePredicate::Type(pt) = wp {
-                let bounded_ty = &pt.bounded_ty;
-                if let Ok(ident) = parse2::<Ident>(quote!(#bounded_ty)) {
-                    !should_remove(&ident)
-                } else {
-                    // We can't yet handle where clauses this complicated
-                    true
-                }
+    let params = gen.params.iter()
+        .filter(|g| {
+            if let GenericParam::Type(tp) = g {
+                !should_remove(&tp.ident)
             } else {
                 true
             }
-        }).cloned());
+        }).cloned()
+        .collect::<Punctuated<_, _>>();
+    let mut wc2 = gen.where_clause.clone();
+    if let Some(wc) = &mut wc2 {
+        wc.predicates = wc.predicates.iter()
+            .filter(|wp| {
+                if let WherePredicate::Type(pt) = wp {
+                    let bounded_ty = &pt.bounded_ty;
+                    if let Ok(ident) = parse2::<Ident>(quote!(#bounded_ty)) {
+                        !should_remove(&ident)
+                    } else {
+                        // We can't yet handle where clauses this complicated
+                        true
+                    }
+                } else {
+                    true
+                }
+            }).cloned()
+            .collect::<Punctuated<_, _>>();
         if wc.predicates.is_empty() {
             wc2 = None;
         }
@@ -320,8 +323,8 @@ fn deselfify_path(path: &mut Path, actual: &Ident, generics: &Generics) {
             seg.ident = actual.clone();
             if let PathArguments::None = seg.arguments {
                 if !generics.params.is_empty() {
-                    let args = Punctuated::from_iter(
-                        generics.params.iter().map(|gp| {
+                    let args = generics.params.iter()
+                        .map(|gp| {
                             match gp {
                                 GenericParam::Type(tp) => {
                                     let ident = tp.ident.clone();
@@ -341,8 +344,7 @@ fn deselfify_path(path: &mut Path, actual: &Ident, generics: &Generics) {
                                 }
                                 _ => unimplemented!(),
                             }
-                        })
-                    );
+                        }).collect::<Punctuated<_, _>>();
                     seg.arguments = PathArguments::AngleBracketed(
                         AngleBracketedGenericArguments {
                             colon2_token: None,
