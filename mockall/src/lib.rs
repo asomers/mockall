@@ -950,7 +950,8 @@
 //!
 //! One more thing: Mockall normally creates a zero-argument `new` method for
 //! every mock struct.  But it *won't* do that when mocking a struct that
-//! already has a method named `new`.
+//! already has a method named `new`.  The `default` method will still be
+//! present.
 //!
 //! ## Modules
 //!
