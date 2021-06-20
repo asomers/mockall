@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- `mock!` will now allow both methods and trait impls to be gated with
+  `#[cfg()]]` attributes.  The attributes will be forwarded to all generated
+  code.  This allows for example only mocking certain traits on certain OSes.
+  ([#297](https://github.com/asomers/mockall/pull/297))
+
 - automock will now automatically generate Debug implementations for traits and
   structs.  mock! will to, if you put `#[derive(Debug)]` above the struct's
   name.

@@ -53,16 +53,22 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
 }
 
 /// Filter out multiple copies of the same trait, even if they're implemented on
-/// different types.
+/// different types.  But allow them if they have different attributes, which 
+/// probably indicates that they aren't meant to be compiled together.
 fn unique_trait_iter<'a, I: Iterator<Item = &'a MockTrait>>(i: I)
     -> impl Iterator<Item = &'a MockTrait>
 {
-    let mut hs = HashSet::<Path>::default();
+    let mut hs = HashSet::<(Path, Vec<Attribute>)>::default();
     i.filter(move |mt| {
-        if hs.contains(&mt.trait_path) {
+        let impl_attrs = AttrFormatter::new(&mt.attrs)
+            .async_trait(false)
+            .doc(false)
+            .format();
+        let key = (mt.trait_path.clone(), impl_attrs);
+        if hs.contains(&key) {
             false
         } else {
-            hs.insert(mt.trait_path.clone());
+            hs.insert(key);
             true
         }
     })
@@ -266,22 +272,36 @@ impl ToTokens for MockItemStruct {
             }).collect::<Vec<_>>();
         let substruct_expectations = substructs.iter()
             .filter(|ss| !ss.all_static())
-            .map(|ss| ss.fieldname.clone())
-            .collect::<Vec<_>>();
+            .map(|ss| {
+                let attrs = AttrFormatter::new(&ss.attrs)
+                    .async_trait(false)
+                    .doc(false)
+                    .format();
+                let fieldname = &ss.fieldname;
+                quote!(#(#attrs)* self.#fieldname.checkpoint();)
+            }).collect::<Vec<_>>();
         let mut field_definitions = substructs.iter()
             .filter(|ss| !ss.all_static())
             .map(|ss| {
+                let attrs = AttrFormatter::new(&ss.attrs)
+                    .async_trait(false)
+                    .doc(false)
+                    .format();
                 let fieldname = &ss.fieldname;
                 let tyname = &ss.name;
-                quote!(#fieldname: #tyname #tg)
+                quote!(#(#attrs)* #fieldname: #tyname #tg)
             }).collect::<Vec<_>>();
         field_definitions.extend(self.methods.field_definitions(modname));
         field_definitions.extend(self.phantom_fields());
         let mut default_inits = substructs.iter()
             .filter(|ss| !ss.all_static())
             .map(|ss| {
+                let attrs = AttrFormatter::new(&ss.attrs)
+                    .async_trait(false)
+                    .doc(false)
+                    .format();
                 let fieldname = &ss.fieldname;
-                quote!(#fieldname: Default::default())
+                quote!(#(#attrs)* #fieldname: Default::default())
             }).collect::<Vec<_>>();
         default_inits.extend(self.methods.default_inits());
         default_inits.extend(self.phantom_default_inits());
@@ -325,7 +345,7 @@ impl ToTokens for MockItemStruct {
                 /// Validate that all current expectations for all methods have
                 /// been satisfied, and discard them.
                 pub fn checkpoint(&mut self) {
-                    #(self.#substruct_expectations.checkpoint();)*
+                    #(#substruct_expectations)*
                     #(#method_checkpoints)*
                 }
                 #new_method
@@ -380,6 +400,7 @@ impl ToTokens for MockItemTraitImpl {
         quote!(
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
+            #(#attrs)*
             pub mod #modname {
                 use super::*;
                 #(#priv_mods)*
@@ -392,6 +413,7 @@ impl ToTokens for MockItemTraitImpl {
             {
                 #(#field_definitions),*
             }
+            #(#attrs)*
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
@@ -399,6 +421,7 @@ impl ToTokens for MockItemTraitImpl {
                     }
                 }
             }
+            #(#attrs)*
             impl #ig #struct_name #tg #wc {
                 /// Validate that all current expectations for all methods have
                 /// been satisfied, and discard them.
