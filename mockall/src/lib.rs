@@ -45,6 +45,7 @@
 //! * [`Static methods`](#static-methods)
 //! * [`Modules`](#modules)
 //! * [`Foreign functions`](#foreign-functions)
+//! * [`Debug`](#debug)
 //! * [`Async Traits`](#async-traits)
 //! * [`Crate features`](#crate-features)
 //! * [`Examples`](#examples)
@@ -1030,6 +1031,22 @@
 //!     }
 //! }
 //! # fn main() {}
+//! ```
+//!
+//! ## Debug
+//!
+//! `#[automock]` will automatically generate `Debug` impls when mocking traits
+//! and struct impls.  `mock!` will too, if you add a `#[derive(Debug)]`, like
+//! this:
+//! ```no_run
+//! # use mockall::*;
+//! mock! {
+//!     #[derive(Debug)]
+//!     pub Foo {}
+//! }
+//! # fn main() {
+//! #     format!("{:?}", &MockFoo::default());
+//! # }
 //! ```
 //!
 //! ## Async Traits

@@ -565,12 +565,16 @@ impl<'a> AttrFormatter<'a> {
     // XXX This logic requires that attributes are imported with their
     // standard names.
     #[allow(clippy::needless_bool)]
+    #[allow(clippy::if_same_then_else)]
     fn format(&mut self) -> Vec<Attribute> {
         self.attrs.iter()
             .cloned()
             .filter(|attr| {
                 let i = attr.path.get_ident();
                 if i.is_none() {
+                    false
+                } else if *i.as_ref().unwrap() == "derive" {
+                    // We can't usefully derive any traits.  Ignore them
                     false
                 } else if *i.as_ref().unwrap() == "doc" {
                     self.doc

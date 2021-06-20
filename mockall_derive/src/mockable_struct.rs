@@ -92,6 +92,17 @@ fn add_lifetime_parameters(sig: &mut Signature) {
     }
 }
 
+/// Generate a #[derive(Debug)] Attribute
+fn derive_debug() -> Attribute {
+    Attribute {
+        pound_token: <Token![#]>::default(),
+        style: AttrStyle::Outer,
+        bracket_token: token::Bracket::default(),
+        path: Path::from(format_ident!("derive")),
+        tokens: quote!((Debug))
+    }
+}
+
 /// Add "Mock" to the front of the named type
 fn mock_ident_in_type(ty: &mut Type) {
     match ty {
@@ -291,10 +302,38 @@ pub(crate) struct MockableStruct {
     pub impls: Vec<ItemImpl>
 }
 
+impl MockableStruct {
+    /// Does this struct derive Debug?
+    pub fn derives_debug(&self) -> bool {
+        self.attrs.iter()
+        .any(|attr| {
+            if let Ok(Meta::List(ml)) = attr.parse_meta() {
+                let i = ml.path.get_ident();
+                if i.map_or(false, |i| *i == "derive") {
+                    ml.nested.iter()
+                    .any(|nm| {
+                        if let NestedMeta::Meta(m) = nm {
+                            let i = m.path().get_ident();
+                            i.map_or(false, |i| *i == "Debug")
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        })
+    }
+}
+
 impl From<(Attrs, ItemTrait)> for MockableStruct {
     fn from((attrs, item_trait): (Attrs, ItemTrait)) -> MockableStruct {
         let trait_ = attrs.substitute_trait(&item_trait);
-        let attrs = trait_.attrs.clone();
+        let mut attrs = trait_.attrs.clone();
+        attrs.push(derive_debug());
         let vis = trait_.vis.clone();
         let name = gen_mock_ident(&trait_.ident);
         let generics = trait_.generics.clone();
@@ -324,7 +363,8 @@ impl From<ItemImpl> for MockableStruct {
                 Ident::new("", Span::call_site())
             }
         };
-        let attrs = item_impl.attrs.clone();
+        let mut attrs = item_impl.attrs.clone();
+        attrs.push(derive_debug());
         let mut consts = Vec::new();
         let generics = item_impl.generics.clone();
         let mut methods = Vec::new();

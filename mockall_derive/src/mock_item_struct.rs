@@ -116,6 +116,8 @@ pub(crate) struct MockItemStruct {
     attrs: Vec<Attribute>,
     consts: Vec<ImplItemConst>,
     generics: Generics,
+    /// Should Mockall generate a Debug implementation?
+    auto_debug: bool,
     /// Does the original struct have a `new` method?
     has_new: bool,
     /// Inherent methods of the mock struct
@@ -129,6 +131,25 @@ pub(crate) struct MockItemStruct {
 }
 
 impl MockItemStruct {
+    fn debug_impl(&self) -> impl ToTokens {
+        if self.auto_debug {
+            let (ig, tg, wc) = self.generics.split_for_impl();
+            let struct_name = &self.name;
+            let struct_name_str = format!("{}", self.name);
+            quote!(
+                impl #ig ::std::fmt::Debug for #struct_name #tg #wc {
+                    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>)
+                        -> ::std::result::Result<(), std::fmt::Error>
+                    {
+                        f.debug_struct(#struct_name_str).finish()
+                    }
+                }
+            )
+        } else {
+            quote!()
+        }
+    }
+
     fn new_method(&self) -> impl ToTokens {
         if self.has_new {
             TokenStream::new()
@@ -159,6 +180,7 @@ impl MockItemStruct {
 
 impl From<MockableStruct> for MockItemStruct {
     fn from(mockable: MockableStruct) -> MockItemStruct {
+        let auto_debug = mockable.derives_debug();
         let modname = gen_mod_ident(&mockable.name, None);
         let generics = mockable.generics.clone();
         let struct_name = &mockable.name;
@@ -192,6 +214,7 @@ impl From<MockableStruct> for MockItemStruct {
 
         MockItemStruct {
             attrs: mockable.attrs,
+            auto_debug,
             consts: mockable.consts,
             generics,
             has_new,
@@ -210,6 +233,7 @@ impl ToTokens for MockItemStruct {
             .async_trait(false)
             .format();
         let consts = &self.consts;
+        let debug_impl = self.debug_impl();
         let struct_name = &self.name;
         let (ig, tg, wc) = self.generics.split_for_impl();
         let modname = &self.modname;
@@ -283,6 +307,7 @@ impl ToTokens for MockItemStruct {
             {
                 #(#field_definitions),*
             }
+            #debug_impl
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 #[allow(clippy::default_trait_access)]
                 fn default() -> Self {
