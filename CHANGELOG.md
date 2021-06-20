@@ -15,7 +15,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Mockall is picker now about how you mock a trait on a generic struct.
+- Mockall is pickier now about how you mock a trait on a generic struct.
   Previously you could usually omit the generics.  Now, they're required.
   i.e.,
   ```rust
