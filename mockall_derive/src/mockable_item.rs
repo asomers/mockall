@@ -54,7 +54,6 @@ pub(crate) struct MockableModule {
     pub attrs: TokenStream,
     pub vis: Visibility,
     pub mock_ident: Ident,
-    pub mod_token: token::Mod,
     /// Ident of the original module, if any
     pub orig_ident: Option<Ident>,
     pub content: Vec<Item>
@@ -67,7 +66,6 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
             "module name is required when mocking foreign functions,",
             " like `#[automock(mod mock_ffi)]`"
         ));
-        let mod_token = <Token![mod]>::default();
         let vis = Visibility::Public(VisPublic{
             pub_token: <Token![pub]>::default()
         });
@@ -143,7 +141,6 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
             attrs,
             vis,
             mock_ident,
-            mod_token,
             orig_ident,
             content
         }
@@ -156,7 +153,6 @@ impl From<ItemMod> for MockableModule {
         let vis = mod_.vis;
         let mock_ident = format_ident!("mock_{}", mod_.ident);
         let orig_ident = Some(mod_.ident);
-        let mod_token = mod_.mod_token;
         let content = if let Some((_, content)) = mod_.content {
             content.into_iter()
             .map(mockable_item)
@@ -170,7 +166,6 @@ impl From<ItemMod> for MockableModule {
             attrs: TokenStream::new(),
             vis,
             mock_ident,
-            mod_token,
             orig_ident,
             content
         }

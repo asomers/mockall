@@ -88,7 +88,7 @@ impl MockTrait {
                     consts.push(iic);
                 },
                 ImplItem::Method(iim) => {
-                    let mf = mock_function::Builder::new(&iim.sig, &vis)
+                    let mf = mock_function::Builder::new(&iim.sig, vis)
                         .attrs(&iim.attrs)
                         .levels(2)
                         .call_levels(0)
@@ -143,9 +143,9 @@ impl MockTrait {
             .map(|meth| {
                 if meth.is_method_generic() {
                     // Specific impls with generic methods are TODO.
-                    meth.expect(&modname, None)
+                    meth.expect(modname, None)
                 } else {
-                    meth.expect(&modname, Some(path_args))
+                    meth.expect(modname, Some(path_args))
                 }
             }).collect::<Vec<_>>();
         let trait_path = &self.trait_path;
