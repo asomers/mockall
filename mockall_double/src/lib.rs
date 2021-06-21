@@ -222,7 +222,7 @@ mod double {
     #[should_panic(expected = "Cannot double glob")]
     fn glob() {
         let code = r#"use foo::*;"#;
-        cmp("", &code, "");
+        cmp("", code, "");
     }
 
     #[test]
@@ -245,7 +245,7 @@ mod double {
                 MockBean as Bean
             };
         "#;
-        cmp("", &code, &expected);
+        cmp("", code, expected);
     }
 
     #[test]
@@ -257,14 +257,14 @@ mod double {
             #[cfg(test)]
             use foo::mock_bar as bar;
         "#;
-        cmp("", &code, &expected);
+        cmp("", code, expected);
     }
 
     #[test]
     #[should_panic(expected = "Cannot double types in the current module")]
     fn name() {
         let code = r#"use Foo;"#;
-        cmp("", &code, "");
+        cmp("", code, "");
     }
 
     #[test]
@@ -276,7 +276,7 @@ mod double {
             #[cfg(test)]
             use foo::bar::MockBaz as Baz;
         "#;
-        cmp("", &code, &expected);
+        cmp("", code, expected);
     }
 
     #[test]
@@ -288,13 +288,13 @@ mod double {
             #[cfg(test)]
             use MockFoo as Bar;
         "#;
-        cmp("", &code, &expected);
+        cmp("", code, expected);
     }
 
     #[test]
     fn not_use_stmt() {
         let code = r#"struct Foo{}"#;
-        cmp("", &code, "compile_error!{\"expected `use`\"}");
+        cmp("", code, "compile_error!{\"expected `use`\"}");
     }
 }
 }

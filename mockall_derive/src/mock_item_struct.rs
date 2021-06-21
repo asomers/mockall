@@ -179,7 +179,7 @@ impl From<MockableStruct> for MockItemStruct {
             .map(|meth|
                 mock_function::Builder::new(&meth.sig, &meth.vis)
                     .attrs(&meth.attrs)
-                    .struct_(&struct_name)
+                    .struct_(struct_name)
                     .struct_generics(&generics)
                     .levels(2)
                     .call_levels(0)
@@ -251,7 +251,7 @@ impl ToTokens for MockItemStruct {
                 let tyname = &ss.name;
                 quote!(#fieldname: #tyname #tg)
             }).collect::<Vec<_>>();
-        field_definitions.extend(self.methods.field_definitions(&modname));
+        field_definitions.extend(self.methods.field_definitions(modname));
         field_definitions.extend(self.phantom_fields());
         let mut default_inits = substructs.iter()
             .filter(|ss| !ss.all_static())
@@ -349,7 +349,7 @@ impl ToTokens for MockItemTraitImpl {
         let method_checkpoints = self.methods.checkpoints();
         let mut default_inits = self.methods.default_inits();
         default_inits.extend(self.phantom_default_inits());
-        let mut field_definitions = self.methods.field_definitions(&modname);
+        let mut field_definitions = self.methods.field_definitions(modname);
         field_definitions.extend(self.phantom_fields());
         let priv_mods = self.methods.priv_mods();
         quote!(

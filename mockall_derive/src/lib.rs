@@ -467,7 +467,7 @@ fn find_lifetimes_in_path(path: &Path) -> HashSet<Lifetime> {
                         ret.insert(lt.clone());
                     },
                     GenericArgument::Type(ty) => {
-                        ret.extend(find_lifetimes(&ty));
+                        ret.extend(find_lifetimes(ty));
                     },
                     GenericArgument::Binding(b) => {
                         ret.extend(find_lifetimes(&b.ty));
@@ -620,10 +620,10 @@ fn supersuperfy_path(path: &mut Path, levels: usize) -> usize {
             },
             PathArguments::Parenthesized(ref mut pga) => {
                 for input in pga.inputs.iter_mut() {
-                    *input = supersuperfy(&input, levels);
+                    *input = supersuperfy(input, levels);
                 }
                 if let ReturnType::Type(_, ref mut ty) = pga.output {
-                    *ty = Box::new(supersuperfy(&ty, levels));
+                    *ty = Box::new(supersuperfy(ty, levels));
                 }
             },
         }

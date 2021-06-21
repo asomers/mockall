@@ -1827,7 +1827,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
-        let common_methods = CommonExpectationMethods{f: &self.f};
+        let common_methods = CommonExpectationMethods{f: self.f};
         let desc = self.f.desc();
         let funcname = self.f.funcname();
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
@@ -1890,7 +1890,7 @@ struct RefMutExpectation<'a> {
 
 impl<'a> ToTokens for RefMutExpectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let common_methods = CommonExpectationMethods{f: &self.f};
+        let common_methods = CommonExpectationMethods{f: self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let desc = self.f.desc();
@@ -1977,7 +1977,7 @@ struct StaticExpectation<'a> {
 
 impl<'a> ToTokens for StaticExpectation<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let common_methods = CommonExpectationMethods{f: &self.f};
+        let common_methods = CommonExpectationMethods{f: self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let desc = self.f.desc();
@@ -2150,7 +2150,7 @@ struct RefExpectations<'a> {
 
 impl<'a> ToTokens for RefExpectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let common_methods = CommonExpectationsMethods{f: &self.f};
+        let common_methods = CommonExpectationsMethods{f: self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
@@ -2188,7 +2188,7 @@ struct RefMutExpectations<'a> {
 
 impl<'a> ToTokens for RefMutExpectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let common_methods = CommonExpectationsMethods{f: &self.f};
+        let common_methods = CommonExpectationsMethods{f: self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
@@ -2227,7 +2227,7 @@ struct StaticExpectations<'a> {
 
 impl<'a> ToTokens for StaticExpectations<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let common_methods = CommonExpectationsMethods{f: &self.f};
+        let common_methods = CommonExpectationsMethods{f: self.f};
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
