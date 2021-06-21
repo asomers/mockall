@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- automock will now automatically generate Debug implementations for traits and
+  structs.  mock! will to, if you put `#[derive(Debug)]` above the struct's
+  name.
+  ([#289](https://github.com/asomers/mockall/pull/289))
+
 - Added support for specific impls.  A specific impl is an implementation of a
   trait on a generic struct with specified generic parameters.  For example,
   `impl Foo for Bar<i32>` as opposed to `impl<T> Foo for Bar<T>`.  Mockall does
@@ -15,7 +20,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Mockall is picker now about how you mock a trait on a generic struct.
+- Mockall is pickier now about how you mock a trait on a generic struct.
   Previously you could usually omit the generics.  Now, they're required.
   i.e.,
   ```rust

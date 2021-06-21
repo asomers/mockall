@@ -70,7 +70,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
             pub_token: <Token![pub]>::default()
         });
         let attrs = quote!(
-            #[deprecated(since = "0.9.0", note = "Using automock directly on an extern block is deprecated.  Instead, wrap the extern block in a module, and automock that, like #[automoock] mod ffi { extern \"C\" { fn foo ... } }")]
+            #[deprecated(since = "0.9.0", note = "Using automock directly on an extern block is deprecated.  Instead, wrap the extern block in a module, and automock that, like #[automock] mod ffi { extern \"C\" { fn foo ... } }")]
         );
         let mut content = vec![
             // When mocking extern blocks, we pretend that they're modules, so
