@@ -11,6 +11,7 @@ use syn::{
 };
 
 use crate::{
+    AttrFormatter,
     mock_function::{self, MockFunction},
     compile_error
 };
@@ -127,7 +128,11 @@ impl MockTrait {
     // Supplying modname is an unfortunately hack.  Ideally MockTrait
     // wouldn't need to know that.
     pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
-        let attrs = &self.attrs;
+        let trait_impl_attrs = &self.attrs;
+        let impl_attrs = AttrFormatter::new(&self.attrs)
+            .async_trait(false)
+            .doc(false)
+            .format();
         let (ig, _tg, wc) = self.generics.split_for_impl();
         let consts = &self.consts;
         let path_args = &self.self_path.arguments;
@@ -152,12 +157,13 @@ impl MockTrait {
         let self_path = &self.self_path;
         let types = &self.types;
         quote!(
-            #(#attrs)*
+            #(#trait_impl_attrs)*
             impl #ig #trait_path for #self_path #wc {
                 #(#consts)*
                 #(#types)*
                 #(#calls)*
             }
+            #(#impl_attrs)*
             impl #ig #self_path #wc {
                 #(#expects)*
                 #(#contexts)*
