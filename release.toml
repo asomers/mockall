@@ -1,3 +1,2 @@
-upload-doc = false
 # Adding a dev version breaks dependencies like {version = "=...", path = "..."}
 no-dev-version = true
