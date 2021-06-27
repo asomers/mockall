@@ -56,4 +56,5 @@ tracing = "0.1.23"
 
 [[example]]
 name = "serde"
+path = "examples/serde.rs"
 crate-type = ["lib"]
