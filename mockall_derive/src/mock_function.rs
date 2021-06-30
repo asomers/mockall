@@ -619,10 +619,10 @@ impl MockFunction {
         -> impl ToTokens
     {
         let inner_mod_ident = self.inner_mod_ident();
-        if let Some(sa) = self_args {
+        if let Some(PathArguments::AngleBracketed(abga)) = self_args {
             assert!(!self.is_method_generic(),
                 "specific impls with generic methods are TODO");
-            quote!(#inner_mod_ident::Expectation #sa)
+            quote!(#inner_mod_ident::Expectation #abga)
         } else {
             // staticize any lifetimes.  This is necessary for methods that
             // return non-static types, because the Expectation itself must be

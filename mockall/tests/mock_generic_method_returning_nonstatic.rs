@@ -10,6 +10,11 @@ use mockall::*;
 #[derive(Clone)]
 struct X<'a>(&'a u32);
 
+trait Bong {
+    fn trait_foo<'a>(&self) -> X<'a>;
+    fn trait_baz<'a>(&self) -> &X<'a>;
+}
+
 mock! {
     Thing {
         fn foo<'a>(&self) -> X<'a>;
@@ -28,6 +33,11 @@ mock! {
         // Mockall requires generic methods' generic parameters to implement
         // std::any::Any, which means they must be 'static.
         //fn bean<'a, T: 'static>(&self, t: T) -> X<'a>;
+    }
+    // The same types of methods should work if they are Trait methods.
+    impl Bong for Thing {
+        fn trait_foo<'a>(&self) -> X<'a>;
+        fn trait_baz<'a>(&self) -> &X<'a>;
     }
 }
 
@@ -66,4 +76,42 @@ fn return_nonstatic() {
         .returning(move || xstatic.clone());
 
     assert_eq!(42u32, *thing.foo().0);
+}
+
+mod trait_methods {
+    use super::*;
+
+    #[test]
+    fn return_static() {
+        const D: u32 = 42;
+        let x = X(&D);
+        let mut thing = MockThing::new();
+        thing.expect_trait_foo()
+            .return_const(x);
+
+        assert_eq!(42u32, *thing.trait_foo().0);
+    }
+
+    #[test]
+    fn return_static_ref() {
+        const D: u32 = 42;
+        let x = X(&D);
+        let mut thing = MockThing::new();
+        thing.expect_trait_baz()
+            .return_const(x);
+
+        assert_eq!(42u32, *(*thing.trait_baz()).0);
+    }
+
+    #[test]
+    fn return_nonstatic() {
+        let d = 42u32;
+        let x = X(&d);
+        let xstatic: X<'static> = unsafe{ std::mem::transmute(x) };
+        let mut thing = MockThing::new();
+        thing.expect_trait_foo()
+            .returning(move || xstatic.clone());
+
+        assert_eq!(42u32, *thing.trait_foo().0);
+    }
 }

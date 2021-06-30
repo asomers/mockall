@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+
+## Fixed
+
+- Fix mocking trait methods whose return values have lifetime parameters, a
+  regression since v0.10.0.
+  ([#304](https://github.com/asomers/mockall/pull/304))
+
 ## [ 0.10.0 ] - 2021-06-27
 
 ### Added
