@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [ Unreleased ] - ReleaseDate
+## [ 0.10.1 ] - 2021-07-01
 
 ## Fixed
 
