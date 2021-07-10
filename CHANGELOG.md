@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+
+### Added
+
+- `mock!` and `#[automock]` now support `unsafe` traits.
+  ([#313](https://github.com/asomers/mockall/pull/313))
+
 ## [ 0.10.1 ] - 2021-07-01
 
 ## Fixed
