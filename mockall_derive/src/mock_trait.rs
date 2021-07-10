@@ -28,7 +28,8 @@ pub(crate) struct MockTrait {
     /// Path on which the trait is implemented.  Usually will be the same as
     /// structname, but might include concrete generic parameters.
     self_path: PathSegment,
-    pub types: Vec<ImplItemType>
+    pub types: Vec<ImplItemType>,
+    pub unsafety: Option<Token![unsafe]>
 }
 
 impl MockTrait {
@@ -116,7 +117,8 @@ impl MockTrait {
             ss_name,
             trait_path,
             self_path,
-            types
+            types,
+            unsafety: impl_.unsafety
         }
     }
 
@@ -156,9 +158,10 @@ impl MockTrait {
         let trait_path = &self.trait_path;
         let self_path = &self.self_path;
         let types = &self.types;
+        let unsafety = &self.unsafety;
         quote!(
             #(#trait_impl_attrs)*
-            impl #ig #trait_path for #self_path #wc {
+            #unsafety impl #ig #trait_path for #self_path #wc {
                 #(#consts)*
                 #(#types)*
                 #(#calls)*
