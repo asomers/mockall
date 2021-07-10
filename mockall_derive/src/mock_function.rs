@@ -620,9 +620,18 @@ impl MockFunction {
     {
         let inner_mod_ident = self.inner_mod_ident();
         if let Some(PathArguments::AngleBracketed(abga)) = self_args {
+            // staticize any lifetimes that might be present in the Expectation
+            // object but not in the self args.  These come from the method's
+            // return type.
+            let mut abga2 = abga.clone();
+            for _ in self.egenerics.lifetimes() {
+                let lt = Lifetime::new("'static", Span::call_site());
+                let la = GenericArgument::Lifetime(lt);
+                abga2.args.insert(0, la);
+            }
             assert!(!self.is_method_generic(),
                 "specific impls with generic methods are TODO");
-            quote!(#inner_mod_ident::Expectation #abga)
+            quote!(#inner_mod_ident::Expectation #abga2)
         } else {
             // staticize any lifetimes.  This is necessary for methods that
             // return non-static types, because the Expectation itself must be

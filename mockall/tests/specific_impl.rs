@@ -26,7 +26,7 @@ mock! {
 }
 
 #[test]
-fn return_const() {
+fn specific_impl() {
     let mut mocku = MockFoo::<u32>::new();
     mocku.expect_bar()
         .return_const(());
@@ -47,3 +47,28 @@ fn return_const() {
         //.return_const(());
     //mocku.baz::<f32>(3.14159);
 //}
+
+// Here's a partially specific impl: Bar is implemented for Bean where one of
+// the generic types is concrete, but the other isn't.
+mock! {
+    pub Bean<X: 'static, Y: 'static> {}
+    impl<Y: 'static> Bar for Bean<u32, Y> {
+        fn bar(&self);
+    }
+    impl<Y: 'static> Bar for Bean<i32, Y> {
+        fn bar(&self);
+    }
+}
+
+#[test]
+fn partially_specific_impl() {
+    let mut mocku = MockBean::<u32, f32>::new();
+    mocku.expect_bar()
+        .return_const(());
+    let mut mocki = MockBean::<i32, f32>::new();
+    mocki.expect_bar()
+        .return_const(());
+
+    mocku.bar();
+    mocki.bar();
+}

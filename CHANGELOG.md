@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   v0.10.0.
   ([#309](https://github.com/asomers/mockall/pull/309))
 
+- Fix mocking generic methods of generic structs returning nonstatic, a
+  regression in v0.10.0.
+  ([#312](https://github.com/asomers/mockall/pull/312))
+
 ## [ 0.10.1 ] - 2021-07-01
 
 ### Fixed
