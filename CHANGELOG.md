@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ 0.10.1 ] - 2021-07-01
 
-## Fixed
+### Fixed
 
 - Fix mocking trait methods whose return values have lifetime parameters, a
   regression since v0.10.0.
