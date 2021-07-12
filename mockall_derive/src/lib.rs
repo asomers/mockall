@@ -753,7 +753,7 @@ fn supersuperfy_bounds(
 /// Generate a suitable mockall::Key generic paramter from any Generics
 fn gen_keyid(g: &Generics) -> impl ToTokens {
     match g.params.len() {
-        0 => quote!(),
+        0 => quote!(<()>),
         1 => {
             let (_, tg, _) = g.split_for_impl();
             quote!(#tg)
@@ -1351,7 +1351,7 @@ mod gen_keyid {
 
     #[test]
     fn empty() {
-        check_gen_keyid(quote!(), quote!());
+        check_gen_keyid(quote!(), quote!(<()>));
     }
 
     #[test]
