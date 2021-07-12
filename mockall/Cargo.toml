@@ -1,6 +1,6 @@
 [package]
 name = "mockall"
-version = "0.10.1"
+version = "0.10.2"
 authors = ["Alan Somers <asomers@gmail.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
