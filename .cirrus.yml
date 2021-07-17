@@ -59,7 +59,5 @@ clippy_task:
     folder: $CARGO_HOME/registry
   lint_script:
     - rustup component add clippy
-    # Suppress clippy::nonstandard_macro_braces due to a clippy bug.
-    # https://github.com/asomers/mockall/issues/310
-    - cargo clippy --all-features --all-targets --workspace -- -D warnings -A clippy::nonstandard_macro_braces
+    - cargo clippy --all-features --all-targets --workspace -- -D warnings
   before_cache_script: rm -rf $CARGO_HOME/registry/index
