@@ -1483,6 +1483,11 @@ impl Times {
         self.range.0 = 0..usize::max_value();
     }
 
+    /// Return how many times this expectation has been called
+    pub fn count(&self) -> usize {
+        self.count.load(Ordering::Relaxed)
+    }
+
     /// Has this expectation already been called the maximum allowed number of
     /// times?
     pub fn is_done(&self) -> bool {
