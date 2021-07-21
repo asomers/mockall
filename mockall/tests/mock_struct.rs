@@ -326,7 +326,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-        "MockFoo::baz: Expectation(<anything>) called 3 times which is more than expected 2")]
+        "MockFoo::baz: Expectation(<anything>) called 3 times which is more than the expected 2")]
     fn too_many() {
         let mut mock = MockFoo::new();
         mock.expect_baz()
@@ -369,7 +369,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-        "MockFoo::baz: Expectation(<anything>) called 4 times which is more than expected 3")]
+        "MockFoo::baz: Expectation(<anything>) called 4 times which is more than the expected 3")]
     fn range_too_many() {
         let mut mock = MockFoo::new();
         mock.expect_baz()
@@ -396,7 +396,7 @@ mod times {
 
     #[test]
     #[should_panic(expected =
-        "MockFoo::baz: Expectation(<anything>) called 4 times which is more than expected 3")]
+        "MockFoo::baz: Expectation(<anything>) called 4 times which is more than the expected 3")]
     fn rangeto_too_many() {
         let mut mock = MockFoo::new();
         mock.expect_baz()

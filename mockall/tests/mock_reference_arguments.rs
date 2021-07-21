@@ -62,8 +62,9 @@ mod times {
     }
 
     #[test]
-    #[should_panic(expected =
-                   "MockFoo::foo: Expectation(<anything>) called 1 time(s) which is fewer than expected 2")]
+    #[should_panic(
+        expected = "MockFoo::foo: Expectation(<anything>) called 1 time(s) which is fewer than expected 2"
+    )]
     fn too_few() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -73,8 +74,9 @@ mod times {
     }
 
     #[test]
-    #[should_panic(expected =
-        "MockFoo::foo: Expectation(<anything>) called 3 times which is more than expected 2")]
+    #[should_panic(
+        expected = "MockFoo::foo: Expectation(<anything>) called 3 times which is more than the expected 2"
+    )]
     fn too_many() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -98,8 +100,9 @@ mod times {
     }
 
     #[test]
-    #[should_panic(expected =
-                   "MockFoo::foo: Expectation(<anything>) called 1 time(s) which is fewer than expected 2")]
+    #[should_panic(
+        expected = "MockFoo::foo: Expectation(<anything>) called 1 time(s) which is fewer than expected 2"
+    )]
     fn range_too_few() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -109,8 +112,9 @@ mod times {
     }
 
     #[test]
-    #[should_panic(expected =
-        "MockFoo::foo: Expectation(<anything>) called 4 times which is more than expected 3")]
+    #[should_panic(
+        expected = "MockFoo::foo: Expectation(<anything>) called 4 times which is more than the expected 3"
+    )]
     fn range_too_many() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
