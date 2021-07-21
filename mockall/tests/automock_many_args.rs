@@ -24,7 +24,7 @@ trait ManyArgs {
 
 #[test]
 #[should_panic(expected =
-    "MockManyArgs::foo: Expectation(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true) called fewer than 1 times")]
+    "MockManyArgs::foo: Expectation(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true) called 0 time(s) which is fewer than expected 1")]
 fn not_yet_satisfied() {
     let mut mock = MockManyArgs::new();
     mock.expect_foo()
@@ -67,7 +67,7 @@ fn static_method_returning() {
 
 #[test]
 #[should_panic(expected =
-    "MockManyArgs::foo: Expectation(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true) called more than 1 times")]
+    "MockManyArgs::foo: Expectation(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true) called 2 times which is more than expected 1")]
 fn too_many() {
     let mut mock = MockManyArgs::new();
     mock.expect_foo()
