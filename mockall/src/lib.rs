@@ -1472,7 +1472,11 @@ impl Times {
             if self.range.0.end == 1 {
                 Err("should not have been called".to_owned())
             } else {
-                Err(format!("called more than {} times", self.range.0.end - 1))
+                Err(format!(
+                    "called {} times which is more than expected {}",
+                    count,
+                    self.range.0.end - 1
+                ))
             }
         } else {
             Ok(())
