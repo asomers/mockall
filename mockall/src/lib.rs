@@ -1472,7 +1472,11 @@ impl Times {
             if self.range.0.end == 1 {
                 Err("should not have been called".to_owned())
             } else {
-                Err(format!("called more than {} times", self.range.0.end - 1))
+                Err(format!(
+                    "called {} times which is more than the expected {}",
+                    count,
+                    self.range.0.end - 1
+                ))
             }
         } else {
             Ok(())
@@ -1481,6 +1485,11 @@ impl Times {
 
     pub fn any(&mut self) {
         self.range.0 = 0..usize::max_value();
+    }
+
+    /// Return how many times this expectation has been called
+    pub fn count(&self) -> usize {
+        self.count.load(Ordering::Relaxed)
     }
 
     /// Has this expectation already been called the maximum allowed number of
