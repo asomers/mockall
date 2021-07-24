@@ -36,7 +36,7 @@ fn checkpoint() {
 // It should also be possible to checkpoint just the context object
 #[test]
 #[should_panic(expected =
-    "MockFoo::foo2: Expectation(<anything>) called fewer than 1 times")]
+    "MockFoo::foo2: Expectation(<anything>) called 0 time(s) which is fewer than expected 1")]
 fn ctx_checkpoint() {
     let ctx = MockFoo::<u32>::foo2_context();
     ctx.expect::<i16>()

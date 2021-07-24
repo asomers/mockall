@@ -936,9 +936,10 @@ impl<'a> ToTokens for Common<'a> {
                     {
                         let desc = std::format!(
                             "{}", self.matcher.lock().unwrap());
-                        panic!("{}: Expectation({}) called fewer than {} times",
+                        panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
                                #funcname,
                                desc,
+                               self.times.count(),
                                self.times.minimum());
                     }
                 }
