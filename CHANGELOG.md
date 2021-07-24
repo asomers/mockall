@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+
+## [ Unreleased ] - ReleaseDate
+
+### Added
+
+- `mock!` and `#[automock]` now support `unsafe` traits.
+  ([#313](https://github.com/asomers/mockall/pull/313))
+
 ## [ 0.10.2 ] - 2021-07-12
 
 ### Fixed
@@ -14,6 +22,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Fix mocking generic methods of generic structs returning nonstatic, a
   regression in v0.10.0.
   ([#312](https://github.com/asomers/mockall/pull/312))
+
 
 ## [ 0.10.1 ] - 2021-07-01
 
