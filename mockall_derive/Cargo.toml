@@ -33,4 +33,4 @@ quote = "1.0"
 syn = { version = "1.0.15", features = ["extra-traits", "full"] }
 
 [dev-dependencies]
-pretty_assertions = "0.5"
+pretty_assertions = "0.7"

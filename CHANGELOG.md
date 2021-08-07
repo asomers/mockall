@@ -11,6 +11,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `mock!` and `#[automock]` now support `unsafe` traits.
   ([#313](https://github.com/asomers/mockall/pull/313))
 
+### Changed
+
+- Bump `predicates` to v2.0.1, see all v2 changes in
+  [predicates' changelog](https://github.com/assert-rs/predicates-rs/blob/master/CHANGELOG.md).
+  ([#325](https://github.com/asomers/mockall/pull/325))
+
 ## [ 0.10.2 ] - 2021-07-12
 
 ### Fixed
