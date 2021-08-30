@@ -17,21 +17,23 @@ use std::hash::Hash;
 use std::iter::FromIterator;
 
 #[derive(Debug)]
-pub struct UnorderedMap<K, V>(HashMap<K, V>);
+pub struct UnorderedMap<K, V>(HashMap<K, V>)
+where
+    K: Eq + Hash;
 
 #[derive(Debug)]
-pub struct UnorderedSet<T>(HashSet<T>);
-
-impl<K, V> UnorderedMap<K, V> {
-    pub fn new() -> Self {
-        UnorderedMap(HashMap::new())
-    }
-}
+pub struct UnorderedSet<T>(HashSet<T>)
+where
+    T: Eq + Hash;
 
 impl<K, V> UnorderedMap<K, V>
 where
     K: Eq + Hash,
 {
+    pub fn new() -> Self {
+        UnorderedMap(HashMap::new())
+    }
+
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
         self.0.insert(k, v)
     }
@@ -74,13 +76,19 @@ where
     }
 }
 
-impl<K, V> Default for UnorderedMap<K, V> {
+impl<K, V> Default for UnorderedMap<K, V>
+where
+    K: Eq + Hash,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Default for UnorderedSet<T> {
+impl<T> Default for UnorderedSet<T>
+where
+    T: Eq + Hash,
+{
     fn default() -> Self {
         UnorderedSet(HashSet::default())
     }
