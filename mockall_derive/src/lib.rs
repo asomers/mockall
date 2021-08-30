@@ -7,14 +7,12 @@
 
 #![cfg_attr(feature = "nightly_derive", feature(proc_macro_diagnostic))]
 #![cfg_attr(test, deny(warnings))]
+#![deny(clippy::disallowed_type)]
 
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
-use std::{
-    collections::{HashMap, HashSet},
-    env,
-};
+use std::env;
 use syn::{
     *,
     punctuated::Punctuated,
@@ -22,6 +20,7 @@ use syn::{
 };
 
 mod automock;
+mod collections;
 mod mock_function;
 mod mock_item;
 mod mock_item_struct;
@@ -29,6 +28,7 @@ mod mock_trait;
 mod mockable_item;
 mod mockable_struct;
 use crate::automock::Attrs;
+use crate::collections::{UnorderedMap, UnorderedSet};
 use crate::mockable_struct::MockableStruct;
 use crate::mock_item::MockItem;
 use crate::mock_item_struct::MockItemStruct;
@@ -126,7 +126,7 @@ fn deanonymize(literal_type: &mut Type) {
 fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     (Generics, Vec<FnArg>, Vec<TokenStream>)
 {
-    let mut hm = HashMap::new();
+    let mut hm = UnorderedMap::new();
 
     let mut save_fn_types = |ident: &Ident, tpb: &TypeParamBound| {
         if let TypeParamBound::Trait(tb) = tpb {
@@ -140,7 +140,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
         }
     };
 
-    // First, build a HashMap of all Fn generic types
+    // First, build a UnorderedMap of all Fn generic types
     for g in gen.params.iter() {
         if let GenericParam::Type(tp) = g {
             for tpb in tp.bounds.iter() {
@@ -444,8 +444,8 @@ fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
     (last_seg.ident.clone(), last_seg.arguments.clone())
 }
 
-fn find_lifetimes_in_tpb(bound: &TypeParamBound) -> HashSet<Lifetime> {
-    let mut ret = HashSet::default();
+fn find_lifetimes_in_tpb(bound: &TypeParamBound) -> UnorderedSet<Lifetime> {
+    let mut ret = UnorderedSet::default();
     match bound {
         TypeParamBound::Lifetime(lt) => {
             ret.insert(lt.clone());
@@ -457,8 +457,8 @@ fn find_lifetimes_in_tpb(bound: &TypeParamBound) -> HashSet<Lifetime> {
     ret
 }
 
-fn find_lifetimes_in_path(path: &Path) -> HashSet<Lifetime> {
-    let mut ret = HashSet::default();
+fn find_lifetimes_in_path(path: &Path) -> UnorderedSet<Lifetime> {
+    let mut ret = UnorderedSet::default();
     for seg in path.segments.iter() {
         if let PathArguments::AngleBracketed(abga) = &seg.arguments {
             for arg in abga.args.iter() {
@@ -485,12 +485,12 @@ fn find_lifetimes_in_path(path: &Path) -> HashSet<Lifetime> {
     ret
 }
 
-fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
+fn find_lifetimes(ty: &Type) -> UnorderedSet<Lifetime> {
     match ty {
         Type::Array(ta) => find_lifetimes(ta.elem.as_ref()),
         Type::Group(tg) => find_lifetimes(tg.elem.as_ref()),
-        Type::Infer(_ti) => HashSet::default(),
-        Type::Never(_tn) => HashSet::default(),
+        Type::Infer(_ti) => UnorderedSet::default(),
+        Type::Never(_tn) => UnorderedSet::default(),
         Type::Paren(tp) => find_lifetimes(tp.elem.as_ref()),
         Type::Path(tp) => {
             let mut ret = find_lifetimes_in_path(&tp.path);
@@ -509,21 +509,21 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
         },
         Type::Slice(ts) => find_lifetimes(ts.elem.as_ref()),
         Type::TraitObject(tto) => {
-            let mut ret = HashSet::default();
+            let mut ret = UnorderedSet::default();
             for bound in tto.bounds.iter() {
                 ret.extend(find_lifetimes_in_tpb(bound));
             }
             ret
         }
         Type::Tuple(tt) => {
-            let mut ret = HashSet::default();
+            let mut ret = UnorderedSet::default();
             for ty in tt.elems.iter() {
                 ret.extend(find_lifetimes(ty));
             }
             ret
         },
         Type::ImplTrait(tit) => {
-            let mut ret = HashSet::default();
+            let mut ret = UnorderedSet::default();
             for tpb in tit.bounds.iter() {
                 ret.extend(find_lifetimes_in_tpb(tpb));
             }
@@ -531,7 +531,7 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
         },
         _ => {
             compile_error(ty.span(), "unsupported type in this context");
-            HashSet::default()
+            UnorderedSet::default()
         }
     }
 }
@@ -913,8 +913,8 @@ fn split_lifetimes(
     }
 
     // Check which types and lifetimes are referenced by the arguments
-    let mut alts = HashSet::<Lifetime>::default();
-    let mut rlts = HashSet::<Lifetime>::default();
+    let mut alts = UnorderedSet::<Lifetime>::default();
+    let mut rlts = UnorderedSet::<Lifetime>::default();
     for arg in args {
         match arg {
             FnArg::Receiver(r) => {

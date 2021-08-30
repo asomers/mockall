@@ -257,12 +257,14 @@ impl<'a> Builder<'a> {
         let egenerics = merge_generics(
             &merge_generics(&cgenerics, &srltg),
             &mrltg);
-        let alifetimes = salifetimes.into_iter()
-            .collect::<HashSet<LifetimeDef>>()
-            .union(&malifetimes.into_iter().collect::<HashSet<_>>())
-            .into_iter()
-            .cloned()
-            .collect();
+
+        let mut dedup_alifetimes = salifetimes.iter().cloned().collect::<UnorderedSet<_>>();
+        let mut alifetimes = salifetimes;
+        for lifetime in malifetimes {
+            if dedup_alifetimes.insert(lifetime.clone()) {
+                alifetimes.push(lifetime);
+            }
+        }
 
         let fn_params = egenerics.type_params()
             .map(|tp| tp.ident.clone())

@@ -1,6 +1,6 @@
 // vim: tw=80
 use super::*;
-use std::collections::HashMap;
+use crate::collections::UnorderedMap;
 use syn::parse::{Parse, ParseStream};
 
 /// A single automock attribute
@@ -27,7 +27,7 @@ impl Parse for Attr {
 /// automock attributes
 #[derive(Debug, Default)]
 pub(crate) struct Attrs {
-    pub attrs: HashMap<Ident, Type>,
+    pub attrs: UnorderedMap<Ident, Type>,
     pub modname: Option<Ident>
 }
 
@@ -249,7 +249,7 @@ impl Attrs {
 
 impl Parse for Attrs {
     fn parse(input: ParseStream) -> parse::Result<Self> {
-        let mut attrs = HashMap::new();
+        let mut attrs = UnorderedMap::new();
         let mut modname = None;
         while !input.is_empty() {
             let attr: Attr = input.parse()?;

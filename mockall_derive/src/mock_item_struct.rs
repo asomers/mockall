@@ -2,9 +2,9 @@
 use super::*;
 
 use quote::ToTokens;
-use std::collections::HashSet;
 
 use crate::{
+    collections::UnorderedSet,
     mock_function::MockFunction,
     mock_trait::MockTrait
 };
@@ -58,7 +58,7 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
 fn unique_trait_iter<'a, I: Iterator<Item = &'a MockTrait>>(i: I)
     -> impl Iterator<Item = &'a MockTrait>
 {
-    let mut hs = HashSet::<(Path, Vec<Attribute>)>::default();
+    let mut hs = UnorderedSet::<(Path, Vec<Attribute>)>::default();
     i.filter(move |mt| {
         let impl_attrs = AttrFormatter::new(&mt.attrs)
             .async_trait(false)

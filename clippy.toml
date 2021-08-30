@@ -1,2 +1,9 @@
 # I use a lot of dumb names in the tests
 blacklisted-names = []
+
+# It is naughty for a code generator to produce nondeterministic output.
+# Use UnorderedMap/Set instead.
+disallowed-types = [
+    "std::collections::HashMap",
+    "std::collections::HashSet",
+]
