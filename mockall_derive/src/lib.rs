@@ -12,8 +12,8 @@ use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use std::{
-    collections::{HashMap, HashSet},
     env,
+    hash::BuildHasherDefault
 };
 use syn::{
     *,
@@ -33,6 +33,10 @@ use crate::mockable_struct::MockableStruct;
 use crate::mock_item::MockItem;
 use crate::mock_item_struct::MockItemStruct;
 use crate::mockable_item::MockableItem;
+
+// Define deterministic aliases for these common types.
+type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
+type HashSet<K> = std::collections::HashSet<K, BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
 
 cfg_if! {
     // proc-macro2's Span::unstable method requires the nightly feature, and it
@@ -126,7 +130,7 @@ fn deanonymize(literal_type: &mut Type) {
 fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     (Generics, Vec<FnArg>, Vec<TokenStream>)
 {
-    let mut hm = HashMap::new();
+    let mut hm = HashMap::default();
 
     let mut save_fn_types = |ident: &Ident, tpb: &TypeParamBound| {
         if let TypeParamBound::Trait(tb) = tpb {
@@ -1033,7 +1037,7 @@ fn mock_it<M: Into<MockableItem>>(inputs: M) -> TokenStream
     ts
 }
 
-fn do_mock(input: TokenStream) -> TokenStream
+fn do_mock_once(input: TokenStream) -> TokenStream
 {
     let item: MockableStruct = match syn::parse2(input) {
         Ok(mock) => mock,
@@ -1042,6 +1046,18 @@ fn do_mock(input: TokenStream) -> TokenStream
         }
     };
     mock_it(item)
+}
+
+fn do_mock(input: TokenStream) -> TokenStream
+{
+    cfg_if! {
+        if #[cfg(reprocheck)] {
+            let ts_a = do_mock_once(input.clone());
+            let ts_b = do_mock_once(input.clone());
+            assert_eq!(ts_a.to_string(), ts_b.to_string());
+        }
+    }
+    do_mock_once(input)
 }
 
 #[proc_macro]
@@ -1058,7 +1074,7 @@ pub fn automock(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     do_automock(attrs, input).into()
 }
 
-fn do_automock(attrs: TokenStream, input: TokenStream) -> TokenStream {
+fn do_automock_once(attrs: TokenStream, input: TokenStream) -> TokenStream {
     let mut output = input.clone();
     let attrs: Attrs = match parse2(attrs) {
         Ok(a) => a,
@@ -1074,6 +1090,17 @@ fn do_automock(attrs: TokenStream, input: TokenStream) -> TokenStream {
     };
     output.extend(mock_it((attrs, item)));
     output
+}
+
+fn do_automock(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    cfg_if! {
+        if #[cfg(reprocheck)] {
+            let ts_a = do_automock_once(attrs.clone(), input.clone());
+            let ts_b = do_automock_once(attrs.clone(), input.clone());
+            assert_eq!(ts_a.to_string(), ts_b.to_string());
+        }
+    }
+    do_automock_once(attrs, input)
 }
 
 #[cfg(test)]

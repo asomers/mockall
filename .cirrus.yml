@@ -35,6 +35,8 @@ task:
   lint_script:
     - rustup component add clippy
     - cargo clippy $CARGO_ARGS --all-targets --workspace -- -D warnings
+  reproducibility_script:
+    - env RUSTFLAGS="--cfg reprocheck" cargo check $CARGO_ARGS --all-targets
   minver_script:
     - cargo update -Zminimal-versions
     - cargo test $CARGO_ARGS
