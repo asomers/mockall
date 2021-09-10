@@ -17,6 +17,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   [predicates' changelog](https://github.com/assert-rs/predicates-rs/blob/master/CHANGELOG.md).
   ([#325](https://github.com/asomers/mockall/pull/325))
 
+### Fixed
+
+- Fixed nondeterministic code generation in methods with multiple lifetime
+  parameters.
+  ([#333](https://github.com/asomers/mockall/pull/333))
+
 ## [ 0.10.2 ] - 2021-07-12
 
 ### Fixed
