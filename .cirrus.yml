@@ -1,63 +1,41 @@
-test_task:
-  matrix:
-    - name: 1.42.0
-      container:
-        image: rust:1.42.0
-      env:
-        RUSTFLAGS: -Dwarnings
-        RUSTDOCFLAGS: -Dwarnings
-    - name: stable
-      container:
-        image: rust:latest
-      env:
-        RUSTFLAGS: -Dwarnings
-        RUSTDOCFLAGS: -Dwarnings
-    - name: nightly
-      container:
-        image: rustlang/rust:nightly
-      env:
-        CARGO_ARGS: --all-features
-        RUSTFLAGS: -Dwarnings
-        RUSTDOCFLAGS: -Dwarnings
-  cargo_cache:
-    folder: $CARGO_HOME/registry
-  build_script:
-    - cargo build $CARGO_ARGS --all
-  test_script:
-    - cargo test $CARGO_ARGS --all
-  example_script:
-    - cargo test $CARGO_ARGS --all --examples
-  doc_script:
-    - cargo doc $CARGO_ARGS --no-deps --all
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
-
-minver_task:
-  name: minver
-  depends_on:
-    - 1.42.0
-    - stable
-    - nightly
-    - clippy
-  container:
-    image: rustlang/rust:nightly
+common: &COMMON
   env:
     RUSTFLAGS: -Dwarnings
     RUSTDOCFLAGS: -Dwarnings
   cargo_cache:
-    folder: $CARGO_HOME/registry
+    folder: $HOME/.cargo/registry
+    fingerprint_script: cat Cargo.lock || echo ""
+  build_script:
+    - cargo build $CARGO_ARGS
   test_script:
-    - cargo update -Zminimal-versions
-    - cargo test --all-features --all
+    # Mockall has unit tests in the examples, so we must pass --all-targets
+    - cargo test $CARGO_ARGS --all-targets
+  doc_script:
+    - cargo doc $CARGO_ARGS --no-deps
+
+
+task:
+  matrix:
+    - name: 1.42.0
+      container:
+        image: rust:1.42.0
+    - name: stable
+      container:
+        image: rust:latest
+  << : *COMMON
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
-clippy_task:
-  name: clippy
-  matrix:
-    - container:
-        image: rustlang/rust:nightly
-  cargo_cache:
-    folder: $CARGO_HOME/registry
+task:
+  name: nightly
+  container:
+    image: rustlang/rust:nightly
+  env:
+    CARGO_ARGS: --all-features
+  << : *COMMON
   lint_script:
     - rustup component add clippy
-    - cargo clippy --all-features --all-targets --workspace -- -D warnings
+    - cargo clippy $CARGO_ARGS --all-targets --workspace -- -D warnings
+  minver_script:
+    - cargo update -Zminimal-versions
+    - cargo test $CARGO_ARGS
   before_cache_script: rm -rf $CARGO_HOME/registry/index
