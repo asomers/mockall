@@ -12,8 +12,8 @@ use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use std::{
-    collections::{HashMap, HashSet},
     env,
+    hash::BuildHasherDefault
 };
 use syn::{
     *,
@@ -33,6 +33,10 @@ use crate::mockable_struct::MockableStruct;
 use crate::mock_item::MockItem;
 use crate::mock_item_struct::MockItemStruct;
 use crate::mockable_item::MockableItem;
+
+// Define deterministic aliases for these common types.
+type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
+type HashSet<K> = std::collections::HashSet<K, BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
 
 cfg_if! {
     // proc-macro2's Span::unstable method requires the nightly feature, and it
@@ -126,7 +130,7 @@ fn deanonymize(literal_type: &mut Type) {
 fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     (Generics, Vec<FnArg>, Vec<TokenStream>)
 {
-    let mut hm = HashMap::new();
+    let mut hm = HashMap::default();
 
     let mut save_fn_types = |ident: &Ident, tpb: &TypeParamBound| {
         if let TypeParamBound::Trait(tb) = tpb {
