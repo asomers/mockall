@@ -4,7 +4,6 @@ common: &COMMON
     RUSTDOCFLAGS: -Dwarnings
   cargo_cache:
     folder: $HOME/.cargo/registry
-    fingerprint_script: cat Cargo.lock || echo ""
   build_script:
     - cargo build $CARGO_ARGS
   test_script:
