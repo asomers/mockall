@@ -4,6 +4,7 @@
 use mockall::*;
 
 #[automock]
+#[allow(clippy::missing_safety_doc)]
 pub unsafe trait Foo {
     fn foo(&self) -> i32;
 }
