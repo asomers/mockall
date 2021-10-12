@@ -77,8 +77,8 @@ fn add_lifetime_parameters(sig: &mut Signature) {
             },
             Type::Slice(ts) => add_to_type(generics, var, ts.elem.as_mut()),
             Type::Tuple(tt) => {
-                for mut ty in tt.elems.iter_mut() {
-                    add_to_type(generics, var, &mut ty)
+                for ty in tt.elems.iter_mut() {
+                    add_to_type(generics, var, ty)
                 }
             },
             _ => compile_error(ty.span(), "unsupported type in this position")

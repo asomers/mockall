@@ -35,7 +35,7 @@ impl ToTokens for MockItem {
 }
 
 enum MockItemContent {
-    Fn(MockFunction),
+    Fn(Box<MockFunction>),
     Tokens(TokenStream)
 }
 
@@ -76,7 +76,7 @@ impl From<MockableModule> for MockItemModule {
                         .levels(1)
                         .call_levels(0)
                         .build();
-                    content.push(MockItemContent::Fn(mf));
+                    content.push(MockItemContent::Fn(Box::new(mf)));
                 },
                 Item::ForeignMod(ifm) => {
                     for item in ifm.items {
@@ -91,7 +91,7 @@ impl From<MockableModule> for MockItemModule {
                                 .levels(1)
                                 .call_levels(0)
                                 .build();
-                            content.push(MockItemContent::Fn(mf));
+                            content.push(MockItemContent::Fn(Box::new(mf)));
                         } else {
                             compile_error(item.span(),
                                 "Mockall does not yet support  this type in this position.  Please open an issue with your use case at https://github.com/asomers/mockall");

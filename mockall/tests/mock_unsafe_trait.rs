@@ -3,6 +3,7 @@
 
 use mockall::*;
 
+#[allow(clippy::missing_safety_doc)]
 pub unsafe trait Bar {
     fn bar(&self) -> i32;
 }
