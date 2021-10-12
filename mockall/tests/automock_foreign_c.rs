@@ -9,7 +9,7 @@ mod ffi {
         pub(super) fn foo(x: u32) -> i64;
         // Every should_panic method needs to operate on a separate method so it
         // doesn't poison other tests
-        #[allow(unused)]
+        #[allow(dead_code)]
         pub(super) fn foo1(x: u32) -> i64;
     }
 }

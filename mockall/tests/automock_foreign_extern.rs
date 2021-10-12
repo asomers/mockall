@@ -7,12 +7,10 @@ use mockall::*;
 
 #[automock(mod mock_ffi;)]
 extern "C" {
-    #[allow(unused)]
-    fn foo(x: u32) -> i64;
+    pub fn foo(_x: u32) -> i64;
     // Every should_panic method needs to operate on a separate method so it
     // doesn't poison other tests
-    #[allow(unused)]
-    fn foo1(x: u32) -> i64;
+    pub fn foo1(_x: u32) -> i64;
 }
 
 #[test]

@@ -9,7 +9,6 @@ pub trait MyIterator {
     type Item;
 }
 
-#[allow(unused)]
 pub struct Foo{}
 
 #[automock]

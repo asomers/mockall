@@ -4,13 +4,11 @@
 
 use mockall::*;
 
-#[allow(unused)]
-struct A {}
+pub struct A {}
 
-#[allow(unused)]
 #[automock]
 impl A {
-    fn new() -> Self {
+    pub fn new() -> Self {
         unimplemented!()
     }
 }

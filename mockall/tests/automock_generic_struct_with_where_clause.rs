@@ -4,17 +4,15 @@
 
 use mockall::*;
 
-#[allow(unused)]
-struct GenericStruct<T: 'static> {
-    t: T,
+pub struct GenericStruct<T: 'static> {
+    _t: T,
 }
 #[automock]
 impl<T> GenericStruct<T>
     where T: Clone + Default + 'static
 {
-    #[allow(unused)]
     #[allow(clippy::redundant_clone)]
-    fn foo(&self, x: T) -> T {
+    pub fn foo(&self, x: T) -> T {
         x.clone()
     }
 }

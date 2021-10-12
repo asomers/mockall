@@ -10,8 +10,7 @@ pub struct Foo{}
 
 #[automock]
 impl Foo {
-    #[allow(unused)]
-    fn new(_x: u32) -> Self {unimplemented!()}
+    pub fn new(_x: u32) -> Self {unimplemented!()}
 }
 
 #[test]

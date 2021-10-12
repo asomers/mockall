@@ -4,19 +4,16 @@
 
 use mockall::*;
 
-trait Foo {}
+pub trait Foo {}
 
-#[allow(unused)]
-struct A{}
+pub struct A{}
 
-#[allow(unused)]
 struct Bar {}
 impl Foo for Bar {}
 
-#[allow(unused)]
 #[automock]
 impl A {
-    fn build() -> impl Foo {
+    pub fn build() -> impl Foo {
         Bar{}
     }
 }

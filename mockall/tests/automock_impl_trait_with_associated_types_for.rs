@@ -4,7 +4,6 @@
 
 use mockall::*;
 
-#[allow(unused)]
 struct Foo {}
 #[automock]
 impl Iterator for Foo {

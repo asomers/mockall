@@ -8,8 +8,7 @@ trait Foo<T: 'static> {
     fn foo(&self, t: T) -> T;
 }
 
-#[allow(unused)]
-struct SomeStruct<T: 'static> {
+pub struct SomeStruct<T: 'static> {
     _t: std::marker::PhantomData<T>
 }
 

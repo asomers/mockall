@@ -4,13 +4,12 @@
 
 use mockall::*;
 
-struct Foo {}
+pub struct Foo {}
 
-#[allow(unused)]
 #[automock]
 impl Foo {
-    fn foo(&self, mut x: u32) {}
-    fn bar(&mut self, x: i32) -> i32 {0}
+    pub fn foo(&self, mut _x: u32) {}
+    pub fn bar(&mut self, _x: i32) -> i32 {0}
 }
 
 #[test]

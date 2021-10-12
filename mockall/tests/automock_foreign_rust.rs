@@ -4,10 +4,9 @@
 use mockall::*;
 
 #[automock]
-mod ffi {
+pub mod ffi {
     extern "Rust" {
-        #[allow(unused)]
-        pub fn foo(x: u32) -> i64;
+        pub fn foo(_x: u32) -> i64;
     }
 }
 

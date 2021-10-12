@@ -4,15 +4,13 @@
 
 use mockall::*;
 
-#[allow(unused)]
-struct GenericStruct<T, V> {
-    t: T,
-    v: V
+pub struct GenericStruct<T, V> {
+    _t: T,
+    _v: V
 }
 #[automock]
 impl<T: 'static, V: 'static> GenericStruct<T, V> {
-    #[allow(unused)]
-    fn foo(&self, _x: u32) -> i64 {
+    pub fn foo(&self, _x: u32) -> i64 {
         42
     }
 }
