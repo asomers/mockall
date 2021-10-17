@@ -7,6 +7,7 @@ use mockall::*;
 pub struct A {}
 
 #[automock]
+#[allow(clippy::new_without_default)]
 impl A {
     pub fn new() -> Self {
         unimplemented!()
