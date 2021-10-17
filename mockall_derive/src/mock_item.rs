@@ -174,6 +174,7 @@ impl ToTokens for MockItemModule {
             }
         };
         quote!(
+            #[allow(unused_imports)]
             #attrs
             #docstr
             #vis mod #modname {
