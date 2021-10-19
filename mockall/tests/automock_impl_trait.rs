@@ -5,13 +5,11 @@
 use mockall::*;
 use std::fmt::Debug;
 
-#[allow(unused)]
 pub struct Foo {}
 
 #[automock]
 impl Foo {
-    #[allow(unused)]
-    fn foo(&self) -> impl Debug + Send { unimplemented!()}
+    pub fn foo(&self) -> impl Debug + Send { unimplemented!()}
 }
 
 #[test]

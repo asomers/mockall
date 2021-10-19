@@ -5,7 +5,6 @@
 
 use mockall::*;
 
-#[allow(unused)]
 mod outer {
     struct SuperT();
     trait SuperTrait {}

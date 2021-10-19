@@ -2,7 +2,6 @@
 //! bare functions can use non-public types, as long as the object's visibility is compatible.
 #![deny(warnings)]
 
-#[allow(unused)]
 mod outer {
     struct SuperT();
 
@@ -12,23 +11,23 @@ mod outer {
         pub(crate) struct PubCrateT();
         struct PrivT();
 
+        #[allow(dead_code)]
         #[automock]
-        #[allow(unused)]
         mod m {
             use super::*;
 
-            pub(crate) fn foo(x: PubCrateT) -> PubCrateT {
+            pub(crate) fn foo(_x: PubCrateT) -> PubCrateT {
                 unimplemented!()
             }
-            pub(super) fn bar(x: PrivT) -> PrivT {
+            pub(super) fn bar(_x: PrivT) -> PrivT {
                 unimplemented!()
             }
-            pub(in super::super) fn baz(x: super::super::SuperT)
+            pub(in super::super) fn baz(_x: super::super::SuperT)
                 -> super::super::SuperT
             {
                 unimplemented!()
             }
-            pub(in crate::outer) fn bang(x: crate::outer::SuperT)
+            pub(in crate::outer) fn bang(_x: crate::outer::SuperT)
                 -> crate::outer::SuperT
             {
                 unimplemented!()

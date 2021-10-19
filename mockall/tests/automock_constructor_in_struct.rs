@@ -4,13 +4,12 @@
 
 use mockall::*;
 
-#[allow(unused)]
-struct A {}
+pub struct A {}
 
-#[allow(unused)]
 #[automock]
+#[allow(clippy::new_without_default)]
 impl A {
-    fn new() -> Self {
+    pub fn new() -> Self {
         unimplemented!()
     }
 }

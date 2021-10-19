@@ -2,13 +2,12 @@
 //! Mocking an entire module of functions
 #![deny(warnings)]
 
-mod m {
+pub mod m {
     use mockall::*;
     type T = u32;
 
     #[automock]
-    #[allow(unused)]
-    mod foo {
+    pub mod foo {
         use super::T;
         pub fn bar(_x: T) -> i64 {unimplemented!()}
         // We must have a separate method for every should_panic test
@@ -16,7 +15,7 @@ mod m {
         // Module functions should be able to use impl Trait, too
         pub fn baz() -> impl std::fmt::Debug + Send { unimplemented!()}
         // Module functions can use mutable arguments
-        pub fn bean(mut x: u32) { unimplemented!() }
+        pub fn bean(mut _x: u32) { unimplemented!() }
     }
 
     #[test]

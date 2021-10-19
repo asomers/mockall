@@ -4,12 +4,11 @@
 
 use mockall::*;
 
-trait Foo {
+pub trait Foo {
     fn foo(&self, x: u32) -> i64;
 }
 
-#[allow(unused)]
-struct SomeStruct {}
+pub struct SomeStruct {}
 
 #[automock]
 impl Foo for SomeStruct {

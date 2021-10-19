@@ -4,14 +4,13 @@
 
 use mockall::*;
 
-#[allow(unused)]
-struct MethodByValue {}
+pub struct MethodByValue {}
 
-#[allow(unused)]
 #[automock]
 impl MethodByValue {
-    fn foo(self, _x: u32) -> i64 {0}
-    fn bar(mut self) {}
+    pub fn foo(self, _x: u32) -> i64 {0}
+    #[allow(unused_mut)]
+    pub fn bar(mut self) {}
 }
 
 #[test]

@@ -4,13 +4,11 @@
 
 use mockall::*;
 
-#[allow(unused)]
-struct SimpleStruct {}
+pub struct SimpleStruct {}
 
-#[allow(unused)]
 #[automock]
 impl SimpleStruct {
-    fn foo(&self, _x: u32) -> i64 {
+    pub fn foo(&self, _x: u32) -> i64 {
         42
     }
 }

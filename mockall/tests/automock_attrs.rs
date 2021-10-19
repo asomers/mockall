@@ -1,16 +1,15 @@
 // vim: tw=80
 //! Attributes are applied to the mock object, too.
-#![allow(unused)]
 #![deny(warnings)]
 
 use mockall::*;
 
 #[automock]
-mod m {
+pub mod m {
     #[cfg(target_os = "multics")]
     pub fn bloob(x: DoesNotExist) -> i64 {unimplemented!()}
     #[cfg(not(target_os = "multics"))]
-    pub fn blarg(x: i32) -> i64 {unimplemented!()}
+    pub fn blarg(_x: i32) -> i64 {unimplemented!()}
 }
 
 #[test]
@@ -31,7 +30,7 @@ impl A {
 }
 
 #[automock]
-mod ffi {
+pub mod ffi {
     extern "C" {
         // mock_ffi::baz should not be defined
         #[cfg(target_os = "multics")]
