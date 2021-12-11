@@ -1126,6 +1126,7 @@
 
 #![cfg_attr(feature = "nightly", feature(doc_cfg))]
 #![cfg_attr(test, deny(warnings))]
+#![warn(missing_docs)]
 
 use downcast::*;
 use std::{
@@ -1465,6 +1466,7 @@ pub struct Times{
     range: TimesRange
 }
 
+#[doc(hidden)]
 impl Times {
     pub fn call(&self) -> Result<(), String> {
         let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
@@ -1540,6 +1542,7 @@ impl Times {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Key(any::TypeId);
 
+#[doc(hidden)]
 impl Key {
     pub fn new<T: 'static>() -> Self {
         Key(any::TypeId::of::<T>())
@@ -1637,6 +1640,7 @@ pub struct Sequence {
 }
 
 impl Sequence {
+    /// Create a new empty [`Sequence`]
     pub fn new() -> Self {
         Self::default()
     }
