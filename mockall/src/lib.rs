@@ -836,7 +836,9 @@
 //!
 //! Mockall can also mock static methods.  But be careful!  The expectations are
 //! global.  If you want to use a static method in multiple tests, you must
-//! provide your own synchronization.  For ordinary methods, expectations are
+//! provide your own synchronization. See the [`synchronization
+//! example`](https://github.com/asomers/mockall/blob/master/mockall/examples/synchronization.rs)
+//! for a basic implementation. For ordinary methods, expectations are
 //! set on the mock object.  But static methods don't have any mock object.
 //! Instead, you must create a `Context` object just to set their expectations.
 //!
