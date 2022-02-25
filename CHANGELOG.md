@@ -12,6 +12,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   receiver.  For example, `PartialEq::eq` has a signature like
   `fn eq(&self, other: &Self) -> bool`
   ([#373](https://github.com/asomers/mockall/pull/373))
+- Fixed mocking methods that return a reference to a `dyn T` trait object,
+  when that trait is not already implemented for `Box<dyn T>`.
+  ([#380](https://github.com/asomers/mockall/pull/380))
 
 ## [ 0.11.0 ] - 2021-12-11
 

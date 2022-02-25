@@ -3,47 +3,55 @@
 #![deny(warnings)]
 
 use mockall::*;
-use std::fmt::Debug;
 
-trait T: Debug + Sync {
-    fn mutate(&mut self) {}
+trait Test: Sync {
+    fn value(&self) -> i32;
+    fn mutate(&mut self);
 }
 
-impl T for u32 {}
+impl Test for i32 {
+    fn value(&self) -> i32 {
+        *self
+    }
 
-impl<Q> T for Q where Q: Debug + Sync + AsMut<dyn T> {}
+    fn mutate(&mut self) {
+        *self = 0;
+    }
+}
 
-mock!{
+mock! {
     Foo {
-        fn foo(&self) -> &dyn Debug;
-        fn bar(&self) -> &'static dyn T;
-        fn baz(&mut self) -> &mut dyn T;
+        fn ref_dyn(&self) -> &dyn Test;
+        fn static_dyn(&self) -> &'static dyn Test;
+        fn mut_dyn(&mut self) -> &mut dyn Test;
     }
 }
 
 #[test]
-fn return_const() {
+fn ref_dyn() {
     let mut mock = MockFoo::new();
-    mock.expect_foo()
-        .return_const(Box::new(42u32) as Box<dyn Debug>);
+    mock.expect_ref_dyn()
+        .return_const(Box::new(42) as Box<dyn Test>);
 
-    assert_eq!("42", format!("{:?}", mock.foo()));
+    assert_eq!(42, mock.ref_dyn().value());
 }
 
 #[test]
-fn static_ref() {
+fn static_dyn() {
     let mut mock = MockFoo::new();
-    mock.expect_bar()
-        .return_const(&42u32 as &dyn T);
+    mock.expect_static_dyn()
+        .return_const(&42 as &'static dyn Test);
 
-    assert_eq!("42", format!("{:?}", mock.bar()));
+    assert_eq!(42, mock.static_dyn().value());
 }
 
 #[test]
-fn return_var() {
+fn mut_dyn() {
     let mut mock = MockFoo::new();
-    mock.expect_baz()
-        .return_var(Box::new(42u32) as Box<dyn T>);
+    mock.expect_mut_dyn()
+        .return_var(Box::new(42) as Box<dyn Test>);
 
-    mock.baz().mutate();
+    assert_eq!(42, mock.mut_dyn().value());
+    mock.mut_dyn().mutate();
+    assert_eq!(0, mock.mut_dyn().value());
 }
