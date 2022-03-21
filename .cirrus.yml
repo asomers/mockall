@@ -6,22 +6,25 @@ common: &COMMON
     folder: $HOME/.cargo/registry
   build_script:
     - cargo build $CARGO_ARGS
-  test_script:
-    # Mockall has unit tests in the examples, so we must pass --all-targets
-    - cargo test $CARGO_ARGS --all-targets
   doc_script:
     - cargo doc $CARGO_ARGS --no-deps
 
 
 task:
-  matrix:
-    - name: 1.42.0
-      container:
-        image: rust:1.42.0
-    - name: stable
-      container:
-        image: rust:latest
+  name: MSRV
+  container:
+    image: rust:1.42.0
   << : *COMMON
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+task:
+  name: stable
+  container:
+    image: rust:latest
+  << : *COMMON
+  test_script:
+    # Mockall has unit tests in the examples, so we must pass --all-targets
+    - cargo test $CARGO_ARGS --all-targets
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
@@ -31,6 +34,9 @@ task:
   env:
     CARGO_ARGS: --all-features
   << : *COMMON
+  test_script:
+    # Mockall has unit tests in the examples, so we must pass --all-targets
+    - cargo test $CARGO_ARGS --all-targets
   lint_script:
     - rustup component add clippy
     - cargo clippy $CARGO_ARGS --all-targets --workspace -- -D warnings
