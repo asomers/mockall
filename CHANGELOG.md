@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [ Unreleased ] - ReleaseDate
+
+### Fixed
+
+- Fixed mocking methods that use `Self` in their arguments, but not as the
+  receiver.  For example, `PartialEq::eq` has a signature like
+  `fn eq(&self, other: &Self) -> bool`
+  ([#373](https://github.com/asomers/mockall/pull/373))
+
 ## [ 0.11.0 ] - 2021-12-11
 
 ### Added

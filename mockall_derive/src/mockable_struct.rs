@@ -139,6 +139,7 @@ fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
 fn mockable_method(meth: &mut ImplItemMethod, name: &Ident, generics: &Generics)
 {
     demutify(&mut meth.sig.inputs);
+    deselfify_args(&mut meth.sig.inputs, name, generics);
     add_lifetime_parameters(&mut meth.sig);
     deimplify(&mut meth.sig.output);
     if let ReturnType::Type(_, ty) = &mut meth.sig.output {
@@ -155,6 +156,7 @@ fn mockable_trait_method(
     generics: &Generics)
 {
     demutify(&mut meth.sig.inputs);
+    deselfify_args(&mut meth.sig.inputs, name, generics);
     add_lifetime_parameters(&mut meth.sig);
     deimplify(&mut meth.sig.output);
     if let ReturnType::Type(_, ty) = &mut meth.sig.output {
