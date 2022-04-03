@@ -1694,31 +1694,36 @@ pub struct Captor<T> {
     values: Arc<Mutex<Vec<T>>>,
 }
 
+/// Create a new captor. See the documentation for [Captor](Captor)
 pub fn captor<T>() -> Captor<T> {
     Captor { values: Arc::new(Mutex::new(vec![])) }
 }
 
 impl<T: Clone> Captor<T> {
+    /// Retrieve the list of all captured values, in chronological order
     pub fn values(&self) -> Vec<T> {
         self.lock().clone()
     }
 
+    /// Retrieve the last captured value, if any.
     pub fn last_value(&self) -> Option<T> {
         self.lock().last().cloned()
     }
 
+    /// Forget all previously captured values. Reset this `Captor` to its initial state.
     pub fn reset(&self) {
         self.lock().clear()
     }
 
-    fn lock(&self) -> MutexGuard<Vec<T>> {
-        self.values.lock().unwrap()
-    }
-
+    /// Start capturing values. See the documentation for [Captor](Captor)
     pub fn capture_values(&self) -> impl Predicate<T> {
         Captor {
             values: self.values.clone()
         }
+    }
+
+    fn lock(&self) -> MutexGuard<Vec<T>> {
+        self.values.lock().unwrap()
     }
 }
 
