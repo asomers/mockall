@@ -1142,6 +1142,8 @@ use std::{
         atomic::{AtomicUsize, Ordering}
     },
 };
+use std::fmt::Display;
+use std::sync::{Mutex, MutexGuard};
 
 #[doc(hidden)]
 pub use downcast::{Any, Downcast};
@@ -1159,6 +1161,7 @@ pub use predicates::{
         predicate
     }
 };
+use predicates::reflection::PredicateReflection;
 #[doc(hidden)]
 pub use predicates_tree::CaseTreeExt;
 
@@ -1656,3 +1659,80 @@ impl Sequence {
         handle
     }
 }
+
+/// Used to capture values passed to mocked methods, so you can assert on them later.
+///
+/// # Examples
+/// ```
+/// # use std::ops::Range;
+/// use mockall::*;
+///
+/// #[automock]
+/// trait Foo {
+///     fn foo(&self, some_param: i32);
+/// }
+///
+/// let mut mock = MockFoo::new();
+/// let int_captor = captor();
+///
+/// mock.expect_foo()
+///     .with(int_captor.capture_values())
+///     .returning(|_| ());
+///
+/// mock.foo(41);
+/// mock.foo(42);
+///
+/// assert_eq!(int_captor.values().as_slice(), &[41, 42]);
+/// assert_eq!(int_captor.last_value(), Some(42));
+///
+/// int_captor.reset();
+///
+/// assert_eq!(int_captor.values().len(), 0);
+/// ```
+///
+pub struct Captor<T> {
+    values: Arc<Mutex<Vec<T>>>,
+}
+
+pub fn captor<T>() -> Captor<T> {
+    Captor { values: Arc::new(Mutex::new(vec![])) }
+}
+
+impl<T: Clone> Captor<T> {
+    pub fn values(&self) -> Vec<T> {
+        self.lock().clone()
+    }
+
+    pub fn last_value(&self) -> Option<T> {
+        self.lock().last().cloned()
+    }
+
+    pub fn reset(&self) {
+        self.lock().clear()
+    }
+
+    fn lock(&self) -> MutexGuard<Vec<T>> {
+        self.values.lock().unwrap()
+    }
+
+    pub fn capture_values(&self) -> impl Predicate<T> {
+        Captor {
+            values: self.values.clone()
+        }
+    }
+}
+
+impl<T: Clone> Predicate<T> for Captor<T> {
+    fn eval(&self, variable: &T) -> bool {
+        self.values.lock().unwrap().push(variable.clone());
+        true
+    }
+}
+
+impl<T> Display for Captor<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt("<capture values>", f)
+    }
+}
+
+impl<T> PredicateReflection for Captor<T> {}
