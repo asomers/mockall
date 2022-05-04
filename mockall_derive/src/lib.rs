@@ -438,6 +438,20 @@ fn deselfify(literal_type: &mut Type, actual: &Ident, generics: &Generics) {
     }
 }
 
+/// Change any `Self` in a method's arguments' types with `actual`.
+/// `generics` is the Generics field of the parent struct.
+fn deselfify_args(
+    args: &mut Punctuated<FnArg, Token![,]>,
+    actual: &Ident,
+    generics: &Generics)
+{
+    for arg in args.iter_mut() {
+        if let FnArg::Typed(pt) = arg {
+            deselfify(&mut *pt.ty, actual, generics)
+        }
+    }
+}
+
 fn find_ident_from_path(path: &Path) -> (Ident, PathArguments) {
     if path.segments.len() != 1 {
         compile_error(path.span(),
