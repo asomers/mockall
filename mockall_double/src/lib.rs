@@ -37,16 +37,23 @@ cfg_if! {
 }
 
 fn do_double(_attrs: TokenStream, input: TokenStream) -> TokenStream {
-    let mut use_stmt: ItemUse = match parse2(input.clone()) {
+    let mut item: Item = match parse2(input.clone()) {
         Ok(u) => u,
         Err(e) => return e.to_compile_error()
     };
-    mock_itemuse(&mut use_stmt);
+    match &mut item {
+        Item::Use(use_stmt) => mock_itemuse(use_stmt),
+        Item::Type(item_type) => mock_itemtype(item_type),
+        _ => {
+            compile_error(item.span(),
+                "Only use statements and type aliases may be doubled");
+        }
+    };
     quote!(
         #[cfg(not(test))]
         #input
         #[cfg(test)]
-        #use_stmt
+        #item
     )
 }
 
@@ -105,6 +112,13 @@ fn do_double(_attrs: TokenStream, input: TokenStream) -> TokenStream {
 ///     Bean
 /// };
 /// ```
+/// type aliases,
+/// ```no_run
+/// # mod bar { pub struct Baz {} }
+/// # use mockall_double::double;
+/// #[double]
+/// type Foo = bar::Baz;
+/// ```
 /// and renamed imports, too.  With renamed imports, it isn't even necessary to
 /// declare a submodule.
 /// ```no_run
@@ -144,6 +158,16 @@ pub fn double(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
     -> proc_macro::TokenStream
 {
     do_double(attrs.into(), input.into()).into()
+}
+
+fn mock_itemtype(orig: &mut ItemType) {
+    match &mut *orig.ty {
+        Type::Path(tp) => {
+            let ident = &tp.path.segments.last_mut().unwrap().ident;
+            tp.path.segments.last_mut().unwrap().ident = mock_ident(ident);
+        }
+        x => compile_error(x.span(), "Only path types may be doubled")
+    }
 }
 
 fn mock_itemuse(orig: &mut ItemUse) {
@@ -280,6 +304,18 @@ mod double {
     }
 
     #[test]
+    fn pub_use() {
+        let code = r#"pub use foo::bar;"#;
+        let expected = r#"
+            #[cfg(not(test))]
+            pub use foo::bar;
+            #[cfg(test)]
+            pub use foo::mock_bar as bar;
+        "#;
+        cmp("", code, expected);
+    }
+
+    #[test]
     fn rename() {
         let code = r#"use Foo as Bar;"#;
         let expected = r#"
@@ -292,10 +328,22 @@ mod double {
     }
 
     #[test]
-    fn not_use_stmt() {
+    fn type_() {
+        let code = r#"type Foo = bar::Baz;"#;
+        let expected = r#"
+            #[cfg(not(test))]
+            type Foo = bar::Baz;
+            #[cfg(test)]
+            type Foo = bar::MockBaz;
+        "#;
+        cmp("", code, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Only use statements and type aliases")]
+    fn undoubleable() {
         let code = r#"struct Foo{}"#;
-        cmp("", code, "compile_error!{\"expected `use`\"}");
+        cmp("", code, "");
     }
 }
 }
-
