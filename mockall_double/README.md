@@ -16,16 +16,16 @@ it even easier.
 
 ## Usage
 
-Typically mockall is only used by unit tests, so it can be a dev-dependency.
-But mockall_double must be a full dependency.  To use it this way, add this to
+Typically `mockall` is only used by unit tests, so it can be a dev-dependency.
+But `mockall_double` must be a full dependency.  To use it this way, add this to
 your `Cargo.toml`:
 
 ```toml
 [dependencies]
-mockall_double = "0.1.0"
+mockall_double = "0.2.1"
 
 [dev-dependencies]
-mockall = "0.8.0"
+mockall = "0.11.0"
 ```
 
 Then use it like this:
@@ -72,7 +72,9 @@ See the [API docs](https://docs.rs/mockall_double) for more information.
 
 # Minimum Supported Rust Version (MSRV)
 
-Mockall_double is tested with the same MSRV as Mockall itself.  Currently, that's Rust 1.42.0.  mockall_double's MSRV will not be changed in the future without bumping the major or minor version.
+`mockall_double` is tested with the same MSRV as Mockall itself.  Currently,
+that's Rust 1.42.0.  `mockall_double`'s MSRV will not be changed in the future
+without bumping the major or minor version.
 
 # License
 
@@ -83,6 +85,6 @@ See LICENSE-APACHE, and LICENSE-MIT for details
 
 # Acknowledgements
 
-mockall_double is inspired by Jason Grlicky's
+`mockall_double` is inspired by Jason Grlicky's
 [double](https://crates.io/crates/double) crate, but tweaked to work better
 with Mockall's naming conventions.
