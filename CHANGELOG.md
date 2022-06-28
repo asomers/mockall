@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [ Unreleased ] - ReleaseDate
+
+## Fixed
+
+- Fixed using Mockall when a function named `Ok` is in scope.  The `anyhow`
+  crate, for example, creates a function by this name.
+  ([#389](https://github.com/asomers/mockall/pull/389))
+
 ## [ 0.11.1 ] - 2022-05-15
 
 ### Fixed

@@ -1647,13 +1647,13 @@ impl<'a> ToTokens for RefRfunc<'a> {
                 {
                     match self {
                         Rfunc::Default(Some(ref __mockall_o)) => {
-                            Ok(__mockall_o)
+                            ::std::result::Result::Ok(__mockall_o)
                         },
                         Rfunc::Default(None) => {
                             Err(#default_err_msg)
                         },
                         Rfunc::Const(ref __mockall_o) => {
-                            Ok(__mockall_o)
+                            ::std::result::Result::Ok(__mockall_o)
                         },
                         Rfunc::_Phantom(_) => unreachable!()
                     }
@@ -1717,7 +1717,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
                 {
                     match self {
                         Rfunc::Default(Some(ref mut __mockall_o)) => {
-                            Ok(__mockall_o)
+                            ::std::result::Result::Ok(__mockall_o)
                         },
                         Rfunc::Default(None) => {
                             Err(#default_err_msg)
@@ -1726,7 +1726,7 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
                         {
                             *__mockall_o = Some(__mockall_f(#(#argnames, )*));
                             if let Some(ref mut __mockall_o2) = __mockall_o {
-                                Ok(__mockall_o2)
+                                ::std::result::Result::Ok(__mockall_o2)
                             } else {
                                 unreachable!()
                             }
@@ -1737,13 +1737,13 @@ impl<'a> ToTokens for RefMutRfunc<'a> {
                                     #(#argnames, )*)
                             );
                             if let Some(ref mut __mockall_o2) = __mockall_o {
-                                Ok(__mockall_o2)
+                                ::std::result::Result::Ok(__mockall_o2)
                             } else {
                                 unreachable!()
                             }
                         },
                         Rfunc::Var(ref mut __mockall_o) => {
-                            Ok(__mockall_o)
+                            ::std::result::Result::Ok(__mockall_o)
                         },
                         Rfunc::_Phantom(_) => unreachable!()
                     }
@@ -1812,15 +1812,15 @@ impl<'a> ToTokens for StaticRfunc<'a> {
                             Err("called twice, but it returns by move")
                         },
                         Rfunc::Mut(__mockall_f) => {
-                            Ok(__mockall_f( #(#argnames, )* ))
+                            ::std::result::Result::Ok(__mockall_f( #(#argnames, )* ))
                         },
                         Rfunc::MutSt(__mockall_f) => {
-                            Ok((__mockall_f.get_mut())(#(#argnames,)*))
+                            ::std::result::Result::Ok((__mockall_f.get_mut())(#(#argnames,)*))
                         },
                         Rfunc::Once(_) => {
                             if let Rfunc::Once(mut __mockall_f) =
                                 mem::replace(self, Rfunc::Expired) {
-                                Ok(__mockall_f( #(#argnames, )* ))
+                                ::std::result::Result::Ok(__mockall_f( #(#argnames, )* ))
                             } else {
                                 unreachable!()
                             }
@@ -1828,7 +1828,7 @@ impl<'a> ToTokens for StaticRfunc<'a> {
                         Rfunc::OnceSt(_) => {
                             if let Rfunc::OnceSt(mut __mockall_f) =
                                 mem::replace(self, Rfunc::Expired) {
-                                Ok((__mockall_f.into_inner())(#(#argnames,)*))
+                                ::std::result::Result::Ok((__mockall_f.into_inner())(#(#argnames,)*))
                             } else {
                                 unreachable!()
                             }
