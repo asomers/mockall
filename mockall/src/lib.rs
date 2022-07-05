@@ -668,8 +668,8 @@
 //! }
 //! # fn main() {}
 //! ```
-//! For structs with more than one `impl` block, see [`mock!`]
-//! instead.
+//! For structs with more than one `impl` block or that have unsupported
+//! `#[derive(X)]` attributes, e.g. `Clone`, see [`mock!`] instead.
 //!
 //! ## Generic methods
 //!
@@ -1285,6 +1285,23 @@ pub use mockall_derive::automock;
 ///     }
 ///     impl<T: Clone + 'static> Foo for MyStruct<T> {
 ///         fn foo(&self, x: u32);
+///     }
+/// }
+/// # fn main() {}
+/// ```
+/// Mocking an unsupported `#[derive(X)]` attribute, e.g. `Clone`, is
+/// similar.
+/// ```
+/// # use mockall_derive::mock;
+/// #[derive(Clone)]
+/// struct MyStruct;
+///
+/// mock!{
+///     pub MyStruct {
+///         fn bar(&self);
+///     }
+///     impl Clone for MyStruct {
+///         fn clone(&self) -> Self;
 ///     }
 /// }
 /// # fn main() {}
