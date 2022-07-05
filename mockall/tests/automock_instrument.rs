@@ -2,6 +2,7 @@
 //! A trait that uses tracing::instrument should be automockable.  The mock
 //! method won't be instrumented, though.
 #![deny(warnings)]
+#![allow(dead_code)]
 
 use mockall::*;
 use tracing::instrument;

@@ -10,6 +10,7 @@ mock! {
         fn foo<Q: 'static>(t: T, q: Q) -> u64;
         // We must use a different method for every should_panic test, so the
         // shared mutex doesn't get poisoned.
+        #[allow(dead_code)]
         fn foo2<Q: 'static>(t: T, q: Q) -> u64;
         fn foo3<Q: 'static>(t: T, q: Q) -> u64;
     }

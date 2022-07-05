@@ -60,7 +60,7 @@ fn return_static_ref() {
     thing.expect_baz()
         .return_const(x);
 
-    assert_eq!(42u32, *(*thing.baz()).0);
+    assert_eq!(42u32, *thing.baz().0);
 }
 
 // It isn't possible to safely set an expectation for a non-'static return value
@@ -100,7 +100,7 @@ mod trait_methods {
         thing.expect_trait_baz()
             .return_const(x);
 
-        assert_eq!(42u32, *(*thing.trait_baz()).0);
+        assert_eq!(42u32, *thing.trait_baz().0);
     }
 
     #[test]

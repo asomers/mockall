@@ -1,6 +1,7 @@
 // vim: tw=80
 //! mock's methods and trait impls can be conditionally compiled
 #![deny(warnings)]
+#![allow(dead_code)]
 
 use mockall::*;
 

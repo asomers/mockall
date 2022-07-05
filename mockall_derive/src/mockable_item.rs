@@ -104,7 +104,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
 
                         for arg in sig.inputs.iter_mut() {
                             if let FnArg::Typed(pt) = arg {
-                                *pt.ty = supersuperfy(&*pt.ty, 1);
+                                *pt.ty = supersuperfy(pt.ty.as_ref(), 1);
                             }
                         }
                         if let ReturnType::Type(_, ty) = &mut sig.output {

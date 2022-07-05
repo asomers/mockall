@@ -1,6 +1,7 @@
 // vim: tw=80
 //! bare functions can use non-public types, as long as the object's visibility is compatible.
 #![deny(warnings)]
+#![allow(dead_code)]
 
 mod outer {
     struct SuperT();
@@ -11,7 +12,6 @@ mod outer {
         pub(crate) struct PubCrateT();
         struct PrivT();
 
-        #[allow(dead_code)]
         #[automock]
         mod m {
             use super::*;
