@@ -8,9 +8,7 @@ use std::fmt::{self, Debug, Formatter};
 // using derive(Debug) tells mockall to generate the Debug impl automatically
 mock!{
     #[derive(Debug)]
-    pub Bar {
-        fn foo(&self) -> u32;
-    }
+    pub Bar { }
     impl Clone for Bar {
         fn clone(&self) -> Self;
     }
@@ -18,9 +16,7 @@ mock!{
 
 // With no derive(Debug), mockall won't genetate the debug impl automatically
 mock!{
-    pub Baz {
-        fn foo(&self) -> u32;
-    }
+    pub Baz { }
     impl Clone for Baz {
         fn clone(&self) -> Self;
     }

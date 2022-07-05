@@ -222,7 +222,7 @@ impl<'a> Builder<'a> {
                 false,
             ),
             ReturnType::Type(_, ref ty) => {
-                let mut output_ty = supersuperfy(&**ty, self.levels);
+                let mut output_ty = supersuperfy(ty, self.levels);
                 destrify(&mut output_ty);
                 let boxed = dedynify(&mut output_ty);
                 (output_ty, boxed)

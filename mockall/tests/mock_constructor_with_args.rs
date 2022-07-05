@@ -8,7 +8,6 @@ use mockall::*;
 
 mock! {
     pub Foo {
-        fn foo(&self) -> u32;
         fn new(x: u32) -> Self;
     }
 }

@@ -447,7 +447,7 @@ fn deselfify_args(
 {
     for arg in args.iter_mut() {
         if let FnArg::Typed(pt) = arg {
-            deselfify(&mut *pt.ty, actual, generics)
+            deselfify(pt.ty.as_mut(), actual, generics)
         }
     }
 }
