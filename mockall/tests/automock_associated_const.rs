@@ -32,7 +32,6 @@ trait Foo {
     }
 }
 
-#[allow(dead_code)]
 struct Bar {}
 
 #[automock]
@@ -40,7 +39,6 @@ impl Foo for Bar {
     const X: i32 = 42;
 }
 
-#[allow(dead_code)]
 pub struct Baz {}
 #[automock]
 impl Baz {

@@ -8,6 +8,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Fixed
 
+- Suppress "dead code" warnings when automocking a struct's private method.  It
+  might be used only by other public methods in the same struct.
+  ([#397](https://github.com/asomers/mockall/pull/397))
+
 - Fixed using Mockall when a function named `Ok` is in scope.  The `anyhow`
   crate, for example, creates a function by this name.
   ([#389](https://github.com/asomers/mockall/pull/389))
