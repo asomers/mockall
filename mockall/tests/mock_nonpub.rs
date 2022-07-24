@@ -2,7 +2,6 @@
 //! methods can use non-public types, as long as the object's visibility is
 //! compatible.
 #![deny(warnings)]
-#![allow(dead_code)]
 
 use mockall::*;
 

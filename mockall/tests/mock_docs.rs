@@ -1,7 +1,6 @@
 // vim: tw=80
 #![deny(missing_docs)]
 #![deny(warnings)]
-#![allow(dead_code)]
 
 use mockall::*;
 

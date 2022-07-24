@@ -1,6 +1,5 @@
 // vim: tw=80
 #![deny(warnings)]
-#![allow(dead_code)]
 
 use mockall::*;
 use std::sync::Mutex;

@@ -15,8 +15,7 @@ mod ffi {
 }
 
 // Ensure we can still use the original mocked function
-#[allow(dead_code)]
-fn normal_usage() {
+pub fn normal_usage() {
     unsafe {
         ffi::foo(42);
     }

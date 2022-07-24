@@ -448,10 +448,19 @@ impl MockFunction {
         let no_match_msg = quote!(std::format!(
             "{}: No matching expectation found", #desc));
         let sig = &self.sig;
-        let vis = if self.trait_.is_some() {
-            &Visibility::Inherited
+        let (vis, dead_code) = if self.trait_.is_some() {
+            (&Visibility::Inherited, quote!())
         } else {
-            &self.call_vis
+            let dead_code = if let Visibility::Inherited = self.call_vis {
+                // This private method may be a helper only used by the struct's
+                // other methods, which we are mocking.  If so, the mock method
+                // will be dead code.  But we can't simply eliminate it, because
+                // it might also be used by other code in the same module.
+                quote!(#[allow(dead_code)])
+            } else {
+                quote!()
+            };
+            (&self.call_vis, dead_code)
         };
         let substruct_obj = if let Some(trait_) = &self.trait_ {
             let ident = format_ident!("{}_expectations", trait_);
@@ -477,6 +486,7 @@ impl MockFunction {
             quote!(
                 // Don't add a doc string.  The original is included in #attrs
                 #(#attrs)*
+                #dead_code
                 #vis #sig {
                     let no_match_msg = #no_match_msg;
                     #deref {
@@ -497,6 +507,7 @@ impl MockFunction {
             quote!(
                 // Don't add a doc string.  The original is included in #attrs
                 #(#attrs)*
+                #dead_code
                 #vis #sig {
                     let no_match_msg = #no_match_msg;
                     #deref self.#substruct_obj #name.#call#tbf(#(#call_exprs,)*)
