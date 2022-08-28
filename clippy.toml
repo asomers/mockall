@@ -1,2 +1,2 @@
 # I use a lot of dumb names in the tests
-blacklisted-names = []
+disallowed-names = []
