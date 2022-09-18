@@ -1,2 +1,5 @@
 [workspace]
 members = ["mockall", "mockall_derive", "mockall_double"]
+
+[patch.crates-io]
+itertools = { git = "https://github.com/rust-itertools/itertools", rev = "d61d12e" }
