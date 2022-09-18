@@ -1,6 +1,5 @@
 #! vim: tw=80
 //! automock a trait with Generic Associated Types
-#![cfg_attr(feature = "nightly", feature(generic_associated_types))]
 #![deny(warnings)]
 
 use cfg_if::cfg_if;
@@ -14,7 +13,7 @@ cfg_if! {
         trait LendingIterator {
             type Item<'a> where Self: 'a;
 
-            // Clippy doesn't know that Mockall will need the liftime when it
+            // Clippy doesn't know that Mockall will need the lifetime when it
             // expands the macro.
             #[allow(clippy::needless_lifetimes)]
             fn next<'a>(&'a mut self) -> Option<Self::Item<'a>>;

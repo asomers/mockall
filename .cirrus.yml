@@ -13,7 +13,7 @@ common: &COMMON
 task:
   name: MSRV
   container:
-    image: rust:1.42.0
+    image: rust:1.45.0
   << : *COMMON
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 

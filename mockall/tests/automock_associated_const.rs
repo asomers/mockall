@@ -32,7 +32,7 @@ trait Foo {
     }
 }
 
-struct Bar {}
+pub struct Bar {}
 
 #[automock]
 impl Foo for Bar {
