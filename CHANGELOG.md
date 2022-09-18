@@ -6,6 +6,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
 
+## Added
+
+- Added `#[mockall::concretize]`, which can be used to mock some generic
+  methods that have non-`'static` generic parameters.  It works by turning the
+  generic arguments into trait objects for the expectation.
+  ([#408](https://github.com/asomers/mockall/pull/408))
+
 ## Changed
 
 - Raised MSRV to 1.45.0 because futures-task did.
