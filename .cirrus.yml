@@ -3,7 +3,7 @@ common: &COMMON
     RUSTFLAGS: -Dwarnings
     RUSTDOCFLAGS: -Dwarnings
   cargo_cache:
-    folder: $HOME/.cargo/registry
+    folder: $CARGO_HOME/registry
   build_script:
     - cargo build $CARGO_ARGS
   doc_script:
@@ -14,6 +14,9 @@ task:
   name: MSRV
   container:
     image: rust:1.45.0
+  env:
+    # CARGO_NET_GIT_FETCH_WITH_CLI is only necessary with Rust 1.45
+    CARGO_NET_GIT_FETCH_WITH_CLI: true
   << : *COMMON
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
