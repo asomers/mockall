@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [ Unreleased ] - ReleaseDate
+
+## Changed
+
+- Raised MSRV to 1.45.0 because futures-task did.
+  ([#407](https://github.com/asomers/mockall/pull/407))
+
 ## [ 0.11.2 ] - 2022-07-24
 
 ## Fixed
