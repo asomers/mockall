@@ -151,6 +151,7 @@ fn send_syncify(wc: &mut Option<WhereClause>, bounded_ty: Type) {
 pub(crate) struct Builder<'a> {
     attrs: &'a [Attribute],
     call_levels: Option<usize>,
+    concretize: bool,
     levels: usize,
     parent: Option<&'a Ident>,
     sig: &'a Signature,
@@ -163,6 +164,14 @@ pub(crate) struct Builder<'a> {
 impl<'a> Builder<'a> {
     pub fn attrs(&mut self, attrs: &'a[Attribute]) -> &mut Self {
         self.attrs = attrs;
+        if attrs.iter()
+            .any(|attr|
+                attr.path.segments.last()
+                .map(|ps| ps.ident == "concretize")
+                .unwrap_or(false)
+            ) {
+                self.concretize = true;
+            }
         self
     }
 
@@ -175,7 +184,12 @@ impl<'a> Builder<'a> {
         let mut refpredty = Vec::new();
 
         let (mut declosured_generics, declosured_inputs, call_exprs) =
-            declosurefy(&self.sig.generics, &self.sig.inputs);
+            if self.concretize {
+                concretize_args(&self.sig.generics, &self.sig.inputs)
+            } else {
+                declosurefy(&self.sig.generics, &self.sig.inputs)
+            };
+        // TODO: make concretize and declosurefy work for the same function
 
         for fa in declosured_inputs.iter() {
             if let FnArg::Typed(pt) = fa {
@@ -286,6 +300,7 @@ impl<'a> Builder<'a> {
             call_exprs,
             call_generics,
             call_vis: expectation_visibility(self.vis, call_levels),
+            concretize: self.concretize,
             egenerics,
             cgenerics,
             fn_params,
@@ -329,6 +344,7 @@ impl<'a> Builder<'a> {
     pub fn new(sig: &'a Signature, vis: &'a Visibility) -> Self {
         Builder {
             attrs: &[],
+            concretize: false,
             levels: 0,
             call_levels: None,
             parent: None,
@@ -382,6 +398,8 @@ pub(crate) struct MockFunction {
     call_generics: Generics,
     /// Visibility of the mock function itself
     call_vis: Visibility,
+    /// Are we turning generic arguments into concrete trait objects?
+    concretize: bool,
     /// Generics of the Expectation object
     egenerics: Generics,
     /// Generics of the Common object
@@ -856,6 +874,21 @@ impl<'a> ToTokens for Common<'a> {
         let boxed_withargs = argnames.iter()
             .map(|aa| quote!(Box::new(#aa), ))
             .collect::<TokenStream>();
+        let with_method = if self.f.concretize {
+            quote!(
+                // No `with` method when concretizing generics
+            )
+        } else {
+            quote!(
+                fn with<#with_generics>(&mut self, #with_args)
+                    {
+                        let mut __mockall_guard = self.matcher.lock().unwrap();
+                        *__mockall_guard.deref_mut() =
+                            Matcher::Pred(Box::new((#boxed_withargs)));
+                    }
+            )
+        };
+
         quote!(
             /// Holds the stuff that is independent of the output type
             struct Common #ig #wc {
@@ -927,12 +960,7 @@ impl<'a> ToTokens for Common<'a> {
                     self.times.times(__mockall_r)
                 }
 
-                fn with<#with_generics>(&mut self, #with_args)
-                {
-                    let mut __mockall_guard = self.matcher.lock().unwrap();
-                    *__mockall_guard.deref_mut() =
-                        Matcher::Pred(Box::new((#boxed_withargs)));
-                }
+                #with_method
 
                 fn withf<MockallF>(&mut self, __mockall_f: MockallF)
                     where MockallF: #hrtb Fn(#( #refpredty, )*)
@@ -1003,6 +1031,24 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
             .map(|(argname, id)| quote!(#argname: #id, ))
             .collect::<TokenStream>();
         let v = &self.f.privmod_vis;
+        let with_method = if self.f.concretize {
+            quote!(
+                // No `with` method when concretizing generics
+            )
+        } else {
+            quote!(
+                /// Set matching criteria for this Expectation.
+                ///
+                /// The matching predicate can be anything implemening the
+                /// [`Predicate`](../../../mockall/trait.Predicate.html) trait.  Only
+                /// one matcher can be set per `Expectation` at a time.
+                #v fn with<#with_generics>(&mut self, #with_args) -> &mut Self
+                {
+                    self.common.with(#(#argnames, )*);
+                    self
+                }
+            )
+        };
         quote!(
             /// Add this expectation to a
             /// [`Sequence`](../../../mockall/struct.Sequence.html).
@@ -1058,16 +1104,7 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
                 self
             }
 
-            /// Set matching crieteria for this Expectation.
-            ///
-            /// The matching predicate can be anything implemening the
-            /// [`Predicate`](../../../mockall/trait.Predicate.html) trait.  Only
-            /// one matcher can be set per `Expectation` at a time.
-            #v fn with<#with_generics>(&mut self, #with_args) -> &mut Self
-            {
-                self.common.with(#(#argnames, )*);
-                self
-            }
+            #with_method
 
             /// Set a matching function for this Expectation.
             ///
@@ -1181,6 +1218,19 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
             .map(|(argname, id)| quote!(#argname: #id, ))
             .collect::<TokenStream>();
         let v = &self.f.privmod_vis;
+        let with_method = if self.f.concretize {
+            quote!()
+        } else {
+                quote!(
+                /// Just like
+                /// [`Expectation::with`](struct.Expectation.html#method.with)
+                #v fn with<#with_generics> (&mut self, #with_args)
+                    -> &mut Expectation #tg
+                {
+                    #expectations.0[self.i].with(#(#argnames, )*)
+                }
+            )
+        };
         quote!(
             /// Just like
             /// [`Expectation::in_sequence`](struct.Expectation.html#method.in_sequence)
@@ -1273,13 +1323,7 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
                 #expectations.0[self.i].times(__mockall_r)
             }
 
-            /// Just like
-            /// [`Expectation::with`](struct.Expectation.html#method.with)
-            #v fn with<#with_generics> (&mut self, #with_args)
-                -> &mut Expectation #tg
-            {
-                #expectations.0[self.i].with(#(#argnames, )*)
-            }
+            #with_method
 
             /// Just like
             /// [`Expectation::withf`](struct.Expectation.html#method.withf)
@@ -1562,11 +1606,30 @@ impl<'a> ToTokens for Matcher<'a> {
                 let idx = syn::Index::from(i);
                 quote!(__mockall_pred.#idx.eval(#argname),)
             }).collect::<TokenStream>();
-        let preds = self.f.predty.iter()
+        let preds = if self.f.concretize {
+            quote!(())
+        } else {
+            self.f.predty.iter()
             .map(|t| quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + Send>,))
-            .collect::<TokenStream>();
+            .collect::<TokenStream>()
+        };
         let predty = &self.f.predty;
         let refpredty = &self.f.refpredty;
+        let predmatches_body = if self.f.concretize {
+            quote!()
+        } else {
+            quote!(Matcher::Pred(__mockall_pred) => [#pred_matches].iter().all(|__mockall_x| *__mockall_x),)
+        };
+        let preddbg_body = if self.f.concretize {
+            quote!()
+        } else {
+            quote!(
+                Matcher::Pred(__mockall_p) => {
+                    write!(__mockall_fmt, #braces,
+                        #(__mockall_p.#indices,)*)
+                }
+            )
+        };
         quote!(
             enum Matcher #ig #wc {
                 Always,
@@ -1588,10 +1651,7 @@ impl<'a> ToTokens for Matcher<'a> {
                             __mockall_f(#(#argnames, )*),
                         Matcher::FuncSt(__mockall_f) =>
                             (__mockall_f.get())(#(#argnames, )*),
-                        Matcher::Pred(__mockall_pred) =>
-                            [#pred_matches]
-                            .iter()
-                            .all(|__mockall_x| *__mockall_x),
+                        #predmatches_body
                         _ => unreachable!()
                     }
                 }
@@ -1612,10 +1672,7 @@ impl<'a> ToTokens for Matcher<'a> {
                         Matcher::Always => write!(__mockall_fmt, "<anything>"),
                         Matcher::Func(_) => write!(__mockall_fmt, "<function>"),
                         Matcher::FuncSt(_) => write!(__mockall_fmt, "<single threaded function>"),
-                        Matcher::Pred(__mockall_p) => {
-                            write!(__mockall_fmt, #braces,
-                                #(__mockall_p.#indices,)*)
-                        }
+                        #preddbg_body
                         _ => unreachable!(),
                     }
                 }

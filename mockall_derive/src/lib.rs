@@ -55,6 +55,133 @@ cfg_if! {
     }
 }
 
+/// replace generic arguments with concrete trait object arguments
+fn concretize_args(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
+    (Generics, Vec<FnArg>, Vec<TokenStream>)
+{
+    let mut hm = HashMap::default();
+
+    let mut save_types = |ident: &Ident, tpb: &Punctuated<TypeParamBound, Token![+]>| {
+        if !tpb.is_empty() {
+            if let Ok(newty) = parse2::<Type>(quote!(&dyn #tpb)) {
+                // substitute T arguments
+                let subst_ty: Type = parse2(quote!(#ident)).unwrap();
+                hm.insert(subst_ty, (newty.clone(), None));
+
+                // substitute &T arguments
+                let subst_ty: Type = parse2(quote!(&#ident)).unwrap();
+                hm.insert(subst_ty, (newty, None));
+            } else {
+                compile_error(tpb.span(),
+                    "Type cannot be made into a trait object");
+            }
+
+            if let Ok(newty) = parse2::<Type>(quote!(&mut dyn #tpb)) {
+                // substitute &mut T arguments
+                let subst_ty: Type = parse2(quote!(&mut #ident)).unwrap();
+                hm.insert(subst_ty, (newty, None));
+            } else {
+                compile_error(tpb.span(),
+                    "Type cannot be made into a trait object");
+            }
+
+            // I wish we could substitute &[T] arguments.  But there's no way
+            // for the mock method to turn &[T] into &[&dyn T].
+            if let Ok(newty) = parse2::<Type>(quote!(&[&dyn #tpb])) {
+                let subst_ty: Type = parse2(quote!(&[#ident])).unwrap();
+                hm.insert(subst_ty, (newty, Some(tpb.clone())));
+            } else {
+                compile_error(tpb.span(),
+                    "Type cannot be made into a trait object");
+            }
+        }
+    };
+
+    for g in gen.params.iter() {
+        if let GenericParam::Type(tp) = g {
+            save_types(&tp.ident, &tp.bounds);
+            // else there had better be a where clause
+        }
+    }
+    if let Some(wc) = &gen.where_clause {
+        for pred in wc.predicates.iter() {
+            if let WherePredicate::Type(pt) = pred {
+                let bounded_ty = &pt.bounded_ty;
+                if let Ok(ident) = parse2::<Ident>(quote!(#bounded_ty)) {
+                    save_types(&ident, &pt.bounds);
+                } else {
+                    // We can't yet handle where clauses this complicated
+                }
+            }
+        }
+    }
+
+    let outg = Generics {
+        lt_token: None,
+        gt_token: None,
+        params: Punctuated::new(),
+        where_clause: None
+    };
+    let outargs: Vec<FnArg> = args.iter().map(|arg| {
+        if let FnArg::Typed(pt) = arg {
+            let mut immutable_pt = pt.clone();
+            demutify_arg(&mut immutable_pt);
+            if let Some((newty, _)) = hm.get(&pt.ty) {
+                FnArg::Typed(PatType {
+                    attrs: Vec::default(),
+                    pat: immutable_pt.pat,
+                    colon_token: pt.colon_token,
+                    ty: Box::new(newty.clone())
+                })
+            } else {
+                FnArg::Typed(PatType {
+                    attrs: Vec::default(),
+                    pat: immutable_pt.pat,
+                    colon_token: pt.colon_token,
+                    ty: pt.ty.clone()
+                })
+            }
+        } else {
+            arg.clone()
+        }
+    }).collect();
+
+    // Finally, Reference any concretizing arguments
+    // use filter_map to remove the &self argument
+    let call_exprs = args.iter().filter_map(|arg| {
+        match arg {
+            FnArg::Typed(pt) => {
+                let mut pt2 = pt.clone();
+                demutify_arg(&mut pt2);
+                let pat = &pt2.pat;
+                if pat_is_self(pat) {
+                    None
+                } else if let Some((_, newbound)) = hm.get(&pt.ty) {
+                    if let Type::Reference(tr) = &*pt.ty {
+                        if let Type::Slice(_ts) = &*tr.elem {
+                            // Assume _ts is the generic type or we wouldn't be
+                            // here
+                            Some(quote!(
+                                &(0..#pat.len())
+                                .map(|__mockall_i| &#pat[__mockall_i] as &dyn #newbound)
+                                .collect::<Vec<_>>()
+                            ))
+                        } else {
+                            Some(quote!(#pat))
+                        }
+                    } else {
+                        Some(quote!(&#pat))
+                    }
+                } else {
+                    Some(quote!(#pat))
+                }
+            },
+            FnArg::Receiver(_) => None,
+        }
+    }).collect();
+    (outg, outargs, call_exprs)
+}
+
 fn deanonymize_lifetime(lt: &mut Lifetime) {
     if lt.ident == "_" {
         lt.ident = format_ident!("static");
@@ -588,7 +715,7 @@ impl<'a> AttrFormatter<'a> {
         self.attrs.iter()
             .cloned()
             .filter(|attr| {
-                let i = attr.path.get_ident();
+                let i = attr.path.segments.last().map(|ps| &ps.ident);
                 if i.is_none() {
                     false
                 } else if *i.as_ref().unwrap() == "derive" {
@@ -602,6 +729,9 @@ impl<'a> AttrFormatter<'a> {
                     // We can't usefully instrument the mock method, so just
                     // ignore this attribute.
                     // https://docs.rs/tracing/0.1.23/tracing/attr.instrument.html
+                    false
+                } else if *i.as_ref().unwrap() == "concretize" {
+                    // Internally used attribute.  Never emit.
                     false
                 } else {
                     true
@@ -1074,6 +1204,16 @@ fn do_mock(input: TokenStream) -> TokenStream
     do_mock_once(input)
 }
 
+#[proc_macro_attribute]
+pub fn concretize(
+    _attrs: proc_macro::TokenStream,
+    input: proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    // Do nothing.  This "attribute" is processed as text by the real proc
+    // macros.
+    input
+}
+
 #[proc_macro]
 pub fn mock(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_mock(input.into()).into()
@@ -1263,6 +1403,107 @@ mod automock {
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
         assert_contains(&output, quote!(pub ( super ) struct MockFoo));
+    }
+}
+
+mod concretize_args {
+    use super::*;
+
+    fn check_concretize(
+        sig: TokenStream,
+        expected_inputs: &[TokenStream],
+        expected_call_exprs: &[TokenStream])
+    {
+        let f: Signature = parse2(sig).unwrap();
+        let (generics, inputs, call_exprs) =
+            concretize_args(&f.generics, &f.inputs);
+        assert!(generics.params.is_empty());
+        assert_eq!(inputs.len(), expected_inputs.len());
+        assert_eq!(call_exprs.len(), expected_call_exprs.len());
+        for i in 0..inputs.len() {
+            let actual = &inputs[i];
+            let exp = &expected_inputs[i];
+            assert_eq!(quote!(#actual).to_string(), quote!(#exp).to_string());
+        }
+        for i in 0..call_exprs.len() {
+            let actual = &call_exprs[i];
+            let exp = &expected_call_exprs[i];
+            assert_eq!(quote!(#actual).to_string(), quote!(#exp).to_string());
+        }
+    }
+
+    #[test]
+    fn bystanders() {
+        check_concretize(
+            quote!(fn foo<P: AsRef<Path>>(x: i32, p: P, y: &f64)),
+            &[quote!(x: i32), quote!(p: &dyn AsRef<Path>), quote!(y: &f64)],
+            &[quote!(x), quote!(&p), quote!(y)]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Type cannot be made into a trait object.")]
+    fn multi_bounds() {
+        check_concretize(
+            quote!(fn foo<P: AsRef<String> + AsMut<String>>(p: P)),
+            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(&p)]
+        );
+    }
+
+    #[test]
+    fn mutable_reference_arg() {
+        check_concretize(
+            quote!(fn foo<P: AsMut<Path>>(p: &mut P)),
+            &[quote!(p: &mut dyn AsMut<Path>)],
+            &[quote!(p)]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Type cannot be made into a trait object.")]
+    fn mutable_reference_multi_bounds() {
+        check_concretize(
+            quote!(fn foo<P: AsRef<String> + AsMut<String>>(p: &mut P)),
+            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(&p)]
+        );
+    }
+
+    #[test]
+    fn reference_arg() {
+        check_concretize(
+            quote!(fn foo<P: AsRef<Path>>(p: &P)),
+            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(p)]
+        );
+    }
+
+    #[test]
+    fn simple() {
+        check_concretize(
+            quote!(fn foo<P: AsRef<Path>>(p: P)),
+            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(&p)]
+        );
+    }
+
+    #[test]
+    fn slice() {
+        check_concretize(
+            quote!(fn foo<P: AsRef<Path>>(p: &[P])),
+            &[quote!(p: &[&dyn AsRef<Path>])],
+            &[quote!(&(0..p.len()).map(|__mockall_i| &p[__mockall_i] as &dyn AsRef<Path>).collect::<Vec<_>>())]
+        );
+    }
+
+    #[test]
+    fn where_clause() {
+        check_concretize(
+            quote!(fn foo<P>(p: P) where P: AsRef<Path>),
+            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(&p)]
+        );
     }
 }
 
