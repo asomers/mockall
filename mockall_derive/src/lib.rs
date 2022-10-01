@@ -285,6 +285,27 @@ fn deimplify(rt: &mut ReturnType) {
     }
 }
 
+/// Remove any generics that place constraints on Self.
+fn dewhereselfify(generics: &mut Generics) {
+    if let Some(ref mut wc) = &mut generics.where_clause {
+        let new_predicates = wc.predicates.iter()
+            .filter(|wp| match wp {
+                WherePredicate::Type(pt) => {
+                    pt.bounded_ty != parse2(quote!(Self)).unwrap()
+                },
+                _ => true
+            }).cloned()
+            .collect::<Punctuated<WherePredicate, Token![,]>>();
+        wc.predicates = new_predicates;
+    }
+    if generics.where_clause.as_ref()
+        .map(|wc| wc.predicates.is_empty())
+        .unwrap_or(false)
+    {
+        generics.where_clause = None;
+    }
+}
+
 /// Remove any mutability qualifiers from a method's argument list
 fn demutify(inputs: &mut Punctuated<FnArg, token::Comma>) {
     for arg in inputs.iter_mut() {
@@ -1378,6 +1399,46 @@ mod deselfify {
             quote!(),
             quote!(Box<dyn Foo + Send>)
         );
+    }
+}
+
+mod dewhereselfify {
+    use super::*;
+
+    #[test]
+    fn lifetime() {
+        let mut meth: ImplItemMethod = parse2(quote!(
+                fn foo<'a>(&self) where 'a: 'static, Self: Sized;
+        )).unwrap();
+        let expected: ImplItemMethod = parse2(quote!(
+                fn foo<'a>(&self) where 'a: 'static;
+        )).unwrap();
+        dewhereselfify(&mut meth.sig.generics);
+        assert_eq!(meth, expected);
+    }
+
+    #[test]
+    fn normal_method() {
+        let mut meth: ImplItemMethod = parse2(quote!(
+                fn foo(&self) where Self: Sized;
+        )).unwrap();
+        let expected: ImplItemMethod = parse2(quote!(
+                fn foo(&self);
+        )).unwrap();
+        dewhereselfify(&mut meth.sig.generics);
+        assert_eq!(meth, expected);
+    }
+
+    #[test]
+    fn with_real_generics() {
+        let mut meth: ImplItemMethod = parse2(quote!(
+                fn foo<T>(&self, t: T) where Self: Sized, T: Copy;
+        )).unwrap();
+        let expected: ImplItemMethod = parse2(quote!(
+                fn foo<T>(&self, t: T) where T: Copy;
+        )).unwrap();
+        dewhereselfify(&mut meth.sig.generics);
+        assert_eq!(meth, expected);
     }
 }
 

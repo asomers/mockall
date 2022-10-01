@@ -6,14 +6,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
 
-## Changed
+### Changed
 
 - Raised MSRV to 1.45.0 because futures-task did.
   ([#407](https://github.com/asomers/mockall/pull/407))
 
+### Fixed
+
+- Methods with a `where Self: ...` clause will now be mocked like concrete
+  methods, not generic ones.  Among other effects, this prevents "unused method
+  expect" warnings from the latest nightly compiler.
+  ([#415](https://github.com/asomers/mockall/pull/415))
+
 ## [ 0.11.2 ] - 2022-07-24
 
-## Fixed
+### Fixed
 
 - Suppress "dead code" warnings when automocking a struct's private method.  It
   might be used only by other public methods in the same struct.
