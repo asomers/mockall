@@ -6,21 +6,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
 
-## Added
+### Added
 
 - Added `#[mockall::concretize]`, which can be used to mock some generic
   methods that have non-`'static` generic parameters.  It works by turning the
   generic arguments into trait objects for the expectation.
   ([#408](https://github.com/asomers/mockall/pull/408))
 
-## Changed
+### Changed
 
 - Raised MSRV to 1.45.0 because futures-task did.
   ([#407](https://github.com/asomers/mockall/pull/407))
 
+### Fixed
+
+- Methods with a `where Self: ...` clause will now be mocked like concrete
+  methods, not generic ones.  Among other effects, this prevents "unused method
+  expect" warnings from the latest nightly compiler.
+  ([#415](https://github.com/asomers/mockall/pull/415))
+
 ## [ 0.11.2 ] - 2022-07-24
 
-## Fixed
+### Fixed
 
 - Suppress "dead code" warnings when automocking a struct's private method.  It
   might be used only by other public methods in the same struct.
