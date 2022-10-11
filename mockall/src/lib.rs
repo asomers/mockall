@@ -963,6 +963,9 @@
 //! "mock_xxx", if "xxx" is the original module's name.  You can also use
 //! `#[double]` to selectively import the mock module.
 //!
+//! Be careful!  Module functions are static and so have the same caveats as
+//! [static methods](#static-methods) described above.
+//!
 //! ```
 //! # use mockall::*;
 //! # use mockall_double::*;
