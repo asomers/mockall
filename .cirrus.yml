@@ -13,10 +13,9 @@ common: &COMMON
 task:
   name: MSRV
   container:
-    image: rust:1.45.0
-  env:
-    # CARGO_NET_GIT_FETCH_WITH_CLI is only necessary with Rust 1.45
-    CARGO_NET_GIT_FETCH_WITH_CLI: true
+    image: rust:1.42.0
+  setup_script:
+    cp Cargo.lock.ci Cargo.lock
   << : *COMMON
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
