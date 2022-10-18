@@ -14,8 +14,8 @@ Procedural macros for Mockall
 
 # Skip tagging and pushing.  Those will be done by the mockall crate
 [package.metadata.release]
-disable-tag = true
-disable-push = true
+tag = false
+push = false
 
 [lib]
 proc-macro = true
