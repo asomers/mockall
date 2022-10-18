@@ -40,7 +40,7 @@ nightly = [
 [dependencies]
 cfg-if = "1.0"
 downcast = "0.11"
-fragile = "1.0"
+fragile = "2.0"
 lazy_static = "1.1"
 predicates = "2.0.1"
 predicates-tree = "1.0"
