@@ -1566,7 +1566,7 @@ pub struct Key(any::TypeId);
 
 #[doc(hidden)]
 impl Key {
-    pub fn new<T: 'static>() -> Self {
+    pub fn new<T: 'static + ?Sized>() -> Self {
         Key(any::TypeId::of::<T>())
     }
 }
