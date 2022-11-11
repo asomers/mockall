@@ -6,7 +6,7 @@ use mockall::*;
 
 mock! {
     Foo {
-        fn foo<T: 'static>(&self, t: T) -> i32;
+        fn foo<T: 'static + std::fmt::Debug>(&self, t: T) -> i32;
         fn bar<T: 'static>(&self, t: T) -> i32;
     }
 }
@@ -47,12 +47,22 @@ mod with {
     }
 
     #[test]
-    #[should_panic(expected = "MockFoo::foo(?): No matching expectation found")]
+    #[should_panic(expected = "MockFoo::foo(4): No matching expectation found")]
     fn wrong_generic_type() {
         let mut mock = MockFoo::new();
         mock.expect_foo::<i16>()
             .with(predicate::eq(4))
             .return_const(0);
         mock.foo(4i32);
+    }
+
+    #[test]
+    #[should_panic(expected = "MockFoo::bar(?): No matching expectation found")]
+    fn no_debug_trait_bound() {
+        let mut mock = MockFoo::new();
+        mock.expect_bar::<i16>()
+            .with(predicate::eq(4))
+            .return_const(0);
+        mock.bar(4i32);
     }
 }
