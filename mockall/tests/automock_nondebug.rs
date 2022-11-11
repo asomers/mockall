@@ -13,12 +13,7 @@ pub trait Foo {
 }
 
 #[test]
-#[cfg_attr(feature = "nightly", should_panic(
-        expected = "MockFoo::foo(?): No matching expectation found"
-))]
-#[cfg_attr(not(feature = "nightly"), should_panic(
-        expected = "MockFoo::foo(?): No matching expectation found"
-))]
+#[should_panic(expected = "MockFoo::foo(?): No matching expectation found")]
 fn with_no_matches() {
     let mock = MockFoo::new();
     mock.foo(NonDebug(5));

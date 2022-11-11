@@ -22,12 +22,7 @@ pub fn normal_usage() {
 }
 
 #[test]
-#[cfg_attr(feature = "nightly", should_panic(
-        expected = "mock_ffi::foo1(5): No matching expectation found"
-))]
-#[cfg_attr(not(feature = "nightly"), should_panic(
-        expected = "mock_ffi::foo1(?): No matching expectation found"
-))]
+#[should_panic(expected = "mock_ffi::foo1(5): No matching expectation found")]
 fn with_no_matches() {
     let ctx = mock_ffi::foo1_context();
     ctx.expect()

@@ -1146,7 +1146,7 @@
 use downcast::*;
 use std::{
     any,
-    fmt::{self, Debug, Formatter},
+    fmt::{Debug, Display},
     marker::PhantomData,
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
           RangeToInclusive},
@@ -1462,28 +1462,29 @@ pub struct DefaultReturner<O>(PhantomData<O>);
     }
 }
 
+// Wrapper type to allow for better expectation messages for any type.
+// Will first try Display, then Debug, otherwise will print '?'
 #[doc(hidden)]
 pub struct MaybeDebugger<'a, T>(pub &'a T);
-::cfg_if::cfg_if! {
-    if #[cfg(feature = "nightly")] {
-        impl<'a, T> Debug for MaybeDebugger<'a, T> {
-            default fn fmt(&self, f: &mut Formatter<'_>)
-                -> Result<(), fmt::Error>
-            {
-                write!(f, "?")
-            }
-        }
-        impl<'a, T: Debug> Debug for MaybeDebugger<'a, T> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-                self.0.fmt(f)
-            }
-        }
-    } else {
-        impl<'a, T> Debug for MaybeDebugger<'a, T> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-                write!(f, "?")
-            }
-        }
+#[doc(hidden)]
+pub trait ViaDisplay { fn debug_string(&self) -> String; }
+impl<'a, T: Display> ViaDisplay for &&MaybeDebugger<'a, T> {
+    fn debug_string(&self) -> String {
+        format!("{}", self.0)
+    }
+}
+#[doc(hidden)]
+pub trait ViaDebug { fn debug_string(&self) -> String; }
+impl<'a, T: Debug> ViaDebug for &MaybeDebugger<'a, T> {
+    fn debug_string(&self) -> String {
+        format!("{:?}", self.0)
+    }
+}
+#[doc(hidden)]
+pub trait ViaNothing { fn debug_string(&self) -> String; }
+impl<'a, T> ViaNothing for MaybeDebugger<'a, T> {
+    fn debug_string(&self) -> String {
+        format!("?")
     }
 }
 
