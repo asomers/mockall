@@ -1484,7 +1484,7 @@ impl<'a, T: Debug> ViaDebug for &MaybeDebugger<'a, T> {
 pub trait ViaNothing { fn debug_string(&self) -> String; }
 impl<'a, T> ViaNothing for MaybeDebugger<'a, T> {
     fn debug_string(&self) -> String {
-        format!("?")
+        "?".to_string()
     }
 }
 
