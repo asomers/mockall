@@ -754,6 +754,11 @@ impl<'a> AttrFormatter<'a> {
                 } else if *i.as_ref().unwrap() == "concretize" {
                     // Internally used attribute.  Never emit.
                     false
+                } else if *i.as_ref().unwrap() == "cfg_attr" &&
+                    attr.tokens.to_string().contains("concretize")
+                {
+                    // Internally used attribute.  Never emit.
+                    false
                 } else {
                     true
                 }
