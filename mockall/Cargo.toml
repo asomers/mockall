@@ -9,7 +9,7 @@ categories = ["development-tools::testing"]
 keywords = ["mock", "mocking", "testing"]
 documentation = "https://docs.rs/mockall"
 edition = "2018"
-rust-version = "1.45"
+rust-version = "1.60"
 description = """
 A powerful mock object library for Rust.
 """

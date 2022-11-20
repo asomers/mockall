@@ -15,8 +15,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Raised MSRV to 1.45.0 because futures-task did.
-  ([#407](https://github.com/asomers/mockall/pull/407))
+- Raised MSRV to 1.60.0 because predicates-tree did.
+  ([#430](https://github.com/asomers/mockall/pull/430))
 
 ### Fixed
 
