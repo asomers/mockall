@@ -38,7 +38,7 @@
 //! * [`Mocking structs`](#mocking-structs)
 //! * [`Generic methods`](#generic-methods)
 //! * [`Generic traits and structs`](#generic-traits-and-structs)
-//! * [`Associated types`](#associated-types-1)
+//! * [`Associated types`](#associated-types)
 //! * [`Multiple and inherited traits`](#multiple-and-inherited-traits)
 //! * [`External traits`](#external-traits)
 //! * [`Static methods`](#static-methods)
