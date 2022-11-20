@@ -39,7 +39,7 @@
 //! * [`Generic methods`](#generic-methods)
 //! * [`Methods with generic lifetimes`](#methods-with-generic-lifetimes)
 //! * [`Generic traits and structs`](#generic-traits-and-structs)
-//! * [`Associated types`](#associated-types-1)
+//! * [`Associated types`](#associated-types)
 //! * [`Multiple and inherited traits`](#multiple-and-inherited-traits)
 //! * [`External traits`](#external-traits)
 //! * [`Static methods`](#static-methods)
