@@ -168,7 +168,13 @@ impl<'a> Builder<'a> {
             .any(|attr|
                 attr.path.segments.last()
                 .map(|ps| ps.ident == "concretize")
-                .unwrap_or(false)
+                .unwrap_or(false) ||
+                (
+                    attr.path.segments.last()
+                    .map(|ps| ps.ident == "cfg_attr")
+                    .unwrap_or(false) &&
+                    attr.tokens.to_string().contains("concretize")
+                )
             ) {
                 self.concretize = true;
             }
