@@ -5,9 +5,9 @@
 //!
 //! Mockall must not emit the where clause for the method's Expectation.
 #![deny(warnings)]
+#![allow(clippy::needless_lifetimes)]
 
 use mockall::*;
-//use std::task::Context;
 
 struct Foo<T: 'static, V: 'static>((T, V));
 trait MyTrait {
