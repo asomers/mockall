@@ -1465,26 +1465,43 @@ pub struct DefaultReturner<O>(PhantomData<O>);
 // Wrapper type to allow for better expectation messages for any type.
 // Will first try Display, then Debug, otherwise will print '?'
 #[doc(hidden)]
-pub struct MaybeDebugger<'a, T>(pub &'a T);
+pub struct ArgPrinter<'a, T>(pub &'a T);
+
 #[doc(hidden)]
-pub trait ViaDisplay { fn debug_string(&self) -> String; }
-impl<'a, T: Display> ViaDisplay for &&MaybeDebugger<'a, T> {
-    fn debug_string(&self) -> String {
-        format!("{}", self.0)
+pub struct DisplayPrint<'a, T: Display>(pub &'a T);
+impl<'a, T> Display for DisplayPrint<'a, T> where T: Display {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 #[doc(hidden)]
-pub trait ViaDebug { fn debug_string(&self) -> String; }
-impl<'a, T: Debug> ViaDebug for &MaybeDebugger<'a, T> {
-    fn debug_string(&self) -> String {
-        format!("{:?}", self.0)
+pub trait ViaDisplay<T> where T: Display { fn debug_string(&self) -> DisplayPrint<'_, T>; }
+impl<'a, T: Display> ViaDisplay<T> for &&ArgPrinter<'a, T> {
+    fn debug_string(&self) -> DisplayPrint<'_, T> {
+        DisplayPrint(self.0)
+    }
+}
+
+#[doc(hidden)]
+pub struct DebugPrint<'a, T: Debug>(pub &'a T);
+impl<'a, T> Display for DebugPrint<'a, T> where T: Debug {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0)
     }
 }
 #[doc(hidden)]
-pub trait ViaNothing { fn debug_string(&self) -> String; }
-impl<'a, T> ViaNothing for MaybeDebugger<'a, T> {
-    fn debug_string(&self) -> String {
-        "?".to_string()
+pub trait ViaDebug<T> where T: Debug { fn debug_string(&self) -> DebugPrint<'_, T>; }
+impl<'a, T: Debug> ViaDebug<T> for &ArgPrinter<'a, T> {
+    fn debug_string(&self) -> DebugPrint<'a, T> {
+        DebugPrint(self.0)
+    }
+}
+
+#[doc(hidden)]
+pub trait ViaNothing { fn debug_string(&self) -> &'static str; }
+impl<'a, T> ViaNothing for ArgPrinter<'a, T> {
+    fn debug_string(&self) -> &'static str {
+        "?"
     }
 }
 
