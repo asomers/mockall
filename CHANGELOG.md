@@ -17,6 +17,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - Raised MSRV to 1.60.0 because predicates-tree did.
   ([#430](https://github.com/asomers/mockall/pull/430))
+- Better "No matching expectation found" messages on stable.
+  ([#425](https://github.com/asomers/mockall/pull/425))
 
 ### Fixed
 
