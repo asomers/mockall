@@ -504,7 +504,7 @@ impl MockFunction {
                 #(#attrs)*
                 #dead_code
                 #vis #sig {
-                    use ::mockall::{ViaDisplay, ViaDebug, ViaNothing};
+                    use ::mockall::{ViaDebug, ViaNothing};
 
                     let no_match_msg = #no_match_msg;
                     #deref {
@@ -527,7 +527,7 @@ impl MockFunction {
                 #(#attrs)*
                 #dead_code
                 #vis #sig {
-                    use ::mockall::{ViaDisplay, ViaDebug, ViaNothing};
+                    use ::mockall::{ViaDebug, ViaNothing};
 
                     let no_match_msg = #no_match_msg;
                     #deref self.#substruct_obj #name.#call #tbf(#(#call_exprs,)*)
@@ -1967,7 +1967,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
                 /// Call this [`Expectation`] as if it were the real method.
                 #v fn call #lg (&self, #(#argnames: #argty, )*) -> #output
                 {
-                    use ::mockall::{ViaDisplay, ViaDebug, ViaNothing};
+                    use ::mockall::{ViaDebug, ViaNothing};
 
                     self.common.call(&#desc);
                     self.rfunc.call().unwrap_or_else(|m| {
@@ -2034,7 +2034,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
                 #v fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
                     -> &mut #owned_output
                 {
-                    use ::mockall::{ViaDisplay, ViaDebug, ViaNothing};
+                    use ::mockall::{ViaDebug, ViaNothing};
 
                     self.common.call(&#desc);
                     let desc = std::format!(
@@ -2125,7 +2125,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                 #[doc(hidden)]
                 #v fn call #lg (&self, #(#argnames: #argty, )* ) -> #output
                 {
-                    use ::mockall::{ViaDisplay, ViaDebug, ViaNothing};
+                    use ::mockall::{ViaDebug, ViaNothing};
 
                     self.common.call(&#desc);
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)

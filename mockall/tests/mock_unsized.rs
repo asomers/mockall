@@ -31,7 +31,7 @@ fn with_eq() {
 }
 
 #[test]
-#[should_panic(expected = "MockFoo::foo(xxx): No matching expectation found")]
+#[should_panic(expected = "MockFoo::foo(\"xxx\"): No matching expectation found")]
 fn with_never() {
     let mut foo = MockFoo::new();
     foo.expect_foo()

@@ -1463,24 +1463,9 @@ pub struct DefaultReturner<O>(PhantomData<O>);
 }
 
 // Wrapper type to allow for better expectation messages for any type.
-// Will first try Display, then Debug, otherwise will print '?'
+// Will first try Debug, otherwise will print '?'
 #[doc(hidden)]
 pub struct ArgPrinter<'a, T>(pub &'a T);
-
-#[doc(hidden)]
-pub struct DisplayPrint<'a, T: Display>(pub &'a T);
-impl<'a, T> Display for DisplayPrint<'a, T> where T: Display {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-#[doc(hidden)]
-pub trait ViaDisplay<T> where T: Display { fn debug_string(&self) -> DisplayPrint<'_, T>; }
-impl<'a, T: Display> ViaDisplay<T> for &&ArgPrinter<'a, T> {
-    fn debug_string(&self) -> DisplayPrint<'_, T> {
-        DisplayPrint(self.0)
-    }
-}
 
 #[doc(hidden)]
 pub struct DebugPrint<'a, T: Debug>(pub &'a T);
