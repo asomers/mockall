@@ -1146,7 +1146,7 @@
 use downcast::*;
 use std::{
     any,
-    fmt::{Debug, Display},
+    fmt::Debug,
     marker::PhantomData,
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
           RangeToInclusive},
@@ -1469,9 +1469,9 @@ pub struct ArgPrinter<'a, T>(pub &'a T);
 
 #[doc(hidden)]
 pub struct DebugPrint<'a, T: Debug>(pub &'a T);
-impl<'a, T> Display for DebugPrint<'a, T> where T: Debug {
+impl<'a, T> Debug for DebugPrint<'a, T> where T: Debug {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
+        Debug::fmt(self.0, f)
     }
 }
 #[doc(hidden)]
@@ -1483,10 +1483,17 @@ impl<'a, T: Debug> ViaDebug<T> for &ArgPrinter<'a, T> {
 }
 
 #[doc(hidden)]
-pub trait ViaNothing { fn debug_string(&self) -> &'static str; }
+pub struct NothingPrint;
+impl Debug for NothingPrint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "?")
+    }
+}
+#[doc(hidden)]
+pub trait ViaNothing { fn debug_string(&self) -> NothingPrint; }
 impl<'a, T> ViaNothing for ArgPrinter<'a, T> {
-    fn debug_string(&self) -> &'static str {
-        "?"
+    fn debug_string(&self) -> NothingPrint {
+        NothingPrint
     }
 }
 
