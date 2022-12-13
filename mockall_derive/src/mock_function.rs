@@ -576,7 +576,7 @@ impl MockFunction {
             .doc(false)
             .format();
         let context_docstr = format!("Create a [`Context`]({}{}/struct.Context.html) for mocking the `{}` method",
-            modname.map(|m| format!("{}/", m)).unwrap_or_default(),
+            modname.map(|m| format!("{m}/")).unwrap_or_default(),
             self.inner_mod_ident(),
             self.name());
         let context_ident = format_ident!("{}_context", self.name());
@@ -602,7 +602,7 @@ impl MockFunction {
             format!("{}::{}", self.mod_ident, self.sig.ident)
         };
         let fields = vec!["{:?}"; argnames.len()].join(", ");
-        let fstr = format!("{}({})", name, fields);
+        let fstr = format!("{name}({fields})");
         quote!(std::format!(#fstr, #(::mockall::MaybeDebugger(&#argnames)),*))
     }
 
@@ -623,7 +623,7 @@ impl MockFunction {
             .doc(false)
             .format();
         let name = self.name();
-        let expect_ident = format_ident!("expect_{}", &name);
+        let expect_ident = format_ident!("expect_{name}");
         let expectation_obj = self.expectation_obj(self_args);
         let funcname = &self.sig.ident;
         let (_, tg, _) = if self.is_method_generic() {
@@ -649,7 +649,7 @@ impl MockFunction {
         let must_use = quote!();
 
         let substruct_obj = if let Some(trait_) = &self.trait_ {
-            let ident = format_ident!("{}_expectations", trait_);
+            let ident = format_ident!("{trait_}_expectations");
             quote!(#ident.)
         } else {
             quote!()
@@ -866,7 +866,7 @@ impl<'a> ToTokens for Common<'a> {
         let lg = lifetimes_to_generics(&self.f.alifetimes);
         let refpredty = &self.f.refpredty;
         let with_generics_idents = (0..self.f.predty.len())
-            .map(|i| format_ident!("MockallMatcher{}", i))
+            .map(|i| format_ident!("MockallMatcher{i}"))
             .collect::<Vec<_>>();
         let with_generics = with_generics_idents.iter()
             .zip(self.f.predty.iter())
@@ -1025,7 +1025,7 @@ impl<'a> ToTokens for CommonExpectationMethods<'a> {
         let lg = lifetimes_to_generics(&self.f.alifetimes);
         let predty = &self.f.predty;
         let with_generics_idents = (0..self.f.predty.len())
-            .map(|i| format_ident!("MockallMatcher{}", i))
+            .map(|i| format_ident!("MockallMatcher{i}"))
             .collect::<Vec<_>>();
         let with_generics = with_generics_idents.iter()
             .zip(self.f.predty.iter())
@@ -1212,7 +1212,7 @@ impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
         let output = &self.f.output;
         let predty = &self.f.predty;
         let with_generics_idents = (0..self.f.predty.len())
-            .map(|i| format_ident!("MockallMatcher{}", i))
+            .map(|i| format_ident!("MockallMatcher{i}"))
             .collect::<Vec<_>>();
         let with_generics = with_generics_idents.iter()
             .zip(self.f.predty.iter())
