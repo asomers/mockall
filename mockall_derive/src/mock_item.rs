@@ -165,7 +165,7 @@ impl ToTokens for MockItemModule {
         ).to_tokens(&mut body);
         let docstr = {
             if let Some(ident) = &self.orig_ident {
-                let inner = format!("Mock version of the `{}` module", ident);
+                let inner = format!("Mock version of the `{ident}` module");
                 quote!( #[doc = #inner])
             } else {
                 // Typically an extern FFI block.  Not really anything good we

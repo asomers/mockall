@@ -180,7 +180,7 @@ fn mock_itemuse(orig: &mut ItemUse) {
 }
 
 fn mock_ident(i: &Ident) -> Ident {
-    let is_type = format!("{}", i)
+    let is_type = format!("{i}")
         .chars()
         .next()
         .expect("zero-length ident?")

@@ -19,17 +19,17 @@ impl Bean{}
 #[test]
 fn automock_trait() {
     let foo = MockFoo::new();
-    assert_eq!("MockFoo", format!("{:?}", foo));
+    assert_eq!("MockFoo", format!("{foo:?}"));
 }
 
 #[test]
 fn automock_struct_impl() {
     let bean = MockBean::new();
-    assert_eq!("MockBean", format!("{:?}", bean));
+    assert_eq!("MockBean", format!("{bean:?}"));
 }
 
 #[test]
 fn automock_trait_impl() {
     let baz = MockBaz::new();
-    assert_eq!("MockBaz", format!("{:?}", baz));
+    assert_eq!("MockBaz", format!("{baz:?}"));
 }

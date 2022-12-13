@@ -946,16 +946,16 @@ fn gen_keyid(g: &Generics) -> impl ToTokens {
 
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
 fn gen_mock_ident(ident: &Ident) -> Ident {
-    format_ident!("Mock{}", ident)
+    format_ident!("Mock{ident}")
 }
 
 /// Generate an identifier for the mock struct's private module: eg "Foo" =>
 /// "__mock_Foo"
 fn gen_mod_ident(struct_: &Ident, trait_: Option<&Ident>) -> Ident {
     if let Some(t) = trait_ {
-        format_ident!("__mock_{}_{}", struct_, t)
+        format_ident!("__mock_{struct_}_{t}")
     } else {
-        format_ident!("__mock_{}", struct_)
+        format_ident!("__mock_{struct_}")
     }
 }
 
@@ -1202,7 +1202,7 @@ fn mock_it<M: Into<MockableItem>>(inputs: M) -> TokenStream
     let mock = MockItem::from(mockable);
     let ts = mock.into_token_stream();
     if env::var("MOCKALL_DEBUG").is_ok() {
-        println!("{}", ts);
+        println!("{ts}");
     }
     ts
 }

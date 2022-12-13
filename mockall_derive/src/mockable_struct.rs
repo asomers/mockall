@@ -35,7 +35,7 @@ fn add_lifetime_parameters(sig: &mut Signature) {
                     format_ident!("dont_care")
                 }
             };
-            let s = format!("'__mockall_{}", arg_ident);
+            let s = format!("'__mockall_{arg_ident}");
             let span = Span::call_site();
             let lt = Lifetime::new(&s, span);
             to.bounds.push(TypeParamBound::Lifetime(lt.clone()));

@@ -14,7 +14,7 @@ fn phantom_default_inits(generics: &Generics) -> Vec<TokenStream> {
     .iter()
     .enumerate()
     .map(|(count, _param)| {
-        let phident = format_ident!("_t{}", count);
+        let phident = format_ident!("_t{count}");
         quote!(#phident: ::std::marker::PhantomData)
     }).collect()
 }
@@ -25,7 +25,7 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
     .iter()
     .enumerate()
     .filter_map(|(count, param)| {
-        let phident = format_ident!("_t{}", count);
+        let phident = format_ident!("_t{count}");
         match param {
             syn::GenericParam::Lifetime(l) => {
                 if !l.bounds.is_empty() {

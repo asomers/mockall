@@ -30,11 +30,11 @@ impl Debug for MockBaz {
 #[test]
 fn automatic() {
     let bar = MockBar::new();
-    assert_eq!("MockBar", format!("{:?}", bar));
+    assert_eq!("MockBar", format!("{bar:?}"));
 }
 
 #[test]
 fn manual() {
     let baz = MockBaz::new();
-    assert_eq!("XXX", format!("{:?}", baz));
+    assert_eq!("XXX", format!("{baz:?}"));
 }
