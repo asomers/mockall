@@ -15,6 +15,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Static methods' expectations will now be cleared during a panic.
+  ([#443](https://github.com/asomers/mockall/pull/443))
+
 - Methods with a `where Self: ...` clause will now be mocked like concrete
   methods, not generic ones.  Among other effects, this prevents "unused method
   expect" warnings from the latest nightly compiler.
