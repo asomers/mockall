@@ -1574,9 +1574,7 @@ impl<'a> ToTokens for Context<'a> {
             }
             impl #ty_ig Drop for Context #ty_tg #ty_wc {
                 fn drop(&mut self) {
-                    if !std::thread::panicking() {
-                        Self::do_checkpoint()
-                    }
+                    Self::do_checkpoint()
                 }
             }
         ).to_tokens(tokens);
