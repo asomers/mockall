@@ -50,7 +50,7 @@ cfg_if! {
         }
     } else {
         fn compile_error(_span: Span, msg: &str) {
-            panic!("{}.  More information may be available when mockall is built with the \"nightly\" feature.", msg);
+            panic!("{msg}.  More information may be available when mockall is built with the \"nightly\" feature.");
         }
     }
 }
