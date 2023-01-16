@@ -521,7 +521,7 @@ impl MockFunction {
                          * generic parameters with UnwindSafe
                          */
                         /* std::panic::catch_unwind(|| */
-                        __mockall_guard.#call#tbf(#(#call_exprs,)*)
+                        __mockall_guard.#call #tbf(#(#call_exprs,)*)
                         /*)*/
                     }.expect(&no_match_msg)
                 }
@@ -533,7 +533,7 @@ impl MockFunction {
                 #dead_code
                 #vis #sig {
                     let no_match_msg = #no_match_msg;
-                    #deref self.#substruct_obj #name.#call#tbf(#(#call_exprs,)*)
+                    #deref self.#substruct_obj #name.#call #tbf(#(#call_exprs,)*)
                     .expect(&no_match_msg)
                 }
 
@@ -663,7 +663,7 @@ impl MockFunction {
                -> &mut #modname::#expectation_obj
                #wc
             {
-                self.#substruct_obj #name.expect#tbf()
+                self.#substruct_obj #name.expect #tbf()
             }
         )
     }

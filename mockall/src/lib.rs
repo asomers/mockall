@@ -58,7 +58,7 @@
 //!     fn foo(&self, x: u32) -> u32;
 //! }
 //!
-//! fn call_with_four(x: &MyTrait) -> u32 {
+//! fn call_with_four(x: &dyn MyTrait) -> u32 {
 //!     x.foo(4)
 //! }
 //!

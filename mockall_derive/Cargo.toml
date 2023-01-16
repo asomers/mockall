@@ -7,7 +7,7 @@ repository = "https://github.com/asomers/mockall"
 categories = ["development-tools::testing"]
 keywords = ["mock", "mocking", "testing"]
 documentation = "https://docs.rs/mockall_derive"
-edition = "2018"
+edition = "2021"
 description = """
 Procedural macros for Mockall
 """
