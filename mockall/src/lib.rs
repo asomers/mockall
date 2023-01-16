@@ -58,16 +58,24 @@
 //!     fn foo(&self, x: u32) -> u32;
 //! }
 //!
-//! fn call_with_four(x: &MyTrait) -> u32 {
+//! fn call_with_four(x: &impl MyTrait) -> u32 {
 //!     x.foo(4)
 //! }
 //!
-//! let mut mock = MockMyTrait::new();
-//! mock.expect_foo()
-//!     .with(predicate::eq(4))
-//!     .times(1)
-//!     .returning(|x| x + 1);
-//! assert_eq!(5, call_with_four(&mock));
+//! #[cfg(test)]
+//! mod tests {
+//!     use super::*;
+//!
+//!     #[test]
+//!     fn it_works() {
+//!         let mut mock = MockMyTrait::new();
+//!         mock.expect_foo()
+//!             .with(predicate::eq(4))
+//!             .times(1)
+//!             .returning(|x| x + 1);
+//!         assert_eq!(5, call_with_four(&mock));
+//!     }
+//! }
 //! ```
 //!
 //! ## Static Return values
