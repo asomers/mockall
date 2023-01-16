@@ -269,7 +269,6 @@ impl<'a> Builder<'a> {
         let alifetimes = salifetimes.into_iter()
             .collect::<HashSet<LifetimeDef>>()
             .union(&malifetimes.into_iter().collect::<HashSet<_>>())
-            .into_iter()
             .cloned()
             .collect();
 
