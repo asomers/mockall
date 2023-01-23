@@ -596,7 +596,7 @@ impl MockFunction {
             format!("{}::{}", self.mod_ident, self.sig.ident)
         };
         let fields = vec!["{}"; argnames.len()].join(", ");
-        let fstr = format!("{name}({fields})", name, fields);
+        let fstr = format!("{name}({fields})");
         quote!(std::format!(#fstr, #((&&::mockall::ArgPrinter(&#argnames)).debug_string()),*))
     }
 
