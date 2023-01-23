@@ -595,9 +595,9 @@ impl MockFunction {
         } else {
             format!("{}::{}", self.mod_ident, self.sig.ident)
         };
-        let fields = vec!["{}"; argnames.len()].join(", ");
+        let fields = vec!["{:?}"; argnames.len()].join(", ");
         let fstr = format!("{name}({fields})");
-        quote!(std::format!(#fstr, #((&&::mockall::ArgPrinter(&#argnames)).debug_string()),*))
+        quote!(std::format!(#fstr, #((&&&::mockall::ArgPrinter(&#argnames)).debug_string()),*))
     }
 
     /// Generate code for the expect_ method
