@@ -1612,7 +1612,7 @@ impl<'a> ToTokens for Matcher<'a> {
         let fn_params = &self.f.fn_params;
         let hrtb = self.f.hrtb();
         let indices = (0..argnames.len())
-            .map(|i| syn::Index::from(i))
+            .map(syn::Index::from)
             .collect::<Vec<_>>();
         let lg = lifetimes_to_generics(&self.f.alifetimes);
         let pred_matches = argnames
