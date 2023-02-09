@@ -1285,7 +1285,7 @@ pub use mockall_derive::automock;
 /// * Concretized methods' expectations may only be matched with `.withf` or
 /// `.withf_st`, not `.with`.
 /// * It only works for parameters that can be turned into a trait object.
-/// may be fixable).
+/// (may be fixable).
 /// * Mockall needs to know how to turn the function argument into a trait
 /// object.  Given a generic parameter `T`, currently supported patterns are:
 ///   - `T`
