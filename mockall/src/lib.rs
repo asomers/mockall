@@ -1146,7 +1146,7 @@
 use downcast::*;
 use std::{
     any,
-    fmt::{self, Debug, Formatter},
+    fmt::Debug,
     marker::PhantomData,
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
           RangeToInclusive},
@@ -1462,28 +1462,38 @@ pub struct DefaultReturner<O>(PhantomData<O>);
     }
 }
 
+// Wrapper type to allow for better expectation messages for any type.
+// Will first try Debug, otherwise will print '?'
 #[doc(hidden)]
-pub struct MaybeDebugger<'a, T>(pub &'a T);
-::cfg_if::cfg_if! {
-    if #[cfg(feature = "nightly")] {
-        impl<'a, T> Debug for MaybeDebugger<'a, T> {
-            default fn fmt(&self, f: &mut Formatter<'_>)
-                -> Result<(), fmt::Error>
-            {
-                write!(f, "?")
-            }
-        }
-        impl<'a, T: Debug> Debug for MaybeDebugger<'a, T> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-                self.0.fmt(f)
-            }
-        }
-    } else {
-        impl<'a, T> Debug for MaybeDebugger<'a, T> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-                write!(f, "?")
-            }
-        }
+pub struct ArgPrinter<'a, T>(pub &'a T);
+
+#[doc(hidden)]
+pub struct DebugPrint<'a, T: Debug>(pub &'a T);
+impl<'a, T> Debug for DebugPrint<'a, T> where T: Debug {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self.0, f)
+    }
+}
+#[doc(hidden)]
+pub trait ViaDebug<T> where T: Debug { fn debug_string(&self) -> DebugPrint<'_, T>; }
+impl<'a, T: Debug> ViaDebug<T> for &ArgPrinter<'a, T> {
+    fn debug_string(&self) -> DebugPrint<'a, T> {
+        DebugPrint(self.0)
+    }
+}
+
+#[doc(hidden)]
+pub struct NothingPrint;
+impl Debug for NothingPrint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "?")
+    }
+}
+#[doc(hidden)]
+pub trait ViaNothing { fn debug_string(&self) -> NothingPrint; }
+impl<'a, T> ViaNothing for ArgPrinter<'a, T> {
+    fn debug_string(&self) -> NothingPrint {
+        NothingPrint
     }
 }
 

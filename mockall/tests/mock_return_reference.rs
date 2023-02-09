@@ -67,10 +67,7 @@ mod sequence {
     }
 
     #[test]
-    #[cfg_attr(feature = "nightly",
-        should_panic(expected = "MockFoo::foo(4): Method sequence violation"))]
-    #[cfg_attr(not(feature = "nightly"),
-        should_panic(expected = "MockFoo::foo(?): Method sequence violation"))]
+    #[should_panic(expected = "MockFoo::foo(4): Method sequence violation")]
     fn fail() {
         let mut seq = Sequence::new();
         let mut mock = MockFoo::new();

@@ -6,12 +6,12 @@ use mockall::*;
 use std::sync::Mutex;
 
 mock! {
-    Foo<T: 'static> {
-        fn foo<Q: 'static>(t: T, q: Q) -> u64;
+    Foo<T: 'static + std::fmt::Debug> {
+        fn foo<Q: 'static + std::fmt::Debug>(t: T, q: Q) -> u64;
         // We must use a different method for every should_panic test, so the
         // shared mutex doesn't get poisoned.
-        fn foo2<Q: 'static>(t: T, q: Q) -> u64;
-        fn foo3<Q: 'static>(t: T, q: Q) -> u64;
+        fn foo2<Q: 'static + std::fmt::Debug>(t: T, q: Q) -> u64;
+        fn foo3<Q: 'static + std::fmt::Debug>(t: T, q: Q) -> u64;
     }
 }
 
@@ -48,12 +48,7 @@ fn ctx_checkpoint() {
 
 // Expectations should be cleared when a context object drops
 #[test]
-#[cfg_attr(feature = "nightly", should_panic(
-        expected = "MockFoo::foo3(42, 69): No matching expectation found"
-))]
-#[cfg_attr(not(feature = "nightly"), should_panic(
-        expected = "MockFoo::foo3(?, ?): No matching expectation found"
-))]
+#[should_panic(expected = "MockFoo::foo3(42, 69): No matching expectation found")]
 fn ctx_hygiene() {
     {
         let ctx0 = MockFoo::<u32>::foo3_context();

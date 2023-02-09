@@ -64,12 +64,7 @@ mod checkpoint {
     }
 
     #[test]
-    #[cfg_attr(feature = "nightly", should_panic(
-            expected = "MockFoo::foo(0): No matching expectation found"
-    ))]
-    #[cfg_attr(not(feature = "nightly"), should_panic(
-            expected = "MockFoo::foo(?): No matching expectation found"
-    ))]
+    #[should_panic(expected = "MockFoo::foo(0): No matching expectation found")]
     fn removes_old_expectations() {
         let mut mock = MockFoo::new();
         mock.expect_foo()
@@ -123,12 +118,7 @@ mod r#match {
     }
 
     #[test]
-    #[cfg_attr(feature = "nightly", should_panic(
-            expected = "MockFoo::bar(5): No matching expectation found"
-    ))]
-    #[cfg_attr(not(feature = "nightly"), should_panic(
-            expected = "MockFoo::bar(?): No matching expectation found"
-    ))]
+    #[should_panic(expected = "MockFoo::bar(5): No matching expectation found")]
     fn with_no_matches() {
         let mut mock = MockFoo::new();
         mock.expect_bar()
@@ -156,12 +146,7 @@ mod r#match {
     }
 
     #[test]
-    #[cfg_attr(feature = "nightly", should_panic(
-            expected = "MockFoo::bar(5): No matching expectation found"
-    ))]
-    #[cfg_attr(not(feature = "nightly"), should_panic(
-            expected = "MockFoo::bar(?): No matching expectation found"
-    ))]
+    #[should_panic(expected = "MockFoo::bar(5): No matching expectation found")]
     fn withf_no_matches() {
         let mut mock = MockFoo::new();
         mock.expect_bar()

@@ -511,6 +511,7 @@ impl MockFunction {
                 #(#attrs)*
                 #dead_code
                 #vis #sig {
+                    use ::mockall::{ViaDebug, ViaNothing};
                     let no_match_msg = #no_match_msg;
                     #deref {
                         let __mockall_guard = #outer_mod_path::EXPECTATIONS
@@ -532,6 +533,7 @@ impl MockFunction {
                 #(#attrs)*
                 #dead_code
                 #vis #sig {
+                    use ::mockall::{ViaDebug, ViaNothing};
                     let no_match_msg = #no_match_msg;
                     #deref self.#substruct_obj #name.#call #tbf(#(#call_exprs,)*)
                     .expect(&no_match_msg)
@@ -602,7 +604,7 @@ impl MockFunction {
         };
         let fields = vec!["{:?}"; argnames.len()].join(", ");
         let fstr = format!("{name}({fields})");
-        quote!(std::format!(#fstr, #(::mockall::MaybeDebugger(&#argnames)),*))
+        quote!(std::format!(#fstr, #((&&::mockall::ArgPrinter(&#argnames)).debug_string()),*))
     }
 
     /// Generate code for the expect_ method
@@ -1952,6 +1954,7 @@ impl<'a> ToTokens for RefExpectation<'a> {
                 /// Call this [`Expectation`] as if it were the real method.
                 #v fn call #lg (&self, #(#argnames: #argty, )*) -> #output
                 {
+                    use ::mockall::{ViaDebug, ViaNothing};
                     self.common.call(&#desc);
                     self.rfunc.call().unwrap_or_else(|m| {
                         let desc = std::format!(
@@ -2016,6 +2019,7 @@ impl<'a> ToTokens for RefMutExpectation<'a> {
                 #v fn call_mut #lg (&mut self, #(#argnames: #argty, )*)
                     -> &mut #owned_output
                 {
+                    use ::mockall::{ViaDebug, ViaNothing};
                     self.common.call(&#desc);
                     let desc = std::format!(
                         "{}", self.common.matcher.lock().unwrap());
@@ -2104,6 +2108,7 @@ impl<'a> ToTokens for StaticExpectation<'a> {
                 #[doc(hidden)]
                 #v fn call #lg (&self, #(#argnames: #argty, )* ) -> #output
                 {
+                    use ::mockall::{ViaDebug, ViaNothing};
                     self.common.call(&#desc);
                     self.rfunc.lock().unwrap().call_mut(#(#argnames, )*)
                         .unwrap_or_else(|message| {
