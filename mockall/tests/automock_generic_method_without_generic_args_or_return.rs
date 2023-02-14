@@ -10,10 +10,12 @@ pub struct Foo{}
 
 #[automock]
 impl Foo {
+    #[allow(clippy::extra_unused_type_parameters)]
     pub fn foo<T: 'static>(&self) -> i32 {
         unimplemented!()
     }
     /// A static method
+    #[allow(clippy::extra_unused_type_parameters)]
     pub fn bar<T: 'static>() -> i32 {
         unimplemented!()
     }
