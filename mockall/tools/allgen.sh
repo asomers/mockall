@@ -1,7 +1,7 @@
 #! /bin/sh
 # Preprocess every integration test and output the generated code to a new file
 # in the directory $1, or mockall/pp_old by default.
-
+echo "[!]"
 TOOLSDIR=`dirname ${0}`
 DEFAULT_ODIR=${TOOLSDIR}/../pp_old
 ODIR=${PWD}/${1:-$DEFAULT_ODIR}
