@@ -5,6 +5,7 @@
 //! poll method must not be treated as a generic method.
 #![deny(warnings)]
 
+use futures::executor::block_on;
 use mockall::*;
 use std::{
     future::Future,
@@ -29,8 +30,7 @@ impl<T: 'static> Future for Foo<T> {
 fn ready() {
     let mut mock = MockFoo::<u32>::new();
     mock.expect_poll()
+        .once()
         .return_const(Poll::Ready(()));
-    let _r = async {
-        mock.await
-    };
+    block_on(mock);
 }
