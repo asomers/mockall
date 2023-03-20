@@ -89,9 +89,9 @@ impl MockTrait {
                 ImplItem::Const(iic) => {
                     consts.push(iic);
                 },
-                ImplItem::Method(iim) => {
-                    let mf = mock_function::Builder::new(&iim.sig, vis)
-                        .attrs(&iim.attrs)
+                ImplItem::Fn(iif) => {
+                    let mf = mock_function::Builder::new(&iif.sig, vis)
+                        .attrs(&iif.attrs)
                         .levels(2)
                         .call_levels(0)
                         .struct_(structname)

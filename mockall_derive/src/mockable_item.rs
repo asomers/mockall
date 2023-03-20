@@ -66,9 +66,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
             "module name is required when mocking foreign functions,",
             " like `#[automock(mod mock_ffi)]`"
         ));
-        let vis = Visibility::Public(VisPublic{
-            pub_token: <Token![pub]>::default()
-        });
+        let vis = Visibility::Public(<Token![pub]>::default());
         let attrs = quote!(
             #[deprecated(since = "0.9.0", note = "Using automock directly on an extern block is deprecated.  Instead, wrap the extern block in a module, and automock that, like #[automock] mod ffi { extern \"C\" { fn foo ... } }")]
         );
@@ -82,7 +80,7 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                 leading_colon: None,
                 tree: UseTree::Path(UsePath {
                     ident: Ident::new("super", Span::call_site()),
-                    colon2_token: token::Colon2::default(),
+                    colon2_token: token::PathSep::default(),
                     tree: Box::new(UseTree::Glob(UseGlob {
                         star_token: token::Star::default()
                     }))
@@ -103,8 +101,11 @@ impl From<(Attrs, ItemForeignMod)> for MockableModule {
                         let vis = expectation_visibility(&f.vis, 1);
 
                         for arg in sig.inputs.iter_mut() {
-                            if let FnArg::Typed(pt) = arg {
-                                *pt.ty = supersuperfy(pt.ty.as_ref(), 1);
+                            match arg {
+                                FnArg::Typed(pt) => {
+                                    *pt.ty = supersuperfy(pt.ty.as_ref(), 1);
+                                },
+                                FnArg::Receiver(_) => unimplemented!()
                             }
                         }
                         if let ReturnType::Type(_, ty) = &mut sig.output {

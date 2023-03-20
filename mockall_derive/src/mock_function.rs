@@ -165,19 +165,10 @@ impl<'a> Builder<'a> {
     pub fn attrs(&mut self, attrs: &'a[Attribute]) -> &mut Self {
         self.attrs = attrs;
         if attrs.iter()
-            .any(|attr|
-                attr.path.segments.last()
-                .map(|ps| ps.ident == "concretize")
-                .unwrap_or(false) ||
-                (
-                    attr.path.segments.last()
-                    .map(|ps| ps.ident == "cfg_attr")
-                    .unwrap_or(false) &&
-                    attr.tokens.to_string().contains("concretize")
-                )
-            ) {
-                self.concretize = true;
-            }
+            .any(is_concretize)
+        {
+            self.concretize = true;
+        }
         self
     }
 
@@ -200,11 +191,7 @@ impl<'a> Builder<'a> {
         for fa in declosured_inputs.iter() {
             if let FnArg::Typed(pt) = fa {
                 let argname = (*pt.pat).clone();
-                if pat_is_self(&argname) {
-                    // A weird receiver like `Box<Self>`
-                    is_static = false;
-                    continue;
-                }
+                assert!(!pat_is_self(&argname));
                 let aty = supersuperfy(&pt.ty, self.levels);
                 if let Type::Reference(ref tr) = aty {
                     predexprs.push(quote!(#argname));
@@ -287,7 +274,7 @@ impl<'a> Builder<'a> {
             &merge_generics(&cgenerics, &srltg),
             &mrltg);
         let alifetimes = salifetimes.into_iter()
-            .collect::<HashSet<LifetimeDef>>()
+            .collect::<HashSet<LifetimeParam>>()
             .union(&malifetimes.into_iter().collect::<HashSet<_>>())
             .cloned()
             .collect();
@@ -390,7 +377,7 @@ impl<'a> Builder<'a> {
 pub(crate) struct MockFunction {
     /// Lifetimes of the mocked method that relate to the arguments but not the
     /// return value
-    alifetimes: Punctuated<LifetimeDef, token::Comma>,
+    alifetimes: Punctuated<LifetimeParam, token::Comma>,
     /// Names of the method arguments
     argnames: Vec<Pat>,
     /// Types of the method arguments
@@ -739,8 +726,9 @@ impl MockFunction {
         if self.alifetimes.is_empty() {
             None
         } else {
+            let lifetimes = lifetimes_to_generic_params(&self.alifetimes);
             Some(BoundLifetimes {
-                lifetimes: self.alifetimes.clone(),
+                lifetimes,
                 lt_token: <Token![<]>::default(),
                 gt_token: <Token![>]>::default(),
                 .. Default::default()
@@ -1368,7 +1356,7 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
 
         let common_methods = ExpectationGuardCommonMethods{f: self.f};
         let (_, tg, _) = self.f.egenerics.split_for_impl();
-        let ltdef = LifetimeDef::new(
+        let ltdef = LifetimeParam::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
         let mut e_generics = self.f.egenerics.clone();
@@ -1436,7 +1424,7 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
         let common_methods = ExpectationGuardCommonMethods{f: self.f};
         let (_, tg, _) = self.f.egenerics.split_for_impl();
         let keyid = gen_keyid(&self.f.egenerics);
-        let ltdef = LifetimeDef::new(
+        let ltdef = LifetimeParam::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
         let mut egenerics = self.f.egenerics.clone();
@@ -1502,7 +1490,7 @@ impl<'a> ToTokens for Context<'a> {
             return;
         }
 
-        let ltdef = LifetimeDef::new(
+        let ltdef = LifetimeParam::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
         let mut egenerics = self.f.egenerics.clone();
@@ -1512,7 +1500,7 @@ impl<'a> ToTokens for Context<'a> {
         let (_, e_tg, _) = egenerics.split_for_impl();
         let (ty_ig, ty_tg, ty_wc) = self.f.type_generics.split_for_impl();
         let mut meth_generics = self.f.call_generics.clone();
-        let ltdef = LifetimeDef::new(
+        let ltdef = LifetimeParam::new(
             Lifetime::new("'__mockall_lt", Span::call_site())
         );
         meth_generics.params.push(GenericParam::Lifetime(ltdef));
