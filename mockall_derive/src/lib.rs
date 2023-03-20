@@ -1632,6 +1632,15 @@ mod deselfify {
     }
 
     #[test]
+    fn arc() {
+        check_deselfify(
+            quote!(Arc<Self>),
+            quote!(Foo),
+            quote!(),
+            quote!(Arc<Foo>)
+        );
+    }
+    #[test]
     fn future() {
         check_deselfify(
             quote!(Box<dyn Future<Output=Self>>),
