@@ -1500,9 +1500,7 @@ mod merge_generics {
         let wc1: WhereClause = parse2(quote!(where T: Default)).unwrap();
         g1.where_clause = Some(wc1.clone());
 
-        let g2 = g1.clone();
-
-        let gm = super::merge_generics(&g1, &g2);
+        let gm = super::merge_generics(&g1, &g1);
         let gm_wc = &gm.where_clause;
 
         assert_eq!(quote!(#g1 #wc1).to_string(),
