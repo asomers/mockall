@@ -15,8 +15,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Raised MSRV to 1.60.0 because predicates-tree did.
+- Raised predicates, which is reexported, to 3.0.0.  This may affect backwards
+  compatibility for users who make use of predicates's "color" feature.
+  ([#467](https://github.com/asomers/mockall/pull/467))
+
+- Raised MSRV to 1.64.0 because predicates-core and predicates-tree did.
   ([#430](https://github.com/asomers/mockall/pull/430))
+  ([#467](https://github.com/asomers/mockall/pull/467))
+
 - Better "No matching expectation found" messages on stable.
   ([#425](https://github.com/asomers/mockall/pull/425))
 
