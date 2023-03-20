@@ -50,7 +50,7 @@ impl Attrs {
             .expect("Should only be called for trait item impls");
         let trait_ident = find_ident_from_path(trait_path).0;
         for item in item_impl.items.iter_mut() {
-            if let ImplItem::Method(method) = item {
+            if let ImplItem::Fn(method) = item {
                 let sig = &mut method.sig;
                 for fn_arg in sig.inputs.iter_mut() {
                     if let FnArg::Typed(arg) = fn_arg {
@@ -75,17 +75,24 @@ impl Attrs {
             PathArguments::AngleBracketed(abga) => {
                 for arg in abga.args.iter_mut() {
                     match arg {
-                        GenericArgument::Type(ty) => {
-                            self.substitute_type(ty, traitname)
-                        },
-                        GenericArgument::Binding(binding) => {
-                            self.substitute_type(&mut binding.ty, traitname);
-                        },
-                        _ => {
+                        GenericArgument::Lifetime(_) => {
                             /*
                              * Nothing to do, as long as lifetimes can't be
                              * associated types
                              */
+                        }
+                        GenericArgument::Type(ty) => {
+                            self.substitute_type(ty, traitname)
+                        },
+                        GenericArgument::AssocConst(_) => {
+                            // Nothing to do
+                        }
+                        GenericArgument::AssocType(at) => {
+                            self.substitute_type(&mut at.ty, traitname);
+                        }
+                        // TODO: Constraints
+                        _ => {
+                            // Not handled. Hopefully doing nothing works.
                         }
                     }
                 }
@@ -227,7 +234,7 @@ impl Attrs {
                             "Default value not given for associated type");
                     }
                 },
-                TraitItem::Method(method) => {
+                TraitItem::Fn(method) => {
                     let sig = &mut method.sig;
                     for fn_arg in sig.inputs.iter_mut() {
                         if let FnArg::Typed(arg) = fn_arg {
@@ -256,7 +263,7 @@ impl Parse for Attrs {
             match attr {
                 Attr::Mod(item_mod) => {
                     if let Some((br, _)) = item_mod.content {
-                        compile_error(br.span,
+                        compile_error(br.span.join(),
                             "mod name attributes must have the form \"mod my_name;\"");
                     }
                     modname = Some(item_mod.ident.clone());

@@ -41,7 +41,7 @@ fn add_lifetime_parameters(sig: &mut Signature) {
             to.bounds.push(TypeParamBound::Lifetime(lt.clone()));
             generics.lt_token.get_or_insert(Token![<](span));
             generics.gt_token.get_or_insert(Token![>](span));
-            let gpl = GenericParam::Lifetime(LifetimeDef::new(lt));
+            let gpl = GenericParam::Lifetime(LifetimeParam::new(lt));
             generics.params.push(gpl);
         }
     }
@@ -94,12 +94,12 @@ fn add_lifetime_parameters(sig: &mut Signature) {
 
 /// Generate a #[derive(Debug)] Attribute
 fn derive_debug() -> Attribute {
+    let ml = parse2(quote!(derive(Debug))).unwrap();
     Attribute {
         pound_token: <Token![#]>::default(),
         style: AttrStyle::Outer,
         bracket_token: token::Bracket::default(),
-        path: Path::from(format_ident!("derive")),
-        tokens: quote!((Debug))
+        meta: Meta::List(ml)
     }
 }
 
@@ -128,7 +128,7 @@ fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
 {
     mock_ident_in_type(&mut impl_.self_ty);
     for item in impl_.items.iter_mut() {
-        if let ImplItem::Method(ref mut iim) = item {
+        if let ImplItem::Fn(ref mut iim) = item {
             mockable_method(iim, name, generics);
         }
     }
@@ -136,7 +136,7 @@ fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
 }
 
 /// Performs transformations on the method to make it mockable
-fn mockable_method(meth: &mut ImplItemMethod, name: &Ident, generics: &Generics)
+fn mockable_method(meth: &mut ImplItemFn, name: &Ident, generics: &Generics)
 {
     demutify(&mut meth.sig.inputs);
     deselfify_args(&mut meth.sig.inputs, name, generics);
@@ -152,7 +152,7 @@ fn mockable_method(meth: &mut ImplItemMethod, name: &Ident, generics: &Generics)
 
 /// Performs transformations on the method to make it mockable
 fn mockable_trait_method(
-    meth: &mut TraitItemMethod,
+    meth: &mut TraitItemFn,
     name: &Ident,
     generics: &Generics)
 {
@@ -175,9 +175,9 @@ fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
     let items = trait_.items.into_iter()
     .map(|ti| {
         match ti {
-            TraitItem::Method(mut tim) => {
-                mockable_trait_method(&mut tim, name, generics);
-                ImplItem::Method(tim2iim(tim, &Visibility::Inherited))
+            TraitItem::Fn(mut tif) => {
+                mockable_trait_method(&mut tif, name, generics);
+                ImplItem::Fn(tim2iif(tif, &Visibility::Inherited))
             },
             TraitItem::Const(tic) => {
                 ImplItem::Const(tic2iic(tic, &Visibility::Inherited))
@@ -248,6 +248,7 @@ fn tic2iic(tic: TraitItemConst, vis: &syn::Visibility) -> ImplItemConst {
         vis: vis.clone(),
         defaultness: None,
         const_token: tic.const_token,
+        generics: tic.generics,
         ident: tic.ident,
         colon_token: tic.colon_token,
         ty: tic.ty,
@@ -257,15 +258,15 @@ fn tic2iic(tic: TraitItemConst, vis: &syn::Visibility) -> ImplItemConst {
     }
 }
 
-/// Converts a TraitItemMethod into an ImplItemMethod
-fn tim2iim(m: syn::TraitItemMethod, vis: &syn::Visibility)
-    -> syn::ImplItemMethod
+/// Converts a TraitItemFn into an ImplItemFn
+fn tim2iif(m: syn::TraitItemFn, vis: &syn::Visibility)
+    -> syn::ImplItemFn
 {
     let empty_block = Block {
         brace_token: token::Brace::default(),
         stmts: Vec::new()
     };
-    syn::ImplItemMethod{
+    syn::ImplItemFn{
         attrs: m.attrs,
         vis: vis.clone(),
         defaultness: None,
@@ -300,7 +301,7 @@ pub(crate) struct MockableStruct {
     pub consts: Vec<ImplItemConst>,
     pub generics: Generics,
     /// Inherent methods of the mockable struct
-    pub methods: Vec<ImplItemMethod>,
+    pub methods: Vec<ImplItemFn>,
     pub name: Ident,
     pub vis: Visibility,
     pub impls: Vec<ItemImpl>
@@ -310,25 +311,17 @@ impl MockableStruct {
     /// Does this struct derive Debug?
     pub fn derives_debug(&self) -> bool {
         self.attrs.iter()
-        .any(|attr| {
-            if let Ok(Meta::List(ml)) = attr.parse_meta() {
-                let i = ml.path.get_ident();
-                if i.map_or(false, |i| *i == "derive") {
-                    ml.nested.iter()
-                    .any(|nm| {
-                        if let NestedMeta::Meta(m) = nm {
-                            let i = m.path().get_ident();
-                            i.map_or(false, |i| *i == "Debug")
-                        } else {
-                            false
-                        }
-                    })
-                } else {
-                    false
-                }
-            } else {
-                false
+        .any(|attr|{
+            let mut derive_debug = false;
+            if attr.path().is_ident("derive") {
+                attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("Debug") {
+                        derive_debug = true;
+                    }
+                    Ok(())
+                }).unwrap();
             }
+            derive_debug
         })
     }
 }
@@ -372,8 +365,7 @@ impl From<ItemImpl> for MockableStruct {
         let mut consts = Vec::new();
         let generics = item_impl.generics.clone();
         let mut methods = Vec::new();
-        let pub_token = Token![pub](Span::call_site());
-        let vis = Visibility::Public(VisPublic{pub_token});
+        let vis = Visibility::Public(Token![pub](Span::call_site()));
         let mut impls = Vec::new();
         if let Some((bang, _path, _)) = &item_impl.trait_ {
             if bang.is_some() {
@@ -388,7 +380,7 @@ impl From<ItemImpl> for MockableStruct {
                 match item {
                     ImplItem::Const(_iic) =>
                         (),
-                    ImplItem::Method(_meth) =>
+                    ImplItem::Fn(_meth) =>
                         (),
                     ImplItem::Type(ty) => {
                         attrs.attrs.insert(ty.ident.clone(), ty.ty.clone());
@@ -401,7 +393,7 @@ impl From<ItemImpl> for MockableStruct {
         } else {
             for item in item_impl.items.into_iter() {
                 match item {
-                    ImplItem::Method(mut meth) => {
+                    ImplItem::Fn(mut meth) => {
                         mockable_method(&mut meth, &name, &item_impl.generics);
                         methods.push(meth)
                     },
@@ -440,7 +432,7 @@ impl Parse for MockableStruct {
         while !impl_content.is_empty() {
             let item: ImplItem = impl_content.parse()?;
             match item {
-                ImplItem::Method(mut iim) => {
+                ImplItem::Fn(mut iim) => {
                     mockable_method(&mut iim, &name, &generics);
                     methods.push(iim);
                 },
@@ -458,12 +450,14 @@ impl Parse for MockableStruct {
                 Item::Trait(it) => {
                     let note = "Deprecated mock! syntax.  Instead of \"trait X\", write \"impl X for Y\".  See PR #205";
                     let mut impl_ = mockable_trait(it, &name, &generics);
+                    let ml = parse2(quote!(deprecated(since = "0.9.0", note=#note))).unwrap();
+
+
                     impl_.attrs.push(Attribute {
                         pound_token: <token::Pound>::default(),
                         style: AttrStyle::Outer,
                         bracket_token: token::Bracket::default(),
-                        path: Path::from(format_ident!("deprecated")),
-                        tokens: quote!((since = "0.9.0", note = #note)),
+                        meta: Meta::List(ml),
                     });
                     impls.push(impl_)
                 },
@@ -496,7 +490,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn array() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: [&dyn T; 1]);
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -509,7 +503,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn bare_fn_with_named_args() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: fn(&dyn T));
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -521,7 +515,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn plain() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: &dyn T);
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -534,7 +528,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn slice() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: &[&dyn T]);
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -547,7 +541,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn tuple() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: (&dyn T, u32));
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -560,7 +554,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn with_anonymous_lifetime() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: &(dyn T + '_));
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -572,7 +566,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn with_parens() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: &(dyn T));
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -585,7 +579,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn with_lifetime_parameter() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo<'a>(&self, x: &(dyn T + 'a));
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -597,7 +591,7 @@ mod add_lifetime_parameters {
 
     #[test]
     fn with_static_lifetime() {
-        let mut meth: TraitItemMethod = parse2(quote!(
+        let mut meth: TraitItemFn = parse2(quote!(
             fn foo(&self, x: &(dyn T + 'static));
         )).unwrap();
         add_lifetime_parameters(&mut meth.sig);
@@ -615,7 +609,7 @@ mod sanity_check_sig {
     #[test]
     #[should_panic(expected = "Mockall does not support \"impl trait\" in argument position.  Use \"T: SomeTrait\" instead.")]
     fn impl_trait() {
-        let meth: ImplItemMethod = parse2(quote!(
+        let meth: ImplItemFn = parse2(quote!(
             fn foo(&self, x: impl SomeTrait);
         )).unwrap();
         sanity_check_sig(&meth.sig);

@@ -196,8 +196,8 @@ impl From<MockableStruct> for MockItemStruct {
             mockable.impls.iter()
             .any(|impl_|
                 impl_.items.iter()
-                    .any(|ii| if let ImplItem::Method(iim) = ii {
-                            iim.sig.ident == "new"
+                    .any(|ii| if let ImplItem::Fn(iif) = ii {
+                            iif.sig.ident == "new"
                         } else {
                             false
                         }

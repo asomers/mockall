@@ -55,6 +55,23 @@ cfg_if! {
     }
 }
 
+/// Does this Attribute represent Mockall's "concretize" pseudo-attribute?
+fn is_concretize(attr: &Attribute) -> bool {
+    if attr.path().segments.last().unwrap().ident == "concretize" {
+        true
+    } else if attr.path().is_ident("cfg_attr") {
+        match &attr.meta {
+            Meta::List(ml) => {
+                ml.tokens.to_string().contains("concretize")
+            },
+            // cfg_attr should always contain a list
+            _ => false,
+        }
+    } else {
+        false
+    }
+}
+
 /// replace generic arguments with concrete trait object arguments
 fn concretize_args(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     (Generics, Vec<FnArg>, Vec<TokenStream>)
@@ -240,6 +257,7 @@ fn deanonymize(literal_type: &mut Type) {
                 match tpb {
                     TypeParamBound::Trait(tb) => deanonymize_path(&mut tb.path),
                     TypeParamBound::Lifetime(lt) => deanonymize_lifetime(lt),
+                    _ => ()
                 }
             }
         },
@@ -517,8 +535,8 @@ fn deselfify_path(path: &mut Path, actual: &Ident, generics: &Generics) {
                 match arg {
                     GenericArgument::Type(ty) =>
                         deselfify(ty, actual, generics),
-                    GenericArgument::Binding(b) =>
-                        deselfify(&mut b.ty, actual, generics),
+                    GenericArgument::AssocType(at) =>
+                        deselfify(&mut at.ty, actual, generics),
                     _ => /* Nothing to do */(),
                 }
             }
@@ -594,8 +612,13 @@ fn deselfify_args(
     generics: &Generics)
 {
     for arg in args.iter_mut() {
-        if let FnArg::Typed(pt) = arg {
-            deselfify(pt.ty.as_mut(), actual, generics)
+        match arg {
+            FnArg::Receiver(r) => {
+                if r.colon_token.is_some() {
+                    deselfify(r.ty.as_mut(), actual, generics)
+                }
+            },
+            FnArg::Typed(pt) => deselfify(pt.ty.as_mut(), actual, generics)
         }
     }
 }
@@ -619,6 +642,7 @@ fn find_lifetimes_in_tpb(bound: &TypeParamBound) -> HashSet<Lifetime> {
         TypeParamBound::Trait(tb) => {
             ret.extend(find_lifetimes_in_path(&tb.path));
         },
+        _ => ()
     };
     ret
 }
@@ -635,15 +659,16 @@ fn find_lifetimes_in_path(path: &Path) -> HashSet<Lifetime> {
                     GenericArgument::Type(ty) => {
                         ret.extend(find_lifetimes(ty));
                     },
-                    GenericArgument::Binding(b) => {
-                        ret.extend(find_lifetimes(&b.ty));
+                    GenericArgument::AssocType(at) => {
+                        ret.extend(find_lifetimes(&at.ty));
                     },
                     GenericArgument::Constraint(c) => {
                         for bound in c.bounds.iter() {
                             ret.extend(find_lifetimes_in_tpb(bound));
                         }
                     },
-                    GenericArgument::Const(_) => ()
+                    GenericArgument::Const(_) => (),
+                    _ => ()
                 }
             }
         }
@@ -736,8 +761,11 @@ impl<'a> AttrFormatter<'a> {
         self.attrs.iter()
             .cloned()
             .filter(|attr| {
-                let i = attr.path.segments.last().map(|ps| &ps.ident);
-                if i.is_none() {
+                let i = attr.path().segments.last().map(|ps| &ps.ident);
+                if is_concretize(attr) {
+                    // Internally used attribute.  Never emit.
+                    false
+                } else if i.is_none() {
                     false
                 } else if *i.as_ref().unwrap() == "derive" {
                     // We can't usefully derive any traits.  Ignore them
@@ -750,14 +778,6 @@ impl<'a> AttrFormatter<'a> {
                     // We can't usefully instrument the mock method, so just
                     // ignore this attribute.
                     // https://docs.rs/tracing/0.1.23/tracing/attr.instrument.html
-                    false
-                } else if *i.as_ref().unwrap() == "concretize" {
-                    // Internally used attribute.  Never emit.
-                    false
-                } else if *i.as_ref().unwrap() == "cfg_attr" &&
-                    attr.tokens.to_string().contains("concretize")
-                {
-                    // Internally used attribute.  Never emit.
                     false
                 } else {
                     true
@@ -786,8 +806,8 @@ fn supersuperfy_path(path: &mut Path, levels: usize) -> usize {
                         GenericArgument::Type(ref mut ty) => {
                             *ty = supersuperfy(ty, levels);
                         },
-                        GenericArgument::Binding(ref mut binding) => {
-                            binding.ty = supersuperfy(&binding.ty, levels);
+                        GenericArgument::AssocType(ref mut at) => {
+                            at.ty = supersuperfy(&at.ty, levels);
                         },
                         GenericArgument::Constraint(ref mut constraint) => {
                             supersuperfy_bounds(&mut constraint.bounds, levels);
@@ -981,7 +1001,6 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
         match (x, y) {
             (Type(xpt), Type(ypt)) => xpt.bounded_ty == ypt.bounded_ty,
             (Lifetime(xpl), Lifetime(ypl)) => xpl.lifetime == ypl.lifetime,
-            (Eq(xeq), Eq(yeq)) => xeq.lhs_ty == yeq.lhs_ty,
             _ => false
         }
     }
@@ -1054,14 +1073,20 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
     out
 }
 
+fn lifetimes_to_generic_params(lv: &Punctuated<LifetimeParam, Token![,]>)
+    -> Punctuated<GenericParam, Token![,]>
+{
+    lv.iter()
+        .map(|lt| GenericParam::Lifetime(lt.clone()))
+        .collect()
+}
+
 /// Transform a Vec of lifetimes into a Generics
-fn lifetimes_to_generics(lv: &Punctuated<LifetimeDef, Token![,]>)-> Generics {
+fn lifetimes_to_generics(lv: &Punctuated<LifetimeParam, Token![,]>)-> Generics {
     if lv.is_empty() {
             Generics::default()
     } else {
-        let params = lv.iter()
-            .map(|lt| GenericParam::Lifetime(lt.clone()))
-            .collect();
+        let params = lifetimes_to_generic_params(lv);
         Generics {
             lt_token: Some(Token![<](lv[0].span())),
             gt_token: Some(Token![>](lv[0].span())),
@@ -1079,8 +1104,8 @@ fn split_lifetimes(
     args: &[FnArg],
     rt: &ReturnType)
     -> (Generics,
-        Punctuated<LifetimeDef, token::Comma>,
-        Punctuated<LifetimeDef, token::Comma>)
+        Punctuated<LifetimeParam, token::Comma>,
+        Punctuated<LifetimeParam, token::Comma>)
 {
     if generics.lt_token.is_none() {
         return (generics, Default::default(), Default::default());
@@ -1174,14 +1199,14 @@ fn expectation_visibility(vis: &Visibility, levels: usize)
             // self => in super::super
             // in anything_else => super::super::anything_else
             if vr.path.segments.first().unwrap().ident == "crate" {
-                vr.clone().into()
+                Visibility::Restricted(vr.clone())
             } else {
                 let mut out = vr.clone();
                 out.in_token = Some(in_token);
                 for _ in 0..levels {
                     out.path.segments.insert(0, super_token.into());
                 }
-                out.into()
+                Visibility::Restricted(out)
             }
         },
         _ => vis.clone()
@@ -1607,6 +1632,15 @@ mod deselfify {
     }
 
     #[test]
+    fn arc() {
+        check_deselfify(
+            quote!(Arc<Self>),
+            quote!(Foo),
+            quote!(),
+            quote!(Arc<Foo>)
+        );
+    }
+    #[test]
     fn future() {
         check_deselfify(
             quote!(Box<dyn Future<Output=Self>>),
@@ -1653,10 +1687,10 @@ mod dewhereselfify {
 
     #[test]
     fn lifetime() {
-        let mut meth: ImplItemMethod = parse2(quote!(
+        let mut meth: ImplItemFn = parse2(quote!(
                 fn foo<'a>(&self) where 'a: 'static, Self: Sized;
         )).unwrap();
-        let expected: ImplItemMethod = parse2(quote!(
+        let expected: ImplItemFn = parse2(quote!(
                 fn foo<'a>(&self) where 'a: 'static;
         )).unwrap();
         dewhereselfify(&mut meth.sig.generics);
@@ -1665,10 +1699,10 @@ mod dewhereselfify {
 
     #[test]
     fn normal_method() {
-        let mut meth: ImplItemMethod = parse2(quote!(
+        let mut meth: ImplItemFn = parse2(quote!(
                 fn foo(&self) where Self: Sized;
         )).unwrap();
-        let expected: ImplItemMethod = parse2(quote!(
+        let expected: ImplItemFn = parse2(quote!(
                 fn foo(&self);
         )).unwrap();
         dewhereselfify(&mut meth.sig.generics);
@@ -1677,10 +1711,10 @@ mod dewhereselfify {
 
     #[test]
     fn with_real_generics() {
-        let mut meth: ImplItemMethod = parse2(quote!(
+        let mut meth: ImplItemFn = parse2(quote!(
                 fn foo<T>(&self, t: T) where Self: Sized, T: Copy;
         )).unwrap();
-        let expected: ImplItemMethod = parse2(quote!(
+        let expected: ImplItemFn = parse2(quote!(
                 fn foo<T>(&self, t: T) where T: Copy;
         )).unwrap();
         dewhereselfify(&mut meth.sig.generics);
