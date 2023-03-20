@@ -22,4 +22,4 @@ nightly = ["proc-macro2/nightly"]
 cfg-if = "1.0"
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = { version = "1.0.15", features = ["full"] }
+syn = { version = "2.0", features = ["full"] }
