@@ -1605,7 +1605,8 @@ impl Times {
     /// Has this expectation already been called the minimum required number of
     /// times?
     pub fn is_satisfied(&self) -> bool {
-        self.count.load(Ordering::Relaxed) >= self.range.0.start
+        self.count.load(Ordering::Relaxed) >= self.range.0.start &&
+            self.count.load(Ordering::Relaxed) < self.range.0.end
     }
 
     /// The minimum number of times that this expectation must be called

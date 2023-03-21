@@ -416,9 +416,9 @@ pub(crate) struct MockFunction {
     /// Types used for Predicates.  Will be almost the same as args, but every
     /// type will be a non-reference type.
     predty: Vec<Type>,
-    /// Does the function return a non-'static reference? 
+    /// Does the function return a non-'static reference?
     return_ref: bool,
-    /// Does the function return a mutable reference? 
+    /// Does the function return a mutable reference?
     return_refmut: bool,
     /// References to every type in `predty`.
     refpredty: Vec<Type>,
@@ -988,13 +988,17 @@ impl<'a> ToTokens for Common<'a> {
                 fn drop(&mut self) {
                     if !::std::thread::panicking() && !self.times.is_satisfied()
                     {
-                        let desc = std::format!(
-                            "{}", self.matcher.lock().unwrap());
-                        panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
-                               #funcname,
-                               desc,
-                               self.times.count(),
-                               self.times.minimum());
+                        if (self.times.count() < self.times.minimum()) {
+                            let desc = std::format!(
+                                "{}", self.matcher.lock().unwrap());
+                            panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
+                                #funcname,
+                                desc,
+                                self.times.count(),
+                                self.times.minimum());
+                        } else {
+                            panic!("Exceeded number of expected calls panic propagation");
+                        }
                     }
                 }
             }
