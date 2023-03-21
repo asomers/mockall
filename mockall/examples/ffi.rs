@@ -9,7 +9,7 @@ use mockall_double::double;
 #[cfg_attr(test, automock)]
 pub mod mockable_ffi {
     extern "C" {
-        pub fn time(timer: *const u64) -> u64;
+        pub fn time(timer: *mut u64) -> u64;
     }
 }
 
@@ -17,7 +17,7 @@ pub mod mockable_ffi {
 use mockable_ffi as ffi;
 
 fn time() -> u64 {
-    unsafe { ffi::time(ptr::null()) }
+    unsafe { ffi::time(ptr::null_mut()) }
 }
 
 fn main() {
@@ -27,13 +27,8 @@ fn main() {
 
 #[test]
 fn time_test() {
-    let seconds_from_epoch = std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap_or(std::time::Duration::from_secs(0))
-        .as_secs();
-
     let ctx = ffi::time_context();
     ctx.expect()
-        .return_const(seconds_from_epoch);
+        .return_const(42u64);
     time();
 }
