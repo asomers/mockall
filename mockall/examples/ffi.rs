@@ -5,7 +5,6 @@ use std::ptr;
 #[cfg(test)]
 use mockall::automock;
 use mockall_double::double;
-use std::time::{Duration, SystemTime};
 
 #[cfg_attr(test, automock)]
 pub mod mockable_ffi {
@@ -28,9 +27,9 @@ fn main() {
 
 #[test]
 fn time_test() {
-    let seconds_from_epoch = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or(Duration::from_secs(0))
+    let seconds_from_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap_or(std::time::Duration::from_secs(0))
         .as_secs();
 
     let ctx = ffi::time_context();
