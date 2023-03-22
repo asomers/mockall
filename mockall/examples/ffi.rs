@@ -1,8 +1,6 @@
 // vim: tw=80
 //! An example of unit testing involving mocked FFI functions
 
-#![cfg(unix)]
-
 #[cfg(test)]
 use mockall::automock;
 use mockall_double::double;
@@ -10,26 +8,27 @@ use mockall_double::double;
 #[cfg_attr(test, automock)]
 pub mod mockable_ffi {
     extern "C" {
-        pub fn getuid() -> u32;
+        pub fn abs(i: i32) -> i32;
     }
 }
 
 #[double]
 use mockable_ffi as ffi;
 
-fn getuid() -> u32 {
-    unsafe { ffi::getuid() }
+fn abs(i: i32) -> i32 {
+    unsafe { ffi::abs(i) }
 }
 
 fn main() {
-    println!("My uid is {}", getuid() );
+    let i: i32 = -42;
+    println!("abs({}) = {}", i, abs(i) );
 }
 
 
 #[test]
-fn getuid_test() {
-    let ctx = ffi::getuid_context();
+fn time_test() {
+    let ctx = ffi::abs_context();
     ctx.expect()
-        .return_const(42u32);
-    getuid();
+        .return_const(42);
+    assert_eq!(42, abs(-42))
 }
