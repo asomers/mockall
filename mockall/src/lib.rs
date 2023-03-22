@@ -1554,6 +1554,7 @@ impl From<RangeToInclusive<usize>> for TimesRange {
     }
 }
 
+#[derive(PartialEq)]
 #[doc(hidden)]
 pub enum ExpectedCalls {
     Satisfied,
