@@ -1554,6 +1554,13 @@ impl From<RangeToInclusive<usize>> for TimesRange {
     }
 }
 
+#[doc(hidden)]
+pub enum ExpectedCalls {
+    Satisfied,
+    SatisfiedOnlyLowerBound,
+    SatisfiedOnlyUpperBound,
+}
+
 #[derive(Debug, Default)]
 #[doc(hidden)]
 pub struct Times{
@@ -1602,11 +1609,18 @@ impl Times {
         (self.range.0.end - self.range.0.start) == 1
     }
 
-    /// Has this expectation already been called the minimum required number of
-    /// times?
-    pub fn is_satisfied(&self) -> bool {
-        self.count.load(Ordering::Relaxed) >= self.range.0.start &&
-            self.count.load(Ordering::Relaxed) < self.range.0.end
+    /// Has this expectation already been called a number of times above the minimum,
+    /// below the maximum, both cases, or neither?
+    pub fn is_satisfied(&self) -> ExpectedCalls {
+        let satisfied_lower_bound = self.count.load(Ordering::Relaxed) >= self.range.0.start;
+        let satisfied_upper_bound = self.count.load(Ordering::Relaxed) < self.range.0.end;
+        if satisfied_lower_bound && satisfied_upper_bound {
+            ExpectedCalls::Satisfied
+        } else if satisfied_lower_bound {
+            ExpectedCalls::SatisfiedOnlyLowerBound
+        } else {
+            ExpectedCalls::SatisfiedOnlyUpperBound
+        }
     }
 
     /// The minimum number of times that this expectation must be called

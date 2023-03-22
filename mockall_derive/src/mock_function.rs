@@ -913,7 +913,7 @@ impl<'a> ToTokens for Common<'a> {
                                 m);
                         });
                     self.verify_sequence(desc);
-                    if self.times.is_satisfied() {
+                    if let ExpectedCalls::SatisfiedOnlyLowerBound = self.times.is_satisfied() {
                         self.satisfy_sequence()
                     }
                 }
@@ -986,18 +986,21 @@ impl<'a> ToTokens for Common<'a> {
 
             impl #ig Drop for Common #tg #wc {
                 fn drop(&mut self) {
-                    if !::std::thread::panicking() && !self.times.is_satisfied()
-                    {
-                        if (self.times.count() < self.times.minimum()) {
-                            let desc = std::format!(
-                                "{}", self.matcher.lock().unwrap());
-                            panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
-                                #funcname,
-                                desc,
-                                self.times.count(),
-                                self.times.minimum());
-                        } else {
-                            panic!("Exceeded number of expected calls panic propagation");
+                    if !::std::thread::panicking() {
+                        match self.times.is_satisfied(); {
+                            ExpectedCalls::SatisfiedOnlyUpperBound => {
+                                let desc = std::format!(
+                                    "{}", self.matcher.lock().unwrap());
+                                panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
+                                    #funcname,
+                                    desc,
+                                    self.times.count(),
+                                    self.times.minimum());
+                            },
+                            ExpectedCalls::SatisfiedOnlyLowerBound => {
+                                panic!("Exceeded number of expected calls panic propagation");
+                            },
+                            _ => ()
                         }
                     }
                 }
