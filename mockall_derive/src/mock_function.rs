@@ -913,7 +913,7 @@ impl<'a> ToTokens for Common<'a> {
                                 m);
                         });
                     self.verify_sequence(desc);
-                    if ::mockall::ExpectedCalls::SatisfiedOnlyUpperBound != self.times.is_satisfied() {
+                    if ::mockall::ExpectedCalls::TooFew != self.times.is_satisfied() {
                         self.satisfy_sequence()
                     }
                 }
@@ -987,18 +987,22 @@ impl<'a> ToTokens for Common<'a> {
             impl #ig Drop for Common #tg #wc {
                 fn drop(&mut self) {
                     if !::std::thread::panicking() {
+                        let desc = std::format!(
+                            "{}", self.matcher.lock().unwrap());
                         match self.times.is_satisfied() {
-                            ::mockall::ExpectedCalls::SatisfiedOnlyUpperBound => {
-                                let desc = std::format!(
-                                    "{}", self.matcher.lock().unwrap());
+                            ::mockall::ExpectedCalls::TooFew => {
                                 panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
                                     #funcname,
                                     desc,
                                     self.times.count(),
                                     self.times.minimum());
                             },
-                            ::mockall::ExpectedCalls::SatisfiedOnlyLowerBound => {
-                                panic!("Exceeded number of expected calls panic propagation");
+                            ::mockall::ExpectedCalls::TooMany => {
+                                panic!("{}: Expectation({}) called {} time(s) which is more than expected {}",
+                                    #funcname,
+                                    desc,
+                                    self.times.count(),
+                                    self.times.maximum());
                             },
                             _ => ()
                         }

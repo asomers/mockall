@@ -1558,8 +1558,8 @@ impl From<RangeToInclusive<usize>> for TimesRange {
 #[doc(hidden)]
 pub enum ExpectedCalls {
     Satisfied,
-    SatisfiedOnlyLowerBound,
-    SatisfiedOnlyUpperBound,
+    TooMany,
+    TooFew,
 }
 
 #[derive(Debug, Default)]
@@ -1618,10 +1618,15 @@ impl Times {
         if satisfied_lower_bound && satisfied_upper_bound {
             ExpectedCalls::Satisfied
         } else if satisfied_lower_bound {
-            ExpectedCalls::SatisfiedOnlyLowerBound
+            ExpectedCalls::TooMany
         } else {
-            ExpectedCalls::SatisfiedOnlyUpperBound
+            ExpectedCalls::TooFew
         }
+    }
+
+    /// The maximum number of times that this expectation must be called
+    pub fn maximum(&self) -> usize {
+        self.range.0.end - 1
     }
 
     /// The minimum number of times that this expectation must be called
