@@ -7,16 +7,13 @@ use syn::parse::{Parse, ParseStream};
 // This enum is very short-lived, so it's fine not to box it.
 #[allow(clippy::large_enum_variant)]
 enum Attr {
-    Mod(ItemMod),
     Type(TraitItemType),
 }
 
 impl Parse for Attr {
     fn parse(input: ParseStream) -> parse::Result<Self> {
         let lookahead = input.lookahead1();
-        if lookahead.peek(Token![mod]) {
-            input.parse().map(Attr::Mod)
-        } else if lookahead.peek(Token![type]) {
+        if lookahead.peek(Token![type]) {
             input.parse().map(Attr::Type)
         } else {
             Err(lookahead.error())
@@ -28,7 +25,6 @@ impl Parse for Attr {
 #[derive(Debug, Default)]
 pub(crate) struct Attrs {
     pub attrs: HashMap<Ident, Type>,
-    pub modname: Option<Ident>
 }
 
 impl Attrs {
@@ -257,17 +253,9 @@ impl Attrs {
 impl Parse for Attrs {
     fn parse(input: ParseStream) -> parse::Result<Self> {
         let mut attrs = HashMap::new();
-        let mut modname = None;
         while !input.is_empty() {
             let attr: Attr = input.parse()?;
             match attr {
-                Attr::Mod(item_mod) => {
-                    if let Some((br, _)) = item_mod.content {
-                        compile_error(br.span.join(),
-                            "mod name attributes must have the form \"mod my_name;\"");
-                    }
-                    modname = Some(item_mod.ident.clone());
-                },
                 Attr::Type(trait_item_type) => {
                     let ident = trait_item_type.ident.clone();
                     if let Some((_, ty)) = trait_item_type.default {
@@ -279,7 +267,7 @@ impl Parse for Attrs {
                 }
             }
         }
-        Ok(Attrs{attrs, modname})
+        Ok(Attrs{attrs})
     }
 }
 

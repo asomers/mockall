@@ -1245,14 +1245,29 @@ pub mod examples;
 /// }
 /// ```
 ///
-/// Finally, `#[automock]` can also mock foreign functions.  This requires
-/// another metaitem to specify the mock module name.
+/// It can mock a module full of functions.  In this case, the mock functions
+/// will be found in a module whose name is prepended with `mock_`.
 ///
 /// ```
 /// # use mockall_derive::*;
-/// #[automock(mod mock_ffi;)]
-/// extern "C" {
-///     pub fn foo() -> u32;
+/// #[automock]
+/// mod mymod {
+///     pub fn foo() -> u32 {
+///        // ...
+///        # unimplemented!()
+///     }
+/// }
+/// ```
+/// Finally, `#[automock]` can also mock foreign functions.  This works just
+/// like mocking a module.
+///
+/// ```
+/// # use mockall_derive::*;
+/// #[automock]
+/// mod ffi {
+///     extern "C" {
+///         pub fn foo() -> u32;
+///     }
 /// }
 /// ```
 ///
