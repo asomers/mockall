@@ -1688,10 +1688,10 @@ mod dewhereselfify {
     #[test]
     fn lifetime() {
         let mut meth: ImplItemFn = parse2(quote!(
-                fn foo<'a>(&self) where 'a: 'static, Self: Sized;
+                fn foo<'a>(&self) where 'a: 'static, Self: Sized {}
         )).unwrap();
         let expected: ImplItemFn = parse2(quote!(
-                fn foo<'a>(&self) where 'a: 'static;
+                fn foo<'a>(&self) where 'a: 'static {}
         )).unwrap();
         dewhereselfify(&mut meth.sig.generics);
         assert_eq!(meth, expected);
@@ -1700,10 +1700,10 @@ mod dewhereselfify {
     #[test]
     fn normal_method() {
         let mut meth: ImplItemFn = parse2(quote!(
-                fn foo(&self) where Self: Sized;
+                fn foo(&self) where Self: Sized {}
         )).unwrap();
         let expected: ImplItemFn = parse2(quote!(
-                fn foo(&self);
+                fn foo(&self) {}
         )).unwrap();
         dewhereselfify(&mut meth.sig.generics);
         assert_eq!(meth, expected);
@@ -1712,10 +1712,10 @@ mod dewhereselfify {
     #[test]
     fn with_real_generics() {
         let mut meth: ImplItemFn = parse2(quote!(
-                fn foo<T>(&self, t: T) where Self: Sized, T: Copy;
+                fn foo<T>(&self, t: T) where Self: Sized, T: Copy {}
         )).unwrap();
         let expected: ImplItemFn = parse2(quote!(
-                fn foo<T>(&self, t: T) where T: Copy;
+                fn foo<T>(&self, t: T) where T: Copy {}
         )).unwrap();
         dewhereselfify(&mut meth.sig.generics);
         assert_eq!(meth, expected);
