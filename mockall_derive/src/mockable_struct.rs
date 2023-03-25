@@ -296,6 +296,20 @@ fn tit2iit(tit: TraitItemType, vis: &Visibility) -> ImplItemType {
     }
 }
 
+/// Like a TraitItemFn, but with a visibility
+struct TraitItemVFn {
+    pub vis: Visibility,
+    pub tif: TraitItemFn
+}
+
+impl Parse for TraitItemVFn {
+    fn parse(input: ParseStream) -> syn::parse::Result<Self> {
+        let vis: syn::Visibility = input.parse()?;
+        let tif = input.parse()?;
+        Ok(Self{vis, tif})
+    }
+}
+
 pub(crate) struct MockableStruct {
     pub attrs: Vec<Attribute>,
     pub consts: Vec<ImplItemConst>,
@@ -304,7 +318,7 @@ pub(crate) struct MockableStruct {
     pub methods: Vec<ImplItemFn>,
     pub name: Ident,
     pub vis: Visibility,
-    pub impls: Vec<ItemImpl>
+    pub impls: Vec<ItemImpl>,
 }
 
 impl MockableStruct {
@@ -432,10 +446,12 @@ impl Parse for MockableStruct {
         while !impl_content.is_empty() {
             let item: ImplItem = impl_content.parse()?;
             match item {
-                ImplItem::Fn(mut iim) => {
+                ImplItem::Verbatim(ts) => {
+                    let tivf: TraitItemVFn = parse2(ts)?;
+                    let mut iim = tim2iif(tivf.tif, &tivf.vis);
                     mockable_method(&mut iim, &name, &generics);
                     methods.push(iim);
-                },
+                }
                 ImplItem::Const(iic) => consts.push(iic),
                 _ => {
                     return Err(input.error("Unsupported in this context"));
@@ -461,8 +477,18 @@ impl Parse for MockableStruct {
                     });
                     impls.push(impl_)
                 },
-                Item::Impl(ii) =>
-                    impls.push(mockable_item_impl(ii, &name, &generics)),
+                Item::Impl(mut ii) => {
+                    for item in ii.items.iter_mut() {
+                        // Convert any methods that syn couldn't parse as
+                        // ImplItemFn.
+                        if let ImplItem::Verbatim(ts) = item {
+                            let tif: TraitItemFn = parse2(ts.clone()).unwrap();
+                            let iim = tim2iif(tif, &Visibility::Inherited);
+                            *item = ImplItem::Fn(iim);
+                        }
+                    }
+                    impls.push(mockable_item_impl(ii, &name, &generics));
+                }
                 _ => return Err(input.error("Unsupported in this context")),
             }
         }
@@ -610,7 +636,7 @@ mod sanity_check_sig {
     #[should_panic(expected = "Mockall does not support \"impl trait\" in argument position.  Use \"T: SomeTrait\" instead.")]
     fn impl_trait() {
         let meth: ImplItemFn = parse2(quote!(
-            fn foo(&self, x: impl SomeTrait);
+            fn foo(&self, x: impl SomeTrait) {}
         )).unwrap();
         sanity_check_sig(&meth.sig);
     }
