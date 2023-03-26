@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [ Unreleased ] - ReleaseDate
+
+### Fixed
+
+- Methods with unknown size type bounds can now be mocked.
+  ([#421](https://github.com/asomers/mockall/pull/421))
+
 ## [ 0.11.3 ] - 2022-10-18
 
 ### Fixed
@@ -12,8 +19,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   methods, not generic ones.  Among other effects, this prevents "unused method
   expect" warnings from the latest nightly compiler.
   ([#415](https://github.com/asomers/mockall/pull/415))
-- Methods with unknown size type bounds can now be mocked.
-  ([#421](https://github.com/asomers/mockall/pull/421))
 
 ## [ 0.11.2 ] - 2022-07-24
 
