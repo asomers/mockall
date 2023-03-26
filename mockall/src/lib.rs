@@ -1554,6 +1554,14 @@ impl From<RangeToInclusive<usize>> for TimesRange {
     }
 }
 
+#[derive(PartialEq)]
+#[doc(hidden)]
+pub enum ExpectedCalls {
+    Satisfied,
+    TooMany,
+    TooFew,
+}
+
 #[derive(Debug, Default)]
 #[doc(hidden)]
 pub struct Times{
@@ -1602,10 +1610,23 @@ impl Times {
         (self.range.0.end - self.range.0.start) == 1
     }
 
-    /// Has this expectation already been called the minimum required number of
-    /// times?
-    pub fn is_satisfied(&self) -> bool {
-        self.count.load(Ordering::Relaxed) >= self.range.0.start
+    /// Has this expectation already been called the expected number of times?
+    /// If not, was it too many or too few?
+    pub fn is_satisfied(&self) -> ExpectedCalls {
+        let satisfied_lower_bound = self.count.load(Ordering::Relaxed) >= self.range.0.start;
+        let satisfied_upper_bound = self.count.load(Ordering::Relaxed) < self.range.0.end;
+        if satisfied_lower_bound && satisfied_upper_bound {
+            ExpectedCalls::Satisfied
+        } else if satisfied_lower_bound {
+            ExpectedCalls::TooMany
+        } else {
+            ExpectedCalls::TooFew
+        }
+    }
+
+    /// The maximum number of times that this expectation must be called
+    pub fn maximum(&self) -> usize {
+        self.range.0.end - 1
     }
 
     /// The minimum number of times that this expectation must be called

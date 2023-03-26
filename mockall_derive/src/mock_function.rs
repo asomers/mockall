@@ -416,9 +416,9 @@ pub(crate) struct MockFunction {
     /// Types used for Predicates.  Will be almost the same as args, but every
     /// type will be a non-reference type.
     predty: Vec<Type>,
-    /// Does the function return a non-'static reference? 
+    /// Does the function return a non-'static reference?
     return_ref: bool,
-    /// Does the function return a mutable reference? 
+    /// Does the function return a mutable reference?
     return_refmut: bool,
     /// References to every type in `predty`.
     refpredty: Vec<Type>,
@@ -913,7 +913,7 @@ impl<'a> ToTokens for Common<'a> {
                                 m);
                         });
                     self.verify_sequence(desc);
-                    if self.times.is_satisfied() {
+                    if ::mockall::ExpectedCalls::TooFew != self.times.is_satisfied() {
                         self.satisfy_sequence()
                     }
                 }
@@ -986,15 +986,26 @@ impl<'a> ToTokens for Common<'a> {
 
             impl #ig Drop for Common #tg #wc {
                 fn drop(&mut self) {
-                    if !::std::thread::panicking() && !self.times.is_satisfied()
-                    {
+                    if !::std::thread::panicking() {
                         let desc = std::format!(
                             "{}", self.matcher.lock().unwrap());
-                        panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
-                               #funcname,
-                               desc,
-                               self.times.count(),
-                               self.times.minimum());
+                        match self.times.is_satisfied() {
+                            ::mockall::ExpectedCalls::TooFew => {
+                                panic!("{}: Expectation({}) called {} time(s) which is fewer than expected {}",
+                                    #funcname,
+                                    desc,
+                                    self.times.count(),
+                                    self.times.minimum());
+                            },
+                            ::mockall::ExpectedCalls::TooMany => {
+                                panic!("{}: Expectation({}) called {} time(s) which is more than expected {}",
+                                    #funcname,
+                                    desc,
+                                    self.times.count(),
+                                    self.times.maximum());
+                            },
+                            _ => ()
+                        }
                     }
                 }
             }

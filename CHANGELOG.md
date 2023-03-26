@@ -31,6 +31,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Static methods' expectations will now be cleared during a panic.
   ([#443](https://github.com/asomers/mockall/pull/443))
 
+- The `checkpoint` method now works correctly even after a panic due to too many
+  method calls.
+  ([#472](https://github.com/asomers/mockall/pull/472))
+
 - Methods with unknown size type bounds can now be mocked.
   ([#421](https://github.com/asomers/mockall/pull/421))
 

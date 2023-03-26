@@ -24,6 +24,7 @@ mock!{
 }
 
 mod checkpoint {
+    use std::panic;
     use super::*;
 
     #[test]
@@ -52,6 +53,20 @@ mod checkpoint {
         panic!("Shouldn't get here!");
     }
 
+    #[test]
+    #[should_panic(expected =
+        "MockFoo::foo: Expectation(<anything>) called 1 time(s) which is more than expected 0")]
+    fn too_many_calls() {
+        let mut mock = MockFoo::default();
+        mock.expect_foo()
+            .returning(|_| 42)
+            .times(0);
+        let _ = panic::catch_unwind(|| {
+            mock.foo(0);
+        });
+        mock.checkpoint();
+        panic!("Shouldn't get here!");
+    }
 
     #[test]
     fn ok() {
