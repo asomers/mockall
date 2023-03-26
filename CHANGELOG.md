@@ -8,15 +8,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Static methods' expectations will now be cleared during a panic.
+  ([#443](https://github.com/asomers/mockall/pull/443))
+
 - Methods with unknown size type bounds can now be mocked.
   ([#421](https://github.com/asomers/mockall/pull/421))
 
 ## [ 0.11.3 ] - 2022-10-18
 
 ### Fixed
-
-- Static methods' expectations will now be cleared during a panic.
-  ([#443](https://github.com/asomers/mockall/pull/443))
 
 - Methods with a `where Self: ...` clause will now be mocked like concrete
   methods, not generic ones.  Among other effects, this prevents "unused method
