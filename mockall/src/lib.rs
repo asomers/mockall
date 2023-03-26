@@ -1610,8 +1610,8 @@ impl Times {
         (self.range.0.end - self.range.0.start) == 1
     }
 
-    /// Has this expectation already been called a number of times above the minimum,
-    /// below the maximum, both cases, or neither?
+    /// Has this expectation already been called the expected number of times?
+    /// If not, was it too many or too few?
     pub fn is_satisfied(&self) -> ExpectedCalls {
         let satisfied_lower_bound = self.count.load(Ordering::Relaxed) >= self.range.0.start;
         let satisfied_upper_bound = self.count.load(Ordering::Relaxed) < self.range.0.end;
