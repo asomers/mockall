@@ -463,20 +463,6 @@ impl Parse for MockableStruct {
         while !input.is_empty() {
             let item: Item = input.parse()?;
             match item {
-                Item::Trait(it) => {
-                    let note = "Deprecated mock! syntax.  Instead of \"trait X\", write \"impl X for Y\".  See PR #205";
-                    let mut impl_ = mockable_trait(it, &name, &generics);
-                    let ml = parse2(quote!(deprecated(since = "0.9.0", note=#note))).unwrap();
-
-
-                    impl_.attrs.push(Attribute {
-                        pound_token: <token::Pound>::default(),
-                        style: AttrStyle::Outer,
-                        bracket_token: token::Bracket::default(),
-                        meta: Meta::List(ml),
-                    });
-                    impls.push(impl_)
-                },
                 Item::Impl(mut ii) => {
                     for item in ii.items.iter_mut() {
                         // Convert any methods that syn couldn't parse as

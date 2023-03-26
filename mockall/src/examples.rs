@@ -40,18 +40,20 @@ mock! {
         fn boo(&self);
     }
     /// An implementation of a trait on a mocked struct
-    trait Bah {
+    impl Bah for Boo {
         fn bah(&self);
     }
 }
 
-#[automock(mod mock_ffi;)]
-extern "C" {
-    /// A foreign "C" function.
-    pub fn ffi_func();
+/// A module full of foreign C functions.
+#[automock]
+pub mod ffi {
+    extern "C" {
+        /// A foreign "C" function.
+        pub fn ffi_func();
+    }
 }
 
-#[cfg(feature = "nightly")]
 /// Mock this entire module
 #[automock]
 pub mod my_module {

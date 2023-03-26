@@ -38,6 +38,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Methods with unknown size type bounds can now be mocked.
   ([#421](https://github.com/asomers/mockall/pull/421))
 
+### Removed
+
+- Removed syntax deprecated since 0.9.0: using `#[automock]` directly on an
+  `extern "C"` block, and using `trait Foo {}` syntax inside of `mock!`.
+  ([#476](https://github.com/asomers/mockall/pull/476))
+
 ## [ 0.11.3 ] - 2022-10-18
 
 ### Fixed
