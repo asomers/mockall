@@ -11,23 +11,33 @@ impl<Q, T> AsRefMut<T> for Q where Q: AsRef<T> + AsMut<T>, T: ?Sized {}
 
 mock! {
     Foo {
+        /// Base concretized function
         #[mockall::concretize]
         fn foo<P: AsRef<std::path::Path>>(&self, x: P);
 
+        /// With a where clause
         #[mockall::concretize]
         fn boom<P>(&self, x: P) where P: AsRef<std::path::Path>;
 
+        /// Static function
         #[mockall::concretize]
         fn bang<P: AsRef<std::path::Path>>(x: P);
 
+        /// Reference argument
         #[mockall::concretize]
         fn boomref<P: AsRef<std::path::Path>>(&self, x: &P);
 
+        /// Mutable reference argument
         #[mockall::concretize]
         fn boom_mutref<T: AsRefMut<str>>(&self, x: &mut T);
 
+        /// Slice argument
         #[mockall::concretize]
         fn boomv<P>(&self, x: &[P]) where P: AsRef<std::path::Path>;
+
+        /// Public visiblity
+        #[mockall::concretize]
+        pub fn foopub<P: AsRef<std::path::Path>>(&self, x: P);
     }
 }
 

@@ -177,7 +177,7 @@ fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
         match ti {
             TraitItem::Fn(mut tif) => {
                 mockable_trait_method(&mut tif, name, generics);
-                ImplItem::Fn(tim2iif(tif, &Visibility::Inherited))
+                ImplItem::Fn(tif2iif(tif, &Visibility::Inherited))
             },
             TraitItem::Const(tic) => {
                 ImplItem::Const(tic2iic(tic, &Visibility::Inherited))
@@ -259,7 +259,7 @@ fn tic2iic(tic: TraitItemConst, vis: &syn::Visibility) -> ImplItemConst {
 }
 
 /// Converts a TraitItemFn into an ImplItemFn
-fn tim2iif(m: syn::TraitItemFn, vis: &syn::Visibility)
+fn tif2iif(m: syn::TraitItemFn, vis: &syn::Visibility)
     -> syn::ImplItemFn
 {
     let empty_block = Block {
@@ -304,8 +304,10 @@ struct TraitItemVFn {
 
 impl Parse for TraitItemVFn {
     fn parse(input: ParseStream) -> syn::parse::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         let vis: syn::Visibility = input.parse()?;
-        let tif = input.parse()?;
+        let mut tif: TraitItemFn = input.parse()?;
+        tif.attrs = attrs;
         Ok(Self{vis, tif})
     }
 }
@@ -448,7 +450,7 @@ impl Parse for MockableStruct {
             match item {
                 ImplItem::Verbatim(ts) => {
                     let tivf: TraitItemVFn = parse2(ts)?;
-                    let mut iim = tim2iif(tivf.tif, &tivf.vis);
+                    let mut iim = tif2iif(tivf.tif, &tivf.vis);
                     mockable_method(&mut iim, &name, &generics);
                     methods.push(iim);
                 }
@@ -469,7 +471,7 @@ impl Parse for MockableStruct {
                         // ImplItemFn.
                         if let ImplItem::Verbatim(ts) = item {
                             let tif: TraitItemFn = parse2(ts.clone()).unwrap();
-                            let iim = tim2iif(tif, &Visibility::Inherited);
+                            let iim = tif2iif(tif, &Visibility::Inherited);
                             *item = ImplItem::Fn(iim);
                         }
                     }
