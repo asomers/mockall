@@ -18,9 +18,9 @@ trait Beez {
 mock! {
     pub Foo {
         #[cfg(feature = "nightly")]
-        fn foo(&self);
+        pub fn foo(&self);
         #[cfg(not(feature = "nightly"))]
-        fn foo(&self, x: i32) -> i32;
+        pub fn foo(&self, x: i32) -> i32;
     }
     #[cfg(feature = "nightly")]
     impl Beez for Foo {

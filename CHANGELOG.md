@@ -26,6 +26,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Better "No matching expectation found" messages on stable.
   ([#425](https://github.com/asomers/mockall/pull/425))
 
+### Fixed
+
+- Fixed mocking non-private inherent methods that have attributes with syn
+  version 2.0.9 and later.
+  ([#485](https://github.com/asomers/mockall/pull/485))
+
 ### Removed
 
 - Removed syntax deprecated since 0.9.0: using `#[automock]` directly on an
