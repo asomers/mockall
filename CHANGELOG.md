@@ -30,7 +30,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - Fixed mocking non-private inherent methods that have attributes with syn
   version 2.0.9 and later.
-  ([#485](https://github.com/asomers/mockall/pull/485))
+  ([#486](https://github.com/asomers/mockall/pull/486))
 
 - Suppress `clippy::too_many_arguments` warnings in the generated code.  This
   is most useful when mocking static functions with exactly 7 arguments.
