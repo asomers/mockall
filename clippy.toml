@@ -1,2 +1,6 @@
 # I use a lot of dumb names in the tests
 disallowed-names = []
+
+# Default is 7.  Lock it there, so a change to the default value doesn't break
+# the automock_seven_args test.
+too-many-arguments-threshold = 7

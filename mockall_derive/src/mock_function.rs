@@ -816,6 +816,7 @@ impl MockFunction {
         quote!(
             #(#attrs)*
             #[allow(missing_docs)]
+            #[allow(clippy::too_many_arguments)]
             pub mod #inner_mod_ident {
                 use super::*;
                 use ::mockall::CaseTreeExt;

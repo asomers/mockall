@@ -32,6 +32,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   version 2.0.9 and later.
   ([#485](https://github.com/asomers/mockall/pull/485))
 
+- Suppress `clippy::too_many_arguments` warnings in the generated code.  This
+  is most useful when mocking static functions with exactly 7 arguments.
+  ([#487](https://github.com/asomers/mockall/pull/487))
+
 ### Removed
 
 - Removed syntax deprecated since 0.9.0: using `#[automock]` directly on an
