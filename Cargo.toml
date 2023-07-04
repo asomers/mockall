@@ -1,2 +1,3 @@
 [workspace]
 members = ["mockall", "mockall_derive", "mockall_double"]
+resolver = "2"
