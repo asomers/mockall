@@ -40,7 +40,7 @@ fn returning_stream() {
     let mut mock = MockFoo::new();
     mock.expect_bar()
         .returning(|| {
-            Box::pin(stream::iter(vec![42].into_iter()))
+            Box::pin(stream::iter(vec![42]))
         });
     let all = mock.bar()
         .collect::<Vec<u32>>()
