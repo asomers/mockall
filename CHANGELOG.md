@@ -36,6 +36,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   is most useful when mocking static functions with exactly 7 arguments.
   ([#487](https://github.com/asomers/mockall/pull/487))
 
+- Fixed `unused_attributes` warnings in the generated code when mocking FFI
+  functions that use `#[link_name]`.
+  ([#503](https://github.com/asomers/mockall/pull/503))
+
 ### Removed
 
 - Removed syntax deprecated since 0.9.0: using `#[automock]` directly on an

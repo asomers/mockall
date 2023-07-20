@@ -779,6 +779,10 @@ impl<'a> AttrFormatter<'a> {
                     // ignore this attribute.
                     // https://docs.rs/tracing/0.1.23/tracing/attr.instrument.html
                     false
+                } else if *i.as_ref().unwrap() == "link_name" {
+                    // This shows up sometimes when mocking ffi functions.  We
+                    // must not emit it on anything that isn't an ffi definition
+                    false
                 } else {
                     true
                 }
