@@ -477,13 +477,13 @@ impl MockFunction {
         let no_mangle = if let Some(ref abi) = self.sig.abi {
             if let Some(ref name) = abi.name {
                 if name.value().ne("Rust") {
-                    quote!(#[allow(no_mangle)])
+                    quote!(#[no_mangle])
                 } else {
                     quote!()
                 }
             } else {
                 // This is the same as extern "C"
-                quote!(#[allow(no_mangle)])
+                quote!(#[no_mangle])
             }
         } else {
             quote!()
