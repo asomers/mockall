@@ -85,6 +85,11 @@ impl From<MockableModule> for MockItemModule {
                             // foreign functions should be unsafe too, to
                             // prevent "warning: unused unsafe" messages.
                             f.sig.unsafety = Some(Token![unsafe](f.span()));
+
+                            // Set the ABI to match the ForeignMod's ABI
+                            // for proper function linkage with external code.
+                            f.sig.abi = Some(ifm.abi.clone());
+
                             let mf = mock_function::Builder::new(&f.sig, &f.vis)
                                 .attrs(&f.attrs)
                                 .parent(&mock_ident)

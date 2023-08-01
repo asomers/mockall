@@ -472,7 +472,23 @@ impl MockFunction {
             };
             (&self.call_vis, dead_code)
         };
-        let substruct_obj = if let Some(trait_) = &self.trait_ {
+        // Add #[no_mangle] attribute to preserve the function name
+        // as-is, without mangling, for compatibility with C functions.
+        let no_mangle = if let Some(ref abi) = self.sig.abi {
+            if let Some(ref name) = abi.name {
+                if name.value().ne("Rust") {
+                    quote!(#[no_mangle])
+                } else {
+                    quote!()
+                }
+            } else {
+                // This is the same as extern "C"
+                quote!(#[no_mangle])
+            }
+        } else {
+            quote!()
+        };
+        let substruct_obj: TokenStream = if let Some(trait_) = &self.trait_ {
             let ident = format_ident!("{}_expectations", trait_);
             quote!(#ident.)
         } else {
@@ -497,6 +513,7 @@ impl MockFunction {
                 // Don't add a doc string.  The original is included in #attrs
                 #(#attrs)*
                 #dead_code
+                #no_mangle
                 #vis #sig {
                     use ::mockall::{ViaDebug, ViaNothing};
                     let no_match_msg = #no_match_msg;
@@ -519,6 +536,7 @@ impl MockFunction {
                 // Don't add a doc string.  The original is included in #attrs
                 #(#attrs)*
                 #dead_code
+                #no_mangle
                 #vis #sig {
                     use ::mockall::{ViaDebug, ViaNothing};
                     let no_match_msg = #no_match_msg;
