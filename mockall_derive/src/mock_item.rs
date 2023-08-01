@@ -90,10 +90,6 @@ impl From<MockableModule> for MockItemModule {
                             // for proper function linkage with external code.
                             f.sig.abi = Some(ifm.abi.clone());
 
-                            // Add #[no_mangle] attribute to preserve the function name
-                            // as-is, without mangling, for compatibility with C functions.
-                            f.attrs.push(parse_quote! {#[no_mangle]});
-
                             let mf = mock_function::Builder::new(&f.sig, &f.vis)
                                 .attrs(&f.attrs)
                                 .parent(&mock_ident)

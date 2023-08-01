@@ -12,6 +12,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   methods that have non-`'static` generic parameters.  It works by turning the
   generic arguments into trait objects for the expectation.
   ([#408](https://github.com/asomers/mockall/pull/408))
+- Added #[no_mangle] attribute and assigned the abi of the function to be
+  mocked to the abi of the mock function for compatibility with C library.
+  ([#408](https://github.com/asomers/mockall/pull/504))
 
 ### Changed
 
