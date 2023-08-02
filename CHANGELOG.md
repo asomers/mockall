@@ -17,9 +17,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   be disabled, so the mock function will be callable from external code. For
   example, from C functions.
   ([#504](https://github.com/asomers/mockall/pull/504))
-- Added a test file showing how 'c variadic' functions can be mocked and tested.
-  This requires the `nightly` feature.
-  ([#508](https://github.com/asomers/mockall/pull/508))
 
 ### Changed
 

@@ -7,10 +7,9 @@ use mockall::*;
 
 #[automock]
 #[cfg(feature = "nightly")]
-mod ffi {
+pub mod ffi {
     extern "C" {
-        #[allow(dead_code)]
-        pub(super) fn foo(x: i32, y: i32, ...) -> i32;
+        pub fn foo(x: i32, y: i32, ...) -> i32;
     }
 }
 
