@@ -759,7 +759,6 @@ impl<'a> AttrFormatter<'a> {
     #[allow(clippy::if_same_then_else)]
     fn format(&mut self) -> Vec<Attribute> {
         self.attrs.iter()
-            .cloned()
             .filter(|attr| {
                 let i = attr.path().segments.last().map(|ps| &ps.ident);
                 if is_concretize(attr) {
@@ -782,7 +781,8 @@ impl<'a> AttrFormatter<'a> {
                 } else {
                     true
                 }
-            }).collect()
+            }).cloned()
+            .collect()
     }
 }
 
