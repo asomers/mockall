@@ -15,6 +15,8 @@ task:
   name: MSRV
   container:
     image: rust:1.64.0
+  cargo_lock_script:
+    - cp Cargo.lock.msrv Cargo.lock
   << : *COMMON
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
