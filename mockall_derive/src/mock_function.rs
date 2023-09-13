@@ -1593,7 +1593,17 @@ impl<'a> ToTokens for Context<'a> {
             }
             impl #ty_ig Drop for Context #ty_tg #ty_wc {
                 fn drop(&mut self) {
-                    Self::do_checkpoint()
+                    if ::std::thread::panicking() {
+                        // Drain all expectations so other tests can run with a
+                        // blank slate.  But ignore errors so we don't
+                        // double-panic.
+                        let _ = EXPECTATIONS
+                            .lock()
+                            .map(|mut g| g.checkpoint().collect::<Vec<_>>());
+                    } else {
+                        // Verify expectations are satisfied
+                        Self::do_checkpoint();
+                    }
                 }
             }
         ).to_tokens(tokens);

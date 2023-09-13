@@ -45,6 +45,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   functions that use `#[link_name]`.
   ([#503](https://github.com/asomers/mockall/pull/503))
 
+- Fix a panic during Drop for static methods.  One way to trigger it is by
+  calling the method more times than is allowed by a `.times()` constraint.
+  Another way would be to explicitly panic during the `.returning` method.
+  ([#516](https://github.com/asomers/mockall/pull/516))
+
 ### Removed
 
 - Removed syntax deprecated since 0.9.0: using `#[automock]` directly on an
