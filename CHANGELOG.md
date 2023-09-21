@@ -51,6 +51,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `extern "C"` block, and using `trait Foo {}` syntax inside of `mock!`.
   ([#476](https://github.com/asomers/mockall/pull/476))
 
+- Removed default features from `predicates` dependency. Reexports no longer
+  include `difflib`, `normalize-line-endings`, `regex` and `float-cmp` features.
+  ([#517](https://github.com/asomers/mockall/pull/517))
+
 ## [ 0.11.4 ] - 2023-03-26
 
 ### Fixed
