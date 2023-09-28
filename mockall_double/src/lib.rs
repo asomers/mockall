@@ -245,19 +245,19 @@ mod double {
     #[test]
     #[should_panic(expected = "Cannot double glob")]
     fn glob() {
-        let code = r#"use foo::*;"#;
+        let code = "use foo::*;";
         cmp("", code, "");
     }
 
     #[test]
     fn group() {
-        let code = r#"
+        let code = "
             use foo::bar::{
                 Baz,
                 Bean
             };
-        "#;
-        let expected = r#"
+        ";
+        let expected = "
             #[cfg(not(test))]
             use foo::bar::{
                 Baz,
@@ -268,81 +268,81 @@ mod double {
                 MockBaz as Baz,
                 MockBean as Bean
             };
-        "#;
+        ";
         cmp("", code, expected);
     }
 
     #[test]
     fn module() {
-        let code = r#"use foo::bar;"#;
-        let expected = r#"
+        let code = "use foo::bar;";
+        let expected = "
             #[cfg(not(test))]
             use foo::bar;
             #[cfg(test)]
             use foo::mock_bar as bar;
-        "#;
+        ";
         cmp("", code, expected);
     }
 
     #[test]
     #[should_panic(expected = "Cannot double types in the current module")]
     fn name() {
-        let code = r#"use Foo;"#;
+        let code = "use Foo;";
         cmp("", code, "");
     }
 
     #[test]
     fn path() {
-        let code = r#"use foo::bar::Baz;"#;
-        let expected = r#"
+        let code = "use foo::bar::Baz;";
+        let expected = "
             #[cfg(not(test))]
             use foo::bar::Baz;
             #[cfg(test)]
             use foo::bar::MockBaz as Baz;
-        "#;
+        ";
         cmp("", code, expected);
     }
 
     #[test]
     fn pub_use() {
-        let code = r#"pub use foo::bar;"#;
-        let expected = r#"
+        let code = "pub use foo::bar;";
+        let expected = "
             #[cfg(not(test))]
             pub use foo::bar;
             #[cfg(test)]
             pub use foo::mock_bar as bar;
-        "#;
+        ";
         cmp("", code, expected);
     }
 
     #[test]
     fn rename() {
-        let code = r#"use Foo as Bar;"#;
-        let expected = r#"
+        let code = "use Foo as Bar;";
+        let expected = "
             #[cfg(not(test))]
             use Foo as Bar;
             #[cfg(test)]
             use MockFoo as Bar;
-        "#;
+        ";
         cmp("", code, expected);
     }
 
     #[test]
     fn type_() {
-        let code = r#"type Foo = bar::Baz;"#;
-        let expected = r#"
+        let code = "type Foo = bar::Baz;";
+        let expected = "
             #[cfg(not(test))]
             type Foo = bar::Baz;
             #[cfg(test)]
             type Foo = bar::MockBaz;
-        "#;
+        ";
         cmp("", code, expected);
     }
 
     #[test]
     #[should_panic(expected = "Only use statements and type aliases")]
     fn undoubleable() {
-        let code = r#"struct Foo{}"#;
+        let code = "struct Foo{}";
         cmp("", code, "");
     }
 }
