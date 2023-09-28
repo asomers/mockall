@@ -1335,7 +1335,7 @@ mod mock {
 
     #[test]
     fn inherent_method_visibility() {
-        let code = r#"
+        let code = "
             Foo {
                 fn foo(&self);
                 pub fn bar(&self);
@@ -1343,7 +1343,7 @@ mod mock {
                 pub(super) fn bean(&self);
                 pub(in crate::outer) fn boom(&self);
             }
-        "#;
+        ";
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let output = do_mock(ts).to_string();
         assert_not_contains(&output, quote!(pub fn foo));
@@ -1364,7 +1364,7 @@ mod mock {
 
     #[test]
     fn specific_impl() {
-        let code = r#"
+        let code = "
             pub Foo<T: 'static> {}
             impl Bar for Foo<u32> {
                 fn bar(&self);
@@ -1372,7 +1372,7 @@ mod mock {
             impl Bar for Foo<i32> {
                 fn bar(&self);
             }
-        "#;
+        ";
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let output = do_mock(ts).to_string();
         assert_contains(&output, quote!(impl Bar for MockFoo<u32>));
@@ -1401,12 +1401,12 @@ mod automock {
 
     #[test]
     fn doc_comments() {
-        let code = r#"
+        let code = "
             mod foo {
                 /// Function docs
                 pub fn bar() { unimplemented!() }
             }
-        "#;
+        ";
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
@@ -1415,14 +1415,14 @@ mod automock {
 
     #[test]
     fn method_visibility() {
-        let code = r#"
+        let code = "
         impl Foo {
             fn foo(&self) {}
             pub fn bar(&self) {}
             pub(super) fn baz(&self) {}
             pub(crate) fn bang(&self) {}
             pub(in super::x) fn bean(&self) {}
-        }"#;
+        }";
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
@@ -1443,7 +1443,7 @@ mod automock {
     #[test]
     #[should_panic(expected = "can only mock inline modules")]
     fn external_module() {
-        let code = r#"mod foo;"#;
+        let code = "mod foo;";
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
         do_automock(attrs_ts, ts).to_string();
@@ -1451,9 +1451,9 @@ mod automock {
 
     #[test]
     fn trait_visibility() {
-        let code = r#"
+        let code = "
         pub(super) trait Foo {}
-        "#;
+        ";
         let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
         let ts = proc_macro2::TokenStream::from_str(code).unwrap();
         let output = do_automock(attrs_ts, ts).to_string();
