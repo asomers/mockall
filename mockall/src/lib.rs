@@ -1390,8 +1390,8 @@ pub use mockall_derive::concretize;
 /// ```
 ///
 /// When mocking a generic struct's implementation of a generic trait, use the
-/// same namespace for their generic parameters.  For example, if you wanted to
-/// mock `Rc`, do
+/// same name for their generic parameters.  For example, if you wanted to mock
+/// `Rc`, do
 /// ```
 /// # use mockall_derive::mock;
 /// mock!{
