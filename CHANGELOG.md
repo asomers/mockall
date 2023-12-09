@@ -10,6 +10,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Raised MSRV to 1.70.0 to remove `lazy_static` dependency
   ([#550](https://github.com/asomers/mockall/pull/550))
 
+- No longer poison a Context object's internal `Mutex` when panicing.  This
+  requires the "nightly" feature.
+  ([#527](https://github.com/asomers/mockall/pull/527))
+
 ## [ 0.12.1 ] - 2023-12-21
 
 ### Fixed
