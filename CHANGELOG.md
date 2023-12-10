@@ -12,6 +12,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   methods that have non-`'static` generic parameters.  It works by turning the
   generic arguments into trait objects for the expectation.
   ([#408](https://github.com/asomers/mockall/pull/408))
+
 - When mocking functions with a non-default ABI (Like `extern "C"`), the mock
   function will now use the same ABI as the original. Name mangling will also
   be disabled, so the mock function will be callable from external code. For
