@@ -15,6 +15,14 @@ Test double adapter for Mockall
 [lib]
 proc-macro = true
 
+[package.metadata.release]
+tag-prefix = "mockall_double-"
+pre-release-replacements = [
+    { file="README.md", search="mockall_double = \"[a-z0-9\\.-]+\"", replace="mockall_double = \"{{version}}\""} ,
+    { file="CHANGELOG.md", search="Unreleased", replace="{{version}}" },
+    { file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}" }
+]
+
 [features]
 nightly = ["proc-macro2/nightly"]
 

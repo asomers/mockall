@@ -1,2 +1,0 @@
-# Adding a dev version breaks dependencies like {version = "=...", path = "..."}
-dev-version = false
