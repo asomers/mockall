@@ -6,6 +6,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
 
+Updated the `syn` dependency.  No user-visible changes.
+  ([#469](https://github.com/asomers/mockall/pull/469))
+
+## [ 0.3.0 ] - 2023-05-15
+
 ### Added
 
 - Added the ability to mock type aliases.
