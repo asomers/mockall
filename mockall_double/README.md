@@ -25,7 +25,7 @@ your `Cargo.toml`:
 mockall_double = "0.2.1"
 
 [dev-dependencies]
-mockall = "0.11.0"
+mockall = "0.12.0"
 ```
 
 Then use it like this:
