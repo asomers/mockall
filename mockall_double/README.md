@@ -22,7 +22,7 @@ your `Cargo.toml`:
 
 ```toml
 [dependencies]
-mockall_double = "0.2.1"
+mockall_double = "0.3.1"
 
 [dev-dependencies]
 mockall = "0.12.0"

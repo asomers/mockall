@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
-## [ Unreleased ] - ReleaseDate
+## [ 0.3.1 ] - 2023-12-10
 
 Updated the `syn` dependency.  No user-visible changes.
   ([#469](https://github.com/asomers/mockall/pull/469))
