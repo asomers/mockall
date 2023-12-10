@@ -35,27 +35,19 @@ fn main() {
 mod test {
     use crate::my_mock::MockThing;
     use lazy_static::lazy_static;
-    use std::sync::{Mutex, MutexGuard};
+    use std::sync::Mutex;
 
     lazy_static! {
         static ref MTX: Mutex<()> = Mutex::new(());
     }
 
-    // When a test panics, it will poison the Mutex. Since we don't actually
-    // care about the state of the data we ignore that it is poisoned and grab
-    // the lock regardless.  If you just do `let _m = &MTX.lock().unwrap()`, one
-    // test panicking will cause all other tests that try and acquire a lock on
-    // that Mutex to also panic.
-    fn get_lock(m: &'static Mutex<()>) -> MutexGuard<'static, ()> {
-        match m.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
-
     #[test]
     fn test_1() {
-        let _m = get_lock(&MTX);
+        // The mutex might be poisoned if another test fails.  But we don't
+        // care, because it doesn't hold any data.  So don't unwrap the Result
+        // object; whether it's poisoned or not, we'll still hold the
+        // MutexGuard.
+        let _m = MTX.lock();
 
         let ctx = MockThing::one_context();
         ctx.expect().returning(|| 1);
@@ -65,7 +57,7 @@ mod test {
 
     #[test]
     fn test_2() {
-        let _m = get_lock(&MTX);
+        let _m = MTX.lock();
 
         let ctx = MockThing::one_context();
         ctx.expect().returning(|| 2);

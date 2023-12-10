@@ -8,10 +8,6 @@ use std::sync::Mutex;
 mod ffi {
     extern "C" {
         pub(super) fn foo(x: u32) -> i64;
-        // Every should_panic method needs to operate on a separate method so it
-        // doesn't poison other tests
-        #[allow(dead_code)]
-        pub(super) fn foo1(x: u32) -> i64;
     }
 }
 
@@ -21,24 +17,26 @@ lazy_static! {
 
 // Ensure we can still use the original mocked function
 pub fn normal_usage() {
+    let _m = FOO_MTX.lock();
     unsafe {
         ffi::foo(42);
     }
 }
 
 #[test]
-#[should_panic(expected = "mock_ffi::foo1(5): No matching expectation found")]
+#[should_panic(expected = "mock_ffi::foo(5): No matching expectation found")]
 fn with_no_matches() {
-    let ctx = mock_ffi::foo1_context();
+    let _m = FOO_MTX.lock();
+    let ctx = mock_ffi::foo_context();
     ctx.expect()
         .with(predicate::eq(4))
         .returning(i64::from);
-    unsafe{ mock_ffi::foo1(5) };
+    unsafe{ mock_ffi::foo(5) };
 }
 
 #[test]
 fn returning() {
-    let _m = FOO_MTX.lock().unwrap();
+    let _m = FOO_MTX.lock();
     let ctx = mock_ffi::foo_context();
     ctx.expect().returning(i64::from);
     assert_eq!(42, unsafe{mock_ffi::foo(42)});
@@ -48,7 +46,7 @@ fn returning() {
 /// function pointer.
 #[test]
 fn c_abi() {
-    let _m = FOO_MTX.lock().unwrap();
+    let _m = FOO_MTX.lock();
     let ctx = mock_ffi::foo_context();
     ctx.expect().returning(i64::from);
     let p: unsafe extern "C" fn(u32) -> i64 = mock_ffi::foo;

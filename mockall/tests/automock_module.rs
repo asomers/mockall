@@ -2,16 +2,20 @@
 //! Mocking an entire module of functions
 #![deny(warnings)]
 
+
 pub mod m {
+    use std::sync::Mutex;
     use mockall::*;
     type T = u32;
+
+    lazy_static! {
+        static ref BAR_MTX: Mutex<()> = Mutex::new(());
+    }
 
     #[automock]
     pub mod foo {
         use super::T;
         pub fn bar(_x: T) -> i64 {unimplemented!()}
-        // We must have a separate method for every should_panic test
-        pub fn bar1(_x: T) -> i64 {unimplemented!()}
         // Module functions should be able to use impl Trait, too
         pub fn baz() -> impl std::fmt::Debug + Send { unimplemented!()}
         // Module functions can use mutable arguments
@@ -19,17 +23,19 @@ pub mod m {
     }
 
     #[test]
-    #[should_panic(expected = "mock_foo::bar1(5): No matching expectation found")]
+    #[should_panic(expected = "mock_foo::bar(5): No matching expectation found")]
     fn with_no_matches() {
-        let ctx = mock_foo::bar1_context();
+        let _m = BAR_MTX.lock();
+        let ctx = mock_foo::bar_context();
         ctx.expect()
             .with(predicate::eq(4))
             .return_const(0);
-        mock_foo::bar1(5);
+        mock_foo::bar(5);
     }
 
     #[test]
     fn returning() {
+        let _m = BAR_MTX.lock();
         let ctx = mock_foo::bar_context();
         ctx.expect()
             .returning(|x| i64::from(x) + 1);
