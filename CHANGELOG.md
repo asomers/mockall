@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [ Unreleased ] - ReleaseDate
+
+### Fixed
+
+- Fixed using `#[mockall::concretize]` on functions whose generic types contain
+  trait bounds, yet are still object safe.
+  ([#531](https://github.com/asomers/mockall/pull/531))
+
 ## [ 0.12.0 ] - 2023-12-10
 
 ### Added
