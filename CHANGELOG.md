@@ -12,6 +12,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   trait bounds, yet are still object safe.
   ([#531](https://github.com/asomers/mockall/pull/531))
 
+- Fixed mocking methods that use raw identifiers for their names.  This was a
+  regression in 0.12.0.
+  ([#534](https://github.com/asomers/mockall/pull/534))
+
 ## [ 0.12.0 ] - 2023-12-10
 
 ### Added
