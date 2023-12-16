@@ -80,7 +80,7 @@ fn concretize_args(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
 
     let mut save_types = |ident: &Ident, tpb: &Punctuated<TypeParamBound, Token![+]>| {
         if !tpb.is_empty() {
-            if let Ok(newty) = parse2::<Type>(quote!(&dyn #tpb)) {
+            if let Ok(newty) = parse2::<Type>(quote!(&(dyn #tpb))) {
                 // substitute T arguments
                 let subst_ty: Type = parse2(quote!(#ident)).unwrap();
                 hm.insert(subst_ty, (newty.clone(), None));
@@ -93,7 +93,7 @@ fn concretize_args(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
                     "Type cannot be made into a trait object");
             }
 
-            if let Ok(newty) = parse2::<Type>(quote!(&mut dyn #tpb)) {
+            if let Ok(newty) = parse2::<Type>(quote!(&mut (dyn #tpb))) {
                 // substitute &mut T arguments
                 let subst_ty: Type = parse2(quote!(&mut #ident)).unwrap();
                 hm.insert(subst_ty, (newty, None));
@@ -104,7 +104,7 @@ fn concretize_args(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
 
             // I wish we could substitute &[T] arguments.  But there's no way
             // for the mock method to turn &[T] into &[&dyn T].
-            if let Ok(newty) = parse2::<Type>(quote!(&[&dyn #tpb])) {
+            if let Ok(newty) = parse2::<Type>(quote!(&[&(dyn #tpb)])) {
                 let subst_ty: Type = parse2(quote!(&[#ident])).unwrap();
                 hm.insert(subst_ty, (newty, Some(tpb.clone())));
             } else {
@@ -180,7 +180,7 @@ fn concretize_args(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
                             // here
                             Some(quote!(
                                 &(0..#pat.len())
-                                .map(|__mockall_i| &#pat[__mockall_i] as &dyn #newbound)
+                                .map(|__mockall_i| &#pat[__mockall_i] as &(dyn #newbound))
                                 .collect::<Vec<_>>()
                             ))
                         } else {
@@ -1491,17 +1491,16 @@ mod concretize_args {
     fn bystanders() {
         check_concretize(
             quote!(fn foo<P: AsRef<Path>>(x: i32, p: P, y: &f64)),
-            &[quote!(x: i32), quote!(p: &dyn AsRef<Path>), quote!(y: &f64)],
+            &[quote!(x: i32), quote!(p: &(dyn AsRef<Path>)), quote!(y: &f64)],
             &[quote!(x), quote!(&p), quote!(y)]
         );
     }
 
     #[test]
-    #[should_panic(expected = "Type cannot be made into a trait object.")]
     fn multi_bounds() {
         check_concretize(
             quote!(fn foo<P: AsRef<String> + AsMut<String>>(p: P)),
-            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(p: &(dyn AsRef<String> + AsMut<String>))],
             &[quote!(&p)]
         );
     }
@@ -1510,18 +1509,17 @@ mod concretize_args {
     fn mutable_reference_arg() {
         check_concretize(
             quote!(fn foo<P: AsMut<Path>>(p: &mut P)),
-            &[quote!(p: &mut dyn AsMut<Path>)],
+            &[quote!(p: &mut (dyn AsMut<Path>))],
             &[quote!(p)]
         );
     }
 
     #[test]
-    #[should_panic(expected = "Type cannot be made into a trait object.")]
     fn mutable_reference_multi_bounds() {
         check_concretize(
             quote!(fn foo<P: AsRef<String> + AsMut<String>>(p: &mut P)),
-            &[quote!(p: &dyn AsRef<Path>)],
-            &[quote!(&p)]
+            &[quote!(p: &mut (dyn AsRef<String> + AsMut<String>))],
+            &[quote!(p)]
         );
     }
 
@@ -1529,7 +1527,7 @@ mod concretize_args {
     fn reference_arg() {
         check_concretize(
             quote!(fn foo<P: AsRef<Path>>(p: &P)),
-            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(p: &(dyn AsRef<Path>))],
             &[quote!(p)]
         );
     }
@@ -1538,7 +1536,7 @@ mod concretize_args {
     fn simple() {
         check_concretize(
             quote!(fn foo<P: AsRef<Path>>(p: P)),
-            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(p: &(dyn AsRef<Path>))],
             &[quote!(&p)]
         );
     }
@@ -1547,8 +1545,17 @@ mod concretize_args {
     fn slice() {
         check_concretize(
             quote!(fn foo<P: AsRef<Path>>(p: &[P])),
-            &[quote!(p: &[&dyn AsRef<Path>])],
-            &[quote!(&(0..p.len()).map(|__mockall_i| &p[__mockall_i] as &dyn AsRef<Path>).collect::<Vec<_>>())]
+            &[quote!(p: &[&(dyn AsRef<Path>)])],
+            &[quote!(&(0..p.len()).map(|__mockall_i| &p[__mockall_i] as &(dyn AsRef<Path>)).collect::<Vec<_>>())]
+        );
+    }
+
+    #[test]
+    fn slice_with_multi_bounds() {
+        check_concretize(
+            quote!(fn foo<P: AsRef<Path> + AsMut<String>>(p: &[P])),
+            &[quote!(p: &[&(dyn AsRef<Path> + AsMut<String>)])],
+            &[quote!(&(0..p.len()).map(|__mockall_i| &p[__mockall_i] as &(dyn AsRef<Path> + AsMut<String>)).collect::<Vec<_>>())]
         );
     }
 
@@ -1556,7 +1563,7 @@ mod concretize_args {
     fn where_clause() {
         check_concretize(
             quote!(fn foo<P>(p: P) where P: AsRef<Path>),
-            &[quote!(p: &dyn AsRef<Path>)],
+            &[quote!(p: &(dyn AsRef<Path>))],
             &[quote!(&p)]
         );
     }
