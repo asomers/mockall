@@ -2,7 +2,7 @@
 name = "mockall_derive"
 version = "0.12.0"
 authors = ["Alan Somers <asomers@gmail.com>"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/asomers/mockall"
 categories = ["development-tools::testing"]
 keywords = ["mock", "mocking", "testing"]
