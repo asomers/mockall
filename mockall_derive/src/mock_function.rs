@@ -629,7 +629,7 @@ impl MockFunction {
             .doc(false)
             .format();
         let name = self.name();
-        let expect_ident = format_ident!("expect_{name}");
+        let expect_ident = format_ident!("expect_{}", name);
         let expectation_obj = self.expectation_obj(self_args);
         let funcname = &self.sig.ident;
         let (_, tg, _) = if self.is_method_generic() {
