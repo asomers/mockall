@@ -9,7 +9,7 @@
 
 use mockall::*;
 
-struct Foo<T: 'static, V: 'static>((T, V));
+struct Foo<T, V>((T, V));
 trait MyTrait {
     type Item;
 
@@ -18,7 +18,7 @@ trait MyTrait {
 pub struct NonStatic<'ns>(&'ns i32);
 
 #[automock]
-impl<T: 'static, V: 'static> MyTrait for Foo<T, V> where T: Clone {
+impl<T, V> MyTrait for Foo<T, V> where T: Clone {
     type Item = V;
 
     fn myfunc<'a>(&self, _cx: &NonStatic<'a>) -> V { unimplemented!() }

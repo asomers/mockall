@@ -9,7 +9,7 @@ pub struct GenericStruct<T, V> {
     _v: V
 }
 #[automock]
-impl<T: 'static, V: 'static> GenericStruct<T, V> {
+impl<T, V> GenericStruct<T, V> {
     pub fn foo(&self, _x: u32) -> i64 {
         42
     }

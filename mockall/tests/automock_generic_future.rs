@@ -13,10 +13,10 @@ use std::{
     task::{Context, Poll},
 };
 
-struct Foo<T: 'static>(T);
+struct Foo<T>(T);
 
 #[automock]
-impl<T: 'static> Future for Foo<T> {
+impl<T> Future for Foo<T> {
     type Output = ();
 
     fn poll<'a>(self: Pin<&mut Self>, _cx: &mut Context<'a>)

@@ -3,12 +3,12 @@
 
 use mockall::*;
 
-trait Foo<T: 'static> {
+trait Foo<T> {
     fn foo(&self, x: T) -> T;
 }
 mock! {
-    Bar<T: 'static, Z: 'static> {}
-    impl<T: 'static, Z: 'static> Foo<T> for Bar<T, Z> {
+    Bar<T, Z> {}
+    impl<T, Z> Foo<T> for Bar<T, Z> {
         fn foo(&self, x: T) -> T;
     }
 }

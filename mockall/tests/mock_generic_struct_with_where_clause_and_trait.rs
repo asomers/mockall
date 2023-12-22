@@ -11,10 +11,10 @@ trait Bar {
     fn bar(&self);
 }
 mock! {
-    Foo<T: 'static> where T: Clone {
+    Foo<T> where T: Clone {
         fn foo(&self, t: T) -> T;
     }
-    impl<T: 'static> Bar for Foo<T> where T: Clone {
+    impl<T> Bar for Foo<T> where T: Clone {
         fn bar(&self);
     }
 }

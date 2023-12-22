@@ -17,7 +17,7 @@ struct NonCopy(u32);
 // }
 // Could be mocked like this:
 mock!{
-    pub ExtGenericStruct<T: Clone + 'static> {
+    pub ExtGenericStruct<T: Clone> {
         fn foo(&self, x: T) -> T;
     }
 }

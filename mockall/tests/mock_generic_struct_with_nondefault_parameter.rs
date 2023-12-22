@@ -7,12 +7,12 @@ use mockall::*;
 
 struct NonDefault();
 
-trait Foo<T: 'static> {
+trait Foo<T> {
     fn foo(&self) -> T;
 }
 mock! {
-    ExternalStruct<T: 'static> {}
-    impl<T: 'static> Foo<T> for ExternalStruct<T> {
+    ExternalStruct<T> {}
+    impl<T> Foo<T> for ExternalStruct<T> {
         fn foo(&self) -> T;
     }
 }

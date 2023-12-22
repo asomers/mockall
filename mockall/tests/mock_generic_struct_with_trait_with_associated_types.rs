@@ -4,8 +4,8 @@
 use mockall::*;
 
 mock! {
-    Foo<T: 'static> {}
-    impl<T: 'static> Iterator for Foo<T> {
+    Foo<T> {}
+    impl<T> Iterator for Foo<T> {
         type Item=T;
         fn next(&mut self) -> Option<T>;
     }

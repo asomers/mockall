@@ -4,12 +4,12 @@
 
 use mockall::*;
 
-pub struct GenericStruct<T: 'static> {
+pub struct GenericStruct<T> {
     _t: T,
 }
 #[automock]
 impl<T> GenericStruct<T>
-    where T: Clone + Default + 'static
+    where T: Clone + Default
 {
     #[allow(clippy::redundant_clone)]
     pub fn foo(&self, x: T) -> T {

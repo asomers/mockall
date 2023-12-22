@@ -6,7 +6,7 @@
 use mockall::*;
 
 mock! {
-    pub Foo<T: Default +'static> {
+    pub Foo<T: Default + 'static> {
         fn build() -> MockFoo<T>;
     }
 }

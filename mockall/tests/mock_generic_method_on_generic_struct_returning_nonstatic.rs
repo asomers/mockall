@@ -15,7 +15,7 @@ trait Bong {
 }
 
 mock! {
-    Thing<T: 'static> {
+    Thing<T> {
         fn foo<'a>(&self) -> X<'a>;
 
         // XXX static methods don't work yet.
@@ -34,7 +34,7 @@ mock! {
         //fn bean<'a, T: 'static>(&self, t: T) -> X<'a>;
     }
     // The same types of methods should work if they are Trait methods.
-    impl<T: 'static> Bong for Thing<T> {
+    impl<T> Bong for Thing<T> {
         fn trait_foo<'a>(&self) -> X<'a>;
         fn trait_baz<'a>(&self) -> &X<'a>;
     }

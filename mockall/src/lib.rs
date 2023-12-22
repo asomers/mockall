@@ -740,14 +740,14 @@
 //! ## Generic traits and structs
 //!
 //! Mocking generic structs and generic traits is not a problem.  The mock
-//! struct will be generic, too.  The same restrictions apply as with mocking
-//! generic methods: each generic parameter must be `'static`, and generic
-//! lifetime parameters are not allowed.
+//! struct will be generic, too.  As with generic methods, lifetime parameters
+//! are not allowed.  However, as long as the generic parameters are not used by
+//! any static methods, then the parameters need not be `'static'`.
 //!
 //! ```
 //! # use mockall::*;
 //! #[automock]
-//! trait Foo<T: 'static> {
+//! trait Foo<T> {
 //!     fn foo(&self, t: T) -> i32;
 //! }
 //!
@@ -899,7 +899,8 @@
 //! ### Generic static methods
 //!
 //! Mocking static methods of generic structs or traits, whether or not the
-//! methods themselves are generic, should work seamlessly.
+//! methods themselves are generic, should work seamlessly as long as the
+//! generic parameter is `'static`
 //!
 //! ```
 //! # use mockall::*;
@@ -1395,8 +1396,8 @@ pub use mockall_derive::concretize;
 /// ```
 /// # use mockall_derive::mock;
 /// mock!{
-///     pub Rc<T: 'static> {}
-///     impl<T: 'static> AsRef<T> for Rc<T> {
+///     pub Rc<T> {}
+///     impl<T> AsRef<T> for Rc<T> {
 ///         fn as_ref(&self) -> &T;
 ///     }
 /// }
@@ -1406,8 +1407,8 @@ pub use mockall_derive::concretize;
 /// ```compile_fail
 /// # use mockall_derive::mock;
 /// mock!{
-///     pub Rc<Q: 'static> {}
-///     impl<T: 'static> AsRef<T> for Rc<T> {
+///     pub Rc<Q> {}
+///     impl<T> AsRef<T> for Rc<T> {
 ///         fn as_ref(&self) -> &T;
 ///     }
 /// }

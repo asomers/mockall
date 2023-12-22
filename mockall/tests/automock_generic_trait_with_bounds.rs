@@ -5,7 +5,7 @@
 use mockall::*;
 
 #[automock]
-trait A<T: Copy + 'static> {
+trait A<T: Copy> {
     fn foo(&self);
 }
 

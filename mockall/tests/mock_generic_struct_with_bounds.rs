@@ -4,7 +4,7 @@
 use mockall::*;
 
 mock! {
-    pub Foo<T: Clone + 'static> {
+    pub Foo<T: Clone + Copy> {
         fn foo(&self, x: u32) -> i64;
     }
 }

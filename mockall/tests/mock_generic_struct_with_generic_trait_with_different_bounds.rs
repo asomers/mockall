@@ -7,8 +7,8 @@ trait Foo<T> {
     fn foo(&self, x: T) -> T;
 }
 mock! {
-    Bar<T: 'static> {}
-    impl<T: 'static> Foo<T> for Bar<T> {
+    Bar<T> {}
+    impl<T: Copy> Foo<T> for Bar<T> {
         fn foo(&self, x: T) -> T;
     }
 }
