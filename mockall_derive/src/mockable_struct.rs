@@ -364,7 +364,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
 }
 
 impl From<ItemImpl> for MockableStruct {
-    fn from(mut item_impl: ItemImpl) -> MockableStruct {
+    fn from(item_impl: ItemImpl) -> MockableStruct {
         let name = match &*item_impl.self_ty {
             Type::Path(type_path) => {
                 let n = find_ident_from_path(&type_path.path).0;
@@ -382,30 +382,9 @@ impl From<ItemImpl> for MockableStruct {
         let generics = item_impl.generics.clone();
         let mut methods = Vec::new();
         let vis = Visibility::Public(Token![pub](Span::call_site()));
-        let mut impls = Vec::new();
-        if let Some((bang, _path, _)) = &item_impl.trait_ {
-            if bang.is_some() {
-                compile_error(bang.span(), "Unsupported by automock");
-            }
-
-            // Substitute any associated types in this ItemImpl.
-            // NB: this would not be necessary if the user always fully
-            // qualified them, e.g. `<Self as MyTrait>::MyType`
-            let mut attrs = Attrs::default();
-            for item in item_impl.items.iter() {
-                match item {
-                    ImplItem::Const(_iic) =>
-                        (),
-                    ImplItem::Fn(_meth) =>
-                        (),
-                    ImplItem::Type(ty) => {
-                        attrs.attrs.insert(ty.ident.clone(), ty.ty.clone());
-                    },
-                    x => compile_error(x.span(), "Unsupported by automock")
-                }
-            }
-            attrs.substitute_item_impl(&mut item_impl);
-            impls.push(mockable_item_impl(item_impl, &name, &generics));
+        let impls = Vec::new();
+        if let Some(_) = &item_impl.trait_ {
+            unreachable!()
         } else {
             for item in item_impl.items.into_iter() {
                 match item {
