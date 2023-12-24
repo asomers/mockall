@@ -17,7 +17,7 @@ struct Foo<T>(T);
 
 #[automock]
 #[trait_impl(Future)]
-impl<T> Foo<T> {}
+impl<T: 'static> Foo<T> {}
 #[automock]
 impl<T> Future for Foo<T> {
     type Output = ();
