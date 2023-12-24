@@ -20,7 +20,7 @@ pub struct NonStatic<'ns>(&'ns i32);
 
 #[automock]
 #[trait_impl(MyTrait)]
-impl<T, V> Foo<T, V> {}
+impl<T, V> Foo<T, V> where T: Clone {}
 #[automock]
 impl<T, V> MyTrait for Foo<T, V> where T: Clone {
     type Item = V;
