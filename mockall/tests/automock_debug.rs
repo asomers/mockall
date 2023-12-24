@@ -10,6 +10,9 @@ pub trait Foo {}
 pub trait Bar {}
 pub struct Baz {}
 #[automock]
+#[trait_impl(Bar)]
+impl Baz {}
+#[automock]
 impl Bar for Baz{}
 
 pub struct Bean {}

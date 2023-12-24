@@ -26,6 +26,9 @@ mock! {
 
 struct r#else {}
 #[automock]
+#[trait_impl(r#while)]
+impl r#else {}
+#[automock]
 impl r#while for r#else {
     fn r#match(&self) {unimplemented!()}
     fn r#loop() {unimplemented!()}

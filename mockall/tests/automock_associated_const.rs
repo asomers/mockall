@@ -35,6 +35,9 @@ trait Foo {
 pub struct Bar {}
 
 #[automock]
+#[trait_impl(Foo)]
+impl Bar {}
+#[automock]
 impl Foo for Bar {
     const X: i32 = 42;
 }

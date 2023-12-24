@@ -13,6 +13,9 @@ pub struct SomeStruct<T> {
 }
 
 #[automock]
+#[trait_impl(Foo)]
+impl<T> SomeStruct<T> {}
+#[automock]
 impl<T> Foo for SomeStruct<T> {
     fn foo(&self, _x: u32) -> i64 {
         42

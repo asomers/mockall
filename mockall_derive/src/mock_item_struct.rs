@@ -325,7 +325,7 @@ impl ToTokens for MockItemStruct {
              .map(|trait_name| {
                  let fieldname = format_ident!("{}_expectations", trait_name);
                  let tyname = format_ident!("{}_{}", self.name, trait_name);
-                 quote!(#fieldname: #tyname)
+                 quote!(#fieldname: #tyname #tg)
              })
         );
         field_definitions.extend(self.methods.field_definitions(modname));

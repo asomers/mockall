@@ -13,6 +13,9 @@ pub struct SomeStruct<T> {
 }
 
 #[automock]
+#[trait_impl(Foo)]
+impl<T> SomeStruct<T> {}
+#[automock]
 impl<T> Foo<T> for SomeStruct<T> {
     fn foo(&self, t: T) -> T {
         t

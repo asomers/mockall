@@ -6,6 +6,9 @@ use mockall::*;
 
 struct Foo {}
 #[automock]
+#[trait_impl(Iterator)]
+impl Foo {}
+#[automock]
 impl Iterator for Foo {
     type Item = u32;
 

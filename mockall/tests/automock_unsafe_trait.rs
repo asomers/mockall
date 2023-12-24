@@ -12,6 +12,9 @@ pub unsafe trait Foo {
 struct Baz{}
 
 #[automock]
+#[trait_impl(Foo)]
+impl Baz {}
+#[automock]
 unsafe impl Foo for Baz {
     fn foo(&self) -> i32 {
         unimplemented!()
