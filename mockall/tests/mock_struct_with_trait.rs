@@ -4,13 +4,16 @@
 use mockall::*;
 
 trait Foo {
-    fn foo(&self, x: u32) -> i64;
+    fn foo(&self, _x: u32) -> i64;
 }
 
 mock!{
-    pub Bar {}
+    #[derive(Debug)]
+    pub Bar {
+        pub fn bar(&self, _x: i64) -> u32;
+    }
     impl Foo for Bar {
-        fn foo(&self, x: u32) -> i64;
+        fn foo(&self, _x: u32) -> i64;
     }
 }
 

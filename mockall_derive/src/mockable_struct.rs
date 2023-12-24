@@ -123,7 +123,7 @@ fn mock_ident_in_type(ty: &mut Type) {
 }
 
 /// Performs transformations on the ItemImpl to make it mockable
-fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
+pub fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
     -> ItemImpl
 {
     mock_ident_in_type(&mut impl_.self_ty);

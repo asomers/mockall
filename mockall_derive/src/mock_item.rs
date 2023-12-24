@@ -9,7 +9,8 @@ use crate::{
 /// A Mock item
 pub(crate) enum MockItem {
     Module(MockItemModule),
-    Struct(MockItemStruct)
+    Struct(MockItemStruct),
+    TraitImpl(MockItemTraitImpl2)
 }
 
 impl From<MockableItem> for MockItem {
@@ -20,7 +21,10 @@ impl From<MockableItem> for MockItem {
             ),
             MockableItem::Module(mod_) => MockItem::Module(
                 MockItemModule::from(mod_)
-            )
+            ),
+            MockableItem::TraitImpl(i) => MockItem::TraitImpl(
+                MockItemTraitImpl2::from(i)
+            ),
         }
     }
 }
@@ -29,7 +33,8 @@ impl ToTokens for MockItem {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             MockItem::Module(mod_) => mod_.to_tokens(tokens),
-            MockItem::Struct(s) => s.to_tokens(tokens)
+            MockItem::Struct(s) => s.to_tokens(tokens),
+            MockItem::TraitImpl(ti) => ti.to_tokens(tokens),
         }
     }
 }

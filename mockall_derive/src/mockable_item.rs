@@ -23,19 +23,26 @@ fn mockable_item(item: Item) -> Item {
 /// altered lifetimes.
 pub(crate) enum MockableItem {
     Module(MockableModule),
-    Struct(MockableStruct)
+    Struct(MockableStruct),
+    TraitImpl(MockableTraitImpl)
 }
 
 impl From<(Attrs, Item)> for MockableItem {
     fn from((attrs, item): (Attrs, Item)) -> MockableItem {
         match item {
-            Item::Impl(item_impl) =>
+            Item::Impl(item_impl) if item_impl.trait_.is_none() =>
                 MockableItem::Struct(MockableStruct::from(item_impl)),
+            Item::Impl(item_impl) if item_impl.trait_.is_some() =>
+                MockableItem::TraitImpl(MockableTraitImpl::from(item_impl)),
             Item::Mod(item_mod) =>
                 MockableItem::Module(MockableModule::from(item_mod)),
             Item::Trait(trait_) =>
                 MockableItem::Struct(MockableStruct::from((attrs, trait_))),
-            _ => panic!("automock does not support this item type")
+            _ => {
+                compile_error(item.span(),
+                "automock does not support this item type");
+                panic!("automock does not support this item type")
+            }
         }
     }
 }
@@ -79,3 +86,32 @@ impl From<ItemMod> for MockableModule {
         }
     }
 }
+
+///// An item that's ready to be mocked.
+/////
+///// It should be functionally identical or near-identical to the original item,
+///// but with minor alterations that make it suitable for mocking, such as
+///// altered lifetimes.
+//pub(crate) enum MockableItem2 {
+    //Module(MockableModule),
+    //Struct(MockableStruct),
+    //TraitImpl(MockableTraitImpl)
+//}
+
+//impl From<(Attrs, Item)> for MockableItem2 {
+    //fn from((attrs, item): (Attrs, Item)) -> MockableItem {
+        //match item {
+            //Item::Impl(item_impl) =>
+                //MockableItem2::Struct(MockableStruct::from(item_impl)),
+            //Item::Mod(item_mod) =>
+                //MockableItem2::Module(MockableModule::from(item_mod)),
+            //Item::Struct(item_struct) =>
+                //MockableItem2::Struct(MockableStruct::from(item_struct)),
+            //Item::Trait(trait_) =>
+                //MockableItem2::Struct(MockableStruct::from((attrs, trait_))),
+            //_ => panic!("automock does not support this item type")
+        //}
+    //}
+//}
+
+

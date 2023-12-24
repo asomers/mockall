@@ -25,14 +25,18 @@ mod automock;
 mod mock_function;
 mod mock_item;
 mod mock_item_struct;
+mod mock_item_trait_impl;
 mod mock_trait;
 mod mockable_item;
 mod mockable_struct;
+mod mockable_trait_impl;
 use crate::automock::Attrs;
 use crate::mockable_struct::MockableStruct;
 use crate::mock_item::MockItem;
 use crate::mock_item_struct::MockItemStruct;
+use crate::mock_item_trait_impl::MockItemTraitImpl2;
 use crate::mockable_item::MockableItem;
+use crate::mockable_trait_impl::MockableTraitImpl;
 
 // Define deterministic aliases for these common types.
 type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
@@ -57,12 +61,16 @@ cfg_if! {
 
 /// Does this Attribute represent Mockall's "concretize" pseudo-attribute?
 fn is_concretize(attr: &Attribute) -> bool {
-    if attr.path().segments.last().unwrap().ident == "concretize" {
+    is_helper(attr, "concretize")
+}
+
+fn is_helper(attr: &Attribute, name: &'static str) -> bool {
+    if attr.path().segments.last().unwrap().ident == name {
         true
     } else if attr.path().is_ident("cfg_attr") {
         match &attr.meta {
             Meta::List(ml) => {
-                ml.tokens.to_string().contains("concretize")
+                ml.tokens.to_string().contains(name)
             },
             // cfg_attr should always contain a list
             _ => false,
@@ -764,6 +772,9 @@ impl<'a> AttrFormatter<'a> {
                 if is_concretize(attr) {
                     // Internally used attribute.  Never emit.
                     false
+                } else if is_helper(attr, "trait_impl") {
+                    // Internally used attribute.  Never emit.
+                    false
                 } else if i.is_none() {
                     false
                 } else if *i.as_ref().unwrap() == "derive" {
@@ -1236,6 +1247,17 @@ fn mock_it<M: Into<MockableItem>>(inputs: M) -> TokenStream
     ts
 }
 
+fn mock_it2<M: Into<MockableItem>>(inputs: M) -> TokenStream
+{
+    let mockable: MockableItem = inputs.into();
+    let mock = MockItem::from(mockable);
+    let ts = mock.into_token_stream();
+    if env::var("MOCKALL_DEBUG").is_ok() {
+        println!("{ts}");
+    }
+    ts
+}
+
 fn do_mock_once(input: TokenStream) -> TokenStream
 {
     let item: MockableStruct = match syn::parse2(input) {
@@ -1261,6 +1283,16 @@ fn do_mock(input: TokenStream) -> TokenStream
 
 #[proc_macro_attribute]
 pub fn concretize(
+    _attrs: proc_macro::TokenStream,
+    input: proc_macro::TokenStream) -> proc_macro::TokenStream
+{
+    // Do nothing.  This "attribute" is processed as text by the real proc
+    // macros.
+    input
+}
+
+#[proc_macro_attribute]
+pub fn trait_impl(
     _attrs: proc_macro::TokenStream,
     input: proc_macro::TokenStream) -> proc_macro::TokenStream
 {
@@ -1311,6 +1343,45 @@ fn do_automock(attrs: TokenStream, input: TokenStream) -> TokenStream {
     }
     do_automock_once(attrs, input)
 }
+
+#[proc_macro_attribute]
+pub fn automock2(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
+    -> proc_macro::TokenStream
+{
+    let attrs: proc_macro2::TokenStream = attrs.into();
+    let input: proc_macro2::TokenStream = input.into();
+    do_automock2(attrs, input).into()
+}
+
+fn do_automock_once2(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    let mut output = input.clone();
+    let attrs: Attrs = match parse2(attrs) {
+        Ok(a) => a,
+        Err(err) => {
+            return err.to_compile_error();
+        }
+    };
+    let item: Item = match parse2(input) {
+        Ok(item) => item,
+        Err(err) => {
+            return err.to_compile_error();
+        }
+    };
+    output.extend(mock_it2((attrs, item)));
+    output
+}
+
+fn do_automock2(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    cfg_if! {
+        if #[cfg(reprocheck)] {
+            let ts_a = do_automock_once2(attrs.clone(), input.clone());
+            let ts_b = do_automock_once2(attrs.clone(), input.clone());
+            assert_eq!(ts_a.to_string(), ts_b.to_string());
+        }
+    }
+    do_automock_once2(attrs, input)
+}
+
 
 #[cfg(test)]
 mod t {

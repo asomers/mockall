@@ -75,7 +75,7 @@ fn unique_trait_iter<'a, I: Iterator<Item = &'a MockTrait>>(i: I)
 }
 
 /// A collection of methods defined in one spot
-struct Methods(Vec<MockFunction>);
+pub struct Methods(pub Vec<MockFunction>);
 
 impl Methods {
     /// Are all of these methods static?
@@ -133,6 +133,9 @@ pub(crate) struct MockItemStruct {
     name: Ident,
     /// Is this a whole MockStruct or just a substructure for a trait impl?
     traits: Vec<MockTrait>,
+    /// The names of traits whose impls will come later
+    // TODO: handle generic traits here
+    traits2: Vec<Ident>,
     vis: Visibility,
 }
 
@@ -217,6 +220,26 @@ impl From<MockableStruct> for MockItemStruct {
         let traits = mockable.impls.into_iter()
             .map(|i| MockTrait::new(structname, &generics, i, &vis))
             .collect();
+        let traits2 = mockable.attrs.iter()
+            .filter(|attr| is_helper(attr, "trait_impl"))
+            .map(|attr| {
+                let ident: Ident = match attr.meta.require_list() {
+                    Ok(l) => {
+                        match parse2(l.tokens.clone()) {
+                            Ok(i) => i,
+                            Err(_) => {
+                                compile_error(l.span(), "Ident expected");
+                                format_ident!("dummy")
+                            }
+                        }
+                    },
+                    Err(_) => {
+                        compile_error(attr.meta.span(), "Meta list expected");
+                        format_ident!("dummy")
+                    }
+                };
+                ident
+            }).collect::<Vec<_>>();
 
         MockItemStruct {
             attrs: mockable.attrs,
@@ -228,6 +251,7 @@ impl From<MockableStruct> for MockItemStruct {
             modname,
             name: mockable.name,
             traits,
+            traits2,
             vis
         }
     }
@@ -270,7 +294,7 @@ impl ToTokens for MockItemStruct {
                     name: format_ident!("{}_{}", &self.name, trait_.ss_name()),
                 }
             }).collect::<Vec<_>>();
-        let substruct_expectations = substructs.iter()
+        let mut substruct_expectations = substructs.iter()
             .filter(|ss| !ss.all_static())
             .map(|ss| {
                 let attrs = AttrFormatter::new(&ss.attrs)
@@ -280,6 +304,12 @@ impl ToTokens for MockItemStruct {
                 let fieldname = &ss.fieldname;
                 quote!(#(#attrs)* self.#fieldname.checkpoint();)
             }).collect::<Vec<_>>();
+        substruct_expectations.extend(self.traits2.iter()
+            .map(|trait_name| {
+                let fieldname = format_ident!("{}_expectations", trait_name);
+                quote!(self.#fieldname.checkpoint();)
+            })
+        );
         let mut field_definitions = substructs.iter()
             .filter(|ss| !ss.all_static())
             .map(|ss| {
@@ -291,6 +321,13 @@ impl ToTokens for MockItemStruct {
                 let tyname = &ss.name;
                 quote!(#(#attrs)* #fieldname: #tyname #tg)
             }).collect::<Vec<_>>();
+        field_definitions.extend(self.traits2.iter()
+             .map(|trait_name| {
+                 let fieldname = format_ident!("{}_expectations", trait_name);
+                 let tyname = format_ident!("{}_{}", self.name, trait_name);
+                 quote!(#fieldname: #tyname)
+             })
+        );
         field_definitions.extend(self.methods.field_definitions(modname));
         field_definitions.extend(self.phantom_fields());
         let mut default_inits = substructs.iter()
@@ -303,6 +340,12 @@ impl ToTokens for MockItemStruct {
                 let fieldname = &ss.fieldname;
                 quote!(#(#attrs)* #fieldname: Default::default())
             }).collect::<Vec<_>>();
+        default_inits.extend(self.traits2.iter()
+            .map(|trait_name| {
+                 let fieldname = format_ident!("{}_expectations", trait_name);
+                quote!(#fieldname: Default::default())
+            })
+        );
         default_inits.extend(self.methods.default_inits());
         default_inits.extend(self.phantom_default_inits());
         let trait_impls = self.traits.iter()
@@ -355,16 +398,17 @@ impl ToTokens for MockItemStruct {
     }
 }
 
+// TODO: get rid of all the extra pub stuff
 pub(crate) struct MockItemTraitImpl {
-    attrs: Vec<Attribute>,
-    generics: Generics,
-    /// Inherent methods of the mock struct
-    methods: Methods,
+    pub attrs: Vec<Attribute>,
+    pub generics: Generics,
+    /// Methods of the trait
+    pub methods: Methods,
     /// Name of the overall module that holds all of the mock stuff
-    modname: Ident,
-    name: Ident,
+    pub modname: Ident,
+    pub name: Ident,
     /// Name of the field of this type in the parent's structure
-    fieldname: Ident,
+    pub fieldname: Ident,
 }
 
 impl MockItemTraitImpl {
