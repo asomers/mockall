@@ -1184,12 +1184,12 @@ pub mod examples;
 /// Automatically generate mock types for structs and traits.
 ///
 /// This is by far the easiest way to use Mockall.  It works on almost all
-/// traits, and almost all structs that have a single `impl` block.  In either
-/// case, it will generate a mock struct whose name is the name of the mocked
-/// struct/trait prepended with "Mock".  For each method of the original, the
-/// mock struct will have a method named `expect_whatever` that allows you to
-/// set expectations.  There will also be one `checkpoint` method that calls
-/// [`checkpoint`] for every single mocked method.
+/// traits and structs.  In either case, it will generate a mock struct whose
+/// name is the name of the mocked struct/trait prepended with "Mock".  For each
+/// method of the original, the mock struct will have a method named
+/// `expect_whatever` that allows you to set expectations.  There will also be
+/// one `checkpoint` method that calls [`checkpoint`] for every single mocked
+/// method.
 ///
 /// # Examples
 ///
@@ -1217,16 +1217,38 @@ pub mod examples;
 /// }
 /// ```
 ///
-/// You can also mock a trait impl on a struct:
+/// You can also mock a struct that implements a trait.  Notice that the
+/// `#[automock]` attribute must be used on _both_ the struct and trait impl
+/// blocks.  Also, one `#[trait_impl()]` attribute must be used for each trait
+/// implemented by the struct.
 /// ```
 /// # use mockall_derive::*;
 /// pub trait Foo {
 ///     fn foo(&self, key: i16);
 /// }
+/// pub trait Baz {
+///     fn baz(&self, thing: f64);
+/// }
 /// struct Bar{}
+/// #[automock]
+/// #[trait_impl(Foo)]
+/// #[trait_impl(Baz)]
+/// impl Bar {
+///     fn bar(&self) -> u32 {
+///         // ...
+///         # unimplemented!()
+///     }
+/// }
 /// #[automock]
 /// impl Foo for Bar {
 ///     fn foo(&self, key: i16){
+///         // ...
+///         # unimplemented!()
+///     }
+/// }
+/// #[automock]
+/// impl Baz for Bar {
+///     fn baz(&self, thing: f64) {
 ///         // ...
 ///         # unimplemented!()
 ///     }
