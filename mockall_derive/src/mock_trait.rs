@@ -33,7 +33,8 @@ pub(crate) struct MockTrait {
 }
 
 impl MockTrait {
-    fn ss_name_priv(trait_path: &Path) -> Ident {
+    // TODO: eliminate the pub?
+    pub fn ss_name_priv(trait_path: &Path) -> Ident {
         let path_args = &trait_path.segments.last().unwrap().arguments;
         if path_args.is_empty() {
             // Skip the hashing step for easie debugging of generated code

@@ -223,22 +223,22 @@ impl From<MockableStruct> for MockItemStruct {
         let traits2 = mockable.attrs.iter()
             .filter(|attr| is_helper(attr, "trait_impl"))
             .map(|attr| {
-                let ident: Ident = match attr.meta.require_list() {
+                let path: Path = match attr.meta.require_list() {
                     Ok(l) => {
                         match parse2(l.tokens.clone()) {
                             Ok(i) => i,
                             Err(_) => {
-                                compile_error(l.span(), "Ident expected");
-                                format_ident!("dummy")
+                                compile_error(l.span(), "Path expected");
+                                Path::from(format_ident!("dummy"))
                             }
                         }
                     },
                     Err(_) => {
                         compile_error(attr.meta.span(), "Meta list expected");
-                        format_ident!("dummy")
+                        Path::from(format_ident!("dummy"))
                     }
                 };
-                ident
+                MockTrait::ss_name_priv(&path)
             }).collect::<Vec<_>>();
 
         MockItemStruct {
