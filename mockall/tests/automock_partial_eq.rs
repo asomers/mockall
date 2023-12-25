@@ -2,13 +2,18 @@
 //! Mockall should deselfify `Self` types, even if they aren't named `self`.
 use mockall::*;
 
-mock! {
-    #[derive(Debug)]
-    pub Foo {
-        fn compare(&self, other: &Self) -> bool;
+pub struct Foo {}
+#[automock]
+#[trait_impl(PartialEq)]
+impl Foo {
+    pub fn compare(&self, _other: &Self) -> bool {
+        unimplemented!()
     }
-    impl PartialEq for Foo {
-        fn eq(&self, other: &Self) -> bool;
+}
+#[automock]
+impl PartialEq for Foo {
+    fn eq(&self, _other: &Self) -> bool {
+        unimplemented!()
     }
 }
 
