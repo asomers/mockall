@@ -325,6 +325,8 @@ impl ToTokens for MockItemStruct {
              .map(|trait_name| {
                  let fieldname = format_ident!("{}_expectations", trait_name);
                  let tyname = format_ident!("{}_{}", self.name, trait_name);
+                // XXX it seems that I need to record the trait's generics
+                // separately from the struct's.
                  quote!(#fieldname: #tyname #tg)
              })
         );
