@@ -9,7 +9,7 @@ pub struct GenericStruct<T: Copy, V: Clone> {
     _v: V
 }
 #[automock]
-impl<T: Copy + 'static, V: Clone + 'static> GenericStruct<T, V> {
+impl<T: Copy + Copy, V: Clone + Copy> GenericStruct<T, V> {
     pub fn foo(&self, _x: u32) -> i64 {
         42
     }

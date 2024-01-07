@@ -4,16 +4,16 @@
 
 use mockall::*;
 
-trait Foo<T: 'static> {
+trait Foo<T> {
     fn foo(&self, t: T) -> T;
 }
 
-pub struct SomeStruct<T: 'static> {
+pub struct SomeStruct<T> {
     _t: std::marker::PhantomData<T>
 }
 
 #[automock]
-impl<T: 'static> Foo<T> for SomeStruct<T> {
+impl<T> Foo<T> for SomeStruct<T> {
     fn foo(&self, t: T) -> T {
         t
     }

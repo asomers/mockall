@@ -8,12 +8,12 @@ trait Foo {
     fn foo(&self, x: u32) -> i64;
 }
 
-pub struct SomeStruct<T: 'static> {
+pub struct SomeStruct<T> {
     _t: std::marker::PhantomData<T>
 }
 
 #[automock]
-impl<T: 'static> Foo for SomeStruct<T> {
+impl<T> Foo for SomeStruct<T> {
     fn foo(&self, _x: u32) -> i64 {
         42
     }

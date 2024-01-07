@@ -8,7 +8,7 @@
 use mockall::*;
 
 mock! {
-    Foo<T: 'static> where T:Clone {
+    Foo<T> where T:Clone {
         fn foo(&self, t: T) -> T;
     }
 }

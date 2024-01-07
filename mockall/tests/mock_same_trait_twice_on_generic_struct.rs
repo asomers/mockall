@@ -8,7 +8,7 @@
 use mockall::*;
 
 mock! {
-    pub Foo<T: 'static> {}
+    pub Foo<T> {}
     impl Into<u32> for Foo<u32> {
         fn into(self) -> u32;
     }

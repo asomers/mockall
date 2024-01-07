@@ -8,8 +8,8 @@ trait Foo {
 }
 
 mock! {
-    Bar<T: 'static> {}
-    impl<T: 'static> Foo for Bar<T> {
+    Bar<T> {}
+    impl<T> Foo for Bar<T> {
         fn foo(&self);
     }
 }

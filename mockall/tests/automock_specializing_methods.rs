@@ -6,14 +6,14 @@
 
 use mockall::*;
 
-struct G<T: Copy + Default + 'static>(T);
+struct G<T: Copy + Default>(T);
 
 #[derive(Clone, Copy)]
 struct NonDefault(u32);
 
 #[automock]
-trait Foo<T> where T: Copy + 'static {
-    fn foo(&self, t: T) -> G<T> where T: Default;
+trait Foo<T> where T: Copy {
+    fn foo(&self, t: T) -> G<T> where T: Default + 'static;
 }
 
 #[test]

@@ -4,7 +4,7 @@
 
 use mockall::*;
 
-trait Foo<T: 'static> {
+trait Foo<T> {
     fn foo(&self, x: T) -> T;
 }
 mock! {

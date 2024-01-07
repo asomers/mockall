@@ -8,8 +8,8 @@ trait Foo {
 }
 
 mock! {
-    Bar<T: Copy + 'static> {}
-    impl<T: Copy + 'static> Foo for Bar<T> {
+    Bar<T: Copy> {}
+    impl<T: Copy> Foo for Bar<T> {
         fn foo(&self, x: u32) -> u32;
     }
 }
