@@ -15,6 +15,7 @@ trait MyTrait {
 
     fn myfunc(&self, cx: &NonStatic) -> Self::Item;
 }
+#[allow(dead_code)]
 pub struct NonStatic<'ns>(&'ns i32);
 
 #[automock]

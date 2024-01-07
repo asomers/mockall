@@ -9,7 +9,7 @@ use mockall::*;
 struct G<T: Copy + Default>(T);
 
 #[derive(Clone, Copy)]
-struct NonDefault(u32);
+struct NonDefault{}
 
 #[automock]
 trait Foo<T> where T: Copy {
@@ -29,5 +29,5 @@ fn returning() {
     // But you can't call the specializing method.  This won't work:
     // _mock2.expect_foo()
     //    .returning(|h| G(h));
-    // _mock2.foo(NonDefault(42));
+    // _mock2.foo(NonDefault{});
 }
