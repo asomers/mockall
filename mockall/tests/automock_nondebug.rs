@@ -5,7 +5,7 @@
 use mockall::*;
 
 // Don't derive Debug
-pub struct NonDebug(u32);
+pub struct NonDebug{}
 
 #[automock]
 pub trait Foo {
@@ -16,7 +16,7 @@ pub trait Foo {
 #[should_panic(expected = "MockFoo::foo(?): No matching expectation found")]
 fn with_no_matches() {
     let mock = MockFoo::new();
-    mock.foo(NonDebug(5));
+    mock.foo(NonDebug{});
 }
 
 
