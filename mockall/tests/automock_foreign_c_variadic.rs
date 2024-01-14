@@ -15,6 +15,7 @@ pub mod ffi {
 
 #[test]
 #[cfg(feature = "nightly")]
+#[cfg_attr(miri, ignore)]
 fn mocked_c_variadic() {
     let ctx = mock_ffi::foo_context();
     ctx.expect().returning(|x, y| x * y);
