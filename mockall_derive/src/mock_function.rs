@@ -518,7 +518,7 @@ impl MockFunction {
                     use ::mockall::{ViaDebug, ViaNothing};
                     let no_match_msg = #no_match_msg;
                     #deref {
-                        let __mockall_guard = #outer_mod_path::EXPECTATIONS
+                        let __mockall_guard = #outer_mod_path::get_expectations()
                             .lock().unwrap();
                         /*
                          * TODO: catch panics, then gracefully release the mutex
@@ -558,7 +558,7 @@ impl MockFunction {
             quote!(
                 #(#attrs)*
                 {
-                    let __mockall_timeses = #inner_mod_ident::EXPECTATIONS.lock()
+                    let __mockall_timeses = #inner_mod_ident::get_expectations().lock()
                         .unwrap()
                         .checkpoint()
                         .collect::<Vec<_>>();
@@ -1398,9 +1398,13 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
         let v = &self.f.privmod_vis;
         quote!(
             #[doc(hidden)]
-            #v static EXPECTATIONS:
-                ::std::sync::Mutex<Expectations #tg> =
-                ::std::sync::Mutex::new(Expectations::new());
+            #v fn get_expectations() -> &'static ::std::sync::Mutex<Expectations> {
+                static EXPECTATIONS:
+                    ::std::sync::Mutex<Expectations #tg> =
+                    ::std::sync::Mutex::new(Expectations::new());
+                &EXPECTATIONS
+            }
+
             /// Like an [`&Expectation`](struct.Expectation.html) but
             /// protected by a Mutex guard.  Useful for mocking static
             /// methods.  Forwards accesses to an `Expectation` object.
@@ -1464,11 +1468,12 @@ impl<'a> ToTokens for GenericExpectationGuard<'a> {
         let tbf = tg.as_turbofish();
         let v = &self.f.privmod_vis;
         quote!(
-            ::mockall::lazy_static! {
-                #v static ref EXPECTATIONS:
-                    ::std::sync::Mutex<GenericExpectations> =
-                    ::std::sync::Mutex::new(GenericExpectations::new());
+            #[doc(hidden)]
+            #v fn get_expectations() -> &'static ::std::sync::Mutex<GenericExpectations> {
+                static CELL: ::std::sync::OnceLock<::std::sync::Mutex<GenericExpectations>> = ::std::sync::OnceLock::new();
+                CELL.get_or_init(|| ::std::sync::Mutex::new(GenericExpectations::new()))
             }
+
             /// Like an [`&Expectation`](struct.Expectation.html) but
             /// protected by a Mutex guard.  Useful for mocking static
             /// methods.  Forwards accesses to an `Expectation` object.
@@ -1569,7 +1574,7 @@ impl<'a> ToTokens for Context<'a> {
                 }
                 #[doc(hidden)]
                 #v fn do_checkpoint() {
-                    let __mockall_timeses = EXPECTATIONS
+                    let __mockall_timeses = get_expectations()
                         .lock()
                         .unwrap()
                         .checkpoint()
@@ -1581,7 +1586,7 @@ impl<'a> ToTokens for Context<'a> {
                 #v fn expect #meth_ig ( &self,) -> ExpectationGuard #e_tg
                     #meth_wc
                 {
-                    ExpectationGuard::new(EXPECTATIONS.lock().unwrap())
+                    ExpectationGuard::new(get_expectations().lock().unwrap())
                 }
             }
             impl #ty_ig Default for Context #ty_tg #ty_wc {
@@ -1595,7 +1600,7 @@ impl<'a> ToTokens for Context<'a> {
                         // Drain all expectations so other tests can run with a
                         // blank slate.  But ignore errors so we don't
                         // double-panic.
-                        let _ = EXPECTATIONS
+                        let _ = get_expectations()
                             .lock()
                             .map(|mut g| g.checkpoint().collect::<Vec<_>>());
                     } else {

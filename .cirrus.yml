@@ -14,7 +14,7 @@ common: &COMMON
 task:
   name: MSRV
   container:
-    image: rust:1.64.0
+    image: rust:1.70.0
   cargo_lock_script:
     - cp Cargo.lock.msrv Cargo.lock
   << : *COMMON

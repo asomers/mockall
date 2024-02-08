@@ -1162,10 +1162,6 @@ pub use downcast::{Any, Downcast};
 #[doc(hidden)]
 pub use fragile::Fragile;
 
-/// For mocking static methods
-#[doc(hidden)]
-pub use lazy_static::lazy_static;
-
 pub use predicates::{
     boolean::PredicateBooleanExt,
     prelude::{
