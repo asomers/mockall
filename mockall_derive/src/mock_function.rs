@@ -1188,14 +1188,14 @@ impl<'a> ToTokens for CommonExpectationsMethods<'a> {
                     &mut self.0[__mockall_l - 1]
                 }
 
-                #v fn new() -> Self {
-                    Self::default()
+                #v const fn new() -> Self {
+                    Self(Vec::new())
                 }
             }
             impl #ig Default for Expectations #tg #wc
             {
                 fn default() -> Self {
-                    Expectations(Vec::new())
+                    Expectations::new()
                 }
             }
         ).to_tokens(tokens);
@@ -1397,12 +1397,10 @@ impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
         let (ei_ig, _, _) = e_generics.split_for_impl();
         let v = &self.f.privmod_vis;
         quote!(
-            ::mockall::lazy_static! {
-                #[doc(hidden)]
-                #v static ref EXPECTATIONS:
-                    ::std::sync::Mutex<Expectations #tg> =
-                    ::std::sync::Mutex::new(Expectations::new());
-            }
+            #[doc(hidden)]
+            #v static EXPECTATIONS:
+                ::std::sync::Mutex<Expectations #tg> =
+                ::std::sync::Mutex::new(Expectations::new());
             /// Like an [`&Expectation`](struct.Expectation.html) but
             /// protected by a Mutex guard.  Useful for mocking static
             /// methods.  Forwards accesses to an `Expectation` object.

@@ -11,9 +11,7 @@ mod ffi {
     }
 }
 
-lazy_static! {
-    static ref FOO_MTX: Mutex<()> = Mutex::new(());
-}
+static FOO_MTX: Mutex<()> = Mutex::new(());
 
 // Ensure we can still use the original mocked function
 pub fn normal_usage() {

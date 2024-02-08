@@ -8,9 +8,7 @@ pub mod m {
     use mockall::*;
     type T = u32;
 
-    lazy_static! {
-        static ref BAR_MTX: Mutex<()> = Mutex::new(());
-    }
+    static BAR_MTX: Mutex<()> = Mutex::new(());
 
     #[automock]
     pub mod foo {

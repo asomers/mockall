@@ -11,9 +11,7 @@ mock! {
     }
 }
 
-lazy_static! {
-    static ref FOO_MTX: Mutex<()> = Mutex::new(());
-}
+static FOO_MTX: Mutex<()> = Mutex::new(());
 
 // Checkpointing the mock object should not checkpoint static methods too
 #[test]

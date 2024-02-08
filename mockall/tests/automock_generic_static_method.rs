@@ -5,9 +5,7 @@
 use mockall::*;
 use std::sync::Mutex;
 
-lazy_static! {
-    static ref A_MTX: Mutex<()> = Mutex::new(());
-}
+static A_MTX: Mutex<()> = Mutex::new(());
 
 #[automock]
 trait A {

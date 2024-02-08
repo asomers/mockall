@@ -20,9 +20,7 @@ mock!{
     }
 }
 
-lazy_static! {
-    static ref FOO_MTX: Mutex<()> = Mutex::new(());
-}
+static FOO_MTX: Mutex<()> = Mutex::new(());
 
 #[test]
 fn return_const() {

@@ -95,11 +95,9 @@ pub mod static_method {
     use super::*;
     use std::sync::Mutex;
 
-    lazy_static! {
-        static ref FOO_MTX: Mutex<()> = Mutex::new(());
-        static ref BAR_MTX: Mutex<()> = Mutex::new(());
-        static ref BAZ_MTX: Mutex<()> = Mutex::new(());
-    }
+    static FOO_MTX: Mutex<()> = Mutex::new(());
+    static BAR_MTX: Mutex<()> = Mutex::new(());
+    static BAZ_MTX: Mutex<()> = Mutex::new(());
 
     #[automock]
     trait Foo {
