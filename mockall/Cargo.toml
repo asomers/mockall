@@ -9,7 +9,7 @@ categories = ["development-tools::testing"]
 keywords = ["mock", "mocking", "testing"]
 documentation = "https://docs.rs/mockall"
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.70"
 description = """
 A powerful mock object library for Rust.
 """
@@ -41,7 +41,6 @@ nightly = [
 cfg-if = "1.0"
 downcast = "0.11"
 fragile = "2.0"
-lazy_static = "1.1"
 predicates = { version = "3.0.0", default-features = false }
 predicates-tree = "1.0"
 mockall_derive = { version = "=0.12.1", path = "../mockall_derive" }
@@ -53,7 +52,7 @@ mockall_double = { version = "^0.3.1", path = "../mockall_double" }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tracing = "0.1.32"
+tracing = "0.1.35"
 
 [[example]]
 name = "serde"

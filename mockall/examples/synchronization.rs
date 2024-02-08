@@ -6,7 +6,7 @@
 //! overwrites the mock that another test is depending on. The solution to this
 //! is to add some form of synchronization so that tests that depend on a
 //! specific mock will not run in parallel. This is easily achieved using a
-//! Mutex and the lazy_static crate.
+//! Mutex.
 #![deny(warnings)]
 
 use mockall_double::double;
@@ -34,12 +34,9 @@ fn main() {
 #[cfg(test)]
 mod test {
     use crate::my_mock::MockThing;
-    use lazy_static::lazy_static;
     use std::sync::Mutex;
 
-    lazy_static! {
-        static ref MTX: Mutex<()> = Mutex::new(());
-    }
+    static MTX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_1() {
