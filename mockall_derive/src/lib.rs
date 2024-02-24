@@ -727,11 +727,11 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
     }
 }
 
-
 struct AttrFormatter<'a>{
     attrs: &'a [Attribute],
     async_trait: bool,
     doc: bool,
+    must_use: bool,
 }
 
 impl<'a> AttrFormatter<'a> {
@@ -739,7 +739,8 @@ impl<'a> AttrFormatter<'a> {
         Self {
             attrs,
             async_trait: true,
-            doc: true
+            doc: true,
+            must_use: false,
         }
     }
 
@@ -750,6 +751,11 @@ impl<'a> AttrFormatter<'a> {
 
     fn doc(&mut self, allowed: bool) -> &mut Self {
         self.doc = allowed;
+        self
+    }
+
+    fn must_use(&mut self, allowed: bool) -> &mut Self {
+        self.must_use = allowed;
         self
     }
 
@@ -788,6 +794,8 @@ impl<'a> AttrFormatter<'a> {
                     // This shows up sometimes when mocking ffi functions.  We
                     // must not emit it on anything that isn't an ffi definition
                     false
+                } else if *i.as_ref().unwrap() == "must_use" {
+                    self.must_use
                 } else {
                     true
                 }
@@ -1329,7 +1337,7 @@ fn assert_contains(output: &str, tokens: TokenStream) {
 
 fn assert_not_contains(output: &str, tokens: TokenStream) {
     let s = tokens.to_string();
-    assert!(!output.contains(&s), "output does not contain {:?}", &s);
+    assert!(!output.contains(&s), "output contains {:?}", &s);
 }
 
 /// Various tests for overall code generation that are hard or impossible to
@@ -1366,6 +1374,17 @@ mod mock {
         assert_contains(&output, quote!(pub(crate) fn expect_baz));
         assert_contains(&output, quote!(pub(super) fn expect_bean));
         assert_contains(&output, quote!(pub(in crate::outer) fn expect_boom));
+    }
+
+    #[test]
+    fn must_use_struct() {
+        let code = "
+            #[must_use]
+            pub Foo {}
+        ";
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let output = do_mock(ts).to_string();
+        assert_contains(&output, quote!(#[must_use] pub struct MockFoo));
     }
 
     #[test]
@@ -1444,6 +1463,47 @@ mod automock {
         assert_contains(&output, quote!(pub ( crate ) fn expect_bang));
         assert_contains(&output, quote!(pub ( in super :: x ) fn bean));
         assert_contains(&output, quote!(pub ( in super :: x ) fn expect_bean));
+    }
+
+    #[test]
+    fn must_use_method() {
+        let code = "
+        impl Foo {
+            #[must_use]
+            fn foo(&self) -> i32 {42}
+        }";
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        let output = do_automock(attrs_ts, ts).to_string();
+        assert_not_contains(&output, quote!(#[must_use] fn expect_foo));
+        assert_contains(&output, quote!(#[must_use] #[allow(dead_code)] fn foo));
+    }
+
+    #[test]
+    fn must_use_static_method() {
+        let code = "
+        impl Foo {
+            #[must_use]
+            fn foo() -> i32 {42}
+        }";
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        let output = do_automock(attrs_ts, ts).to_string();
+        assert_not_contains(&output, quote!(#[must_use] fn expect));
+        assert_not_contains(&output, quote!(#[must_use] fn foo_context));
+        assert_contains(&output, quote!(#[must_use] #[allow(dead_code)] fn foo));
+    }
+
+    #[test]
+    fn must_use_trait() {
+        let code = "
+        #[must_use]
+        trait Foo {}
+        ";
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        let output = do_automock(attrs_ts, ts).to_string();
+        assert_not_contains(&output, quote!(#[must_use] struct MockFoo));
     }
 
     #[test]
