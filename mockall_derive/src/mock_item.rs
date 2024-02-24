@@ -1,8 +1,15 @@
 // vim: tw=80
-use super::*;
+use proc_macro2::{TokenStream};
+use quote::{ToTokens, quote};
+use syn::{
+    *,
+    spanned::Spanned
+};
 
 use crate::{
-    mock_function::MockFunction,
+    MockItemStruct,
+    compile_error,
+    mock_function::{self, MockFunction},
     mockable_item::{MockableItem, MockableModule}
 };
 

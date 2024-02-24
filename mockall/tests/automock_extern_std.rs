@@ -9,7 +9,7 @@ extern crate std;
 use mockall::*;
 
 #[automock]
-trait SimpleTrait {
+pub trait SimpleTrait {
     fn foo(&self, x: u32) -> u32;
 }
 
