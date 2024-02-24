@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
 
+### Added
+
+- Add the ability to mock methods that use `#[inline]` or `#[cold]`.
+  ([#555](https://github.com/asomers/mockall/pull/555))
+
 ### Changed
 
 - Raised MSRV to 1.70.0 to remove `lazy_static` dependency

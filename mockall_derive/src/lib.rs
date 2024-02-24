@@ -773,6 +773,12 @@ impl<'a> AttrFormatter<'a> {
                     self.doc
                 } else if *i.as_ref().unwrap() == "async_trait" {
                     self.async_trait
+                } else if *i.as_ref().unwrap() == "inline" {
+                    // No need to inline mock functions.
+                    false
+                } else if *i.as_ref().unwrap() == "cold" {
+                    // No need for such hints on mock functions.
+                    false
                 } else if *i.as_ref().unwrap() == "instrument" {
                     // We can't usefully instrument the mock method, so just
                     // ignore this attribute.
