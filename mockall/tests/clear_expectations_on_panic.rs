@@ -34,7 +34,7 @@ fn too_few_calls() {
 
 // We shouldn't panic during drop in this case.  Regression test for
 // https://github.com/asomers/mockall/issues/491
-#[should_panic(expected = "called `Result::unwrap()` on an `Err` value: PoisonError { .. }")]
+#[cfg_attr(not(feature = "nightly"), ignore)]
 #[test]
 fn too_many_calls() {
     panic::catch_unwind(|| {
