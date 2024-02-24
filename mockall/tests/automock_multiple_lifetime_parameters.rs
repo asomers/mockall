@@ -10,6 +10,6 @@
 use mockall::*;
 
 #[automock]
-trait Foo {
+pub trait Foo {
     fn foo<'a, 'b, 'c, 'd, 'e, 'f>(&self, x: &'a &'b &'c &'d &'e &'f i32);
 }

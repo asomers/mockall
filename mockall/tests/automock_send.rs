@@ -5,7 +5,7 @@
 use mockall::*;
 
 #[automock]
-trait T {
+pub trait T {
     fn foo(&self) -> u32;
 }
 

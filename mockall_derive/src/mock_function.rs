@@ -1,7 +1,31 @@
 // vim: tw=80
-use super::*;
+use proc_macro2::{Span, TokenStream};
+use quote::{ToTokens, format_ident, quote};
+use syn::{
+    *,
+    punctuated::Punctuated,
+    spanned::Spanned
+};
 
-use quote::ToTokens;
+
+use crate::{
+    AttrFormatter,
+    HashSet,
+    compile_error,
+    concretize_args,
+    declosurefy,
+    expectation_visibility,
+    gen_keyid,
+    is_concretize,
+    lifetimes_to_generic_params,
+    lifetimes_to_generics,
+    merge_generics,
+    pat_is_self,
+    split_lifetimes,
+    staticize,
+    supersuperfy,
+    supersuperfy_generics,
+};
 
 /// Convert a trait object reference into a reference to a Boxed trait
 ///

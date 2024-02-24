@@ -18,7 +18,7 @@ pub fn Ok<T>(t: T) -> Result<T> {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[automock]
-trait Foo {
+pub trait Foo {
     fn foo(&self) -> Result<(), Error>;
     fn reffoo(&self) -> &Result<(), Error>;
     fn refmutfoo(&mut self) -> &mut Result<(), Error>;

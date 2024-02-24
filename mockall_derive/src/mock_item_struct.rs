@@ -1,11 +1,19 @@
 // vim: tw=80
-use super::*;
-
-use quote::ToTokens;
 use std::collections::HashSet;
 
+use proc_macro2::TokenStream;
+use quote::{ToTokens, format_ident, quote};
+use syn::{
+    *,
+    spanned::Spanned
+};
+
 use crate::{
-    mock_function::MockFunction,
+    AttrFormatter,
+    MockableStruct,
+    compile_error,
+    gen_mod_ident,
+    mock_function::{self, MockFunction},
     mock_trait::MockTrait
 };
 

@@ -7,11 +7,11 @@ use mockall::*;
 // For this test, use the "nightly" feature as the cfg gate, because it's tested
 // both ways in CI.
 #[cfg(feature = "nightly")]
-trait Beez {
+pub trait Beez {
     fn beez(&self);
 }
 #[cfg(not(feature = "nightly"))]
-trait Beez {
+pub trait Beez {
     fn beez(&self, x: i32) -> i32;
 }
 

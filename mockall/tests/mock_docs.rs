@@ -8,7 +8,7 @@ use mockall::*;
 // ensures that the code will compile.  mockall_derive has a unit test to ensure
 // that the doc comments are correctly placed.
 
-trait Tr {
+pub trait Tr {
     fn bar(&self);
 }
 
