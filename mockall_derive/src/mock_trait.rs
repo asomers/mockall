@@ -130,7 +130,9 @@ impl MockTrait {
     // Supplying modname is an unfortunately hack.  Ideally MockTrait
     // wouldn't need to know that.
     pub fn trait_impl(&self, modname: &Ident) -> impl ToTokens {
-        let trait_impl_attrs = &self.attrs;
+        let trait_impl_attrs = AttrFormatter::new(&self.attrs)
+            .must_use(false)
+            .format();
         let impl_attrs = AttrFormatter::new(&self.attrs)
             .async_trait(false)
             .doc(false)

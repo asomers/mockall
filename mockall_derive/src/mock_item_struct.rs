@@ -245,6 +245,7 @@ impl ToTokens for MockItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let attrs = AttrFormatter::new(&self.attrs)
             .async_trait(false)
+            .must_use(true)
             .format();
         let consts = &self.consts;
         let debug_impl = self.debug_impl();
@@ -392,7 +393,16 @@ impl MockItemTraitImpl {
 
 impl ToTokens for MockItemTraitImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let attrs = AttrFormatter::new(&self.attrs)
+        let mod_attrs = AttrFormatter::new(&self.attrs)
+            .async_trait(false)
+            .doc(false)
+            .format();
+        let struct_attrs = AttrFormatter::new(&self.attrs)
+            .async_trait(false)
+            .doc(false)
+            .must_use(false)
+            .format();
+        let impl_attrs = AttrFormatter::new(&self.attrs)
             .async_trait(false)
             .doc(false)
             .format();
@@ -408,7 +418,7 @@ impl ToTokens for MockItemTraitImpl {
         quote!(
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
-            #(#attrs)*
+            #(#mod_attrs)*
             pub mod #modname {
                 use super::*;
                 #(#priv_mods)*
@@ -416,12 +426,12 @@ impl ToTokens for MockItemTraitImpl {
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
-            #(#attrs)*
+            #(#struct_attrs)*
             struct #struct_name #ig #wc
             {
                 #(#field_definitions),*
             }
-            #(#attrs)*
+            #(#impl_attrs)*
             impl #ig ::std::default::Default for #struct_name #tg #wc {
                 fn default() -> Self {
                     Self {
@@ -429,7 +439,7 @@ impl ToTokens for MockItemTraitImpl {
                     }
                 }
             }
-            #(#attrs)*
+            #(#impl_attrs)*
             impl #ig #struct_name #tg #wc {
                 /// Validate that all current expectations for all methods have
                 /// been satisfied, and discard them.

@@ -469,7 +469,9 @@ impl MockFunction {
     // Supplying modname is an unfortunately hack.  Ideally MockFunction
     // wouldn't need to know that.
     pub fn call(&self, modname: Option<&Ident>) -> impl ToTokens {
-        let attrs = AttrFormatter::new(&self.attrs).format();
+        let attrs = AttrFormatter::new(&self.attrs)
+            .must_use(true)
+            .format();
         let call_exprs = &self.call_exprs;
         let (_, tg, _) = if self.is_method_generic() || self.is_static() {
             &self.egenerics

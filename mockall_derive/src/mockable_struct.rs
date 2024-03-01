@@ -1,6 +1,25 @@
 // vim: tw=80
-use super::*;
-use syn::parse::{Parse, ParseStream};
+use proc_macro2::{Span, TokenStream};
+use quote::{format_ident, quote};
+use syn::{
+    *,
+    parse::{Parse, ParseStream},
+    spanned::Spanned
+};
+
+use crate::{
+    Attrs,
+    compile_error,
+    deanonymize,
+    deimplify,
+    demutify,
+    deselfify,
+    deselfify_args,
+    dewhereselfify,
+    find_ident_from_path,
+    gen_mock_ident,
+    AttrFormatter,
+};
 
 /// Make any implicit lifetime parameters explicit
 fn add_lifetime_parameters(sig: &mut Signature) {
@@ -345,7 +364,15 @@ impl MockableStruct {
 impl From<(Attrs, ItemTrait)> for MockableStruct {
     fn from((attrs, item_trait): (Attrs, ItemTrait)) -> MockableStruct {
         let trait_ = attrs.substitute_trait(&item_trait);
-        let mut attrs = trait_.attrs.clone();
+        // Strip "must_use" from a trait definition.  For traits, the "must_use"
+        // should apply only when the trait is used like "impl Trait" or "dyn
+        // Trait".  So it shouldn't necessarily affect the mock struct that
+        // implements the trait.
+        let mut attrs = AttrFormatter::new(&trait_.attrs)
+            .doc(true)
+            .async_trait(true)
+            .must_use(false)
+            .format();
         attrs.push(derive_debug());
         let vis = trait_.vis.clone();
         let name = gen_mock_ident(&trait_.ident);
