@@ -1,5 +1,8 @@
 // vim: tw=80
 #![deny(warnings)]
+// multiple bound locations is deliberate; we want to ensure that Mockall can
+// handle it correctly.
+#![allow(clippy::multiple_bound_locations)]
 
 use mockall::*;
 
