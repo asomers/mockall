@@ -1041,7 +1041,7 @@ fn merge_generics(x: &Generics, y: &Generics) -> Generics {
                         ot.colon_token = ot.colon_token.or(yt.colon_token);
                         ot.eq_token = ot.eq_token.or(yt.eq_token);
                         if ot.default.is_none() {
-                            ot.default = yt.default.clone();
+                            ot.default.clone_from(&yt.default);
                         }
                         // XXX this might result in duplicate bounds
                         if ot.bounds != yt.bounds {
