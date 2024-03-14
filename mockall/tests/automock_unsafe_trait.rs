@@ -9,7 +9,7 @@ pub unsafe trait Foo {
     fn foo(&self) -> i32;
 }
 
-struct Baz{}
+pub struct Baz{}
 
 #[automock]
 unsafe impl Foo for Baz {

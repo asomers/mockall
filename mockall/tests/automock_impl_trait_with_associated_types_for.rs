@@ -4,7 +4,7 @@
 
 use mockall::*;
 
-struct Foo {}
+pub struct Foo {}
 #[automock]
 impl Iterator for Foo {
     type Item = u32;
