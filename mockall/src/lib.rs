@@ -1509,7 +1509,7 @@ impl<'a, T> ViaNothing for ArgPrinter<'a, T> {
     }
 }
 
-// Though it's not entirely correct, we treat usize::max_value() as
+// Though it's not entirely correct, we treat usize::MAX as
 // approximately infinity.
 #[derive(Debug)]
 #[doc(hidden)]
@@ -1518,7 +1518,7 @@ pub struct TimesRange(Range<usize>);
 impl Default for TimesRange {
     fn default() -> TimesRange {
         // By default, allow any number of calls
-        TimesRange(0..usize::max_value())
+        TimesRange(0..usize::MAX)
     }
 }
 
@@ -1537,13 +1537,13 @@ impl From<Range<usize>> for TimesRange {
 
 impl From<RangeFrom<usize>> for TimesRange {
     fn from(r: RangeFrom<usize>) -> TimesRange {
-        TimesRange(r.start..usize::max_value())
+        TimesRange(r.start..usize::MAX)
     }
 }
 
 impl From<RangeFull> for TimesRange {
     fn from(_: RangeFull) -> TimesRange {
-        TimesRange(0..usize::max_value())
+        TimesRange(0..usize::MAX)
     }
 }
 
@@ -1602,7 +1602,7 @@ impl Times {
     }
 
     pub fn any(&mut self) {
-        self.range.0 = 0..usize::max_value();
+        self.range.0 = 0..usize::MAX;
     }
 
     /// Return how many times this expectation has been called
