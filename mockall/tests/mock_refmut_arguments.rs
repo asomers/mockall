@@ -47,6 +47,6 @@ fn static_mut() {
         .withf(|x| *x == 5)
         .returning(|x| { *x = 42;} );
     // Safe because mock leaves scope before x
-    unsafe { mock.bar(mem::transmute(&mut x)); }
+    unsafe { mock.bar(mem::transmute::<&mut u32, &mut u32>(&mut x)); }
     assert_eq!(x, 42);
 }
