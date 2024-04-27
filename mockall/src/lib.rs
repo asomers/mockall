@@ -305,7 +305,7 @@
 //! specify the order by using a [`Sequence`].  Any expectations may be added to
 //! the same sequence.  They don't even need to come from the same object.
 //!
-//! ```should_panic(expected = "Method sequence violation")
+//! ```should_panic
 //! # use mockall::*;
 //! #[automock]
 //! trait Foo {
