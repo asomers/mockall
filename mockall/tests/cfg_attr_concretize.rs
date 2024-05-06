@@ -1,6 +1,7 @@
 // vim: tw=80
 //! #[concretize] can be used inside of #[cfg_attr()]`
 #![deny(warnings)]
+#![allow(unexpected_cfgs)] // multics is deliberately always false
 
 use std::path::{Path, PathBuf};
 
@@ -8,7 +9,7 @@ use mockall::{automock, concretize};
 
 #[automock]
 trait Foo {
-    #[cfg_attr(not(target_os = "ia64-unknown-multics"), concretize)]
+    #[cfg_attr(not(target_os = "multics"), concretize)]
     fn foo<P: AsRef<Path>>(&self, p: P);
 }
 

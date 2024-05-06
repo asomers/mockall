@@ -1,6 +1,7 @@
 // vim: tw=80
 //! Attributes are applied to the mock object, too.
 #![deny(warnings)]
+#![allow(unexpected_cfgs)] // multics is deliberately always false
 
 use mockall::*;
 
