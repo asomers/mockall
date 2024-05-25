@@ -204,11 +204,13 @@ impl<'a> Builder<'a> {
         let mut predty = Vec::new();
         let mut refpredty = Vec::new();
 
-        let (mut declosured_generics, declosured_inputs, call_exprs) =
+        let (mut declosured_generics, declosured_inputs, call_exprs, sig) =
             if self.concretize {
-                concretize_args(&self.sig.generics, &self.sig.inputs)
+                let (x, y, z, sig) = concretize_args(&self.sig.generics, self.sig);
+                (x, y, z, sig)
             } else {
-                declosurefy(&self.sig.generics, &self.sig.inputs)
+                let (x, y, z) = declosurefy(&self.sig.generics, &self.sig.inputs);
+                (x, y, z, self.sig.clone())
             };
         // TODO: make concretize and declosurefy work for the same function
 
@@ -330,7 +332,7 @@ impl<'a> Builder<'a> {
             refpredty,
             return_ref,
             return_refmut,
-            sig: self.sig.clone(),
+            sig,
             struct_: self.struct_.cloned(),
             struct_generics,
             trait_: self.trait_.cloned(),
