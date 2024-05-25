@@ -24,7 +24,7 @@ mock! {
     }
 }
 
-struct r#else {}
+pub struct r#else {}
 #[automock]
 impl r#while for r#else {
     fn r#match(&self) {unimplemented!()}

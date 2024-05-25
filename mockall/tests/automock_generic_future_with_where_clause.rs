@@ -9,7 +9,7 @@
 
 use mockall::*;
 
-struct Foo<T, V>((T, V));
+pub struct Foo<T, V>((T, V));
 trait MyTrait {
     type Item;
 

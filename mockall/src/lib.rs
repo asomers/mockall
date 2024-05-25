@@ -1289,17 +1289,17 @@ pub use mockall_derive::automock;
 /// can't be mocked.  The downsides of using this attribute are:
 ///
 /// * Mockall can't tell if a parameter isn't `'static`, so you must annotate
-/// such methods with the `#[mockall::concretize]` attribute.
+///   such methods with the `#[mockall::concretize]` attribute.
 /// * Generic methods will share expectations for all argument types.  That is,
 ///   you won't be able to do `my_mock.expect_foo::<i32>(...)`.
 /// * It can't be used on methods with a closure argument (though this may be
-/// fixable).
+///   fixable).
 /// * Concretized methods' expectations may only be matched with `.withf` or
-/// `.withf_st`, not `.with`.
+///   `.withf_st`, not `.with`.
 /// * It only works for parameters that can be turned into a trait object.
-/// (may be fixable).
+///   (may be fixable).
 /// * Mockall needs to know how to turn the function argument into a trait
-/// object.  Given a generic parameter `T`, currently supported patterns are:
+///   object.  Given a generic parameter `T`, currently supported patterns are:
 ///   - `T`
 ///   - `&T`
 ///   - `&mut T`
