@@ -5,8 +5,8 @@
 use mockall::*;
 
 pub struct GenericStruct<T, V> {
-    _t: T,
-    _v: V
+    pub t: T,
+    pub v: V
 }
 #[automock]
 impl<T, V> GenericStruct<T, V> {
