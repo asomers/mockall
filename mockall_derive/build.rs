@@ -3,5 +3,5 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
     // Quiet rustc's helpful lint.  reprocheck is defined in CI.
-    println!("cargo::rustc-check-cfg=cfg(reprocheck)");
+    println!("cargo:rustc-check-cfg=cfg(reprocheck)");
 }
