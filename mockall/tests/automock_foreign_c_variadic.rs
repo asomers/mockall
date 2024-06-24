@@ -29,7 +29,7 @@ fn mocked_c_variadic() {
 #[test]
 #[cfg(feature = "nightly")]
 #[cfg_attr(miri, ignore)]
-#[ignore = "https://github.com/rust-lang/rust/issues/126836"]
+#[should_panic(expected = "No matching expectation found")]
 fn panics() {
     let _m = FOO_MTX.lock();
     unsafe{ mock_ffi::foo(1,2,3) };
