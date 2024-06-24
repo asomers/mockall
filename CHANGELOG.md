@@ -13,12 +13,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Raised MSRV to 1.70.0 to remove `lazy_static` dependency
-  ([#550](https://github.com/asomers/mockall/pull/550))
+- Raised MSRV to 1.71.0 due to the `C-unwind` ABI.
+  ([#585](https://github.com/asomers/mockall/pull/585))
 
 - No longer poison a Context object's internal `Mutex` when panicing.  This
   requires the "nightly" feature.
   ([#527](https://github.com/asomers/mockall/pull/527))
+
+### Fixed
+
+- Fixed panicing within mocked `extern "C"` functions, for example due to
+  unsatisfied expectations, with Rust 1.81.0 or newer.
+  ([#585](https://github.com/asomers/mockall/pull/585))
 
 ## [ 0.12.1 ] - 2023-12-21
 

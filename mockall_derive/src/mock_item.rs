@@ -95,7 +95,28 @@ impl From<MockableModule> for MockItemModule {
 
                             // Set the ABI to match the ForeignMod's ABI
                             // for proper function linkage with external code.
-                            f.sig.abi = Some(ifm.abi.clone());
+                            //
+                            // BUT, use C-unwind instead of C, so we can panic
+                            // from the mock function (rust-lang/rust #74990)
+                            //
+                            // BUT, don't use C-unwind for variadic functions,
+                            // because it doesn't work yet (rust-lang/rust
+                            // #126836)
+                            let needs_c_unwind = if let Some(n) = &ifm.abi.name
+                            {
+                                n.value() == "C" && f.sig.variadic.is_none()
+                            } else {
+                                false
+                            };
+                            f.sig.abi = Some(if needs_c_unwind {
+                                Abi {
+                                    extern_token:ifm.abi.extern_token,
+                                    name: Some(LitStr::new("C-unwind",
+                                                           ifm.abi.name.span()))
+                                }
+                            } else {
+                                ifm.abi.clone()
+                            });
 
                             let mf = mock_function::Builder::new(&f.sig, &f.vis)
                                 .attrs(&f.attrs)

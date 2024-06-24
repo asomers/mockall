@@ -47,6 +47,6 @@ fn c_abi() {
     let _m = FOO_MTX.lock();
     let ctx = mock_ffi::foo_context();
     ctx.expect().returning(i64::from);
-    let p: unsafe extern "C" fn(u32) -> i64 = mock_ffi::foo;
+    let p: unsafe extern "C-unwind" fn(u32) -> i64 = mock_ffi::foo;
     assert_eq!(42, unsafe{p(42)});
 }
