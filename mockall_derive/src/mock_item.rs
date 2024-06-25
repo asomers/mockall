@@ -98,13 +98,9 @@ impl From<MockableModule> for MockItemModule {
                             //
                             // BUT, use C-unwind instead of C, so we can panic
                             // from the mock function (rust-lang/rust #74990)
-                            //
-                            // BUT, don't use C-unwind for variadic functions,
-                            // because it doesn't work yet (rust-lang/rust
-                            // #126836)
                             let needs_c_unwind = if let Some(n) = &ifm.abi.name
                             {
-                                n.value() == "C" && f.sig.variadic.is_none()
+                                n.value() == "C"
                             } else {
                                 false
                             };
