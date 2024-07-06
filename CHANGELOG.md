@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- Add the ability to mock methods that use `#[auto_enum]`, from the
+  `auto_enums` crate.  But only for methods that use RPIT; Mockall can't yet
+  handle syntax like `-> Result<(), impl T>`
+  ([#590](https://github.com/asomers/mockall/pull/590))
+
 - Add the ability to mock methods that use `#[inline]` or `#[cold]`, and
   methods or traits that use `#[must_use]`.
   ([#555](https://github.com/asomers/mockall/pull/555))

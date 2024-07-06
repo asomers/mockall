@@ -796,6 +796,10 @@ impl<'a> AttrFormatter<'a> {
                     false
                 } else if *i.as_ref().unwrap() == "must_use" {
                     self.must_use
+                } else if *i.as_ref().unwrap() == "auto_enum" {
+                    // Ignore auto_enum, because we transform the return value
+                    // into a trait object.
+                    false
                 } else {
                     true
                 }

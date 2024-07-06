@@ -47,6 +47,7 @@ mockall_derive = { version = "=0.12.1", path = "../mockall_derive" }
 
 [dev-dependencies]
 async-trait = "0.1.38"
+auto_enums = "0.8.5"
 futures = "0.3.7"
 mockall_double = { version = "^0.3.1", path = "../mockall_double" }
 serde = "1.0.113"
