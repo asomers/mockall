@@ -1,5 +1,5 @@
 // vim: tw=80
-//! A trait with a constructor method that returns impl Future<...>.
+//! A trait with a method that returns impl Future<...>.
 //!
 //! This needs special handling, because Box<dyn Future<...>> is pretty useless.
 //! You need Pin<Box<dyn Future<...>>> instead.
