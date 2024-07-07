@@ -1639,6 +1639,80 @@ mod concretize_args {
     }
 }
 
+mod declosurefy {
+    use super::*;
+
+    fn check_declosurefy(
+        sig: TokenStream,
+        expected_inputs: &[TokenStream],
+        expected_call_exprs: &[TokenStream])
+    {
+        let f: Signature = parse2(sig).unwrap();
+        let (generics, inputs, call_exprs) =
+            declosurefy(&f.generics, &f.inputs);
+        assert!(generics.params.is_empty());
+        assert_eq!(inputs.len(), expected_inputs.len());
+        assert_eq!(call_exprs.len(), expected_call_exprs.len());
+        for i in 0..inputs.len() {
+            let actual = &inputs[i];
+            let exp = &expected_inputs[i];
+            assert_eq!(quote!(#actual).to_string(), quote!(#exp).to_string());
+        }
+        for i in 0..call_exprs.len() {
+            let actual = &call_exprs[i];
+            let exp = &expected_call_exprs[i];
+            assert_eq!(quote!(#actual).to_string(), quote!(#exp).to_string());
+        }
+    }
+
+    #[test]
+    fn r#fn() {
+        check_declosurefy(
+            quote!(fn foo<F: Fn(u32) -> u32>(f: F)),
+            &[quote!(f: Box<dyn Fn(u32) -> u32>)],
+            &[quote!(Box::new(f))]
+        );
+    }
+
+    #[test]
+    fn fn_mut() {
+        check_declosurefy(
+            quote!(fn foo<F: FnMut(u32) -> u32>(f: F)),
+            &[quote!(f: Box<dyn FnMut(u32) -> u32>)],
+            &[quote!(Box::new(f))]
+        );
+    }
+
+    #[test]
+    fn fn_once() {
+        check_declosurefy(
+            quote!(fn foo<F: FnOnce(u32) -> u32>(f: F)),
+            &[quote!(f: Box<dyn FnOnce(u32) -> u32>)],
+            &[quote!(Box::new(f))]
+        );
+    }
+
+    #[test]
+    fn mutable_pattern() {
+        check_declosurefy(
+            quote!(fn foo<F: FnMut(u32) -> u32>(mut f: F)),
+            &[quote!(f: Box<dyn FnMut(u32) -> u32>)],
+            &[quote!(Box::new(f))]
+        );
+    }
+
+    #[test]
+    fn where_clause() {
+        check_declosurefy(
+            quote!(fn foo<F>(f: F) where F: Fn(u32) -> u32),
+            &[quote!(f: Box<dyn Fn(u32) -> u32>)],
+            &[quote!(Box::new(f))]
+        );
+    }
+
+
+}
+
 mod deimplify {
     use super::*;
 
