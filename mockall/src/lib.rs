@@ -1273,7 +1273,7 @@ pub mod examples;
 /// # Limitations
 ///
 /// `#[automock]` can't handle everything.  There are some cases where
-/// you will need to use [`mock`] instead:
+/// you will need to use [`mock!`] instead:
 /// * Mocking a struct that has multiple `impl` blocks, including
 ///   structs that implement traits.
 /// * Mocking a struct or trait defined in another crate.
@@ -1338,7 +1338,7 @@ pub use mockall_derive::concretize;
 
 /// Manually mock a structure.
 ///
-/// Sometimes `automock` can't be used.  In those cases you can use `mock!`,
+/// Sometimes [`automock`] can't be used.  In those cases you can use `mock!`,
 /// which basically involves repeating the struct's or trait's definitions.
 ///
 /// The format is:
@@ -1368,7 +1368,7 @@ pub use mockall_derive::concretize;
 /// }
 /// # fn main() {}
 /// ```
-/// Mocking an unsupported `#[derive(X)]` attribute, e.g. `Clone`, is
+/// Mocking an unsupported `#[derive(X)]` attribute, e.g. [`Clone`], is
 /// similar.
 /// ```
 /// # use mockall_derive::mock;
