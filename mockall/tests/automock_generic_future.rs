@@ -13,7 +13,7 @@ use std::{
     task::{Context, Poll},
 };
 
-struct Foo<T>(T);
+pub struct Foo<T>(T);
 
 #[automock]
 impl<T> Future for Foo<T> {

@@ -45,6 +45,6 @@ pub mod m {
         let ctx = mock_foo::baz_context();
         ctx.expect()
             .returning(|| Box::new(4));
-        format!("{:?}", mock_foo::baz());
+        let _ = format!("{:?}", mock_foo::baz());
     }
 }

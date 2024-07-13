@@ -15,5 +15,5 @@ mock!{
 fn returning() {
     let mut mock = MockFoo::new();
     mock.expect_foo().returning(|| Box::new(4));
-    format!("{:?}", mock.foo());
+    let _ = format!("{:?}", mock.foo());
 }
