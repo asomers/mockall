@@ -29,7 +29,7 @@ your `Cargo.toml`:
 
 ```toml
 [dev-dependencies]
-mockall = "0.12.1"
+mockall = "0.13.0"
 ```
 
 Then use it like this:
