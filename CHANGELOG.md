@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+
+### Fixed
+
+- Fixed naming conflict when mocking multiple traits with same name but from
+  different modules.
+  ([#601](https://github.com/asomers/mockall/pull/601))
+
 ## [ 0.13.0 ] - 2024-07-21
 
 ### Added

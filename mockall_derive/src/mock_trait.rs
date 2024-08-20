@@ -3,6 +3,7 @@ use proc_macro2::Span;
 use quote::{ToTokens, format_ident, quote};
 use std::{
    collections::hash_map::DefaultHasher,
+   fmt::Write,
    hash::{Hash, Hasher}
 };
 use syn::{
@@ -34,17 +35,14 @@ pub(crate) struct MockTrait {
 
 impl MockTrait {
     fn ss_name_priv(trait_path: &Path) -> Ident {
-        let path_args = &trait_path.segments.last().unwrap().arguments;
-        if path_args.is_empty() {
-            // Skip the hashing step for easie debugging of generated code
-            format_ident!("{}", trait_path.segments.last().unwrap().ident)
-        } else {
+        let id = join_path_segments(trait_path, "__");
+        // Skip the hashing step for easy debugging of generated code
+        if let Some(hash) = hash_path_arguments(trait_path) {
             // Hash the path args to permit mocking structs that implement
             // multiple traits distinguished only by their path args
-            let mut hasher = DefaultHasher::new();
-            path_args.hash(&mut hasher);
-            format_ident!("{}_{}", trait_path.segments.last().unwrap().ident,
-                hasher.finish())
+            format_ident!("{id}_{hash}")
+        } else {
+            format_ident!("{id}")
         }
     }
 
@@ -175,4 +173,36 @@ impl MockTrait {
             }
         )
     }
+}
+
+fn join_path_segments(path: &Path, sep: &str) -> String {
+    let mut output = String::new();
+    for segment in &path.segments {
+        if write!(
+            output,
+            "{}{}",
+            if output.is_empty() { "" } else { sep },
+            segment.ident
+        )
+        .is_err()
+        {
+            break;
+        };
+    }
+    output
+}
+
+fn hash_path_arguments(path: &Path) -> Option<u64> {
+    let mut hasher = DefaultHasher::new();
+    let mut is_some = false;
+    for arguments in path
+        .segments
+        .iter()
+        .map(|segment| &segment.arguments)
+        .filter(|arguments| !arguments.is_empty())
+    {
+        arguments.hash(&mut hasher);
+        is_some = true;
+    }
+    is_some.then(|| hasher.finish())
 }
