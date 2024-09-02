@@ -319,14 +319,17 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
 {
     let mut hm = HashMap::default();
 
-    let mut save_fn_types = |ident: &Ident, tpb: &TypeParamBound| {
-        if let TypeParamBound::Trait(tb) = tpb {
-            let fident = &tb.path.segments.last().unwrap().ident;
-            if ["Fn", "FnMut", "FnOnce"].iter().any(|s| fident == *s) {
-                let newty: Type = parse2(quote!(Box<dyn #tb>)).unwrap();
-                let subst_ty: Type = parse2(quote!(#ident)).unwrap();
-                assert!(hm.insert(subst_ty, newty).is_none(),
-                    "A generic parameter had two Fn bounds?");
+    let mut save_fn_types = |ident: &Ident, bounds: &Punctuated<TypeParamBound, Token![+]>|
+    {
+        for tpb in bounds.iter() {
+            if let TypeParamBound::Trait(tb) = tpb {
+                let fident = &tb.path.segments.last().unwrap().ident;
+                if ["Fn", "FnMut", "FnOnce"].iter().any(|s| fident == *s) {
+                    let newty: Type = parse2(quote!(Box<dyn #bounds>)).unwrap();
+                    let subst_ty: Type = parse2(quote!(#ident)).unwrap();
+                    assert!(hm.insert(subst_ty, newty).is_none(),
+                        "A generic parameter had two Fn bounds?");
+                }
             }
         }
     };
@@ -334,9 +337,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
     // First, build a HashMap of all Fn generic types
     for g in gen.params.iter() {
         if let GenericParam::Type(tp) = g {
-            for tpb in tp.bounds.iter() {
-                save_fn_types(&tp.ident, tpb);
-            }
+            save_fn_types(&tp.ident, &tp.bounds);
         }
     }
     if let Some(wc) = &gen.where_clause {
@@ -344,9 +345,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
             if let WherePredicate::Type(pt) = pred {
                 let bounded_ty = &pt.bounded_ty;
                 if let Ok(ident) = parse2::<Ident>(quote!(#bounded_ty)) {
-                    for tpb in pt.bounds.iter() {
-                        save_fn_types(&ident, tpb);
-                    }
+                    save_fn_types(&ident, &pt.bounds);
                 } else {
                     // We can't yet handle where clauses this complicated
                 }
@@ -1620,12 +1619,14 @@ mod concretize_args {
         check_concretize(
             quote!(fn foo<F1: Fn(u32) -> u32,
                           F2: FnMut(&mut u32) -> u32,
-                          F3: FnOnce(u32) -> u32>(f1: F1, f2: F2, f3: F3)),
+                          F3: FnOnce(u32) -> u32,
+                          F4: Fn() + Send>(f1: F1, f2: F2, f3: F3, f4: F4)),
             &[quote!(f1: &(dyn Fn(u32) -> u32)),
               quote!(f2: &mut(dyn FnMut(&mut u32) -> u32)),
-              quote!(f3: &(dyn FnOnce(u32) -> u32))],
-            &[quote!(&f1), quote!(&mut f2), quote!(&f3)],
-            &[quote!(f1: F1), quote!(mut f2: F2), quote!(f3: F3)]
+              quote!(f3: &(dyn FnOnce(u32) -> u32)),
+              quote!(f4: &(dyn Fn() + Send))],
+            &[quote!(&f1), quote!(&mut f2), quote!(&f3), quote!(&f4)],
+            &[quote!(f1: F1), quote!(mut f2: F2), quote!(f3: F3), quote!(f4: F4)]
         );
     }
 
@@ -1737,6 +1738,15 @@ mod declosurefy {
     }
 
     #[test]
+    fn bounds() {
+        check_declosurefy(
+            quote!(fn foo<F: Fn(u32) -> u32 + Send>(f: F)),
+            &[quote!(f: Box<dyn Fn(u32) -> u32 + Send>)],
+            &[quote!(Box::new(f))]
+        );
+    }
+
+    #[test]
     fn r#fn() {
         check_declosurefy(
             quote!(fn foo<F: Fn(u32) -> u32>(f: F)),
@@ -1777,6 +1787,15 @@ mod declosurefy {
         check_declosurefy(
             quote!(fn foo<F>(f: F) where F: Fn(u32) -> u32),
             &[quote!(f: Box<dyn Fn(u32) -> u32>)],
+            &[quote!(Box::new(f))]
+        );
+    }
+
+    #[test]
+    fn where_clause_with_bounds() {
+        check_declosurefy(
+            quote!(fn foo<F>(f: F) where F: Fn(u32) -> u32 + Send),
+            &[quote!(f: Box<dyn Fn(u32) -> u32 + Send>)],
             &[quote!(Box::new(f))]
         );
     }

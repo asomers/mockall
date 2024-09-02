@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- When mocking functions with a closure argument, but not using
+  `#[concretize]`, include any additional trait bounds in the trait object
+  argument passed to `.with` and `.returning.
+  ([#606](https://github.com/asomers/mockall/pull/606))
+
 - Fixed naming conflict when mocking multiple traits with same name but from
   different modules.
   ([#601](https://github.com/asomers/mockall/pull/601))
