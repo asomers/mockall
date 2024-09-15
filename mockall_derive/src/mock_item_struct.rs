@@ -75,7 +75,7 @@ fn unique_trait_iter<'a, I: Iterator<Item = &'a MockTrait>>(i: I)
 }
 
 /// A collection of methods defined in one spot
-pub struct Methods(pub Vec<MockFunction>);
+pub struct Methods(pub(crate) Vec<MockFunction>);
 
 impl Methods {
     /// Are all of these methods static?
