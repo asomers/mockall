@@ -2,7 +2,7 @@
 //! Using automock on a struct with private methods should not result in any
 //! "dead_code" warnings.  Such methods are often private helpers used only by
 //! other public methods.
-#[deny(dead_code)]
+#![deny(dead_code)]
 
 pub mod mymod {
     use mockall::automock;
