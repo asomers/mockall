@@ -892,7 +892,7 @@ struct Common<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for Common<'a> {
+impl ToTokens for Common<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let predty = &self.f.predty;
@@ -1065,7 +1065,7 @@ struct CommonExpectationMethods<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for CommonExpectationMethods<'a> {
+impl ToTokens for CommonExpectationMethods<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let hrtb = self.f.hrtb();
@@ -1190,7 +1190,7 @@ struct CommonExpectationsMethods<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for CommonExpectationsMethods<'a> {
+impl ToTokens for CommonExpectationsMethods<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
         let v = &self.f.privmod_vis;
@@ -1235,7 +1235,7 @@ struct ExpectationGuardCommonMethods<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for ExpectationGuardCommonMethods<'a> {
+impl ToTokens for ExpectationGuardCommonMethods<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         if !self.f.is_static {
             return;
@@ -1406,7 +1406,7 @@ struct ConcreteExpectationGuard<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for ConcreteExpectationGuard<'a> {
+impl ToTokens for ConcreteExpectationGuard<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         if !self.f.is_static {
             return;
@@ -1475,7 +1475,7 @@ struct GenericExpectationGuard<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for GenericExpectationGuard<'a> {
+impl ToTokens for GenericExpectationGuard<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         if !self.f.is_static {
             return;
@@ -1545,7 +1545,7 @@ struct Context<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for Context<'a> {
+impl ToTokens for Context<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         if !self.f.is_static {
             return;
@@ -1656,7 +1656,7 @@ struct Matcher<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for Matcher<'a> {
+impl ToTokens for Matcher<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let (ig, tg, wc) = self.f.cgenerics.split_for_impl();
         let argnames = &self.f.argnames;
@@ -1760,7 +1760,7 @@ struct RefRfunc<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for RefRfunc<'a> {
+impl ToTokens for RefRfunc<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let fn_params = &self.f.fn_params;
         let (ig, tg, wc) = self.f.egenerics.split_for_impl();
@@ -1819,7 +1819,7 @@ struct RefMutRfunc<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for RefMutRfunc<'a> {
+impl ToTokens for RefMutRfunc<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
@@ -1909,7 +1909,7 @@ struct StaticRfunc<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for StaticRfunc<'a> {
+impl ToTokens for StaticRfunc<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
@@ -1996,7 +1996,7 @@ struct RefExpectation<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for RefExpectation<'a> {
+impl ToTokens for RefExpectation<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;
@@ -2062,7 +2062,7 @@ struct RefMutExpectation<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for RefMutExpectation<'a> {
+impl ToTokens for RefMutExpectation<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationMethods{f: self.f};
         let argnames = &self.f.argnames;
@@ -2150,7 +2150,7 @@ struct StaticExpectation<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for StaticExpectation<'a> {
+impl ToTokens for StaticExpectation<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationMethods{f: self.f};
         let argnames = &self.f.argnames;
@@ -2324,7 +2324,7 @@ struct RefExpectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for RefExpectations<'a> {
+impl ToTokens for RefExpectations<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationsMethods{f: self.f};
         let argnames = &self.f.argnames;
@@ -2362,7 +2362,7 @@ struct RefMutExpectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for RefMutExpectations<'a> {
+impl ToTokens for RefMutExpectations<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationsMethods{f: self.f};
         let argnames = &self.f.argnames;
@@ -2401,7 +2401,7 @@ struct StaticExpectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for StaticExpectations<'a> {
+impl ToTokens for StaticExpectations<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let common_methods = CommonExpectationsMethods{f: self.f};
         let argnames = &self.f.argnames;
@@ -2438,7 +2438,7 @@ struct GenericExpectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for GenericExpectations<'a> {
+impl ToTokens for GenericExpectations<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         if ! self.f.is_expectation_generic() {
             return;
@@ -2484,7 +2484,7 @@ struct StaticGenericExpectations<'a> {
     f: &'a MockFunction
 }
 
-impl<'a> ToTokens for StaticGenericExpectations<'a> {
+impl ToTokens for StaticGenericExpectations<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let argnames = &self.f.argnames;
         let argty = &self.f.argty;

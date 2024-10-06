@@ -8,6 +8,9 @@ pub struct NonStaticStruct<'nss> {
     _x: &'nss i32
 }
 
+// For an example without the needless_lifetimes, see
+// automock_elided_lifetime.rs and issue #610 .
+#[allow(clippy::needless_lifetimes)]
 #[automock]
 impl<'nss> NonStaticStruct<'nss> {
     pub fn foo(&self) -> i64 {
