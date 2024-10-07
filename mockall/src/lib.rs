@@ -1481,7 +1481,7 @@ pub struct ArgPrinter<'a, T>(pub &'a T);
 
 #[doc(hidden)]
 pub struct DebugPrint<'a, T: Debug>(pub &'a T);
-impl<'a, T> Debug for DebugPrint<'a, T> where T: Debug {
+impl<T> Debug for DebugPrint<'_, T> where T: Debug {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(self.0, f)
     }
@@ -1503,7 +1503,7 @@ impl Debug for NothingPrint {
 }
 #[doc(hidden)]
 pub trait ViaNothing { fn debug_string(&self) -> NothingPrint; }
-impl<'a, T> ViaNothing for ArgPrinter<'a, T> {
+impl<T> ViaNothing for ArgPrinter<'_, T> {
     fn debug_string(&self) -> NothingPrint {
         NothingPrint
     }
