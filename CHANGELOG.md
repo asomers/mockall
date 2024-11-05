@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Suppress the `#[clippy::ref_option]` warning, new in Rust 1.83.0, in
+  generated code.
+  ([#618](https://github.com/asomers/mockall/pull/618))
+
 - When mocking functions with a closure argument, but not using
   `#[concretize]`, include any additional trait bounds in the trait object
   argument passed to `.with` and `.returning.
