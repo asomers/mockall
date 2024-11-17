@@ -1557,6 +1557,15 @@ mod automock {
     }
 
     #[test]
+    #[should_panic(expected = "automock does not currently support structs with elided lifetimes")]
+    fn elided_lifetimes() {
+        let code = "impl X<'_> {}";
+        let ts = proc_macro2::TokenStream::from_str(code).unwrap();
+        let attrs_ts = proc_macro2::TokenStream::from_str("").unwrap();
+        do_automock(attrs_ts, ts).to_string();
+    }
+
+    #[test]
     #[should_panic(expected = "can only mock inline modules")]
     fn external_module() {
         let code = "mod foo;";
