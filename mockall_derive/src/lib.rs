@@ -820,6 +820,11 @@ impl<'a> AttrFormatter<'a> {
                     self.doc
                 } else if *i.as_ref().unwrap() == "async_trait" {
                     self.async_trait
+                } else if *i.as_ref().unwrap() == "expect" {
+                    // This probably means that there's a lint that needs to be
+                    // surpressed for the real code, but not for the mock code.
+                    // Skip it.
+                    false
                 } else if *i.as_ref().unwrap() == "inline" {
                     // No need to inline mock functions.
                     false

@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Suppress warnings about the `#[expect]` lint, new in Rust 1.81.0, in
+  generated code.
+  ([#619](https://github.com/asomers/mockall/pull/619))
+
 - Suppress the `#[clippy::ref_option]` warning, new in Rust 1.83.0, in
   generated code.
   ([#618](https://github.com/asomers/mockall/pull/618))
