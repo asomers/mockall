@@ -395,6 +395,17 @@ impl From<ItemImpl> for MockableStruct {
         let name = match &*item_impl.self_ty {
             Type::Path(type_path) => {
                 let n = find_ident_from_path(&type_path.path).0;
+                let self_generics = &type_path.path.segments.last().unwrap().arguments;
+                if let PathArguments::AngleBracketed(abga) = &self_generics {
+                    if item_impl.generics.params.len() != abga.args.len() {
+                        // If a struct's impl block has elided lifetimes, then
+                        // they won't show up in the impl block's generics
+                        // list.  automock can't currently handle that.
+                        // https://github.com/asomers/mockall/issues/610
+                        compile_error(item_impl.span(),
+                            "automock does not currently support structs with elided lifetimes");
+                    }
+                }
                 gen_mock_ident(&n)
             },
             x => {
