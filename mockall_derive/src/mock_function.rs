@@ -124,7 +124,7 @@ fn destrify(ty: &mut Type) {
 /// Return the owned version of the input.
 fn ownify(ty: &Type) -> Type {
     if let Type::Reference(ref tr) = &ty {
-        if tr.lifetime.as_ref().map_or(false, |lt| lt.ident == "static")
+        if tr.lifetime.as_ref().is_some_and(|lt| lt.ident == "static")
         {
             // Just a static expectation
             ty.clone()
