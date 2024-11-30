@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+
+### Fixed
+
+- Suppress `single-use-lifetimes` lints in the generated code, for cases where
+  the orginal code wouldn't have triggered the warning.
+  ([#627](https://github.com/asomers/mockall/pull/627))
+
 ## [ 0.13.1 ] - 2024-11-17
 
 ### Fixed
