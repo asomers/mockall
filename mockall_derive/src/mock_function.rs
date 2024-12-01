@@ -266,6 +266,7 @@ impl<'a> Builder<'a> {
         let mut return_ref = false;
         let mut return_refmut = false;
         if let Type::Reference(ref tr) = &output {
+            #[allow(clippy::unnecessary_map_or)]
             if tr.lifetime.as_ref().map_or(true, |lt| lt.ident != "static")
             {
                 if tr.mutability.is_none() {
