@@ -2,6 +2,7 @@
 //! mock a method whose self parameter has an explicit lifetime
 //! https://github.com/asomers/mockall/issues/95
 #![deny(warnings)]
+#![allow(single_use_lifetimes)] // The lifetime is the whole point of this test
 
 use mockall::*;
 
