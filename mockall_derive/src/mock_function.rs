@@ -636,6 +636,7 @@ impl MockFunction {
         } else {
             format!("{}::{}", self.mod_ident, self.sig.ident)
         };
+        #[allow(clippy::literal_string_with_formatting_args)]
         let fields = vec!["{:?}"; argnames.len()].join(", ");
         let fstr = format!("{name}({fields})");
         quote!(std::format!(#fstr, #((&&::mockall::ArgPrinter(&#argnames)).debug_string()),*))
