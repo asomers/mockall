@@ -1224,6 +1224,7 @@ impl ToTokens for CommonExpectationsMethods<'_> {
                     Self(Vec::new())
                 }
             }
+            #[allow(single_use_lifetimes)]
             impl #ig Default for Expectations #tg #wc
             {
                 fn default() -> Self {
@@ -1808,6 +1809,7 @@ impl ToTokens for RefRfunc<'_> {
                 }
             }
 
+            #[allow(single_use_lifetimes)]
             impl #ig std::default::Default for Rfunc #tg #wc
             {
                 fn default() -> Self {
@@ -1898,6 +1900,7 @@ impl ToTokens for RefMutRfunc<'_> {
                 }
             }
 
+            #[allow(single_use_lifetimes)]
             impl #ig std::default::Default for Rfunc #tg #wc
             {
                 fn default() -> Self {
@@ -1986,6 +1989,7 @@ impl ToTokens for StaticRfunc<'_> {
                 }
             }
 
+            #[allow(single_use_lifetimes)]
             impl #ig std::default::Default for Rfunc #tg #wc
             {
                 fn default() -> Self {
@@ -2049,6 +2053,7 @@ impl ToTokens for RefExpectation<'_> {
 
                 #common_methods
             }
+            #[allow(single_use_lifetimes)]
             impl #ig Default for Expectation #tg #wc
             {
                 fn default() -> Self {
@@ -2137,6 +2142,7 @@ impl ToTokens for RefMutExpectation<'_> {
 
                 #common_methods
             }
+            #[allow(single_use_lifetimes)]
             impl #ig Default for Expectation #tg #wc
             {
                 fn default() -> Self {
@@ -2311,6 +2317,7 @@ impl ToTokens for StaticExpectation<'_> {
 
                 #common_methods
             }
+            #[allow(single_use_lifetimes)]
             impl #ig Default for Expectation #tg #wc
             {
                 fn default() -> Self {
