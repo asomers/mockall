@@ -1067,15 +1067,14 @@
 //!
 //! ## Async Traits
 //!
-//! Async traits aren't yet (as of 1.47.0) a part of the Rust language.  But
-//! they're available from the
-//! [`async_trait`](https://docs.rs/async-trait/0.1.38/async_trait/) crate.
-//! Mockall is compatible with this crate, with two important limitations:
-//!
-//! * The `#[automock]` attribute must appear _before_ the `#[async_trait]`
-//! attribute.
-//!
-//! * The `#[async_trait]` macro must be imported with its canonical name.
+//! Partial support for async traits was introduced in the Rust language since
+//! 1.75.0.
+//! Mockall is compatible with them, as well as both 
+//! [`async_trait`](https://docs.rs/async-trait/latest/async_trait/) and
+//! [`trait_variant`](https://docs.rs/trait-variant/latest/trait_variant/)
+//! crates, with an important limitation:
+//! 
+//! * The `#[automock]` attribute must appear _before_ the crate's attribute.
 //!
 //! ```
 //! # use async_trait::async_trait;
