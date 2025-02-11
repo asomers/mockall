@@ -46,6 +46,7 @@ predicates-tree = "1.0"
 mockall_derive = { version = "=0.13.1", path = "../mockall_derive" }
 
 [dev-dependencies]
+trait-variant = "0.1.2"
 async-trait = "0.1.38"
 auto_enums = "0.8.5"
 futures = "0.3.7"
