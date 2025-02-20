@@ -7,6 +7,9 @@
 
 #![cfg_attr(feature = "nightly_derive", feature(proc_macro_diagnostic))]
 #![cfg_attr(test, deny(warnings))]
+// This lint is unhelpful.  See
+// https://github.com/rust-lang/rust-clippy/discussions/14256
+#![allow(clippy::doc_overindented_list_items)]
 
 use cfg_if::cfg_if;
 use proc_macro2::{Span, TokenStream};
