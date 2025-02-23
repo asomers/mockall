@@ -1075,6 +1075,9 @@
 //! crates, with an important limitation:
 //! 
 //! * The `#[automock]` attribute must appear _before_ the crate's attribute.
+//! 
+//! * The `#[async_trait]` and `#[trait_variant::make]` macros must be 
+//! imported with their canonical name.
 //!
 //! ```
 //! # use async_trait::async_trait;

@@ -1,5 +1,5 @@
 // vim: tw=80
-//! An async trait, for use with Futures
+//! A native async trait with trait_variant, for use with Futures
 #![deny(warnings)]
 
 use futures::executor::block_on;

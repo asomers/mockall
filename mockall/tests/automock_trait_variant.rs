@@ -1,5 +1,5 @@
 // vim: tw=80
-//! An async trait, for use with Futures
+//! A native async trait with trait_variant, for use with Futures
 #![deny(warnings)]
 
 use futures::executor::block_on;
@@ -11,7 +11,6 @@ pub trait Foo {
     async fn foo(&self) -> u32;
     async fn bar() -> u32;
 }
-
 
 #[test]
 fn return_const() {
