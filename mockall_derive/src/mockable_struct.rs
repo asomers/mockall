@@ -371,6 +371,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
         let mut attrs = AttrFormatter::new(&trait_.attrs)
             .doc(true)
             .async_trait(true)
+            .trait_variant(true)
             .must_use(false)
             .format();
         attrs.push(derive_debug());
