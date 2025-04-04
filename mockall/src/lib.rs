@@ -1072,7 +1072,7 @@
 //! Mockall is compatible with them, as well as both 
 //! [`async_trait`](https://docs.rs/async-trait/latest/async_trait/) and
 //! [`trait_variant`](https://docs.rs/trait-variant/latest/trait_variant/)
-//! crates, with an important limitation:
+//! crates, with two important limitations:
 //! 
 //! * The `#[automock]` attribute must appear _before_ the crate's attribute.
 //! 
