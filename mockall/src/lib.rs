@@ -1233,6 +1233,17 @@ pub mod examples;
 /// let mock = MockBar::new();
 /// ```
 ///
+/// Mocking a trait variant with a different name requires adding a metaitem to the
+/// attribute in order to mock the variant instead of the original:
+/// ```
+/// # use mockall_derive::*;
+/// #[automock(target = Foo)]
+/// #[trait_variant::make(Foo: Send)]
+/// trait LocalFoo {
+///     fn foo(&self) -> u32;
+/// }
+/// ```
+///
 /// Mocking a trait with associated types requires adding a metaitem to the
 /// attribute:
 /// ```
