@@ -216,6 +216,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   regression in v0.10.0.
   ([#312](https://github.com/asomers/mockall/pull/312))
 
+
 ## [ 0.10.1 ] - 2021-07-01
 
 ### Fixed
@@ -249,23 +250,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Mockall is pickier now about how you mock a trait on a generic struct.
   Previously you could usually omit the generics.  Now, they're required.
   i.e.,
-
   ```rust
   mock!{
       MyStruct<T: Bounds> {...}
       impl Foo for MyStruct {...}
   }
   ```
-
   should now be written as
-
   ```rust
   mock!{
       MyStruct<T: Bounds> {...}
       impl<T: Bounds> Foo for MyStruct<T> {...}
   }
   ```
-
   ([#274](https://github.com/asomers/mockall/pull/274))
 
 ### Fixed
@@ -276,7 +273,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#272](https://github.com/asomers/mockall/pull/272))
 
 ## [0.9.1] - 2021-02-13
-
 ### Added
 
 - When a test fails because of a method sequence violation, the error message
@@ -290,7 +286,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#246](https://github.com/asomers/mockall/pull/246))
 
 ### Changed
-
 ### Fixed
 
 - Fixed Clippy warnings in generated code with Rustc 1.52.0.
@@ -303,7 +298,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.9.0] - 2020-12-21
-
 ### Added
 
 - Added the ability to mock methods returning `impl Future` or `impl Stream`.
@@ -315,10 +309,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#213](https://github.com/asomers/mockall/pull/213))
 
 - `mock!` supports a new syntax: "impl Trait for".  It has two benefits:
-  - It can implement a generic trait for specific generic type(s).
-  - It allows mocking a non-local trait.
+  * It can implement a generic trait for specific generic type(s).
+  * It allows mocking a non-local trait.
   The syntax looks like this:
-
   ```rust
     mock! {
         Bar {}
@@ -327,7 +320,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
         }
     }
   ```
-
   ([#205](https://github.com/asomers/mockall/pull/205))
 
 - `#[automock]` now works on modules even without the `nightly` feature, and no
@@ -369,33 +361,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#197](https://github.com/asomers/mockall/pull/197))
 
 ## [0.8.3] - 21 October 2020
-
 ### Added
-
 ### Changed
-
 ### Fixed
 
 - Suppressed `default_trait_access` pedantic Clippy lint in generated code
   ([#222](https://github.com/asomers/mockall/pull/222))
 
 ## [0.8.2] - 12 October 2020
-
 ### Added
-
 ### Changed
-
 ### Fixed
 
 - Fixed Clippy warnings for mocked methods with `Vec` or `String` arguments.
   ([#195](https://github.com/asomers/mockall/pull/195))
 
 ## [0.8.1] - 7 September 2020
-
 ### Added
-
 ### Changed
-
 ### Fixed
 
 - Fixed using `<X as Y>::Z` syntax in a where clause or a return type.
@@ -404,9 +387,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.8.0] - 29 August 2020
-
 ### Added
-
 - Added support for mocking structs and traits with associated constants.
   ([#187](https://github.com/asomers/mockall/pull/187))
 
@@ -417,9 +398,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#183](https://github.com/asomers/mockall/pull/183))
 
 - Better support for non-Send types:
-  - Added `return_const_st` for returning non-`Send` constants, similar to
+  * Added `return_const_st` for returning non-`Send` constants, similar to
     `returning_st`.
-  - Added `return_once_st` for static methods.  It was already available for
+  * Added `return_once_st` for static methods.  It was already available for
     non-static methods.
   ([#178](https://github.com/asomers/mockall/pull/178))
 
@@ -431,7 +412,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#174](https://github.com/asomers/mockall/pull/174))
 
 ### Changed
-
 - Raised the minimum supported Rust version (MSRV) to 1.42.0.
   ([#175](https://github.com/asomers/mockall/pull/175))
 
@@ -439,7 +419,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#169](https://github.com/asomers/mockall/pull/169))
 
 ### Fixed
-
 - Fixed mocking modules including functions that use "impl Trait" or mutable
   arguments.
   ([#169](https://github.com/asomers/mockall/pull/169))
@@ -459,11 +438,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.7.2] - 28 July 2020
-
 ### Added
-
 ### Changed
-
 ### Fixed
 
 - Fixed handling function attributes.  They already worked on methods, but not
@@ -493,7 +469,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.7.1] - 3 May 2020
-
 ### Fixed
 
 - Fixed `unused must_use` warnings in consumers' crates on the latest nightly
@@ -501,7 +476,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#125](https://github.com/asomers/mockall/pull/125))
 
 ## [0.7.0] - 29 March 2020
-
 ### Added
 
 - `mock!` now allows doc comments in any position
@@ -515,7 +489,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#114](https://github.com/asomers/mockall/pull/114))
 
 ### Changed
-
 ### Fixed
 
 - Fixed the docs for `mockall_examples`
@@ -535,7 +508,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.6.0] - 5 December 2019
-
 ### Added
 
 - Added the ability to mock generic methods whose return values' lifetimes are
@@ -543,7 +515,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#86](https://github.com/asomers/mockall/pull/86))
 
 ### Changed
-
 ### Fixed
 
 - Fixed using `prediate::always` and `prediate::never` with `?Sized` types
@@ -555,9 +526,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.5.2] - 2 November 2019
-
 ### Added
-
 ### Changed
 
 - Mock objects' checkpoint methods will no longer check static expectations.
@@ -574,11 +543,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.5.1] - 28 September 2019
-
 ### Added
-
 ### Changed
-
 ### Fixed
 
 - Fixed using super:: in the signature of a bare function
@@ -603,7 +569,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([09746e9](https://github.com/asomers/mockall/commit/09746e92d4a7a904b1911babbe65cc1043e237d4))
 
 ### Changed
-
 ### Fixed
 
 - `return_const` now works for static methods with no preceding `with` or
@@ -613,7 +578,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.4.0] - 29 August 2019
-
 ### Added
 
 - Warnings for misued expectations and context objects
@@ -649,7 +613,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 
 ## [0.3.0] - 10 August 2019
-
 ### Added
 
 - Methods with closure arguments can now be mocked.  Technically they always
@@ -703,7 +666,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([db25804](https://github.com/asomers/mockall/commit/db25804255861c6a36d1e0d2d0a81926d296c79a))
 
 ## [0.2.0] - 2 August 2019
-
 ### Added
 
 - Support mocking generic specializing methods.
@@ -719,7 +681,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#8](https://github.com/asomers/mockall/issues/8))
 
 ### Changed
-
 ### Fixed
 
 - Fixed `#[automock]` for `new` methods with arguments.
@@ -744,11 +705,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ([#12](https://github.com/asomers/mockall/pull/12))
 
 ## [0.1.1] - 3 July 2019
-
 ### Added
-
 ### Changed
-
 ### Fixed
 
 - Fixed some issues in the API docs.  No functional change.
