@@ -789,7 +789,7 @@ impl MockFunction {
 
     fn is_expectation_generic(&self) -> bool {
         self.egenerics.params.iter().any(|p| {
-            matches!(p, GenericParam::Type(_))
+            matches!(p, GenericParam::Type(_) | GenericParam::Const(_))
         }) || self.egenerics.where_clause.is_some()
     }
 
@@ -797,7 +797,7 @@ impl MockFunction {
     /// generic mock struct)?
     pub fn is_method_generic(&self) -> bool {
         self.call_generics.params.iter().any(|p| {
-            matches!(p, GenericParam::Type(_))
+            matches!(p, GenericParam::Type(_) | GenericParam::Const(_))
         }) || self.call_generics.where_clause.is_some()
     }
 
