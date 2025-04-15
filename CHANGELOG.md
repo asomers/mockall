@@ -5,7 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
 
+### Changed
+
+- The MSRV is now Rust 1.77.0.
+  ([#650](https://github.com/asomers/mockall/pull/650))
+
 ### Fixed
+
+- No longer poison a Context object's internal `Mutex` when panicing, even when
+  using a stable Rust compiler.
+  ([#650](https://github.com/asomers/mockall/pull/650))
 
 - Suppress `single-use-lifetimes` lints in the generated code, for cases where
   the orginal code wouldn't have triggered the warning.

@@ -1583,13 +1583,7 @@ impl ToTokens for Context<'_> {
         #[cfg(feature = "nightly_derive")]
         let must_use = quote!();
 
-        #[cfg(not(feature = "nightly_derive"))]
-        let clear_poison = quote!();
-        #[cfg(feature = "nightly_derive")]
-        let clear_poison = quote!(
-            #[allow(clippy::incompatible_msrv)]
-            get_expectations().clear_poison();
-        );
+        let clear_poison = quote!(get_expectations().clear_poison(););
 
         quote!(
             /// Manages the context for expectations of static methods.
