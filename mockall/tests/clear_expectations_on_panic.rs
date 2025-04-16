@@ -4,7 +4,7 @@
 //! https://github.com/asomers/mockall/issues/442
 #![deny(warnings)]
 
-use std::panic;
+use std::{panic, sync::Mutex};
 
 use mockall::*;
 
@@ -14,8 +14,12 @@ pub trait Foo {
     fn bar() -> i32;
 }
 
+static FOO_MTX: Mutex<()> = Mutex::new(());
+
 #[test]
 fn too_few_calls() {
+    let _m = FOO_MTX.lock().unwrap();
+
     panic::catch_unwind(|| {
         let ctx = MockFoo::foo_context();
         ctx.expect()
@@ -34,9 +38,10 @@ fn too_few_calls() {
 
 // We shouldn't panic during drop in this case.  Regression test for
 // https://github.com/asomers/mockall/issues/491
-#[cfg_attr(not(feature = "nightly"), ignore)]
 #[test]
 fn too_many_calls() {
+    let _m = FOO_MTX.lock().unwrap();
+
     panic::catch_unwind(|| {
         let ctx = MockFoo::bar_context();
         ctx.expect()
@@ -44,7 +49,18 @@ fn too_many_calls() {
         MockFoo::bar();
     }).unwrap_err();
 
-    // This line will panic with a PoisonError, at least until issue #515 is
-    // complete.  
+    let _ctx = MockFoo::bar_context();
+}
+
+// If we panic due to not setting any expectations at all, the mock method's
+// mutex shouldn't be poisoned.
+#[test]
+fn no_expectations_at_all() {
+    let _m = FOO_MTX.lock().unwrap();
+
+    panic::catch_unwind(|| {
+        MockFoo::bar();
+    }).unwrap_err();
+
     let _ctx = MockFoo::bar_context();
 }
