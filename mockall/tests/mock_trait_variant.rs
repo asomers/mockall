@@ -4,6 +4,7 @@
 
 use futures::executor::block_on;
 use mockall::*;
+use static_assertions::assert_impl_all;
 
 mod simple {
     use super::*;
@@ -20,6 +21,8 @@ mod simple {
             async fn foo(&self) -> u32;
         }
     }
+
+    assert_impl_all!(MockBar: Send);
 
     #[test]
     fn return_const() {
@@ -47,6 +50,8 @@ mod original {
         }
     }
 
+    assert_impl_all!(MockLocalBar: Send);
+
     #[test]
     fn return_const() {
         let mut mock = MockLocalBar::new();
@@ -73,6 +78,8 @@ mod variant {
             async fn foo(&self) -> u32;
         }
     }
+
+    assert_impl_all!(MockBar: Send);
 
     #[test]
     fn return_const() {

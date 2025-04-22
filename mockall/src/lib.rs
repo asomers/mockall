@@ -1077,7 +1077,7 @@
 //! * The `#[automock]` attribute must appear _before_ the crate's attribute.
 //! 
 //! * The `#[async_trait]` and `#[trait_variant::make]` macros must be 
-//! imported with their canonical name.
+//! imported with their canonical names.
 //!
 //! ```
 //! # use async_trait::async_trait;
@@ -1243,6 +1243,9 @@ pub mod examples;
 ///     fn foo(&self) -> u32;
 /// }
 /// ```
+/// The example above demonstrates using `target = Foo`, which will generate
+/// a `MockFoo` struct suitable for mocking the `Foo` variant.
+/// Without `target = Foo`, `#[automock]` would have generated `MockLocalFoo`.
 ///
 /// Mocking a trait with associated types requires adding a metaitem to the
 /// attribute:

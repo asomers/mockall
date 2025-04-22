@@ -4,6 +4,7 @@
 
 use futures::executor::block_on;
 use mockall::*;
+use static_assertions::assert_impl_all;
 
 mod simple {
     use super::*;
@@ -14,7 +15,9 @@ mod simple {
         async fn foo(&self) -> u32;
         async fn bar() -> u32;
     }
-    
+
+    assert_impl_all!(MockFoo: Send);
+
     #[test]
     fn return_const() {
         let mut mock = MockFoo::new();
@@ -22,7 +25,7 @@ mod simple {
             .return_const(42u32);
         assert_eq!(block_on(mock.foo()), 42);
     }
-    
+
     #[test]
     fn static_method() {
         let ctx = MockFoo::bar_context();
@@ -42,7 +45,9 @@ mod original {
         async fn foo(&self) -> u32;
         async fn bar() -> u32;
     }
-    
+
+    assert_impl_all!(MockLocalFoo: Send);
+
     #[test]
     fn return_const() {
         let mut mock = MockLocalFoo::new();
@@ -50,7 +55,7 @@ mod original {
             .return_const(42u32);
         assert_eq!(block_on(mock.foo()), 42);
     }
-    
+
     #[test]
     fn static_method() {
         let ctx = MockLocalFoo::bar_context();
@@ -71,7 +76,9 @@ mod variant {
         async fn foo(&self) -> u32;
         async fn bar() -> u32;
     }
-    
+
+    assert_impl_all!(MockFoo: Send);
+
     #[test]
     fn return_const() {
         let mut mock = MockFoo::new();
@@ -80,7 +87,7 @@ mod variant {
         assert_eq!(block_on(Foo::foo(&mock)), 42);
         assert_eq!(block_on(LocalFoo::foo(&mock)), 42);
     }
-    
+
     #[test]
     fn static_method() {
         let ctx = MockFoo::bar_context();
