@@ -12,8 +12,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
-- No longer poison a Context object's internal `Mutex` when panicing, even when
-  using a stable Rust compiler.
+- No longer poison a static mock method's internal `Mutex` when panicing, even when
+  using a stable Rust compiler.  Also, no longer poison it even if there is no
+  `Context` object.  For example, if the user never set an Expectation at all.
   ([#650](https://github.com/asomers/mockall/pull/650))
 
 - Suppress `single-use-lifetimes` lints in the generated code, for cases where
