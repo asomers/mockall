@@ -1,7 +1,6 @@
 // vim: tw=80
 //! #[concretize] can be used inside of #[cfg_attr()]`
 #![deny(warnings)]
-#![allow(unexpected_cfgs)] // multics is deliberately always false
 
 use std::path::{Path, PathBuf};
 
