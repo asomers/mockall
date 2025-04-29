@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [ Unreleased ] - ReleaseDate
 
+### Added
+
+- Compatibility with the `#[trait_variant::make]` macro.
+  ([#640](https://github.com/asomers/mockall/pull/640))
+
 ### Changed
 
 - The MSRV is now Rust 1.77.0.
@@ -12,19 +17,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
-- No longer poison a static mock method's internal `Mutex` when panicing, even when
-  using a stable Rust compiler.  Also, no longer poison it even if there is no
-  `Context` object.  For example, if the user never set an Expectation at all.
+- No longer poison a static mock method's internal `Mutex` when panicing, even
+  when using a stable Rust compiler.  Also, no longer poison it even if there
+  is no `Context` object.  For example, if the user never set an Expectation at
+  all.
   ([#650](https://github.com/asomers/mockall/pull/650))
 
 - Suppress `single-use-lifetimes` lints in the generated code, for cases where
   the orginal code wouldn't have triggered the warning.
   ([#627](https://github.com/asomers/mockall/pull/627))
-
-### Added
-
-- Compatibility with the `#[trait_variant::make]` macro.
-  ([#640](https://github.com/asomers/mockall/pull/640))
 
 ## [ 0.13.1 ] - 2024-11-17
 
