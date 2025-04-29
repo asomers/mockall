@@ -774,6 +774,7 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
 struct AttrFormatter<'a>{
     attrs: &'a [Attribute],
     async_trait: bool,
+    trait_variant: bool,
     doc: bool,
     must_use: bool,
 }
@@ -783,6 +784,7 @@ impl<'a> AttrFormatter<'a> {
         Self {
             attrs,
             async_trait: true,
+            trait_variant: false,
             doc: true,
             must_use: false,
         }
@@ -790,6 +792,11 @@ impl<'a> AttrFormatter<'a> {
 
     fn async_trait(&mut self, allowed: bool) -> &mut Self {
         self.async_trait = allowed;
+        self
+    }
+
+    fn trait_variant(&mut self, allowed: bool) -> &mut Self {
+        self.trait_variant = allowed;
         self
     }
 
@@ -823,6 +830,8 @@ impl<'a> AttrFormatter<'a> {
                     self.doc
                 } else if *i.as_ref().unwrap() == "async_trait" {
                     self.async_trait
+                } else if *i.as_ref().unwrap() == "make" {
+                    self.trait_variant
                 } else if *i.as_ref().unwrap() == "expect" {
                     // This probably means that there's a lint that needs to be
                     // surpressed for the real code, but not for the mock code.

@@ -1067,15 +1067,17 @@
 //!
 //! ## Async Traits
 //!
-//! Async traits aren't yet (as of 1.47.0) a part of the Rust language.  But
-//! they're available from the
-//! [`async_trait`](https://docs.rs/async-trait/0.1.38/async_trait/) crate.
-//! Mockall is compatible with this crate, with two important limitations:
-//!
-//! * The `#[automock]` attribute must appear _before_ the `#[async_trait]`
-//! attribute.
-//!
-//! * The `#[async_trait]` macro must be imported with its canonical name.
+//! Partial support for async traits was introduced in the Rust language since
+//! 1.75.0.
+//! Mockall is compatible with them, as well as both 
+//! [`async_trait`](https://docs.rs/async-trait/latest/async_trait/) and
+//! [`trait_variant`](https://docs.rs/trait-variant/latest/trait_variant/)
+//! crates, with two important limitations:
+//! 
+//! * The `#[automock]` attribute must appear _before_ the crate's attribute.
+//! 
+//! * The `#[async_trait]` and `#[trait_variant::make]` macros must be 
+//! imported with their canonical names.
 //!
 //! ```
 //! # use async_trait::async_trait;
@@ -1230,6 +1232,20 @@ pub mod examples;
 ///
 /// let mock = MockBar::new();
 /// ```
+///
+/// Mocking a trait variant with a different name requires adding a metaitem to the
+/// attribute in order to mock the variant instead of the original:
+/// ```
+/// # use mockall_derive::*;
+/// #[automock(target = Foo)]
+/// #[trait_variant::make(Foo: Send)]
+/// trait LocalFoo {
+///     fn foo(&self) -> u32;
+/// }
+/// ```
+/// The example above demonstrates using `target = Foo`, which will generate
+/// a `MockFoo` struct suitable for mocking the `Foo` variant.
+/// Without `target = Foo`, `#[automock]` would have generated `MockLocalFoo`.
 ///
 /// Mocking a trait with associated types requires adding a metaitem to the
 /// attribute:

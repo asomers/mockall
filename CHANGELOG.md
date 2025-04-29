@@ -21,6 +21,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the orginal code wouldn't have triggered the warning.
   ([#627](https://github.com/asomers/mockall/pull/627))
 
+### Added
+
+- Compatibility with the `#[trait_variant::make]` macro.
+  ([#640](https://github.com/asomers/mockall/pull/640))
+
 ## [ 0.13.1 ] - 2024-11-17
 
 ### Fixed

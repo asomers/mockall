@@ -7,6 +7,7 @@ use syn::parse::{Parse, ParseStream};
 // This enum is very short-lived, so it's fine not to box it.
 #[allow(clippy::large_enum_variant)]
 enum Attr {
+    Target(Ident),
     Type(TraitItemType),
 }
 
@@ -15,6 +16,15 @@ impl Parse for Attr {
         let lookahead = input.lookahead1();
         if lookahead.peek(Token![type]) {
             input.parse().map(Attr::Type)
+        } else if lookahead.peek(Ident) {
+            let ident: Ident = input.parse()?;
+            if ident == "target" {
+                let _eq: Token![=] = input.parse()?;
+                let target: Ident = input.parse()?;
+                Ok(Attr::Target(target))
+            } else {
+                Err(Error::new(ident.span(), "expected 'target'"))
+            }
         } else {
             Err(lookahead.error())
         }
@@ -24,6 +34,7 @@ impl Parse for Attr {
 /// automock attributes
 #[derive(Debug, Default)]
 pub(crate) struct Attrs {
+    pub target: Option<Ident>,
     pub attrs: HashMap<Ident, Type>,
 }
 
@@ -216,6 +227,9 @@ impl Attrs {
 
     pub(crate) fn substitute_trait(&self, item: &ItemTrait) -> ItemTrait {
         let mut output = item.clone();
+        if let Some(target) = &self.target {
+            output.ident = target.clone();
+        }
         for trait_item in output.items.iter_mut() {
             match trait_item {
                 TraitItem::Type(tity) => {
@@ -252,6 +266,7 @@ impl Attrs {
 
 impl Parse for Attrs {
     fn parse(input: ParseStream) -> parse::Result<Self> {
+        let mut target = None;
         let mut attrs = HashMap::new();
         while !input.is_empty() {
             let attr: Attr = input.parse()?;
@@ -265,9 +280,12 @@ impl Parse for Attrs {
                           "automock type attributes must have a default value");
                     }
                 }
+                Attr::Target(t) => {
+                    target.replace(t);
+                }
             }
         }
-        Ok(Attrs{attrs})
+        Ok(Attrs{target,attrs})
     }
 }
 
