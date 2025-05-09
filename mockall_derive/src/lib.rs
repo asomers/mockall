@@ -1224,8 +1224,7 @@ fn split_lifetimes(
                 // Probably a lifetime parameter from the impl block that isn't
                 // used by this particular method
             },
-            GenericParam::Type(_) => tv.push(p),
-            _ => (),
+            GenericParam::Type(_) | GenericParam::Const(_) => tv.push(p),
         }
     }
 
