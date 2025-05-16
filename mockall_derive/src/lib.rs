@@ -1028,7 +1028,7 @@ fn supersuperfy_bounds(
 fn gen_keyid(g: &Generics) -> impl ToTokens {
     match g.params.len() {
         0 => quote!(<()>),
-        1 => {
+        1 if matches!(g.params.first(), Some(GenericParam::Type(_))) => {
             let (_, tg, _) = g.split_for_impl();
             quote!(#tg)
         },
@@ -1224,8 +1224,7 @@ fn split_lifetimes(
                 // Probably a lifetime parameter from the impl block that isn't
                 // used by this particular method
             },
-            GenericParam::Type(_) => tv.push(p),
-            _ => (),
+            GenericParam::Type(_) | GenericParam::Const(_) => tv.push(p),
         }
     }
 
