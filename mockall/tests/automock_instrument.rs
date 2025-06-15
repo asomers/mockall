@@ -12,11 +12,11 @@ pub struct Foo {}
 #[automock]
 impl Foo {
     #[instrument]
-    fn foo(&self) {}
+    pub fn foo(&self) {}
     #[instrument]
-    fn bar() {}
+    pub fn bar() {}
     #[tracing::instrument]
-    fn fooz(&self) {}
+    pub fn fooz(&self) {}
     #[tracing::instrument]
-    fn barz() {}
+    pub fn barz() {}
 }
