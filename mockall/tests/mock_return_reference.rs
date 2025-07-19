@@ -56,17 +56,6 @@ mod sequence {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "exact call count")]
-    fn ambiguous() {
-        let mut seq = Sequence::new();
-        let mut mock = MockFoo::new();
-        mock.expect_foo()
-            .times(1..3)
-            .in_sequence(&mut seq);
-        mock.foo(4);
-    }
-
-    #[test]
     #[should_panic(expected = "MockFoo::foo(4): Method sequence violation")]
     fn fail() {
         let mut seq = Sequence::new();
@@ -101,5 +90,16 @@ mod sequence {
 
         mock.foo(4);
         mock.bar();
+    }
+
+    #[test]
+    fn ok_variable_count() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .times(1..3)
+            .return_const(0)
+            .in_sequence(&mut seq);
+        mock.foo(4);
     }
 }
