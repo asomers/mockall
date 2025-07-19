@@ -225,17 +225,6 @@ mod sequence {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "exact call count")]
-    fn ambiguous() {
-        let mut seq = Sequence::new();
-        let mut mock = MockFoo::new();
-        mock.expect_baz()
-            .times(1..3)
-            .in_sequence(&mut seq);
-        mock.baz();
-    }
-
-    #[test]
     #[should_panic(expected = "MockFoo::baz(): Method sequence violation")]
     fn fail() {
         let mut seq = Sequence::new();
@@ -272,6 +261,88 @@ mod sequence {
         mock.bar(0);
     }
 
+    #[test]
+    fn ok_variable_count() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .times(1..)
+            .returning(|| ())
+            .in_sequence(&mut seq);
+
+        mock.expect_bar()
+            .times(1..)
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+
+        mock.baz();
+        mock.bar(0);
+    }
+
+    #[test]
+    fn ok_variable_count_skip() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+
+        // All of these may be skipped
+        mock.expect_bar()
+            .with(predicate::eq(0))
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+        mock.expect_bar()
+            .with(predicate::eq(1))
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+        mock.expect_bar()
+            .with(predicate::eq(2))
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+
+        // This one may not        
+        mock.expect_baz()
+            .times(1..)
+            .returning(|| ())
+            .in_sequence(&mut seq);
+
+        mock.baz()
+    }
+
+    #[test]
+    #[should_panic(expected = "MockFoo::bar(3): Method sequence violation")]
+    fn err_variable_count_skip() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+
+        // All of these may be skipped
+        mock.expect_bar()
+            .with(predicate::eq(0))
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+        mock.expect_bar()
+            .with(predicate::eq(1))
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+        mock.expect_bar()
+            .with(predicate::eq(2))
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+
+        // This one may not
+        mock.expect_baz()
+            .times(1..)
+            .returning(|| ())
+            .in_sequence(&mut seq);
+
+        mock.expect_bar()
+            .with(predicate::eq(3))
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+
+        // as mock.baz() is not called
+        // this call (with argument value 3) violates the sequence.
+        mock.bar(3);
+    }
+
     /// When adding multiple calls of a single method, with the same arguments,
     /// to a sequence, expectations should not be called after they are done if
     /// there are more expectations to follow.
@@ -295,6 +366,49 @@ mod sequence {
         assert_eq!(1, mock.foo(0));
         assert_eq!(2, mock.foo(0));
         assert_eq!(3, mock.foo(0));
+    }
+
+    #[test]
+    fn single_method_variable_count() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_foo()
+            .times(1..=2)
+            .in_sequence(&mut seq)
+            .returning(|_| 1);
+        mock.expect_foo()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| 3);
+
+        assert_eq!(1, mock.foo(0));
+        assert_eq!(1, mock.foo(0));
+        assert_eq!(3, mock.foo(0));
+    }
+
+    #[test]
+    fn single_method_variable_count_mixed() {
+        let mut seq = Sequence::new();
+        let mut mock = MockFoo::new();
+        mock.expect_baz()
+            .times(1..)
+            .returning(|| ())
+            .in_sequence(&mut seq);
+
+        mock.expect_bar()
+            .times(1..)
+            .returning(|_| ())
+            .in_sequence(&mut seq);
+
+        
+        mock.expect_baz()
+            .times(1..)
+            .returning(|| ())
+            .in_sequence(&mut seq);
+
+        mock.baz();
+        mock.bar(0);
+        mock.baz();
     }
 
 }

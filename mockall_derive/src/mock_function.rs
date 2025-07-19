@@ -965,22 +965,27 @@ impl ToTokens for Common<'_> {
                                 m);
                         });
                     self.verify_sequence(desc);
-                    if ::mockall::ExpectedCalls::TooFew != self.times.is_satisfied() {
+                    if ::mockall::ExpectedCalls::TooFew 
+                        != self.times.is_satisfied() {
                         self.satisfy_sequence()
+                    } else {
+                        self.called_sequence()
                     }
                 }
 
-                fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
+                fn in_sequence(
+                    &mut self,
+                    __mockall_seq: &mut ::mockall::Sequence)
                     -> &mut Self
                 {
-                    assert!(self.times.is_exact(),
-                        "Only Expectations with an exact call count have sequences");
-                    self.seq_handle = Some(__mockall_seq.next_handle());
+                    self.seq_handle = Some(__mockall_seq.next_handle(
+                        ::mockall::times_to_minimum_call_count(&self.times)
+                    ));
                     self
                 }
 
                 fn is_done(&self) -> bool {
-                    self.times.is_done()
+                    self.times.is_done() | self.is_history_sequence()
                 }
 
                 #[allow(clippy::ptr_arg)]
@@ -997,6 +1002,20 @@ impl ToTokens for Common<'_> {
                 fn satisfy_sequence(&self) {
                     if let Some(__mockall_handle) = &self.seq_handle {
                         __mockall_handle.satisfy()
+                    }
+                }
+
+                fn called_sequence(&self) {
+                    if let Some(__mockall_handle) = &self.seq_handle {
+                        __mockall_handle.called()
+                    }
+                }
+
+                fn is_history_sequence(&self) -> bool {
+                    if let Some(__mockall_handle) = &self.seq_handle {
+                        __mockall_handle.is_history()
+                    } else {
+                        false
                     }
                 }
 
