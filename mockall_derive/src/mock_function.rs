@@ -143,13 +143,27 @@ fn send_syncify(wc: &mut Option<WhereClause>, bounded_ty: Type) {
         paren_token: None,
         modifier: TraitBoundModifier::None,
         lifetimes: None,
-        path: Path::from(format_ident!("Send"))
+        path: Path {
+            leading_colon: Some(<Token![::]>::default()),
+            segments: [
+                PathSegment::from(format_ident!("std")),
+                PathSegment::from(format_ident!("marker")),
+                PathSegment::from(format_ident!("Send")),
+            ].into_iter().collect(),
+        }
     }));
     bounds.push(TypeParamBound::Trait(TraitBound {
         paren_token: None,
         modifier: TraitBoundModifier::None,
         lifetimes: None,
-        path: Path::from(format_ident!("Sync"))
+        path: Path {
+            leading_colon: Some(<Token![::]>::default()),
+            segments: [
+                PathSegment::from(format_ident!("std")),
+                PathSegment::from(format_ident!("marker")),
+                PathSegment::from(format_ident!("Sync")),
+            ].into_iter().collect(),
+        }
     }));
     if wc.is_none() {
         *wc = Some(WhereClause {
@@ -912,7 +926,7 @@ impl ToTokens for Common<'_> {
         let with_generics = with_generics_idents.iter()
             .zip(self.f.predty.iter())
             .map(|(id, mt)|
-                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
+                quote!(#id: #hrtb ::mockall::Predicate<#mt> + ::std::marker::Send + 'static, )
             ).collect::<TokenStream>();
         let with_args = self.f.argnames.iter()
             .zip(with_generics_idents.iter())
@@ -1012,7 +1026,7 @@ impl ToTokens for Common<'_> {
 
                 fn withf<MockallF>(&mut self, __mockall_f: MockallF)
                     where MockallF: #hrtb Fn(#( #refpredty, )*)
-                                    -> bool + Send + 'static
+                                    -> bool + ::std::marker::Send + 'static
                 {
                     let mut __mockall_guard = self.matcher.lock().unwrap();
                     *__mockall_guard.deref_mut() =
@@ -1083,7 +1097,7 @@ impl ToTokens for CommonExpectationMethods<'_> {
         let with_generics = with_generics_idents.iter()
             .zip(self.f.predty.iter())
             .map(|(id, mt)|
-                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
+                quote!(#id: #hrtb ::mockall::Predicate<#mt> + ::std::marker::Send + 'static, )
             ).collect::<TokenStream>();
         let with_args = self.f.argnames.iter()
             .zip(with_generics_idents.iter())
@@ -1172,7 +1186,7 @@ impl ToTokens for CommonExpectationMethods<'_> {
             /// function argument, like `with(predicate::function(f))`.
             #v fn withf<MockallF>(&mut self, __mockall_f: MockallF) -> &mut Self
                 where MockallF: #hrtb Fn(#(&#predty, )*)
-                                -> bool + Send + 'static
+                                -> bool + ::std::marker::Send + 'static
             {
                 self.common.withf(__mockall_f);
                 self
@@ -1272,7 +1286,7 @@ impl ToTokens for ExpectationGuardCommonMethods<'_> {
         let with_generics = with_generics_idents.iter()
             .zip(self.f.predty.iter())
             .map(|(id, mt)|
-                quote!(#id: #hrtb ::mockall::Predicate<#mt> + Send + 'static, )
+                quote!(#id: #hrtb ::mockall::Predicate<#mt> + ::std::marker::Send + 'static, )
             ).collect::<TokenStream>();
         let with_args = self.f.argnames.iter()
             .zip(with_generics_idents.iter())
@@ -1319,7 +1333,7 @@ impl ToTokens for ExpectationGuardCommonMethods<'_> {
             #v fn return_const<MockallOutput>
             (&mut self, __mockall_c: MockallOutput)
                 -> &mut Expectation #tg
-                where MockallOutput: Clone + Into<#output> + Send + 'static
+                where MockallOutput: Clone + Into<#output> + ::std::marker::Send + 'static
             {
                 #expectations.0[self.i].return_const(__mockall_c)
             }
@@ -1339,7 +1353,7 @@ impl ToTokens for ExpectationGuardCommonMethods<'_> {
             #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                 -> &mut Expectation #tg
                 where MockallF: #hrtb FnMut(#(#argty, )*)
-                    -> #output + Send + 'static
+                    -> #output + ::std::marker::Send + 'static
             {
                 #expectations.0[self.i].returning(__mockall_f)
             }
@@ -1349,7 +1363,7 @@ impl ToTokens for ExpectationGuardCommonMethods<'_> {
             #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
                 -> &mut Expectation #tg
                 where MockallF: #hrtb FnOnce(#(#argty, )*)
-                                -> #output + Send + 'static
+                                -> #output + ::std::marker::Send + 'static
             {
                 #expectations.0[self.i].return_once(__mockall_f)
             }
@@ -1391,7 +1405,7 @@ impl ToTokens for ExpectationGuardCommonMethods<'_> {
             #v fn withf<MockallF>(&mut self, __mockall_f: MockallF)
                 -> &mut Expectation #tg
                 where MockallF: #hrtb Fn(#(&#predty, )*)
-                                -> bool + Send + 'static
+                                -> bool + ::std::marker::Send + 'static
             {
                 #expectations.0[self.i].withf(__mockall_f)
             }
@@ -1599,7 +1613,7 @@ impl ToTokens for Context<'_> {
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
                 // generics are not, unlike PhantomData<generics>
                 _phantom: ::std::marker::PhantomData<
-                    Box<dyn Fn(#ctx_fn_params) + Send>
+                    Box<dyn Fn(#ctx_fn_params) + ::std::marker::Send>
                 >
             }
             impl #ty_ig Context #ty_tg #ty_wc {
@@ -1675,7 +1689,7 @@ impl ToTokens for Matcher<'_> {
             quote!(())
         } else {
             self.f.predty.iter()
-            .map(|t| quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + Send>,))
+            .map(|t| quote!(Box<dyn #hrtb ::mockall::Predicate<#t> + ::std::marker::Send>,))
             .collect::<TokenStream>()
         };
         let predty = &self.f.predty;
@@ -1698,14 +1712,14 @@ impl ToTokens for Matcher<'_> {
         quote!(
             enum Matcher #ig #wc {
                 Always,
-                Func(Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool + Send>),
+                Func(Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool + ::std::marker::Send>),
                 // Version of Matcher::Func for closures that aren't Send
                 FuncSt(::mockall::Fragile<Box<dyn #hrtb Fn(#( #refpredty, )*) -> bool>>),
                 Pred(Box<(#preds)>),
                 // Prevent "unused type parameter" errors
                 // Surprisingly, PhantomData<Fn(generics)> is Send even if
                 // generics are not, unlike PhantomData<generics>
-                _Phantom(Box<dyn Fn(#(#fn_params,)*) + Send>)
+                _Phantom(Box<dyn Fn(#(#fn_params,)*) + ::std::marker::Send>)
             }
             impl #ig Matcher #tg #wc {
                 #[allow(clippy::ptr_arg)]
@@ -1772,7 +1786,7 @@ impl ToTokens for RefRfunc<'_> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Mutex<Box<dyn Fn(#(#fn_params,)*) + Send>>)
+                _Phantom(Mutex<Box<dyn Fn(#(#fn_params,)*) + ::std::marker::Send>>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -1832,7 +1846,7 @@ impl ToTokens for RefMutRfunc<'_> {
             #[allow(clippy::unused_unit)]
             enum Rfunc #ig #wc {
                 Default(Option<#owned_output>),
-                Mut((Box<dyn FnMut(#(#argty, )*) -> #owned_output + Send + Sync>),
+                Mut((Box<dyn FnMut(#(#argty, )*) -> #owned_output + ::std::marker::Send + ::std::marker::Sync>),
                     Option<#owned_output>),
                 // Version of Rfunc::Mut for closures that aren't Send
                 MutSt((::mockall::Fragile<
@@ -1843,7 +1857,7 @@ impl ToTokens for RefMutRfunc<'_> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Mutex<Box<dyn Fn(#(#fn_params,)*) + Send>>)
+                _Phantom(Mutex<Box<dyn Fn(#(#fn_params,)*) + ::std::marker::Send>>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -1918,12 +1932,12 @@ impl ToTokens for StaticRfunc<'_> {
                 // Indicates that a `return_once` expectation has already
                 // returned
                 Expired,
-                Mut(Box<dyn #hrtb FnMut(#(#argty, )*) -> #output + Send>),
+                Mut(Box<dyn #hrtb FnMut(#(#argty, )*) -> #output + ::std::marker::Send>),
                 // Version of Rfunc::Mut for closures that aren't Send
                 MutSt(::mockall::Fragile<
                     Box<dyn #hrtb FnMut(#(#argty, )*) -> #output >>
                 ),
-                Once(Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output + Send>),
+                Once(Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output + ::std::marker::Send>),
                 // Version of Rfunc::Once for closure that aren't Send
                 OnceSt(::mockall::Fragile<
                     Box<dyn #hrtb FnOnce(#(#argty, )*) -> #output>>
@@ -1931,7 +1945,7 @@ impl ToTokens for StaticRfunc<'_> {
                 // Prevent "unused type parameter" errors Surprisingly,
                 // PhantomData<Fn(generics)> is Send even if generics are not,
                 // unlike PhantomData<generics>
-                _Phantom(Box<dyn Fn(#(#fn_params,)*) + Send>)
+                _Phantom(Box<dyn Fn(#(#fn_params,)*) + ::std::marker::Send>)
             }
 
             impl #ig  Rfunc #tg #wc {
@@ -2108,7 +2122,7 @@ impl ToTokens for RefMutExpectation<'_> {
                 /// reference.
                 #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Self
-                    where MockallF: FnMut(#(#argty, )*) -> #owned_output + Send + Sync + 'static
+                    where MockallF: FnMut(#(#argty, )*) -> #owned_output + ::std::marker::Send + ::std::marker::Sync + 'static
                 {
                     self.rfunc = Rfunc::Mut(Box::new(__mockall_f), None);
                     self
@@ -2198,7 +2212,7 @@ impl ToTokens for StaticExpectation<'_> {
                 #v fn return_const<MockallOutput>(&mut self,
                     __mockall_c: MockallOutput)
                     -> &mut Self
-                    where MockallOutput: Clone + Into<#output> + Send + 'static
+                    where MockallOutput: Clone + Into<#output> + ::std::marker::Send + 'static
                 {
                     self.returning(move |#(#argnames, )*| __mockall_c.clone().into())
                 }
@@ -2234,7 +2248,7 @@ impl ToTokens for StaticExpectation<'_> {
                 #v fn return_once<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Self
                     where MockallF: #hrtb FnOnce(#(#argty, )*)
-                                    -> #output + Send + 'static
+                                    -> #output + ::std::marker::Send + 'static
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
@@ -2271,7 +2285,7 @@ impl ToTokens for StaticExpectation<'_> {
                 #v fn returning<MockallF>(&mut self, __mockall_f: MockallF)
                     -> &mut Self
                     where MockallF: #hrtb FnMut(#(#argty, )*)
-                                    -> #output + Send + 'static
+                                    -> #output + ::std::marker::Send + 'static
                 {
                     {
                         let mut __mockall_guard = self.rfunc.lock().unwrap();
