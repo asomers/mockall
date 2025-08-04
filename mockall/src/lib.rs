@@ -1694,9 +1694,12 @@ impl Key {
     }
 }
 
+/// Associates each `Expectation` with its place in a [`Sequence`].
 #[doc(hidden)]
 pub struct SeqHandle {
     inner: Arc<SeqInner>,
+    /// An ID counter for every `SeqHandle` associated with the same
+    /// [`Sequence`].  Starts at 0 and counts upwards.
     seq: usize
 }
 
@@ -1714,12 +1717,17 @@ impl SeqHandle {
 
 #[derive(Default)]
 struct SeqInner {
+    /// Should match the `seq` field of the next [`SeqHandle`] that has not been
+    /// fully satisfied.
     satisfaction_level: AtomicUsize,
 }
 
 impl SeqInner {
     /// Record the call identified by `seq` as fully satisfied.
     fn satisfy(&self, seq: usize) {
+        // Record that the SeqHandle identified by `seq` has been fully
+        // satisfied.  It is an error if some previous `SeqHandle` wasn't
+        // already satisfied.
         let old_sl = self.satisfaction_level.fetch_add(1, Ordering::Relaxed);
         assert_eq!(old_sl, seq, "Method sequence violation.  Was an already-satisfied method called another time?");
     }
@@ -1781,6 +1789,7 @@ impl SeqInner {
 #[derive(Default)]
 pub struct Sequence {
     inner: Arc<SeqInner>,
+    /// Counter to use for the next SeqHandle associated with this Sequence
     next_seq: usize,
 }
 
