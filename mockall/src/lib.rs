@@ -1694,13 +1694,77 @@ impl Key {
     }
 }
 
-/// Associates each `Expectation` with its place in a [`Sequence`].
+/// Associates each `Expectation` with its place(s) in a [`Sequence`].
+/// 
+/// A SeqHandle is implicitly in one of five states, depending on the
+/// `satisfaction_level` within SeqInner:
+/// 
+/// 1. *Uncallable*
+/// 
+///     If a SeqHandle is in this state, other elements earlier in the sequence
+///     need to be satisfied first - i.e. by being called a minimum amount of
+///     times.
+/// 
+///     A SeqHandle is in this state if `satisfaction_level` is less than
+///     `min_seq`.
+///     
+/// 2. *Callable*
+/// 
+///     Previous expectation(s) are satisified, and we can progress to the
+///     current expectation, but preceding expectations may still be called
+///     further.
+/// 
+///     A SeqHandle is in this state if `satisfaction_level` is greater than
+///     or equal to `min_seq`, but less than `seq`.
+/// 
+/// 3. *Called*
+/// 
+///     The method has been called, and preceding expectations may no longer be
+///     called otherwise, this would constitute an ordering violation. 
+///     However, the current count has not been satisfied yet, and the next
+///     element in sequence is not allowed to be called.
+/// 
+///     A SeqHandle is in this state if `satisfaction_level` is equal to `seq`
+///     and `has_called_state` is true.
+/// 
+/// 4. *Satisfied*
+/// 
+///     This element in the sequence has had its lower bound satisfied, and the
+///     next element in sequence is allowed to be called.
+/// 
+///     A SeqHandle is in this state if `satisfaction_level` is equal to `seq`
+///     if `has_called_state` is false, or equal to `seq + 1` if
+///     `has_called_state` is true.
+/// 
+/// 5. *History*
+/// 
+///     This element can no longer be called, as succeeding elements have been
+///     performed in the sequence. If a handle is in the history state it can no
+///     longer be called, and will no longer be called.
+/// 
+///     A SeqHandle is in this state if `satisfaction_level` is greater than
+///     `seq`, or `seq + 1` if `has_called_state` is true.
+///     
 #[doc(hidden)]
 pub struct SeqHandle {
     inner: Arc<SeqInner>,
     /// An ID counter for every `SeqHandle` associated with the same
     /// [`Sequence`].  Starts at 0 and counts upwards.
+    /// 
+    /// Identifies the `satisfaction_level` at which the corresponding
+    /// expectation may still be used, but preceding elements may not.
+    /// 
+    /// If `has_called_state` is true, `satisfaction_level = seq` identifies
+    /// the state in which the expectation has been called, while `seq + 1` 
+    /// identifies the state in which this expectation is satisfied.
     seq: usize,
+    /// The minimum value the ID must have before the corresponding 
+    /// `Expectation` may be called.
+    /// 
+    /// Within a sequence `min_seq` is used to identify states where preceding
+    /// expectations are satisfied, and is kept constant if a expectation is
+    /// always satisfied, i.e., requires zero calls, allowing such expectations
+    /// to be skipped.
     min_seq: usize,
     has_called_state: bool,
 }
@@ -1721,8 +1785,8 @@ impl SeqHandle {
         self.inner.verify(self.seq, self.min_seq, self.has_called_state, desc);
     }
 
-    /// Check whether the current handle is part of history (i.e. has been skipped or
-    /// has already taken place)
+    /// Check whether the current handle is part of history (i.e. has been 
+    /// skipped or has already taken place)
     pub fn is_history(&self) -> bool {
         self.inner.is_history(self.seq, self.has_called_state)
     }
@@ -1832,7 +1896,8 @@ impl SeqInner {
 /// mock1.bar();
 /// ```
 /// 
-/// But, the previous count needs to suffice before a sequence may make progress
+/// But, the previous count must be satisfied before a sequence may make
+/// progress.
 /// ```should_panic
 /// # use mockall::*;
 /// #[automock]
@@ -1860,9 +1925,18 @@ impl SeqInner {
 /// mock1.bar();
 /// ```
 /// 
-/// Furthermore, sequences are greedy, and will only perform the earliest element in sequence
-/// that is allowed. This results in the following example failing the second expectation, as
-/// the first expectation is used for both calls to `foo`.
+/// Furthermore, sequences are greedy, and will only perform the earliest
+/// element in sequence that is allowed. This results in the following example
+/// failing the second expectation, as the first expectation is used for both
+/// calls to `foo`.
+/// 
+/// The following example fails as the first expection handles all calls,
+/// leaving none for the second expectation. As the second expectation goes
+/// unused, while it is expected to be called at least once, the test panics
+/// with
+/// `MockFoo::foo: Expectation(<anything>) called 0 time(s) which is fewer than
+/// expected 1`.
+/// 
 /// ```should_panic
 /// # use mockall::*;
 /// #[automock]

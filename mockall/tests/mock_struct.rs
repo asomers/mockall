@@ -308,7 +308,7 @@ mod sequence {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "MockFoo::bar(3): Method sequence violation")]
     fn err_variable_count_skip() {
         let mut seq = Sequence::new();
         let mut mock = MockFoo::new();
@@ -327,7 +327,7 @@ mod sequence {
             .returning(|_| ())
             .in_sequence(&mut seq);
 
-        // This one may not        
+        // This one may not
         mock.expect_baz()
             .times(1..)
             .returning(|| ())
@@ -338,7 +338,8 @@ mod sequence {
             .returning(|_| ())
             .in_sequence(&mut seq);
 
-        // mock.baz()
+        // as mock.baz() is not called
+        // this call (with argument value 3) violates the sequence.
         mock.bar(3);
     }
 
