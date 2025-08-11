@@ -1710,7 +1710,7 @@ impl Key {
 ///     
 /// 2. *Callable*
 /// 
-///     Previous expectation(s) are satisified, and we can progress to the
+///     Preceding expectation(s) are satisified, and we can progress to the
 ///     current expectation, but preceding expectations may still be called
 ///     further.
 /// 
@@ -1720,12 +1720,14 @@ impl Key {
 /// 3. *Called*
 /// 
 ///     The method has been called, and preceding expectations may no longer be
-///     called otherwise, this would constitute an ordering violation. 
+///     called. Doing so would constitute an sequence ordering violation.
 ///     However, the current count has not been satisfied yet, and the next
 ///     element in sequence is not allowed to be called.
 /// 
 ///     A SeqHandle is in this state if `satisfaction_level` is equal to `seq`
 ///     and `has_called_state` is true.
+/// 
+///     If this state exists `min_seq` corresponding to the next expectation
 /// 
 /// 4. *Satisfied*
 /// 
@@ -1735,6 +1737,12 @@ impl Key {
 ///     A SeqHandle is in this state if `satisfaction_level` is equal to `seq`
 ///     if `has_called_state` is false, or equal to `seq + 1` if
 ///     `has_called_state` is true.
+///     If the call count is zero, a SeqHandle is also satisfied once it is
+///     callable.
+///
+///     There is no `is_satisfied` method as the `min_seq` of the next
+///     expectation(s) are used to check whether this SeqHandle is in the
+///     satisfied state.
 /// 
 /// 5. *History*
 /// 
@@ -1766,6 +1774,15 @@ pub struct SeqHandle {
     /// always satisfied, i.e., requires zero calls, allowing such expectations
     /// to be skipped.
     min_seq: usize,
+    /// Whether this `SeqHandle` differentiates between being called and
+    /// satisfied. A call count of Zero is already satisfied, and
+    /// state 3, Called, is always skipped. Similarly, once called, expecations
+    /// with a minimum call count of one are also satisfied.
+    /// 
+    /// This flag is is also used to destinguish between state 2, Callable, and
+    /// state 4, Satisfied, in the case of the first expectation having a
+    /// minimum call count of one, as this expectation is not satisfied at
+    /// initialization.
     has_called_state: bool,
 }
 
@@ -1802,9 +1819,13 @@ struct SeqInner {
 impl SeqInner {
     /// Record the call identified by `seq` as being called once.
     fn called(&self, seq: usize, min_seq: usize, has_called_state: bool) {
-        let old_sl = self.satisfaction_level.fetch_max(seq, Ordering::Relaxed);
-        assert!(old_sl >= min_seq, "Method sequence violation.  Method was called without preceding methods having been satisfied.");
-        assert!(old_sl <= seq + if has_called_state { 1 } else { 0 } , "Method sequence violation.  Method was called while succeeding methods have been called.");
+        let old_sl = self.satisfaction_level.fetch_max(
+            seq,
+            Ordering::Relaxed);
+        assert!(old_sl >= min_seq,
+            "Method sequence violation.  Method was called without preceding methods having been satisfied.");
+        assert!(old_sl <= seq + if has_called_state { 1 } else { 0 } ,
+            "Method sequence violation.  Method was called while succeeding methods have been called.");
     }
 
     /// Record the call identified by `seq` as fully satisfied.
@@ -1812,14 +1833,25 @@ impl SeqInner {
         // Record that the SeqHandle identified by `seq` has been fully
         // satisfied.  It is an error if some previous `SeqHandle` wasn't
         // already satisfied.
-        let old_sl = self.satisfaction_level.fetch_max(seq + if has_called_state { 1 } else { 0 }, Ordering::Relaxed);
-        assert!(old_sl >= min_seq, "Method sequence violation.  Method was called without preceding methods having been satisfied.");
-        assert!(old_sl <= seq + if has_called_state { 1 } else { 0 } , "Method sequence violation.  Method was called while succeeding methods have been called.");
+        let old_sl = self.satisfaction_level.fetch_max(
+            seq + if has_called_state { 1 } else { 0 },
+            Ordering::Relaxed);
+        assert!(old_sl >= min_seq,
+            "Method sequence violation.  Method was called without preceding methods having been satisfied.");
+        assert!(old_sl <= seq + if has_called_state { 1 } else { 0 } ,
+            "Method sequence violation.  Method was called while succeeding methods have been called.");
     }
 
     /// Verify that the call identified by `seq` was called in the correct order
-    fn verify<F: Fn() -> String>(&self, seq: usize, min_seq: usize, has_called_state: bool, desc: F) {
-        let current_level = self.satisfaction_level.load(Ordering::Relaxed);
+    fn verify<F: Fn() -> String>(
+        &self,
+        seq: usize,
+        min_seq: usize,
+        has_called_state: bool,
+        desc: F)
+    {
+        let current_level = self.satisfaction_level.load(
+            Ordering::Relaxed);
         let max_seq = seq + if has_called_state { 1 } else { 0 };
         
         assert!(current_level >= min_seq,
@@ -1829,7 +1861,8 @@ impl SeqInner {
     }
 
     fn is_history(&self, seq: usize, has_called_state: bool) -> bool {
-        let current_level = self.satisfaction_level.load(Ordering::Relaxed);
+        let current_level = self.satisfaction_level.load(
+            Ordering::Relaxed);
         let max_seq = seq + if has_called_state { 1 } else { 0 };
 
         current_level > max_seq
@@ -2001,32 +2034,58 @@ impl Sequence {
     /// Not for public consumption, but it must be public so the generated code
     /// can call it.
     #[doc(hidden)]
-    pub fn next_handle(&mut self, minimum_call_count: MinimumCallCount) -> SeqHandle {
+    pub fn next_handle(
+        &mut self,
+        minimum_call_count: MinimumCallCount
+    ) -> SeqHandle
+    {
         let has_called_state = match minimum_call_count {
+            // Is satisfied from the get-go, and does not need to differentiate
+            // between being called and satisfied.
             MinimumCallCount::Zero => false,
+            // Need to differentiate between callable and satisfied if this
+            // is the first `[Expectation]` in a sequence. As it has to be
+            // called in order to be satisfied.
+            // For any later `[Expectation]`s the this initial callable state
+            // can be reused from the preceding  `[Expectation]`, because as
+            // soon as it is called, it is also satisfied.
             MinimumCallCount::One if self.next_seq != 0 => false,
+            // If the count is two or more, after a single call the SeqHandle
+            // is in the called (but not satisfied) state.
             _ => true,
         };
 
-        let handle = SeqHandle{inner: self.inner.clone(), seq: self.next_seq, min_seq: self.next_min_seq, has_called_state};
+        let handle = SeqHandle {
+            inner: self.inner.clone(),
+            seq: self.next_seq,
+            min_seq: self.next_min_seq,
+            has_called_state
+        };
 
         match minimum_call_count {
             MinimumCallCount::Zero => {
-                // We don't update min_seq, as we allow this state to be skipped.
-                // Only need to have a Satisfied state for this handle.
+                // We don't update min_seq, as this `[Expectation]` can be
+                // skipped.
+                // Furthermore, as the call count can never be too low, only
+                // a Satisfied state is necessary for this handle.
                 self.next_seq += 1;
             },
             MinimumCallCount::One if self.next_seq != 0 => {
-                // We need to be in at least state next_seq to ensure this handle has been performed at least once.
+                // We need to be in at least state next_seq to ensure this
+                // handle has been performed at least once.
                 self.next_min_seq = self.next_seq;
-                // Only need to have a (4) Satisfied state for this handle, as (3) Called does not occur.
+                // Only need to have a (4) Satisfied state for this handle,
+                // as (3) Called does not occur.
                 self.next_seq += 1;
             },
-            // MinimumCallCount::More, or MinimumCallCount::One for the very first element in sequence.
+            // MinimumCallCount::More, or MinimumCallCount::One for the very
+            // first element in sequence.
             _ => {
-                // We need to be in at least state next_seq to ensure this handle has been performed at least once.
+                // We need to be in at least state next_seq to ensure this
+                // handle has been performed at least once.
                 self.next_min_seq = self.next_seq + 1;
-                // next_seq is (3) Called for the current handle, next_seq + 1 represents (4) Satisified.
+                // next_seq is (3) Called for the current handle, next_seq + 1
+                // represents (4) Satisified.
                 self.next_seq += 2;
             },
         }

@@ -965,18 +965,24 @@ impl ToTokens for Common<'_> {
                                 m);
                         });
                     self.verify_sequence(desc);
-                    if ::mockall::ExpectedCalls::TooFew != self.times.is_satisfied() {
+                    if ::mockall::ExpectedCalls::TooFew 
+                        != self.times.is_satisfied() {
                         self.satisfy_sequence()
                     } else {
                         self.called_sequence()
                     }
                 }
 
-                fn in_sequence(&mut self, __mockall_seq: &mut ::mockall::Sequence)
+                fn in_sequence(
+                    &mut self,
+                    __mockall_seq: &mut ::mockall::Sequence)
                     -> &mut Self
                 {
-                    self.seq_handle = Some(__mockall_seq.next_handle(::mockall::times_to_minimum_call_count(&self.times)));
-                    self
+                    let minimum_call_count = 
+                        ::mockall::times_to_minimum_call_count(&self.times);
+                    self.seq_handle = Some(__mockall_seq.next_handle(
+                        minimum_call_count
+                    ));
                 }
 
                 fn is_done(&self) -> bool {
