@@ -978,11 +978,10 @@ impl ToTokens for Common<'_> {
                     __mockall_seq: &mut ::mockall::Sequence)
                     -> &mut Self
                 {
-                    let minimum_call_count = 
-                        ::mockall::times_to_minimum_call_count(&self.times);
                     self.seq_handle = Some(__mockall_seq.next_handle(
-                        minimum_call_count
+                        ::mockall::times_to_minimum_call_count(&self.times)
                     ));
+                    self
                 }
 
                 fn is_done(&self) -> bool {
