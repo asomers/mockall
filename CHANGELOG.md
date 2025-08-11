@@ -10,6 +10,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Compatibility with the `#[trait_variant::make]` macro.
   ([#640](https://github.com/asomers/mockall/pull/640))
 
+- Allow Expectations with a non-exact call count to be used in Sequences.
+  ([#660](https://github.com/asomers/mockall/pull/660))
+
 ### Changed
 
 - The MSRV is now Rust 1.77.0.
