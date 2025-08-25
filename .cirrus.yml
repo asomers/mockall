@@ -46,6 +46,6 @@ task:
   reproducibility_script:
     - env RUSTFLAGS="--cfg reprocheck" cargo check $CARGO_ARGS --all-targets
   minver_script:
-    - cargo update -Zminimal-versions
+    - cargo update -Zdirect-minimal-versions
     - cargo test $CARGO_ARGS
   before_cache_script: rm -rf $CARGO_HOME/registry/index

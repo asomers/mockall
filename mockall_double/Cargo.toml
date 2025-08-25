@@ -28,6 +28,6 @@ nightly = ["proc-macro2/nightly"]
 
 [dependencies]
 cfg-if = "1.0"
-proc-macro2 = "1.0.60"
-quote = "1.0"
-syn = { version = "2.0", features = ["full"] }
+proc-macro2 = "1.0.75"
+quote = "1.0.35"
+syn = { version = "2.0.52", features = ["full"] }
