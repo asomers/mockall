@@ -974,7 +974,7 @@ impl ToTokens for Common<'_> {
                     -> &mut Self
                 {
                     assert!(self.times.is_exact(),
-                        "Only Expectations with an exact call count have sequences");
+                        "Only Expectations with an exact call count can have sequences");
                     self.seq_handle = Some(__mockall_seq.next_handle());
                     self
                 }
