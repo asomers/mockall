@@ -901,7 +901,7 @@ fn supersuperfy_path(path: &mut Path, levels: usize) -> usize {
                     *input = supersuperfy(input, levels);
                 }
                 if let ReturnType::Type(_, ref mut ty) = pga.output {
-                    *ty = Box::new(supersuperfy(ty, levels));
+                    **ty = supersuperfy(ty, levels);
                 }
             },
         }
