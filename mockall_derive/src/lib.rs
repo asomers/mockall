@@ -771,6 +771,26 @@ fn find_lifetimes(ty: &Type) -> HashSet<Lifetime> {
     }
 }
 
+/// If the mocked signature contains any variadic parts, they need a pattern.
+/// The pattern is required for the signature of the mock function, a Rust
+/// function, even though it's not required in the signature of the foreign
+/// function.
+fn fix_elipses(sig: &mut Signature) {
+    if let Some(variadic) = &mut sig.variadic {
+        if variadic.pat.is_none() {
+            let pat = PatIdent {
+                attrs: vec![],
+                by_ref: None,
+                mutability: None,
+                ident: format_ident!("_"),
+                subpat: None
+            };
+            let colon = Token![:](variadic.span());
+            variadic.pat = Some((Box::new(Pat::Ident(pat)), colon));
+        }
+    }
+}
+
 struct AttrFormatter<'a>{
     attrs: &'a [Attribute],
     async_trait: bool,
@@ -1823,6 +1843,33 @@ mod declosurefy {
             quote!(fn foo<F>(f: F) where F: Fn(u32) -> u32 + Send),
             &[quote!(f: Box<dyn Fn(u32) -> u32 + Send>)],
             &[quote!(Box::new(f))]
+        );
+    }
+}
+
+mod fix_elipses {
+    use super::*;
+
+    fn check_fix_elipses(orig_ts: TokenStream, expected_ts: TokenStream) {
+        let mut orig: Signature = parse2(orig_ts).unwrap();
+        let expected: Signature = parse2(expected_ts).unwrap();
+        fix_elipses(&mut orig);
+        assert_eq!(quote!(#orig).to_string(), quote!(#expected).to_string());
+    }
+
+    #[test]
+    fn nopat() {
+        check_fix_elipses(
+            quote!(fn foo(x: i32, ...) -> i32),
+            quote!(fn foo(x: i32, _: ...) -> i32)
+        );
+    }
+
+    #[test]
+    fn pat() {
+        check_fix_elipses(
+            quote!(fn foo(x: i32, y: ...) -> i32),
+            quote!(fn foo(x: i32, y: ...) -> i32)
         );
     }
 }

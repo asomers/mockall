@@ -8,10 +8,21 @@ fn mockable_fn(mut item_fn: ItemFn) -> ItemFn {
     item_fn
 }
 
+/// Performs transformations on a Foreign Mod to make it mockable
+fn mockable_foreign_mod(mut ifm: ItemForeignMod) -> ItemForeignMod {
+    for item in &mut ifm.items {
+        if let ForeignItem::Fn(ref mut f) = item {
+            fix_elipses(&mut f.sig);
+        }
+    }
+    ifm
+}
+
 /// Performs transformations on an Item to make it mockable
 fn mockable_item(item: Item) -> Item {
     match item {
         Item::Fn(item_fn) => Item::Fn(mockable_fn(item_fn)),
+        Item::ForeignMod(ifm) => Item::ForeignMod(mockable_foreign_mod(ifm)),
         x => x
     }
 }

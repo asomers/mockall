@@ -27,6 +27,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the orginal code wouldn't have triggered the warning.
   ([#627](https://github.com/asomers/mockall/pull/627))
 
+- Fix mocking foreign functions with a variadic argument and no pattern, for
+  example `fn foo(...)` as opposed to `fn bar(x: ...)`.  That worked in prior
+  versions of Mockall only until Rust 1.93.0, which made such arguments illegal
+  for Rust functions.
+  ([#673](https://github.com/asomers/mockall/pull/673))
+
 ## [ 0.13.1 ] - 2024-11-17
 
 ### Fixed
