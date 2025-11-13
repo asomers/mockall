@@ -33,6 +33,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   for Rust functions.
   ([#673](https://github.com/asomers/mockall/pull/673))
 
+- Fully qualify `Send` and `Sync` traits in generated code, allowing structs named
+  `Send` or `Sync` to be in scope without conflicts.
+  ([#672](https://github.com/asomers/mockall/pull/672))
+
 ## [ 0.13.1 ] - 2024-11-17
 
 ### Fixed
