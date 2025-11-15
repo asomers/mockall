@@ -21,9 +21,15 @@ fn phantom_default_inits(generics: &Generics) -> Vec<TokenStream> {
     generics.params
     .iter()
     .enumerate()
-    .map(|(count, _param)| {
+    .map(|(count, param)| {
         let phident = format_ident!("_t{count}");
-        quote!(#phident: ::std::marker::PhantomData)
+        match param {
+            GenericParam::Const(cp) => {
+                let val = &cp.ident;
+                quote!(#phident: drop(#val))
+            }
+            _ => quote!(#phident: ::std::marker::PhantomData),
+        }
     }).collect()
 }
 
@@ -32,7 +38,7 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
     generics.params
     .iter()
     .enumerate()
-    .filter_map(|(count, param)| {
+    .map(|(count, param)| {
         let phident = format_ident!("_t{count}");
         match param {
             syn::GenericParam::Lifetime(l) => {
@@ -41,20 +47,14 @@ fn phantom_fields(generics: &Generics) -> Vec<TokenStream> {
                         "#automock does not yet support lifetime bounds on structs");
                 }
                 let lifetime = &l.lifetime;
-                Some(
                 quote!(#phident: ::std::marker::PhantomData<&#lifetime ()>)
-                )
             },
             syn::GenericParam::Type(tp) => {
                 let ty = &tp.ident;
-                Some(
                 quote!(#phident: ::std::marker::PhantomData<#ty>)
-                )
             },
             syn::GenericParam::Const(_) => {
-                compile_error(param.span(),
-                    "#automock does not yet support generic constants");
-                None
+                quote!(#phident: ())
             }
         }
     }).collect()
