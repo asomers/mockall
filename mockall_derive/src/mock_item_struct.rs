@@ -262,6 +262,14 @@ impl ToTokens for MockItemStruct {
             .filter(|meth| !meth.is_static())
             .map(|meth| meth.expect(modname, None))
             .collect::<Vec<_>>();
+        let clears = self.methods.0.iter()
+            .filter(|meth| !meth.is_static())
+            .map(|meth| meth.clear(modname))
+            .collect::<Vec<_>>();
+        let clear_and_expects = self.methods.0.iter()
+            .filter(|meth| !meth.is_static())
+            .map(|meth| meth.clear_and_expect(modname, None))
+            .collect::<Vec<_>>();
         let method_checkpoints = self.methods.checkpoints();
         let new_method = self.new_method();
         let priv_mods = self.methods.priv_mods();
@@ -350,6 +358,8 @@ impl ToTokens for MockItemStruct {
                 #(#calls)*
                 #(#contexts)*
                 #(#expects)*
+                #(#clears)*
+                #(#clear_and_expects)*
                 /// Validate that all current expectations for all methods have
                 /// been satisfied, and discard them.
                 pub fn checkpoint(&mut self) {
