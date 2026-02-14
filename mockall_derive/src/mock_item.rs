@@ -16,14 +16,14 @@ use crate::{
 /// A Mock item
 pub(crate) enum MockItem {
     Module(MockItemModule),
-    Struct(MockItemStruct)
+    Struct(Box<MockItemStruct>)
 }
 
 impl From<MockableItem> for MockItem {
     fn from(mockable: MockableItem) -> MockItem {
         match mockable {
             MockableItem::Struct(s) => MockItem::Struct(
-                MockItemStruct::from(s)
+                Box::new(MockItemStruct::from(*s))
             ),
             MockableItem::Module(mod_) => MockItem::Module(
                 MockItemModule::from(mod_)
