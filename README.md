@@ -58,6 +58,41 @@ mod tests {
 }
 ```
 
+## Spying
+
+Mockall also supports spies.  A spy wraps a real implementation and
+delegates method calls to it by default, but allows you to override
+specific methods with expectations.  The easiest way is to use
+[`#[autospy]`](https://docs.rs/mockall/latest/mockall/attr.autospy.html).
+It can spy on most traits, or structs that only have a single `impl` block.
+For things it can't handle, there is [`spy!`](https://docs.rs/mockall/latest/mockall/macro.spy.html).
+
+```rust
+#[cfg(test)]
+use mockall::autospy;
+
+#[cfg_attr(test, autospy)]
+trait MyTrait {
+    fn foo(&self, x: u32) -> u32;
+}
+
+struct RealImpl;
+impl MyTrait for RealImpl {
+    fn foo(&self, x: u32) -> u32 { x * 2 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn delegates_to_real() {
+        let spy = SpyMyTrait::new(RealImpl);
+        assert_eq!(spy.foo(21), 42);
+    }
+}
+```
+
 See the [API docs](https://docs.rs/mockall) for more information.
 
 # Minimum Supported Rust Version (MSRV)

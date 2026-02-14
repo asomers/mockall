@@ -57,6 +57,22 @@ impl From<MockableStruct> for MockableItem {
     }
 }
 
+impl MockableItem {
+    pub fn from_autospy(attrs: Attrs, item: Item) -> MockableItem {
+        match item {
+            Item::Impl(item_impl) =>
+                MockableItem::Struct(
+                    MockableStruct::from_impl_spy(item_impl)
+                ),
+            Item::Trait(trait_) =>
+                MockableItem::Struct(
+                    MockableStruct::from_trait_spy(attrs, trait_)
+                ),
+            _ => panic!("autospy only supports traits and struct impls")
+        }
+    }
+}
+
 pub(crate) struct MockableModule {
     pub attrs: TokenStream,
     pub vis: Visibility,

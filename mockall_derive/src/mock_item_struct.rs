@@ -10,6 +10,7 @@ use syn::{
 
 use crate::{
     AttrFormatter,
+    GenerateMode,
     MockableStruct,
     compile_error,
     gen_mod_ident,
@@ -141,6 +142,11 @@ pub(crate) struct MockItemStruct {
     /// Is this a whole MockStruct or just a substructure for a trait impl?
     traits: Vec<MockTrait>,
     vis: Visibility,
+    /// What kind of struct to generate
+    generate_mode: GenerateMode,
+    /// For struct impl spy mode, the concrete type of the wrapped value.
+    /// `None` for trait-based spies (which use `__MockallT`) and all mocks.
+    spy_real_type: Option<Type>,
 }
 
 impl MockItemStruct {
@@ -192,12 +198,107 @@ impl MockItemStruct {
 }
 
 impl From<MockableStruct> for MockItemStruct {
-    fn from(mockable: MockableStruct) -> MockItemStruct {
+    fn from(mut mockable: MockableStruct) -> MockItemStruct {
         let auto_debug = mockable.derives_debug();
         let modname = gen_mod_ident(&mockable.name, None);
-        let generics = mockable.generics.clone();
+        let mut generics = mockable.generics.clone();
         let struct_name = &mockable.name;
         let vis = mockable.vis;
+        let generate_mode = mockable.generate_mode;
+
+        // For trait-based spy mode, add __MockallT generic parameter with
+        // trait bounds.  For struct impl spy mode (spy_real_type is Some),
+        // we use the concrete type instead.
+        if generate_mode == GenerateMode::Spy
+            && mockable.spy_real_type.is_none()
+        {
+            let mut trait_bounds =
+                syn::punctuated::Punctuated::<TypeParamBound, Token![+]>::new();
+            for impl_ in &mockable.impls {
+                if let Some((_, path, _)) = &impl_.trait_ {
+                    trait_bounds.push(TypeParamBound::Trait(TraitBound {
+                        paren_token: None,
+                        modifier: TraitBoundModifier::None,
+                        lifetimes: None,
+                        path: path.clone(),
+                    }));
+                }
+            }
+            let tp = TypeParam {
+                attrs: Vec::new(),
+                ident: format_ident!("__MockallT"),
+                colon_token: Some(Token![:](proc_macro2::Span::call_site())),
+                bounds: trait_bounds.clone(),
+                eq_token: None,
+                default: None,
+            };
+            generics.lt_token
+                .get_or_insert(Token![<](proc_macro2::Span::call_site()));
+            generics.gt_token
+                .get_or_insert(Token![>](proc_macro2::Span::call_site()));
+            generics.params.push(GenericParam::Type(tp));
+
+            // Update each impl block to include __MockallT in self_ty
+            // and in the impl's own generics
+            for impl_ in mockable.impls.iter_mut() {
+                // Add __MockallT generic parameter to impl generics
+                let impl_tp = TypeParam {
+                    attrs: Vec::new(),
+                    ident: format_ident!("__MockallT"),
+                    colon_token: Some(Token![:](
+                        proc_macro2::Span::call_site(),
+                    )),
+                    bounds: trait_bounds.clone(),
+                    eq_token: None,
+                    default: None,
+                };
+                impl_.generics.lt_token.get_or_insert(
+                    Token![<](proc_macro2::Span::call_site()),
+                );
+                impl_.generics.gt_token.get_or_insert(
+                    Token![>](proc_macro2::Span::call_site()),
+                );
+                impl_.generics.params.push(GenericParam::Type(impl_tp));
+
+                // Add <__MockallT> to self_ty path arguments
+                if let Type::Path(ref mut type_path) = *impl_.self_ty {
+                    if let Some(seg) = type_path.path.segments.last_mut() {
+                        let args = &mut seg.arguments;
+                        match args {
+                            PathArguments::None => {
+                                let mockall_t: Type =
+                                    syn::parse_quote!(__MockallT);
+                                *args = PathArguments::AngleBracketed(
+                                    AngleBracketedGenericArguments {
+                                        colon2_token: None,
+                                        lt_token: Token![<](
+                                            proc_macro2::Span::call_site(),
+                                        ),
+                                        args: {
+                                            let mut p = syn::punctuated::Punctuated::new();
+                                            p.push(GenericArgument::Type(
+                                                mockall_t,
+                                            ));
+                                            p
+                                        },
+                                        gt_token: Token![>](
+                                            proc_macro2::Span::call_site(),
+                                        ),
+                                    },
+                                );
+                            }
+                            PathArguments::AngleBracketed(ref mut ab) => {
+                                let mockall_t: Type =
+                                    syn::parse_quote!(__MockallT);
+                                ab.args.push(GenericArgument::Type(mockall_t));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
         let has_new = mockable.methods.iter()
             .any(|meth| meth.sig.ident == "new") ||
             mockable.impls.iter()
@@ -218,11 +319,12 @@ impl From<MockableStruct> for MockItemStruct {
                     .struct_generics(&generics)
                     .levels(2)
                     .call_levels(0)
+                    .generate_mode(generate_mode)
                     .build()
             ).collect::<Vec<_>>());
         let structname = &mockable.name;
         let traits = mockable.impls.into_iter()
-            .map(|i| MockTrait::new(structname, &generics, i, &vis))
+            .map(|i| MockTrait::new(structname, &generics, i, &vis, generate_mode))
             .collect();
 
         MockItemStruct {
@@ -235,7 +337,9 @@ impl From<MockableStruct> for MockItemStruct {
             modname,
             name: mockable.name,
             traits,
-            vis
+            vis,
+            generate_mode,
+            spy_real_type: mockable.spy_real_type,
         }
     }
 }
@@ -300,7 +404,20 @@ impl ToTokens for MockItemStruct {
                 quote!(#(#attrs)* #fieldname: #tyname #tg)
             }).collect::<Vec<_>>();
         field_definitions.extend(self.methods.field_definitions(modname));
-        field_definitions.extend(self.phantom_fields());
+        // In spy mode, add the __mockall_real field instead of phantom fields
+        if self.generate_mode == GenerateMode::Spy {
+            if let Some(ref real_ty) = self.spy_real_type {
+                field_definitions.push(
+                    quote!(__mockall_real: #real_ty)
+                );
+            } else {
+                field_definitions.push(
+                    quote!(__mockall_real: __MockallT)
+                );
+            }
+        } else {
+            field_definitions.extend(self.phantom_fields());
+        }
         let mut default_inits = substructs.iter()
             .filter(|ss| !ss.all_static())
             .map(|ss| {
@@ -312,7 +429,9 @@ impl ToTokens for MockItemStruct {
                 quote!(#(#attrs)* #fieldname: Default::default())
             }).collect::<Vec<_>>();
         default_inits.extend(self.methods.default_inits());
-        default_inits.extend(self.phantom_default_inits());
+        if self.generate_mode == GenerateMode::Mock {
+            default_inits.extend(self.phantom_default_inits());
+        }
         let trait_impls = self.traits.iter()
             .map(|trait_| {
                 let modname = format_ident!("{}_{}", &self.modname,
@@ -320,46 +439,100 @@ impl ToTokens for MockItemStruct {
                 trait_.trait_impl(&modname)
             }).collect::<Vec<_>>();
         let vis = &self.vis;
-        quote!(
-            #[allow(non_snake_case)]
-            #[allow(missing_docs)]
-            pub mod #modname {
-                use super::*;
-                #(#priv_mods)*
-            }
-            #[allow(non_camel_case_types)]
-            #[allow(non_snake_case)]
-            #[allow(missing_docs)]
-            #(#attrs)*
-            #vis struct #struct_name #ig #wc
-            {
-                #(#field_definitions),*
-            }
-            #debug_impl
-            impl #ig ::std::default::Default for #struct_name #tg #wc {
-                #[allow(clippy::default_trait_access)]
-                fn default() -> Self {
-                    Self {
-                        #(#default_inits),*
+
+        // Generate the struct definition and impl
+        if self.generate_mode == GenerateMode::Spy {
+            // Spy mode: no Default impl, custom new() that takes real value
+            let real_ty: TokenStream = if let Some(ref ty) = self.spy_real_type {
+                quote!(#ty)
+            } else {
+                quote!(__MockallT)
+            };
+            quote!(
+                #[allow(non_snake_case)]
+                #[allow(missing_docs)]
+                pub mod #modname {
+                    use super::*;
+                    #(#priv_mods)*
+                }
+                #[allow(non_camel_case_types)]
+                #[allow(non_snake_case)]
+                #[allow(missing_docs)]
+                #(#attrs)*
+                #vis struct #struct_name #ig #wc
+                {
+                    #(#field_definitions),*
+                }
+                #debug_impl
+                #(#substructs)*
+                impl #ig #struct_name #tg #wc {
+                    #(#consts)*
+                    #(#calls)*
+                    #(#contexts)*
+                    #(#expects)*
+                    /// Create a new spy wrapping the given real value.
+                    pub fn new(__mockall_real: #real_ty) -> Self {
+                        Self {
+                            __mockall_real,
+                            #(#default_inits),*
+                        }
+                    }
+                    /// Validate that all current expectations for all methods
+                    /// have been satisfied, and discard them.
+                    pub fn checkpoint(&mut self) {
+                        #(#substruct_expectations)*
+                        #(#method_checkpoints)*
                     }
                 }
-            }
-            #(#substructs)*
-            impl #ig #struct_name #tg #wc {
-                #(#consts)*
-                #(#calls)*
-                #(#contexts)*
-                #(#expects)*
-                /// Validate that all current expectations for all methods have
-                /// been satisfied, and discard them.
-                pub fn checkpoint(&mut self) {
-                    #(#substruct_expectations)*
-                    #(#method_checkpoints)*
+                #(#trait_impls)*
+                impl #ig ::mockall::SpyFrom<#real_ty> for #struct_name #tg #wc {
+                    fn spy_from(real: #real_ty) -> Self {
+                        #struct_name::new(real)
+                    }
                 }
-                #new_method
-            }
-            #(#trait_impls)*
-        ).to_tokens(tokens);
+            ).to_tokens(tokens);
+        } else {
+            quote!(
+                #[allow(non_snake_case)]
+                #[allow(missing_docs)]
+                pub mod #modname {
+                    use super::*;
+                    #(#priv_mods)*
+                }
+                #[allow(non_camel_case_types)]
+                #[allow(non_snake_case)]
+                #[allow(missing_docs)]
+                #(#attrs)*
+                #vis struct #struct_name #ig #wc
+                {
+                    #(#field_definitions),*
+                }
+                #debug_impl
+                impl #ig ::std::default::Default for #struct_name #tg #wc {
+                    #[allow(clippy::default_trait_access)]
+                    fn default() -> Self {
+                        Self {
+                            #(#default_inits),*
+                        }
+                    }
+                }
+                #(#substructs)*
+                impl #ig #struct_name #tg #wc {
+                    #(#consts)*
+                    #(#calls)*
+                    #(#contexts)*
+                    #(#expects)*
+                    /// Validate that all current expectations for all methods have
+                    /// been satisfied, and discard them.
+                    pub fn checkpoint(&mut self) {
+                        #(#substruct_expectations)*
+                        #(#method_checkpoints)*
+                    }
+                    #new_method
+                }
+                #(#trait_impls)*
+            ).to_tokens(tokens);
+        }
     }
 }
 
