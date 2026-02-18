@@ -40,13 +40,10 @@ pub(crate) enum MockableItem {
 impl From<(Attrs, Item)> for MockableItem {
     fn from((attrs, item): (Attrs, Item)) -> MockableItem {
         match item {
-            Item::Impl(item_impl) =>
-                MockableItem::Struct(Box::new(MockableStruct::from(item_impl))),
-            Item::Mod(item_mod) =>
-                MockableItem::Module(MockableModule::from(item_mod)),
-            Item::Trait(trait_) =>
-                MockableItem::Struct(Box::new(MockableStruct::from((attrs, trait_)))),
-            _ => panic!("automock does not support this item type")
+            Item::Impl(item_impl) => MockableStruct::from(item_impl).into(),
+            Item::Mod(item_mod) => MockableItem::Module(MockableModule::from(item_mod)),
+            Item::Trait(trait_) => MockableStruct::from((attrs, trait_)).into(),
+            _ => panic!("automock does not support this item type"),
         }
     }
 }
@@ -60,15 +57,9 @@ impl From<MockableStruct> for MockableItem {
 impl MockableItem {
     pub fn from_autospy(attrs: Attrs, item: Item) -> MockableItem {
         match item {
-            Item::Impl(item_impl) =>
-                MockableItem::Struct(Box::new(
-                    MockableStruct::from_impl_spy(item_impl)
-                )),
-            Item::Trait(trait_) =>
-                MockableItem::Struct(Box::new(
-                    MockableStruct::from_trait_spy(attrs, trait_)
-                )),
-            _ => panic!("autospy only supports traits and struct impls")
+            Item::Impl(item_impl) => MockableStruct::from_impl_spy(item_impl).into(),
+            Item::Trait(trait_) => MockableStruct::from_trait_spy(attrs, trait_).into(),
+            _ => panic!("autospy only supports traits and struct impls"),
         }
     }
 }
