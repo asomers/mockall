@@ -5,7 +5,7 @@
 //! its reexports via the [`mockall`](https://docs.rs/mockall/latest/mockall)
 //! crate.
 
-#![cfg_attr(feature = "nightly_derive", feature(proc_macro_diagnostic))]
+#![cfg_attr(all(feature = "nightly_derive", not(test)), feature(proc_macro_diagnostic))]
 #![cfg_attr(test, deny(warnings))]
 // This lint is unhelpful.  See
 // https://github.com/rust-lang/rust-clippy/discussions/14256
