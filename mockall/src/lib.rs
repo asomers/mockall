@@ -1142,7 +1142,6 @@
 // incomplete; that's why it's guarded by the "nightly" feature.
 #![cfg_attr(feature = "nightly", allow(incomplete_features))]
 
-#![cfg_attr(feature = "nightly", feature(doc_cfg))]
 #![cfg_attr(test, deny(warnings))]
 #![warn(missing_docs)]
 

@@ -7,7 +7,7 @@
 //! However, it is defined in its own crate so that the bulk of Mockall can
 //! remain a dev-dependency, instead of a regular dependency.
 
-#![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
+#![cfg_attr(all(feature = "nightly", not(test)), feature(proc_macro_diagnostic))]
 #![cfg_attr(test, deny(warnings))]
 extern crate proc_macro;
 
