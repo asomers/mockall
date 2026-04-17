@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  RUSTDOCFLAGS: -Dwarnings
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rust_version: "stable"
+            image: rust:latest
+            cargo_args: ""
+          - rust_version: "nightly"
+            image: rustlang/rust:nightly
+            cargo_args: "--all-features"
+    name: ${{ matrix.rust_version }}
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build
+        run: cargo build ${{ matrix.cargo_args }}
+      - name: Test
+        run: cargo test --all-targets ${{ matrix.cargo_args }}
+      - name: Doc
+        if: matrix.rust_version == 'nightly'
+        run: cargo doc --no-deps ${{ matrix.cargo_args }}
+      - name: Clippy
+        if: matrix.rust_version == 'nightly'
+        run: |
+          rustup component add clippy
+          cargo clippy --all-targets --workspace ${{ matrix.cargo_args }} -- -D warnings
+      - name: Reproducibility
+        if: matrix.rust_version == 'nightly'
+        run: env RUSTFLAGS="--cfg reprocheck" cargo check --all-targets ${{ matrix.cargo_args }}
+      - name: Minver
+        if: matrix.rust_version == 'nightly'
+        run: |
+          cargo update -Zdirect-minimal-versions
+          cargo check ${{ matrix.cargo_args }}
+
+  msrv:
+    runs-on: ubuntu-latest
+    name: MSRV
+    container:
+      image: rust:1.77.0
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup MSRV lock file
+        run: cp Cargo.lock.msrv Cargo.lock
+      - name: build
+        run: cargo build
