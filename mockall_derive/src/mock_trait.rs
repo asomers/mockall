@@ -155,6 +155,21 @@ impl MockTrait {
                     meth.expect(modname, Some(path_args))
                 }
             }).collect::<Vec<_>>();
+        let clears = self.methods.iter()
+            .filter(|meth| !meth.is_static())
+            .map(|meth|
+                    meth.clear(modname)
+            ).collect::<Vec<_>>();
+        let clear_and_expects = self.methods.iter()
+            .filter(|meth| !meth.is_static())
+            .map(|meth| {
+                if meth.is_method_generic() {
+                    // Specific impls with generic methods are TODO.
+                    meth.clear_and_expect(modname, None)
+                } else {
+                    meth.clear_and_expect(modname, Some(path_args))
+                }
+            }).collect::<Vec<_>>();
         let trait_path = &self.trait_path;
         let self_path = &self.self_path;
         let types = &self.types;
@@ -169,6 +184,8 @@ impl MockTrait {
             #(#impl_attrs)*
             impl #ig #self_path #wc {
                 #(#expects)*
+                #(#clears)*
+                #(#clear_and_expects)*
                 #(#contexts)*
             }
         )
