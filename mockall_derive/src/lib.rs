@@ -1064,9 +1064,21 @@ fn gen_keyid(g: &Generics) -> impl ToTokens {
     }
 }
 
+/// Controls what kind of struct is generated.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GenerateMode {
+    Mock,
+    Spy,
+}
+
 /// Generate a mock identifier from the regular one: eg "Foo" => "MockFoo"
 fn gen_mock_ident(ident: &Ident) -> Ident {
     format_ident!("Mock{}", ident)
+}
+
+/// Generate a spy identifier from the regular one: eg "Foo" => "SpyFoo"
+fn gen_spy_ident(ident: &Ident) -> Ident {
+    format_ident!("Spy{}", ident)
 }
 
 /// Generate an identifier for the mock struct's private module: eg "Foo" =>
@@ -1352,6 +1364,74 @@ fn do_mock(input: TokenStream) -> TokenStream
         }
     }
     do_mock_once(input)
+}
+
+fn do_spy_once(input: TokenStream) -> TokenStream
+{
+    let item: MockableStruct = match syn::parse::Parser::parse2(
+        MockableStruct::parse_spy, input)
+    {
+        Ok(mock) => mock,
+        Err(err) => {
+            return err.to_compile_error();
+        }
+    };
+    mock_it(item)
+}
+
+fn do_spy(input: TokenStream) -> TokenStream
+{
+    cfg_if! {
+        if #[cfg(reprocheck)] {
+            let ts_a = do_spy_once(input.clone());
+            let ts_b = do_spy_once(input.clone());
+            assert_eq!(ts_a.to_string(), ts_b.to_string());
+        }
+    }
+    do_spy_once(input)
+}
+
+#[proc_macro]
+pub fn spy(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    do_spy(input.into()).into()
+}
+
+#[proc_macro_attribute]
+pub fn autospy(attrs: proc_macro::TokenStream, input: proc_macro::TokenStream)
+    -> proc_macro::TokenStream
+{
+    let attrs: proc_macro2::TokenStream = attrs.into();
+    let input: proc_macro2::TokenStream = input.into();
+    do_autospy(attrs, input).into()
+}
+
+fn do_autospy_once(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    let mut output = input.clone();
+    let attrs: Attrs = match parse2(attrs) {
+        Ok(a) => a,
+        Err(err) => {
+            return err.to_compile_error();
+        }
+    };
+    let item: Item = match parse2(input) {
+        Ok(item) => item,
+        Err(err) => {
+            return err.to_compile_error();
+        }
+    };
+    output.extend(mock_it(MockableItem::from_autospy(attrs, item)));
+    output
+}
+
+fn do_autospy(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    cfg_if! {
+        if #[cfg(reprocheck)] {
+            let ts_a = do_autospy_once(attrs.clone(), input.clone());
+            let ts_b = do_autospy_once(attrs.clone(), input.clone());
+            assert_eq!(ts_a.to_string(), ts_b.to_string());
+        }
+    }
+    do_autospy_once(attrs, input)
 }
 
 #[proc_macro_attribute]
