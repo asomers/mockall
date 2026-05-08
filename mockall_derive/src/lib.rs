@@ -1413,12 +1413,12 @@ mod t {
 
 fn assert_contains(output: &str, tokens: TokenStream) {
     let s = tokens.to_string();
-    assert!(output.contains(&s), "output does not contain {:?}", &s);
+    assert!(output.contains(&s), "output does not contain {:?}", s);
 }
 
 fn assert_not_contains(output: &str, tokens: TokenStream) {
     let s = tokens.to_string();
-    assert!(!output.contains(&s), "output contains {:?}", &s);
+    assert!(!output.contains(&s), "output contains {:?}", s);
 }
 
 /// Various tests for overall code generation that are hard or impossible to
