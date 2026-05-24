@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+
+### Fixed
+
+- Fixed crates that export both real functions and mock versions of those
+  functions, where the real functions have the C ABI.
+  ([#603](https://github.com/asomers/mockall/pull/603))
+
+### Removed
+
+- Removed the ability to call mock versions of FFI C-ABI functions directly from
+  C.  Now, users who wish to do that must manually add a wrapper providing the C
+  ABI, as shown in mockall/examples/call-from-c.rs .
+  ([#603](https://github.com/asomers/mockall/pull/603))
+
 ## [ 0.14.0 ] - 2025-11-22
 
 ### Added
