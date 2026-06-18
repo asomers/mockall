@@ -878,6 +878,10 @@ impl<'a> AttrFormatter<'a> {
                     // Ignore auto_enum, because we transform the return value
                     // into a trait object.
                     false
+                } else if *i.as_ref().unwrap() == "auto_impl" {
+                    // Ignore auto_impl, because it only applies to trait
+                    // definitions, not the generated mock struct or impl.
+                    false
                 } else {
                     true
                 }
