@@ -1425,7 +1425,6 @@ fn assert_not_contains(output: &str, tokens: TokenStream) {
 /// write as integration tests
 mod mock {
     use std::str::FromStr;
-    use super::super::*;
     use super::*;
 
     #[test]
@@ -1502,7 +1501,6 @@ mod mock {
 /// write as integration tests
 mod automock {
     use std::str::FromStr;
-    use super::super::*;
     use super::*;
 
     #[test]

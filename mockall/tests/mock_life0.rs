@@ -3,6 +3,7 @@
 //! https://github.com/asomers/mockall/issues/95
 #![deny(warnings)]
 #![allow(single_use_lifetimes)] // The lifetime is the whole point of this test
+#![allow(clippy::extra_unused_lifetimes)]
 
 use mockall::*;
 

@@ -3,6 +3,7 @@
 //! not generic.
 #![deny(warnings)]
 #![allow(clippy::needless_lifetimes)]
+#![allow(clippy::extra_unused_lifetimes)]
 
 // Enclose the mocked trait within a non-public module.  With some versions of
 // rustc, that causes "unused method" errors for the generic code, but not the
