@@ -6,6 +6,7 @@
 
 #![deny(warnings)]
 #![allow(clippy::needless_lifetimes)]
+#![allow(clippy::extra_unused_lifetimes)]
 
 use mockall::*;
 
