@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+- Provide expectations clearing for automock.
+  Ex: Useful to configure a general mock behavior through a helper function,
+  and then specialize a single method by clearing it's initial behavior.
+  Partially addresses issue [#283](https://github.com/asomers/mockall/issues/283)
+
 ## [ 0.14.0 ] - 2025-11-22
 
 ### Added

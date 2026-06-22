@@ -722,6 +722,119 @@ impl MockFunction {
         )
     }
 
+    /// Generate code for the clear_ method
+    ///
+    /// # Arguments
+    ///
+    /// * `modname`:    Name of the parent struct's private module
+    // Supplying modname is an unfortunately hack.  Ideally MockFunction
+    // wouldn't need to know that.
+    pub fn clear(&self, modname: &Ident)
+                  -> impl ToTokens
+    {
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
+        let name = self.name();
+        let clear_ident = format_ident!("clear_{}", name);
+        let funcname = &self.sig.ident;
+        let (_, tg, _) = if self.is_method_generic() {
+            &self.egenerics
+        } else {
+            &self.call_generics
+        }.split_for_impl();
+        let (ig, _, wc) = self.call_generics.split_for_impl();
+        let mut wc = wc.cloned();
+        if self.is_method_generic() && (self.return_ref || self.return_refmut) {
+            // Add Senc + Sync, required for downcast, since Expectation
+            // stores an Option<#owned_output>
+            send_syncify(&mut wc, self.owned_output.clone());
+        }
+        let tbf = tg.as_turbofish();
+        let vis = &self.call_vis;
+
+        let substruct_obj = if let Some(trait_) = &self.trait_ {
+            let ident = format_ident!("{trait_}_expectations");
+            quote!(#ident.)
+        } else {
+            quote!()
+        };
+        let docstr = format!("Clear the [`Expectation`]({}/{}/struct.Expectation.html) array for the mocked `{}` method",
+                             modname, self.inner_mod_ident(), funcname);
+        quote!(
+            #[doc = #docstr]
+            #(#attrs)*
+            #vis fn #clear_ident #ig(&mut self)
+            {
+                self.#substruct_obj #name.clear #tbf();
+            }
+        )
+    }
+
+    /// Generate code for the clear_and_expect_ method
+    ///
+    /// # Arguments
+    ///
+    /// * `modname`:    Name of the parent struct's private module
+    /// * `self_args`:  If supplied, these are the
+    ///                 AngleBracketedGenericArguments of the self type of the
+    ///                 trait impl.  e.g. The `T` in `impl Foo for Bar<T>`.
+    // Supplying modname is an unfortunately hack.  Ideally MockFunction
+    // wouldn't need to know that.
+    pub fn clear_and_expect(&self, modname: &Ident, self_args: Option<&PathArguments>)
+                  -> impl ToTokens
+    {
+        let attrs = AttrFormatter::new(&self.attrs)
+            .doc(false)
+            .format();
+        let name = self.name();
+        let clear_and_expect_intent = format_ident!("clear_and_expect_{}", name);
+        let expectation_obj = self.expectation_obj(self_args);
+        let funcname = &self.sig.ident;
+        let (_, tg, _) = if self.is_method_generic() {
+            &self.egenerics
+        } else {
+            &self.call_generics
+        }.split_for_impl();
+        let (ig, _, wc) = self.call_generics.split_for_impl();
+        let mut wc = wc.cloned();
+        if self.is_method_generic() && (self.return_ref || self.return_refmut) {
+            // Add Senc + Sync, required for downcast, since Expectation
+            // stores an Option<#owned_output>
+            send_syncify(&mut wc, self.owned_output.clone());
+        }
+        let tbf = tg.as_turbofish();
+        let vis = &self.call_vis;
+
+        #[cfg(not(feature = "nightly_derive"))]
+        let must_use = quote!(#[must_use =
+                "Must set return value when not using the \"nightly\" feature"
+            ]);
+        #[cfg(feature = "nightly_derive")]
+        let must_use = quote!();
+
+        let substruct_obj = if let Some(trait_) = &self.trait_ {
+            let ident = format_ident!("{trait_}_expectations");
+            quote!(#ident.)
+        } else {
+            quote!()
+        };
+        let docstr = format!("Clear the [`Expectation`]({}/{}/struct.Expectation.html) array, before creating one for mocking the `{}` method",
+                             modname, self.inner_mod_ident(), funcname);
+        quote!(
+            #must_use
+            #[doc = #docstr]
+            #(#attrs)*
+            #vis fn #clear_and_expect_intent #ig(&mut self)
+               -> &mut #modname::#expectation_obj
+               #wc
+            {
+                self.#substruct_obj #name.clear #tbf();
+                self.#substruct_obj #name.expect #tbf()
+            }
+        )
+    }
+
     /// Return the name of this function's expecation object
     fn expectation_obj(&self, self_args: Option<&PathArguments>)
         -> impl ToTokens
@@ -1254,6 +1367,11 @@ impl ToTokens for CommonExpectationsMethods<'_> {
                     self.0.push(Expectation::default());
                     let __mockall_l = self.0.len();
                     &mut self.0[__mockall_l - 1]
+                }
+
+                #v fn clear(&mut self)
+                {
+                    self.0.clear();
                 }
 
                 #v const fn new() -> Self {
@@ -2575,6 +2693,11 @@ impl ToTokens for StaticGenericExpectations<'_> {
                         .downcast_mut::<Expectations #tg>()
                         .unwrap()
                         .expect()
+                }
+
+                #v fn clear #ig (&mut self)
+                {
+                    self.store.clear();
                 }
             }
         ).to_tokens(tokens)
