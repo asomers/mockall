@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+
+### Added
+
+- Compatibility with the `#[auto_impl]` macro.
+  ([#686](https://github.com/asomers/mockall/pull/686))
+
 ## [ 0.14.0 ] - 2025-11-22
 
 ### Added
