@@ -5,6 +5,7 @@ on:
     paths:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
+  pull_request:
 
 permissions:
   contents: read
@@ -15,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: generate Cargo.lock
+        run: cargo generate-lockfile
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
