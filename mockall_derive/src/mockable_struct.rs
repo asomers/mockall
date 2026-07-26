@@ -9,6 +9,7 @@ use syn::{
 
 use crate::{
     Attrs,
+    GenerateMode,
     compile_error,
     deanonymize,
     deimplify,
@@ -18,6 +19,7 @@ use crate::{
     dewhereselfify,
     find_ident_from_path,
     gen_mock_ident,
+    gen_spy_ident,
     AttrFormatter,
 };
 
@@ -123,7 +125,7 @@ fn derive_debug() -> Attribute {
 }
 
 /// Add "Mock" to the front of the named type
-fn mock_ident_in_type(ty: &mut Type) {
+fn set_ident_in_type(ty: &mut Type, target_name: &Ident) {
     match ty {
         Type::Path(type_path) => {
             if type_path.path.segments.len() != 1 {
@@ -132,7 +134,7 @@ fn mock_ident_in_type(ty: &mut Type) {
                 return;
             }
             let ident = &mut type_path.path.segments.last_mut().unwrap().ident;
-            *ident = gen_mock_ident(ident)
+            *ident = target_name.clone()
         },
         x => {
             compile_error(x.span(),
@@ -145,7 +147,7 @@ fn mock_ident_in_type(ty: &mut Type) {
 fn mockable_item_impl(mut impl_: ItemImpl, name: &Ident, generics: &Generics)
     -> ItemImpl
 {
-    mock_ident_in_type(&mut impl_.self_ty);
+    set_ident_in_type(&mut impl_.self_ty, name);
     for item in impl_.items.iter_mut() {
         if let ImplItem::Fn(ref mut iim) = item {
             mockable_method(iim, name, generics);
@@ -340,9 +342,192 @@ pub(crate) struct MockableStruct {
     pub name: Ident,
     pub vis: Visibility,
     pub impls: Vec<ItemImpl>,
+    /// What kind of struct to generate
+    pub generate_mode: GenerateMode,
+    /// For struct impl spy mode, the concrete type of the wrapped value.
+    /// `None` for trait-based spies and all mocks.
+    pub spy_real_type: Option<Type>,
 }
 
 impl MockableStruct {
+    /// Parse input for the `spy!` macro.
+    ///
+    /// Similar to the `Parse` impl for `mock!`, but:
+    /// - Uses `Spy` prefix instead of `Mock`
+    /// - Sets `generate_mode: GenerateMode::Spy`
+    /// - Rejects inherent methods (only consts allowed in the inherent block)
+    pub fn parse_spy(input: ParseStream) -> syn::parse::Result<Self> {
+        let attrs = input.call(syn::Attribute::parse_outer)?;
+        let vis: syn::Visibility = input.parse()?;
+        let original_name: syn::Ident = input.parse()?;
+        let mut generics: syn::Generics = input.parse()?;
+        let wc: Option<syn::WhereClause> = input.parse()?;
+        generics.where_clause = wc;
+        let name = gen_spy_ident(&original_name);
+        let impl_content;
+        let _brace_token = braced!(impl_content in input);
+        let mut consts = Vec::new();
+        while !impl_content.is_empty() {
+            let item: ImplItem = impl_content.parse()?;
+            match item {
+                ImplItem::Const(iic) => consts.push(iic),
+                ImplItem::Verbatim(_) | ImplItem::Fn(_) => {
+                    return Err(input.error(
+                        "spy! does not support inherent methods. \
+                         Only trait methods can be spied on."
+                    ));
+                }
+                _ => {
+                    return Err(input.error("Unsupported in this context"));
+                }
+            }
+        }
+
+        let mut impls = Vec::new();
+        while !input.is_empty() {
+            let item: Item = input.parse()?;
+            match item {
+                Item::Impl(mut ii) => {
+                    for item in ii.items.iter_mut() {
+                        if let ImplItem::Verbatim(ts) = item {
+                            let tif: TraitItemFn = parse2(ts.clone()).unwrap();
+                            let iim = tif2iif(tif, &Visibility::Inherited);
+                            *item = ImplItem::Fn(iim);
+                        }
+                    }
+                    impls.push(mockable_item_impl(ii, &name, &generics));
+                }
+                _ => return Err(input.error("Unsupported in this context")),
+            }
+        }
+
+        Ok(
+            MockableStruct {
+                attrs,
+                consts,
+                generics,
+                methods: Vec::new(),
+                name,
+                vis,
+                impls,
+                generate_mode: GenerateMode::Spy,
+                spy_real_type: None,
+            }
+        )
+    }
+
+    /// Create a MockableStruct in spy mode from an ItemTrait.
+    /// Used by `#[autospy]`.
+    pub fn from_trait_spy(attrs: Attrs, item_trait: ItemTrait) -> MockableStruct {
+        let trait_ = attrs.substitute_trait(&item_trait);
+        let mut attrs = AttrFormatter::new(&trait_.attrs)
+            .doc(true)
+            .async_trait(true)
+            .trait_variant(true)
+            .must_use(false)
+            .format();
+        attrs.push(derive_debug());
+        let vis = trait_.vis.clone();
+        let name = gen_spy_ident(&trait_.ident);
+        let generics = trait_.generics.clone();
+        let impls = vec![mockable_trait(trait_, &name, &generics)];
+        MockableStruct {
+            attrs,
+            consts: Vec::new(),
+            vis,
+            name,
+            generics,
+            methods: Vec::new(),
+            impls,
+            generate_mode: GenerateMode::Spy,
+            spy_real_type: None,
+        }
+    }
+
+    /// Create a MockableStruct in spy mode from an ItemImpl.
+    /// Used by `#[autospy]` on struct impl blocks.
+    pub fn from_impl_spy(mut item_impl: ItemImpl) -> MockableStruct {
+        let real_type = (*item_impl.self_ty).clone();
+        let name = match &*item_impl.self_ty {
+            Type::Path(type_path) => {
+                let n = find_ident_from_path(&type_path.path).0;
+                let self_generics =
+                    &type_path.path.segments.last().unwrap().arguments;
+                if let PathArguments::AngleBracketed(abga) = &self_generics {
+                    if item_impl.generics.params.len() != abga.args.len() {
+                        compile_error(item_impl.span(),
+                            "autospy does not currently support structs \
+                             with elided lifetimes");
+                    }
+                }
+                gen_spy_ident(&n)
+            },
+            x => {
+                compile_error(x.span(),
+                    "mockall_derive only supports mocking traits and structs");
+                Ident::new("", Span::call_site())
+            }
+        };
+        let mut attrs = item_impl.attrs.clone();
+        attrs.push(derive_debug());
+        let mut consts = Vec::new();
+        let generics = item_impl.generics.clone();
+        let mut methods = Vec::new();
+        let vis = Visibility::Public(Token![pub](Span::call_site()));
+        let mut impls = Vec::new();
+        let is_inherent = item_impl.trait_.is_none();
+        if let Some((bang, _path, _)) = &item_impl.trait_ {
+            if bang.is_some() {
+                compile_error(bang.span(), "Unsupported by autospy");
+            }
+
+            let mut attrs = Attrs::default();
+            for item in item_impl.items.iter() {
+                match item {
+                    ImplItem::Const(_iic) =>
+                        (),
+                    ImplItem::Fn(_meth) =>
+                        (),
+                    ImplItem::Type(ty) => {
+                        attrs.attrs.insert(ty.ident.clone(), ty.ty.clone());
+                    },
+                    x => compile_error(x.span(), "Unsupported by autospy")
+                }
+            }
+            attrs.substitute_item_impl(&mut item_impl);
+            impls.push(mockable_item_impl(item_impl, &name, &generics));
+        } else {
+            for item in item_impl.items.into_iter() {
+                match item {
+                    ImplItem::Fn(mut meth) => {
+                        mockable_method(
+                            &mut meth, &name, &item_impl.generics
+                        );
+                        methods.push(meth)
+                    },
+                    ImplItem::Const(iic) => consts.push(iic),
+                    x => compile_error(x.span(),
+                        "Unsupported by Mockall in this context"),
+                }
+            }
+        };
+        MockableStruct {
+            attrs,
+            consts,
+            generics,
+            methods,
+            name,
+            vis,
+            impls,
+            generate_mode: GenerateMode::Spy,
+            spy_real_type: if is_inherent {
+                Some(real_type)
+            } else {
+                None
+            },
+        }
+    }
+
     /// Does this struct derive Debug?
     pub fn derives_debug(&self) -> bool {
         self.attrs.iter()
@@ -386,7 +571,9 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
             name,
             generics,
             methods: Vec::new(),
-            impls
+            impls,
+            generate_mode: GenerateMode::Mock,
+            spy_real_type: None,
         }
     }
 }
@@ -467,6 +654,8 @@ impl From<ItemImpl> for MockableStruct {
             name,
             vis,
             impls,
+            generate_mode: GenerateMode::Mock,
+            spy_real_type: None,
         }
     }
 }
@@ -528,7 +717,9 @@ impl Parse for MockableStruct {
                 methods,
                 name,
                 vis,
-                impls
+                impls,
+                generate_mode: GenerateMode::Mock,
+                spy_real_type: None,
             }
         )
     }

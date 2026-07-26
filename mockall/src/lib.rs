@@ -24,6 +24,11 @@
 //!   the preprogrammed return values supplied in the previous step.  Any
 //!   accesses contrary to your expectations will cause a panic.
 //!
+//! Mockall also supports *spies*.  A spy wraps a real implementation and
+//! delegates calls to it by default, but allows individual methods to be
+//! overridden.  Use [`#[autospy]`](attr.autospy.html) or [`spy!`] to
+//! create them.
+//!
 //! # User Guide
 //!
 //! * [`Getting started`](#getting-started)
@@ -46,6 +51,7 @@
 //! * [`Foreign functions`](#foreign-functions)
 //! * [`Debug`](#debug)
 //! * [`Async Traits`](#async-traits)
+//! * [`Spying`](#spying)
 //! * [`Crate features`](#crate-features)
 //! * [`Examples`](#examples)
 //!
@@ -1099,6 +1105,79 @@
 //! # fn main() {}
 //! ```
 //!
+//! ## Spying
+//!
+//! A spy wraps a real implementation and delegates method calls to it by
+//! default, while allowing individual methods to be overridden with
+//! expectations.  This is useful for partial mocking and call verification.
+//!
+//! The easiest way to create a spy is [`#[autospy]`](attr.autospy.html),
+//! which works on traits and struct impls:
+//!
+//! ```
+//! # use mockall::*;
+//! #[autospy]
+//! trait Foo {
+//!     fn foo(&self, x: u32) -> u32;
+//! }
+//!
+//! struct RealFoo;
+//! impl Foo for RealFoo {
+//!     fn foo(&self, x: u32) -> u32 { x * 2 }
+//! }
+//!
+//! # fn main() {
+//! use mockall::predicate::*;
+//!
+//! let mut spy = SpyFoo::new(RealFoo);
+//! assert_eq!(spy.foo(21), 42);     // delegates to real
+//!
+//! spy.expect_foo()
+//!     .times(1)
+//!     .returning(|x| x + 1);
+//! assert_eq!(spy.foo(5), 6);       // overridden
+//! spy.checkpoint();
+//!
+//! // Verify a call with specific arguments using calling_real()
+//! spy.expect_foo()
+//!     .with(eq(10))
+//!     .times(1)
+//!     .calling_real();
+//! assert_eq!(spy.foo(10), 20);     // delegates and verifies
+//! # }
+//! ```
+//!
+//! To spy on async methods, use `#[async_trait]`.  Native `async fn`
+//! and methods returning `impl Future` cannot be spied on directly.
+//!
+//! ```
+//! # use mockall::*;
+//! use async_trait::async_trait;
+//! use futures::executor::block_on;
+//!
+//! #[autospy]
+//! #[async_trait]
+//! trait AsyncFoo: Send + Sync {
+//!     async fn fetch(&self, id: u32) -> String;
+//! }
+//!
+//! struct RealService;
+//! #[async_trait]
+//! impl AsyncFoo for RealService {
+//!     async fn fetch(&self, id: u32) -> String {
+//!         format!("item-{id}")
+//!     }
+//! }
+//!
+//! # fn main() {
+//! let spy = SpyAsyncFoo::new(RealService);
+//! assert_eq!(block_on(spy.fetch(42)), "item-42");
+//! # }
+//! ```
+//!
+//! For more complex cases, there is [`spy!`].  See the [`spy!`] and
+//! [`#[autospy]`](attr.autospy.html) documentation for full details.
+//!
 //! ## Crate features
 //!
 //! Mockall has a **nightly** feature.  Currently this feature has two
@@ -1440,6 +1519,249 @@ pub use mockall_derive::concretize;
 /// # fn main() {}
 /// ```
 pub use mockall_derive::mock;
+
+/// Create a spy struct that wraps a real implementation.
+///
+/// A spy delegates method calls to the real implementation by default, but
+/// allows you to override specific methods with expectations.  This enables
+/// partial mocking and call verification.
+///
+/// Only trait methods can be spied on with `spy!`; inherent methods are not
+/// supported.  Use [`#[autospy]`](attr.autospy.html) on a struct impl block
+/// to spy on inherent methods.
+///
+/// # Examples
+///
+/// ```
+/// # use mockall_derive::spy;
+/// trait MyTrait {
+///     fn method(&self, x: u32) -> u32;
+/// }
+///
+/// struct RealImpl;
+/// impl MyTrait for RealImpl {
+///     fn method(&self, x: u32) -> u32 { x * 2 }
+/// }
+///
+/// spy! {
+///     Foo {
+///     }
+///     impl MyTrait for Foo {
+///         fn method(&self, x: u32) -> u32;
+///     }
+/// }
+///
+/// # fn main() {
+/// let real = RealImpl;
+/// let mut spy = SpyFoo::new(real);
+///
+/// // By default, delegates to the real implementation.
+/// assert_eq!(spy.method(21), 42);
+///
+/// // Override with an expectation.
+/// spy.expect_method()
+///     .returning(|x| x + 1);
+/// assert_eq!(spy.method(5), 6);
+/// # }
+/// ```
+///
+/// Use `calling_real()` to delegate to the real implementation while still
+/// verifying call counts:
+///
+/// ```
+/// # use mockall_derive::spy;
+/// trait Compute {
+///     fn compute(&self, x: u32) -> u32;
+/// }
+///
+/// struct Doubler;
+/// impl Compute for Doubler {
+///     fn compute(&self, x: u32) -> u32 { x * 2 }
+/// }
+///
+/// spy! {
+///     Calc {
+///     }
+///     impl Compute for Calc {
+///         fn compute(&self, x: u32) -> u32;
+///     }
+/// }
+///
+/// # fn main() {
+/// let mut spy = SpyCalc::new(Doubler);
+/// spy.expect_compute()
+///     .times(1)
+///     .calling_real();
+/// assert_eq!(spy.compute(5), 10);
+/// # }
+/// ```
+///
+/// The generated struct is generic: `SpyFoo<T>` where `T` must implement all
+/// the declared traits.  This allows wrapping different concrete types with
+/// the same spy definition.
+///
+/// The `spy!` macro also implements [`IntoSpy`] for any type satisfying the
+/// trait bounds, allowing you to write `real.into_spy()` instead of
+/// `SpyFoo::new(real)`:
+///
+/// ```
+/// # use mockall_derive::spy;
+/// use mockall::IntoSpy;
+///
+/// trait MyTrait { fn method(&self, x: u32) -> u32; }
+/// struct RealImpl;
+/// impl MyTrait for RealImpl { fn method(&self, x: u32) -> u32 { x * 2 } }
+/// spy! { Foo {} impl MyTrait for Foo { fn method(&self, x: u32) -> u32; } }
+///
+/// # fn main() {
+/// let real = RealImpl;
+/// let spy: SpyFoo<_> = real.into_spy();
+/// assert_eq!(spy.method(21), 42);
+/// # }
+/// ```
+///
+/// ## Limitations
+///
+/// * Only trait methods can be spied on.  Use
+///   [`#[autospy]`](attr.autospy.html) for inherent methods.
+/// * Static methods do not delegate; they behave like regular mock
+///   expectations.
+/// * Methods returning `impl Trait` (e.g. `impl Future`) cannot be
+///   spied on.  Use `#[async_trait]` for async methods instead.
+pub use mockall_derive::spy;
+
+/// Automatically generate spy types for traits and struct impls.
+///
+/// Similar to [`#[automock]`](attr.automock.html), but generates a spy struct
+/// (prefixed with "Spy") instead of a mock struct.  A spy delegates method
+/// calls to a wrapped real implementation by default, while allowing individual
+/// methods to be overridden with expectations.
+///
+/// # Examples
+///
+/// ## On a trait
+/// ```
+/// # use mockall::*;
+/// #[autospy]
+/// trait MyTrait {
+///     fn method(&self, x: u32) -> u32;
+/// }
+///
+/// struct RealImpl;
+/// impl MyTrait for RealImpl {
+///     fn method(&self, x: u32) -> u32 { x * 2 }
+/// }
+///
+/// # fn main() {
+/// let real = RealImpl;
+/// let spy = SpyMyTrait::new(real);
+/// assert_eq!(spy.method(21), 42);
+/// # }
+/// ```
+///
+/// ## On a struct impl
+/// ```
+/// # use mockall::*;
+/// struct Foo;
+///
+/// #[autospy]
+/// impl Foo {
+///     fn double(&self, x: u32) -> u32 { x * 2 }
+/// }
+///
+/// # fn main() {
+/// let spy = SpyFoo::new(Foo);
+/// assert_eq!(spy.double(21), 42);
+/// # }
+/// ```
+///
+/// ## With async_trait
+///
+/// To spy on async methods, combine `#[autospy]` with `#[async_trait]`.
+/// The `#[async_trait]` attribute must come after `#[autospy]`.
+///
+/// ```
+/// # use mockall::*;
+/// use async_trait::async_trait;
+/// use futures::executor::block_on;
+///
+/// #[autospy]
+/// #[async_trait]
+/// trait AsyncFoo: Send + Sync {
+///     async fn fetch(&self, id: u32) -> String;
+/// }
+///
+/// struct RealService;
+/// #[async_trait]
+/// impl AsyncFoo for RealService {
+///     async fn fetch(&self, id: u32) -> String {
+///         format!("item-{id}")
+///     }
+/// }
+///
+/// # fn main() {
+/// let mut spy = SpyAsyncFoo::new(RealService);
+/// assert_eq!(block_on(spy.fetch(1)), "item-1");
+///
+/// spy.expect_fetch()
+///     .returning(|_| "mocked".to_string());
+/// assert_eq!(block_on(spy.fetch(99)), "mocked");
+/// # }
+/// ```
+///
+/// ## Limitations
+///
+/// * `#[autospy]` does not support modules.  For module-level mocking,
+///   use [`mock!`] instead.
+/// * Static methods do not delegate; they behave like regular mock
+///   expectations.
+/// * Methods returning `impl Trait` (e.g. `impl Future`) cannot be
+///   spied on.  Use `#[async_trait]` for async methods instead.
+pub use mockall_derive::autospy;
+
+/// Constructor trait for building a spy from a real value.
+///
+/// This trait is automatically implemented by the [`spy!`] macro and
+/// [`#[autospy]`](attr.autospy.html) on the generated spy struct.  You
+/// normally won't call this directly — use the [`IntoSpy`] trait
+/// instead.
+pub trait SpyFrom<T> {
+    /// Create a spy wrapping the given real value.
+    fn spy_from(real: T) -> Self;
+}
+
+/// Conversion trait for turning a real value into a spy.
+///
+/// This is the reciprocal of [`SpyFrom`].  It is automatically available
+/// for any type `T` when a spy struct implements `SpyFrom<T>` (which the
+/// [`spy!`] macro and [`#[autospy]`](attr.autospy.html) generate).
+///
+/// # Examples
+///
+/// ```
+/// use mockall::IntoSpy;
+/// # use mockall::spy;
+/// trait MyTrait { fn foo(&self) -> u32; }
+/// struct Real;
+/// impl MyTrait for Real { fn foo(&self) -> u32 { 42 } }
+/// spy! { Baz {} impl MyTrait for Baz { fn foo(&self) -> u32; } }
+///
+/// # fn main() {
+/// let real = Real;
+/// let spy: SpyBaz<_> = real.into_spy();
+/// assert_eq!(spy.foo(), 42);
+/// # }
+/// ```
+pub trait IntoSpy<S> {
+    /// Convert this object into a spy that wraps it.
+    fn into_spy(self) -> S;
+}
+
+impl<T, S: SpyFrom<T>> IntoSpy<S> for T {
+    fn into_spy(self) -> S {
+        S::spy_from(self)
+    }
+}
 
 #[doc(hidden)]
 pub trait AnyExpectations : Any + Send + Sync {}

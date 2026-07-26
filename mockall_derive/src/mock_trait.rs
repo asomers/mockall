@@ -13,6 +13,7 @@ use syn::{
 
 use crate::{
     AttrFormatter,
+    GenerateMode,
     mock_function::{self, MockFunction},
     compile_error
 };
@@ -57,10 +58,12 @@ impl MockTrait {
     /// * `struct_generics` - Generics of the parent structure
     /// * `impl_`  -    Mockable ItemImpl for a trait
     /// * `vis`     -   Visibility of the struct
+    /// * `generate_mode` - What kind of struct to generate
     pub fn new(structname: &Ident,
                struct_generics: &Generics,
                impl_: ItemImpl,
-               vis: &Visibility) -> Self
+               vis: &Visibility,
+               generate_mode: GenerateMode) -> Self
     {
         let mut consts = Vec::new();
         let mut methods = Vec::new();
@@ -95,6 +98,7 @@ impl MockTrait {
                         .struct_(structname)
                         .struct_generics(struct_generics)
                         .trait_(&ss_name)
+                        .generate_mode(generate_mode)
                         .build();
                     methods.push(mf);
                 },

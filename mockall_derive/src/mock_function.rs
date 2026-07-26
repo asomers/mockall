@@ -10,6 +10,7 @@ use syn::{
 
 use crate::{
     AttrFormatter,
+    GenerateMode,
     HashSet,
     compile_error,
     concretize_args,
@@ -193,6 +194,7 @@ pub(crate) struct Builder<'a> {
     levels: usize,
     parent: Option<&'a Ident>,
     sig: &'a Signature,
+    generate_mode: GenerateMode,
     struct_: Option<&'a Ident>,
     struct_generics: Option<&'a Generics>,
     trait_: Option<&'a Ident>,
@@ -348,6 +350,7 @@ impl<'a> Builder<'a> {
             return_ref,
             return_refmut,
             sig,
+            generate_mode: self.generate_mode,
             struct_: self.struct_.cloned(),
             struct_generics,
             trait_: self.trait_.cloned(),
@@ -382,11 +385,18 @@ impl<'a> Builder<'a> {
             call_levels: None,
             parent: None,
             sig,
+            generate_mode: GenerateMode::Mock,
             struct_: None,
             struct_generics: None,
             trait_: None,
             vis
         }
+    }
+
+    /// Set the generation mode for this function
+    pub fn generate_mode(&mut self, generate_mode: GenerateMode) -> &mut Self {
+        self.generate_mode = generate_mode;
+        self
     }
 
     /// Supply the name of the parent module
@@ -469,6 +479,8 @@ pub(crate) struct MockFunction {
     struct_: Option<Ident>,
     /// Generics of the parent structure
     struct_generics: Generics,
+    /// What kind of struct to generate
+    generate_mode: GenerateMode,
     /// Name of this method's trait, if the method comes from a trait
     trait_: Option<Ident>,
     /// Type generics of the mock structure
@@ -570,6 +582,34 @@ impl MockFunction {
                                 .map(|mut g| g.checkpoint().collect::<Vec<_>>());
                             ::std::panic::resume_unwind(__mockall_e);
                         })
+                    }
+                }
+            )
+        } else if self.generate_mode == GenerateMode::Spy {
+            let method_ident = self.name();
+            let argnames = &self.argnames;
+            let spy_call = if self.return_refmut {
+                Ident::new("spy_call_mut", Span::call_site())
+            } else {
+                Ident::new("spy_call", Span::call_site())
+            };
+            let await_token = if self.sig.asyncness.is_some() {
+                quote!(.await)
+            } else {
+                quote!()
+            };
+            quote!(
+                #(#attrs)*
+                #dead_code
+                #no_mangle
+                #vis #sig {
+                    if let Some(__mockall_result) =
+                        self.#substruct_obj #name.#spy_call #tbf(#(#call_exprs,)*)
+                    {
+                        #deref __mockall_result
+                    } else {
+                        self.__mockall_real.#method_ident(#(#argnames,)*)
+                            #await_token
                     }
                 }
             )
@@ -955,7 +995,8 @@ impl ToTokens for Common<'_> {
             struct Common #ig #wc {
                 matcher: Mutex<Matcher #tg>,
                 seq_handle: Option<::mockall::SeqHandle>,
-                times: ::mockall::Times
+                times: ::mockall::Times,
+                call_real: bool,
             }
 
             impl #ig std::default::Default for Common #tg #wc
@@ -964,7 +1005,8 @@ impl ToTokens for Common<'_> {
                     Common {
                         matcher: Mutex::new(Matcher::default()),
                         seq_handle: None,
-                        times: ::mockall::Times::default()
+                        times: ::mockall::Times::default(),
+                        call_real: false,
                     }
                 }
             }
@@ -1221,6 +1263,18 @@ impl ToTokens for CommonExpectationMethods<'_> {
                 self
             }
         ).to_tokens(tokens);
+
+        // Generate calling_real() only in spy mode
+        if self.f.generate_mode == GenerateMode::Spy {
+            quote!(
+                /// Delegate to the real implementation while still
+                /// recording the call for verification.
+                #v fn calling_real(&mut self) -> &mut Self {
+                    self.common.call_real = true;
+                    self
+                }
+            ).to_tokens(tokens);
+        }
     }
 }
 
@@ -2082,6 +2136,30 @@ impl ToTokens for RefExpectation<'_> {
                 }
             }
         ).to_tokens(tokens);
+
+        // Generate spy_call() for spy mode (ref return)
+        if self.f.generate_mode == GenerateMode::Spy {
+            let argnames = &self.f.argnames;
+            let argty = &self.f.argty;
+            let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+            let lg = lifetimes_to_generics(&self.f.alifetimes);
+            let output = &self.f.output;
+            let v = &self.f.privmod_vis;
+            quote!(
+                impl #ig Expectation #tg #wc {
+                    #[doc(hidden)]
+                    #v fn spy_call #lg (&self, #(#argnames: #argty, )* )
+                        -> Option<#output>
+                    {
+                        if self.common.call_real {
+                            panic!("calling_real() is not supported for \
+                                    methods returning references");
+                        }
+                        Some(self.call(#(#argnames, )*))
+                    }
+                }
+            ).to_tokens(tokens);
+        }
     }
 }
 
@@ -2171,6 +2249,30 @@ impl ToTokens for RefMutExpectation<'_> {
                 }
             }
         ).to_tokens(tokens);
+
+        // Generate spy_call_mut() for spy mode (refmut return)
+        if self.f.generate_mode == GenerateMode::Spy {
+            let argnames = &self.f.argnames;
+            let argty = &self.f.argty;
+            let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+            let lg = lifetimes_to_generics(&self.f.alifetimes);
+            let owned_output = &self.f.owned_output;
+            let v = &self.f.privmod_vis;
+            quote!(
+                impl #ig Expectation #tg #wc {
+                    #[doc(hidden)]
+                    #v fn spy_call_mut #lg (&mut self, #(#argnames: #argty, )* )
+                        -> Option<&mut #owned_output>
+                    {
+                        if self.common.call_real {
+                            panic!("calling_real() is not supported for \
+                                    methods returning mutable references");
+                        }
+                        Some(self.call_mut(#(#argnames, )*))
+                    }
+                }
+            ).to_tokens(tokens);
+        }
     }
 }
 
@@ -2346,6 +2448,38 @@ impl ToTokens for StaticExpectation<'_> {
                 }
             }
         ).to_tokens(tokens);
+
+        // Generate spy_call() for spy mode
+        if self.f.generate_mode == GenerateMode::Spy {
+            let argnames = &self.f.argnames;
+            let argty = &self.f.argty;
+            let (desc_fmt, desc_args) = self.f.desc();
+            let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+            let lg = lifetimes_to_generics(&self.f.alifetimes);
+            let output = &self.f.output;
+            let v = &self.f.privmod_vis;
+            quote!(
+                #[allow(clippy::unused_unit)]
+                impl #ig Expectation #tg #wc {
+                    /// Call this Expectation in spy mode.
+                    /// Returns Some(value) if the expectation provides a value,
+                    /// or None if the real implementation should be called.
+                    #[doc(hidden)]
+                    #v fn spy_call #lg (&self, #(#argnames: #argty, )* )
+                        -> Option<#output>
+                    {
+                        if self.common.call_real {
+                            use ::mockall::{ViaDebug, ViaNothing};
+                            self.common.call(
+                                || std::format!(#desc_fmt, #desc_args));
+                            None
+                        } else {
+                            Some(self.call(#(#argnames, )*))
+                        }
+                    }
+                }
+            ).to_tokens(tokens);
+        }
     }
 }
 
@@ -2387,6 +2521,36 @@ impl ToTokens for RefExpectations<'_> {
 
             }
         ).to_tokens(tokens);
+
+        // Generate spy_call() for spy mode
+        if self.f.generate_mode == GenerateMode::Spy {
+            let argnames = &self.f.argnames;
+            let argty = &self.f.argty;
+            let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+            let lg = lifetimes_to_generics(&self.f.alifetimes);
+            let output = &self.f.output;
+            let predexprs = &self.f.predexprs;
+            let v = &self.f.privmod_vis;
+            quote!(
+                impl #ig Expectations #tg #wc {
+                    #v fn spy_call #lg (&self, #(#argnames: #argty, )* )
+                        -> Option<#output>
+                    {
+                        use ::mockall::{ViaDebug, ViaNothing};
+                        let __mockall_e = self.0.iter()
+                            .find(|__mockall_e|
+                                  __mockall_e.matches(#(#predexprs, )*) &&
+                                  (!__mockall_e.is_done()
+                                   || self.0.len() == 1));
+                        match __mockall_e {
+                            Some(__mockall_e) =>
+                                __mockall_e.spy_call(#(#argnames, )*),
+                            None => None,
+                        }
+                    }
+                }
+            ).to_tokens(tokens);
+        }
     }
 }
 
@@ -2429,6 +2593,37 @@ impl ToTokens for RefMutExpectations<'_> {
 
             }
         ).to_tokens(tokens);
+
+        // Generate spy_call_mut() for spy mode
+        if self.f.generate_mode == GenerateMode::Spy {
+            let argnames = &self.f.argnames;
+            let argty = &self.f.argty;
+            let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+            let lg = lifetimes_to_generics(&self.f.alifetimes);
+            let owned_output = &self.f.owned_output;
+            let predexprs = &self.f.predexprs;
+            let v = &self.f.privmod_vis;
+            quote!(
+                impl #ig Expectations #tg #wc {
+                    #v fn spy_call_mut #lg (&mut self, #(#argnames: #argty, )* )
+                        -> Option<&mut #owned_output>
+                    {
+                        use ::mockall::{ViaDebug, ViaNothing};
+                        let __mockall_n = self.0.len();
+                        let __mockall_e = self.0.iter_mut()
+                            .find(|__mockall_e|
+                                  __mockall_e.matches(#(#predexprs, )*) &&
+                                  (!__mockall_e.is_done()
+                                   || __mockall_n == 1));
+                        match __mockall_e {
+                            Some(__mockall_e) =>
+                                __mockall_e.spy_call_mut(#(#argnames, )*),
+                            None => None,
+                        }
+                    }
+                }
+            ).to_tokens(tokens);
+        }
     }
 }
 
@@ -2470,6 +2665,36 @@ impl ToTokens for StaticExpectations<'_> {
 
             }
         ).to_tokens(tokens);
+
+        // Generate spy_call() for spy mode
+        if self.f.generate_mode == GenerateMode::Spy {
+            let argnames = &self.f.argnames;
+            let argty = &self.f.argty;
+            let (ig, tg, wc) = self.f.egenerics.split_for_impl();
+            let lg = lifetimes_to_generics(&self.f.alifetimes);
+            let output = &self.f.output;
+            let predexprs = &self.f.predexprs;
+            let v = &self.f.privmod_vis;
+            quote!(
+                impl #ig Expectations #tg #wc {
+                    #v fn spy_call #lg (&self, #(#argnames: #argty, )* )
+                        -> Option<#output>
+                    {
+                        use ::mockall::{ViaDebug, ViaNothing};
+                        let __mockall_e = self.0.iter()
+                            .find(|__mockall_e|
+                                  __mockall_e.matches(#(#predexprs, )*) &&
+                                  (!__mockall_e.is_done()
+                                   || self.0.len() == 1));
+                        match __mockall_e {
+                            Some(__mockall_e) =>
+                                __mockall_e.spy_call(#(#argnames, )*),
+                            None => None,
+                        }
+                    }
+                }
+            ).to_tokens(tokens);
+        }
     }
 }
 
