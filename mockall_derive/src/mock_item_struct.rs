@@ -330,6 +330,7 @@ impl ToTokens for MockItemStruct {
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
+            #[allow(clippy::struct_field_names)]
             #(#attrs)*
             #vis struct #struct_name #ig #wc
             {
@@ -425,6 +426,7 @@ impl ToTokens for MockItemTraitImpl {
             #[allow(non_camel_case_types)]
             #[allow(non_snake_case)]
             #[allow(missing_docs)]
+            #[allow(clippy::struct_field_names)]
             #(#struct_attrs)*
             struct #struct_name #ig #wc
             {
