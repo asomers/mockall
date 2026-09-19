@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [ Unreleased ] - ReleaseDate
+
+### Fixed
+
+- Generated mock objects will no longer trigger Clippy's (off by default)
+  `clippy::struct_field_names` lint.
+  ([#691](https://github.com/asomers/mockall/pull/691))
+
 ## [ 0.15.0 ] - 2026-06-28
 
 ### Added
