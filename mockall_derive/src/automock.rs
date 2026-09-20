@@ -67,6 +67,7 @@ impl Attrs {
                 if let ReturnType::Type(_, ref mut ty) = &mut sig.output {
                     self.substitute_type(ty, &trait_ident);
                 }
+                self.substitute_generics(&mut sig.generics, &trait_ident);
             }
         }
     }
@@ -225,6 +226,58 @@ impl Attrs {
         }
     }
 
+    /// Recursively substitute types in the bounds of a method's generic
+    /// parameters and in its where clause.  Associated types like `Self::T`
+    /// are legal there (e.g. `where F: Fn(&Self::T) -> bool`), but must be
+    /// replaced with their concrete types before the generated code moves
+    /// the signature into the private expectation module, where `Self` refers
+    /// to something else.
+    fn substitute_generics(&self, generics: &mut Generics, traitname: &Ident) {
+        for param in generics.params.iter_mut() {
+            if let GenericParam::Type(tp) = param {
+                for bound in tp.bounds.iter_mut() {
+                    self.substitute_bound(bound, traitname);
+                }
+            }
+        }
+        if let Some(wc) = generics.where_clause.as_mut() {
+            for wp in wc.predicates.iter_mut() {
+                if let WherePredicate::Type(pt) = wp {
+                    self.substitute_type(&mut pt.bounded_ty, traitname);
+                    for bound in pt.bounds.iter_mut() {
+                        self.substitute_bound(bound, traitname);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Substitute types within a trait bound.  Unlike
+    /// `substitute_type_param_bound`, this handles the parenthesized
+    /// arguments of Fn-style bounds like `Fn(&Self::T) -> bool`, which are
+    /// legal in bound position.
+    fn substitute_bound(&self, bound: &mut TypeParamBound, traitname: &Ident)
+    {
+        if let TypeParamBound::Trait(tb) = bound {
+            for seg in tb.path.segments.iter_mut() {
+                match &mut seg.arguments {
+                    PathArguments::None => (),
+                    PathArguments::Parenthesized(p) => {
+                        for input in p.inputs.iter_mut() {
+                            self.substitute_type(input, traitname);
+                        }
+                        if let ReturnType::Type(_, ref mut ty) = p.output {
+                            self.substitute_type(ty, traitname);
+                        }
+                    },
+                    PathArguments::AngleBracketed(_) => {
+                        self.substitute_path_segment(seg, traitname);
+                    },
+                }
+            }
+        }
+    }
+
     pub(crate) fn substitute_trait(&self, item: &ItemTrait) -> ItemTrait {
         let mut output = item.clone();
         if let Some(target) = &self.target {
@@ -254,6 +307,7 @@ impl Attrs {
                     if let ReturnType::Type(_, ref mut ty) = &mut sig.output {
                         self.substitute_type(ty, &item.ident);
                     }
+                    self.substitute_generics(&mut sig.generics, &item.ident);
                 },
                 _ => {
                     // Nothing to do
@@ -306,6 +360,57 @@ mod t {
         let expect_ty: Type = parse2(expected).unwrap();
         _self.substitute_type(&mut in_ty, &traitname);
         assert_eq!(in_ty, expect_ty);
+    }
+
+    fn check_substitute_generics(
+        attrs: TokenStream,
+        input: TokenStream,
+        traitname: Ident,
+        expected: TokenStream)
+    {
+        let _self: super::Attrs = parse2(attrs).unwrap();
+        let mut in_fn: TraitItemFn = parse2(input).unwrap();
+        let expect_fn: TraitItemFn = parse2(expected).unwrap();
+        _self.substitute_generics(&mut in_fn.sig.generics, &traitname);
+        assert_eq!(in_fn.sig.generics, expect_fn.sig.generics);
+    }
+
+    #[test]
+    fn closure_bound_where_clause() {
+        check_substitute_generics(
+            quote!(type T = u32;),
+            quote!(fn foo<F>(x: u32) where F: Fn(&Self::T) -> bool;),
+            format_ident!("Foo"),
+            quote!(fn foo<F>(x: u32) where F: Fn(&u32) -> bool;));
+    }
+
+    #[test]
+    fn closure_bound_generic_param() {
+        check_substitute_generics(
+            quote!(type T = u32;),
+            quote!(fn foo<F: Fn(&Self::T) -> bool>(x: u32);),
+            format_ident!("Foo"),
+            quote!(fn foo<F: Fn(&u32) -> bool>(x: u32);));
+    }
+
+    #[test]
+    fn closure_bound_with_extra_bounds() {
+        // The substitution must reach the Fn bound's arguments even when the
+        // where clause carries additional bounds after the Fn bound
+        check_substitute_generics(
+            quote!(type Item = u32;),
+            quote!(fn foo<F>(x: u32) where F: Fn(&Self::Item) -> bool + Send;),
+            format_ident!("Foo"),
+            quote!(fn foo<F>(x: u32) where F: Fn(&u32) -> bool + Send;));
+    }
+
+    #[test]
+    fn unrelated_where_clause_untouched() {
+        check_substitute_generics(
+            quote!(type T = u32;),
+            quote!(fn foo<F, G>(x: u32) where F: Fn(u32) -> bool, G: Clone;),
+            format_ident!("Foo"),
+            quote!(fn foo<F, G>(x: u32) where F: Fn(u32) -> bool, G: Clone;));
     }
 
     #[test]
