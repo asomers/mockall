@@ -62,3 +62,6 @@ tracing = "0.1.35"
 name = "serde"
 path = "examples/serde.rs"
 crate-type = ["lib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("multics"))'] }
