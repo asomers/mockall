@@ -1,4 +1,10 @@
 // vim: tw=80
+//! Mock a C-ABI variadic function.
+// 
+//  Mockall can correctly generate code to mock such a function using any
+//  supported Rust version.  However, Rust can only execute such code using
+//  version 1.99.0 or later.  Hence, this test is restricted to the "nightly"
+//  feature.
 #![deny(warnings)]
 
 #[cfg(feature = "nightly")]
