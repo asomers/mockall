@@ -14,7 +14,8 @@ use syn::{
 use crate::{
     AttrFormatter,
     mock_function::{self, MockFunction},
-    compile_error
+    compile_error,
+    unwrap_group,
 };
 
 pub(crate) struct MockTrait {
@@ -72,9 +73,9 @@ impl MockTrait {
             Path::from(format_ident!("__mockall_invalid"))
         };
         let ss_name = MockTrait::ss_name_priv(&trait_path);
-        let self_path = match *impl_.self_ty {
-            Type::Path(mut type_path) =>
-                type_path.path.segments.pop().unwrap().into_value(),
+        let self_path = match unwrap_group(&impl_.self_ty) {
+            Type::Path(type_path) =>
+                type_path.path.segments.last().unwrap().clone(),
             x => {
                 compile_error(x.span(),
                     "mockall_derive only supports mocking traits and structs");
