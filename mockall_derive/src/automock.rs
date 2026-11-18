@@ -138,7 +138,7 @@ impl Attrs {
             }
             Type::Path(path) => {
                 if let Some(ref qself) = path.qself {
-                    let qp = if let Type::Path(p) = qself.ty.as_ref() {
+                    let qp = if let Type::Path(p) = unwrap_group(qself.ty.as_ref()) {
                         &p.path
                     } else {
                         panic!("QSelf's type isn't a path?")
@@ -209,14 +209,14 @@ impl Attrs {
                                    traitname: &Ident)
     {
         if let TypeParamBound::Trait(t) = bound {
-            match self.get_path(&t.path) {
+            match self.get_path(&t.path).as_ref().map(unwrap_group) {
                 None => {
                     for seg in t.path.segments.iter_mut() {
                         self.substitute_path_segment(seg, traitname);
                     }
                 },
                 Some(Type::Path(type_path)) => {
-                    t.path = type_path.path;
+                    t.path = type_path.path.clone();
                 },
                 Some(_) => {
                     compile_error(t.path.span(),
