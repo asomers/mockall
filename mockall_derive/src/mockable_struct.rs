@@ -18,6 +18,8 @@ use crate::{
     dewhereselfify,
     find_ident_from_path,
     gen_mock_ident,
+    unwrap_group,
+    unwrap_group_mut,
     AttrFormatter,
 };
 
@@ -69,16 +71,18 @@ fn add_lifetime_parameters(sig: &mut Signature) {
         match ty {
             Type::Array(ta) => add_to_type(generics, var, ta.elem.as_mut()),
             Type::BareFn(_) => (),
+            Type::Group(tg) => add_to_type(generics, var, tg.elem.as_mut()),
             Type::ImplTrait(_) => (),
+            Type::Paren(tp) => add_to_type(generics, var, tp.elem.as_mut()),
             Type::Path(_) => (),
             Type::Ptr(_) => (),
             Type::Reference(tr) => {
-                match tr.elem.as_mut() {
+                match unwrap_group_mut(tr.elem.as_mut()) {
                     Type::Paren(tp) => {
-                        if let Type::TraitObject(to) = tp.elem.as_mut() {
+                        if let Type::TraitObject(to) = unwrap_group_mut(tp.elem.as_mut()) {
                             add_to_trait_object(generics, var, to);
                         } else {
-                            add_to_type(generics, var, tr.elem.as_mut());
+                            add_to_type(generics, var, tp.elem.as_mut());
                         }
                     },
                     Type::TraitObject(to) => {
@@ -86,12 +90,13 @@ fn add_lifetime_parameters(sig: &mut Signature) {
                         // We need to wrap it in a Paren.  Otherwise it won't be
                         // syntactically valid after we add a lifetime bound,
                         // due to a "ambiguous `+` in a type" error
+                        let to = to.clone();
                         *tr.elem = Type::Paren(TypeParen {
                             paren_token: token::Paren::default(),
-                            elem: Box::new(Type::TraitObject(to.clone()))
+                            elem: Box::new(Type::TraitObject(to))
                         });
                     },
-                    _ => add_to_type(generics, var, tr.elem.as_mut()),
+                    other => add_to_type(generics, var, other),
                 }
             },
             Type::Slice(ts) => add_to_type(generics, var, ts.elem.as_mut()),
@@ -124,7 +129,7 @@ fn derive_debug() -> Attribute {
 
 /// Add "Mock" to the front of the named type
 fn mock_ident_in_type(ty: &mut Type) {
-    match ty {
+    match unwrap_group_mut(ty) {
         Type::Path(type_path) => {
             if type_path.path.segments.len() != 1 {
                 compile_error(type_path.path.span(),
@@ -242,7 +247,7 @@ fn mockable_trait(trait_: ItemTrait, name: &Ident, generics: &Generics)
 fn sanity_check_sig(sig: &Signature) {
     for arg in sig.inputs.iter() {
         if let FnArg::Typed(pt) = arg {
-            if let Type::ImplTrait(it) = pt.ty.as_ref() {
+            if let Type::ImplTrait(it) = unwrap_group(pt.ty.as_ref()) {
                 let bounds = &it.bounds;
                 let s = format!(
                     "Mockall does not support \"impl trait\" in argument position.  Use \"T: {}\" instead",
@@ -393,7 +398,7 @@ impl From<(Attrs, ItemTrait)> for MockableStruct {
 
 impl From<ItemImpl> for MockableStruct {
     fn from(mut item_impl: ItemImpl) -> MockableStruct {
-        let name = match &*item_impl.self_ty {
+        let name = match unwrap_group(&item_impl.self_ty) {
             Type::Path(type_path) => {
                 let n = find_ident_from_path(&type_path.path).0;
                 let self_generics = &type_path.path.segments.last().unwrap().arguments;
@@ -650,6 +655,102 @@ mod add_lifetime_parameters {
         add_lifetime_parameters(&mut meth.sig);
         assert_eq!(
             quote!(fn foo(&self, x: &(dyn T + 'static));).to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn group_value() {
+        let mut meth: TraitItemFn = parse2(quote!(
+            fn foo(&self, x: u32);
+        )).unwrap();
+        if let FnArg::Typed(pt) = meth.sig.inputs.last_mut().unwrap() {
+            let inner = (*pt.ty).clone();
+            *pt.ty = Type::Group(TypeGroup {
+                group_token: token::Group::default(),
+                elem: Box::new(inner),
+            });
+        }
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo(&self, x: u32);).to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn group_reference_trait_object() {
+        let mut meth: TraitItemFn = parse2(quote!(
+            fn foo(&self, x: &dyn T);
+        )).unwrap();
+        if let FnArg::Typed(pt) = meth.sig.inputs.last_mut().unwrap() {
+            let inner = (*pt.ty).clone();
+            *pt.ty = Type::Group(TypeGroup {
+                group_token: token::Group::default(),
+                elem: Box::new(inner),
+            });
+        }
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: &(dyn T + '__mockall_x));)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn reference_to_group_trait_object() {
+        let mut meth: TraitItemFn = parse2(quote!(
+            fn foo(&self, x: &dyn T);
+        )).unwrap();
+        if let FnArg::Typed(pt) = meth.sig.inputs.last_mut().unwrap() {
+            if let Type::Reference(tr) = pt.ty.as_mut() {
+                let inner = (*tr.elem).clone();
+                *tr.elem = Type::Group(TypeGroup {
+                    group_token: token::Group::default(),
+                    elem: Box::new(inner),
+                });
+            }
+        }
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: &(dyn T + '__mockall_x));)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn reference_to_group_paren_trait_object() {
+        let mut meth: TraitItemFn = parse2(quote!(
+            fn foo(&self, x: &(dyn T));
+        )).unwrap();
+        if let FnArg::Typed(pt) = meth.sig.inputs.last_mut().unwrap() {
+            if let Type::Reference(tr) = pt.ty.as_mut() {
+                let inner = (*tr.elem).clone();
+                *tr.elem = Type::Group(TypeGroup {
+                    group_token: token::Group::default(),
+                    elem: Box::new(inner),
+                });
+            }
+        }
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: &(dyn T + '__mockall_x));)
+                .to_string(),
+            quote!(#meth).to_string()
+        );
+    }
+
+    #[test]
+    fn top_level_paren() {
+        let mut meth: TraitItemFn = parse2(quote!(
+            fn foo(&self, x: (&dyn T));
+        )).unwrap();
+        add_lifetime_parameters(&mut meth.sig);
+        assert_eq!(
+            quote!(fn foo<'__mockall_x>(&self, x: (&(dyn T + '__mockall_x)));)
+                .to_string(),
             quote!(#meth).to_string()
         );
     }

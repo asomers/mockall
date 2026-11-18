@@ -25,6 +25,8 @@ use crate::{
     staticize,
     supersuperfy,
     supersuperfy_generics,
+    unwrap_group,
+    unwrap_group_mut,
 };
 
 /// Convert a trait object reference into a reference to a Boxed trait
@@ -33,8 +35,8 @@ use crate::{
 ///
 /// Returns `true` if it was necessary to box the type.
 fn dedynify(ty: &mut Type) -> bool {
-    if let Type::Reference(ref mut tr) = ty {
-        if let Type::TraitObject(ref tto) = tr.elem.as_ref() {
+    if let Type::Reference(ref mut tr) = unwrap_group_mut(ty) {
+        if let Type::TraitObject(ref tto) = unwrap_group(tr.elem.as_ref()) {
             if let Some(lt) = &tr.lifetime {
                 if lt.ident == "static" {
                     // For methods that return 'static references, the user can
@@ -59,7 +61,7 @@ fn dedynify(ty: &mut Type) -> bool {
 /// Convert a special reference type like "&str" into a reference to its owned
 /// type like "&String".
 fn destrify(ty: &mut Type) {
-    if let Type::Reference(ref mut tr) = ty {
+    if let Type::Reference(ref mut tr) = unwrap_group_mut(ty) {
         if let Some(lt) = &tr.lifetime {
             if lt.ident == "static" {
                 // For methods that return 'static references, the user can
@@ -81,7 +83,7 @@ fn destrify(ty: &mut Type) {
         let osstr_ty: TypePath = parse2(quote!(OsStr)).unwrap();
         let osstring_ty: Type = parse2(quote!(::std::ffi::OsString)).unwrap();
 
-        match tr.elem.as_ref() {
+        match unwrap_group(tr.elem.as_ref()) {
             Type::Path(ref path) if *path == cstr_ty =>
                 *tr.elem = cstring_ty,
             Type::Path(ref path) if *path == osstr_ty =>
@@ -123,7 +125,7 @@ fn destrify(ty: &mut Type) {
 
 /// Return the owned version of the input.
 fn ownify(ty: &Type) -> Type {
-    if let Type::Reference(ref tr) = &ty {
+    if let Type::Reference(ref tr) = unwrap_group(ty) {
         if tr.lifetime.as_ref().is_some_and(|lt| lt.ident == "static")
         {
             // Just a static expectation
@@ -233,7 +235,7 @@ impl<'a> Builder<'a> {
                 let argname = (*pt.pat).clone();
                 assert!(!pat_is_self(&argname));
                 let aty = supersuperfy(&pt.ty, self.levels);
-                if let Type::Reference(ref tr) = aty {
+                if let Type::Reference(ref tr) = unwrap_group(&aty) {
                     predexprs.push(quote!(#argname));
                     predty.push((*tr.elem).clone());
                     let tr2 = Type::Reference(TypeReference {
@@ -279,7 +281,7 @@ impl<'a> Builder<'a> {
         let owned_output = ownify(&output);
         let mut return_ref = false;
         let mut return_refmut = false;
-        if let Type::Reference(ref tr) = &output {
+        if let Type::Reference(ref tr) = unwrap_group(&output) {
             #[allow(clippy::unnecessary_map_or)]
             if tr.lifetime.as_ref().map_or(true, |lt| lt.ident != "static")
             {

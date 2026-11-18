@@ -41,6 +41,38 @@ use crate::mockable_item::MockableItem;
 type HashMap<K, V> = std::collections::HashMap<K, V, BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
 type HashSet<K> = std::collections::HashSet<K, BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
 
+/// Peel away any `Type::Group` wrappers (such as those produced by
+/// `macro_rules!` `:ty` fragments).
+pub(crate) fn unwrap_group(mut ty: &Type) -> &Type {
+    while let Type::Group(tg) = ty {
+        ty = tg.elem.as_ref();
+    }
+    ty
+}
+
+pub(crate) fn unwrap_group_mut(mut ty: &mut Type) -> &mut Type {
+    while let Type::Group(tg) = ty {
+        ty = tg.elem.as_mut();
+    }
+    ty
+}
+
+fn ungroup_type(ty: &Type) -> Type {
+    match unwrap_group(ty) {
+        Type::Reference(tr) => Type::Reference(TypeReference {
+            and_token: tr.and_token,
+            lifetime: tr.lifetime.clone(),
+            mutability: tr.mutability,
+            elem: Box::new(ungroup_type(&tr.elem)),
+        }),
+        Type::Slice(ts) => Type::Slice(TypeSlice {
+            bracket_token: ts.bracket_token,
+            elem: Box::new(ungroup_type(&ts.elem)),
+        }),
+        other => other.clone(),
+    }
+}
+
 cfg_if! {
     // proc-macro2's Span::unstable method requires the nightly feature, and it
     // doesn't work in test mode.
@@ -170,7 +202,8 @@ fn concretize_args(gen: &Generics, sig: &Signature) ->
         if let FnArg::Typed(pt) = arg {
             let mut call_pt = pt.clone();
             demutify_arg(&mut call_pt);
-            if let Some((newty, _)) = hm.get(&pt.ty) {
+            let lookup_ty = ungroup_type(&pt.ty);
+            if let Some((newty, _)) = hm.get(&lookup_ty) {
                 FnArg::Typed(PatType {
                     attrs: Vec::default(),
                     pat: call_pt.pat,
@@ -198,10 +231,11 @@ fn concretize_args(gen: &Generics, sig: &Signature) ->
                 let mut pt2 = pt.clone();
                 demutify_arg(&mut pt2);
                 let pat = &pt2.pat;
+                let lookup_ty = ungroup_type(&pt.ty);
                 if pat_is_self(pat) {
                     None
-                } else if let Some((_, newbound)) = hm.get(&pt.ty) {
-                    if let Type::Reference(tr) = &*pt.ty {
+                } else if let Some((_, newbound)) = hm.get(&lookup_ty) {
+                    if let Type::Reference(tr) = &lookup_ty {
                         if let Type::Slice(_ts) = &*tr.elem {
                             // Assume _ts is the generic type or we wouldn't be
                             // here
@@ -213,7 +247,7 @@ fn concretize_args(gen: &Generics, sig: &Signature) ->
                         } else {
                             Some(quote!(#pat))
                         }
-                    } else if needs_muts.get(&pt.ty).cloned().unwrap_or(false) {
+                    } else if needs_muts.get(&lookup_ty).cloned().unwrap_or(false) {
                         Some(quote!(&mut #pat))
                     } else {
                         Some(quote!(&#pat))
@@ -230,7 +264,8 @@ fn concretize_args(gen: &Generics, sig: &Signature) ->
     let mut altsig = sig.clone();
     for arg in altsig.inputs.iter_mut() {
         if let FnArg::Typed(pt) = arg {
-            if needs_muts.get(&pt.ty).cloned().unwrap_or(false) {
+            let lookup_ty = ungroup_type(&pt.ty);
+            if needs_muts.get(&lookup_ty).cloned().unwrap_or(false) {
                 if let Pat::Ident(pi) = &mut *pt.pat {
                     pi.mutability = Some(Token![mut](pi.mutability.span()));
                 } else {
@@ -403,7 +438,8 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
         if let FnArg::Typed(pt) = arg {
             let mut immutable_pt = pt.clone();
             demutify_arg(&mut immutable_pt);
-            if let Some(newty) = hm.get(&pt.ty) {
+            let lookup_ty = ungroup_type(&pt.ty);
+            if let Some(newty) = hm.get(&lookup_ty) {
                 FnArg::Typed(PatType {
                     attrs: Vec::default(),
                     pat: immutable_pt.pat,
@@ -431,9 +467,10 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
                 let mut pt2 = pt.clone();
                 demutify_arg(&mut pt2);
                 let pat = &pt2.pat;
+                let lookup_ty = ungroup_type(&pt.ty);
                 if pat_is_self(pat) {
                     None
-                } else if hm.contains_key(&pt.ty) {
+                } else if hm.contains_key(&lookup_ty) {
                     Some(quote!(Box::new(#pat)))
                 } else {
                     Some(quote!(#pat))
@@ -448,7 +485,7 @@ fn declosurefy(gen: &Generics, args: &Punctuated<FnArg, Token![,]>) ->
 /// Replace any "impl trait" types with "Box<dyn trait>" or equivalent.
 fn deimplify(rt: &mut ReturnType) {
     if let ReturnType::Type(_, ty) = rt {
-        if let Type::ImplTrait(ref tit) = &**ty {
+        if let Type::ImplTrait(tit) = unwrap_group(ty).clone() {
             let needs_pin = tit.bounds
                 .iter()
                 .any(|tpb| {
@@ -477,10 +514,11 @@ fn deimplify(rt: &mut ReturnType) {
 /// Remove any generics that place constraints on Self.
 fn dewhereselfify(generics: &mut Generics) {
     if let Some(ref mut wc) = &mut generics.where_clause {
+        let self_ty: Type = parse2(quote!(Self)).unwrap();
         let new_predicates = wc.predicates.iter()
             .filter(|wp| match wp {
                 WherePredicate::Type(pt) => {
-                    pt.bounded_ty != parse2(quote!(Self)).unwrap()
+                    unwrap_group(&pt.bounded_ty) != &self_ty
                 },
                 _ => true
             }).cloned()
@@ -1927,6 +1965,21 @@ mod deimplify {
             quote!(-> impl Foo + Send),
             quote!(-> Box<dyn Foo + Send>)
         );
+    }
+
+    #[test]
+    fn group_impl_trait() {
+        let inner: Type = parse2(quote!(impl Foo)).unwrap();
+        let mut rt = ReturnType::Type(
+            Default::default(),
+            Box::new(Type::Group(TypeGroup {
+                group_token: token::Group::default(),
+                elem: Box::new(inner),
+            })),
+        );
+        let expected: ReturnType = parse2(quote!(-> Box<dyn Foo>)).unwrap();
+        deimplify(&mut rt);
+        assert_eq!(quote!(#rt).to_string(), quote!(#expected).to_string());
     }
 }
 
