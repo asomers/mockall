@@ -1,4 +1,6 @@
 // vim: tw=80
+#![allow(clippy::test_attr_in_doctest)] //  Documenting how to write unit tests
+                                        //  is kinda the whole point
 //! A powerful mock object library for Rust.
 //!
 //! Mockall provides tools to create mock versions of almost any trait
